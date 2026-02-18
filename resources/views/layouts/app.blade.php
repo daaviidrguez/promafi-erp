@@ -12,6 +12,8 @@
 
     @include('layouts.partials.sidebar')
 
+    <div class="sidebar-overlay" onclick="toggleSidebarMobile()"></div>
+
     <div class="main-content">
 
         {{-- ===== HEADER ===== --}}

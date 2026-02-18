@@ -1,0 +1,340 @@
+@extends('layouts.app')
+
+@section('title', 'Configuración de Empresa')
+@section('page-title', '⚙️ Configuración de Empresa')
+@section('page-subtitle', 'Datos fiscales y configuración del sistema')
+
+@php
+$breadcrumbs = [
+    ['title' => 'Configuración de Empresa']
+];
+@endphp
+
+@section('content')
+
+<form method="POST" action="{{ route('empresa.update') }}" enctype="multipart/form-data">
+    @csrf
+    @method('PUT')
+
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+
+        {{-- Columna izquierda --}}
+        <div>
+
+            {{-- Datos Fiscales --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🏛️ Datos Fiscales</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">RFC <span class="req">*</span></label>
+                            <input type="text" name="rfc" id="rfc" class="form-control text-mono"
+                                   value="{{ old('rfc', $empresa->rfc) }}"
+                                   maxlength="12" required style="text-transform: uppercase;">
+                            <span class="form-hint">12 caracteres — Ej: ABC123456XYZ</span>
+                            @error('rfc')
+                                <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
+                            @enderror
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Régimen Fiscal <span class="req">*</span></label>
+                            <select name="regimen_fiscal" class="form-control" required>
+                                <option value="">Seleccionar...</option>
+                                @foreach([
+                                    '601' => '601 - General de Ley Personas Morales',
+                                    '603' => '603 - Personas Morales sin Fines Lucrativos',
+                                    '605' => '605 - Sueldos y Salarios',
+                                    '606' => '606 - Arrendamiento',
+                                    '612' => '612 - Personas Físicas con Act. Empresariales',
+                                    '621' => '621 - Incorporación Fiscal',
+                                    '626' => '626 - Régimen Simplificado de Confianza',
+                                ] as $val => $label)
+                                <option value="{{ $val }}"
+                                    {{ old('regimen_fiscal', $empresa->regimen_fiscal) == $val ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Razón Social <span class="req">*</span></label>
+                        <input type="text" name="razon_social" class="form-control"
+                               value="{{ old('razon_social', $empresa->razon_social) }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nombre Comercial</label>
+                        <input type="text" name="nombre_comercial" class="form-control"
+                               value="{{ old('nombre_comercial', $empresa->nombre_comercial) }}">
+                    </div>
+                </div>
+            </div>
+
+            {{-- Domicilio Fiscal --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📍 Domicilio Fiscal</div>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label class="form-label">Calle</label>
+                            <input type="text" name="calle" class="form-control"
+                                   value="{{ old('calle', $empresa->calle) }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">No. Ext.</label>
+                            <input type="text" name="numero_exterior" class="form-control"
+                                   value="{{ old('numero_exterior', $empresa->numero_exterior) }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">No. Int.</label>
+                            <input type="text" name="numero_interior" class="form-control"
+                                   value="{{ old('numero_interior', $empresa->numero_interior) }}">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Colonia</label>
+                            <input type="text" name="colonia" class="form-control"
+                                   value="{{ old('colonia', $empresa->colonia) }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Código Postal <span class="req">*</span></label>
+                            <input type="text" name="codigo_postal" class="form-control"
+                                   value="{{ old('codigo_postal', $empresa->codigo_postal) }}"
+                                   maxlength="5" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Municipio</label>
+                            <input type="text" name="municipio" class="form-control"
+                                   value="{{ old('municipio', $empresa->municipio) }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Estado</label>
+                            <input type="text" name="estado" class="form-control"
+                                   value="{{ old('estado', $empresa->estado) }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Datos bancarios --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🏦 Datos Bancarios</div>
+                </div>
+                <div class="card-body">
+
+                    <div class="form-group">
+                        <label class="form-label">Banco</label>
+                        <input type="text" name="banco" class="form-control"
+                            value="{{ old('banco', $empresa->banco) }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Número de Cuenta</label>
+                        <input type="text" name="numero_cuenta" class="form-control"
+                            value="{{ old('numero_cuenta', $empresa->numero_cuenta) }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">CLABE</label>
+                        <input type="text" name="clabe" class="form-control"
+                            value="{{ old('clabe', $empresa->clabe) }}">
+                    </div>
+
+                </div>
+            </div>
+
+            {{-- Contacto --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📞 Contacto</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control"
+                                   value="{{ old('email', $empresa->email) }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Teléfono</label>
+                            <input type="text" name="telefono" class="form-control"
+                                   value="{{ old('telefono', $empresa->telefono) }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        {{-- Columna derecha --}}
+        <div>
+            
+        {{-- Identidad Visual --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🖼 Identidad Visual</div>
+                </div>
+                <div class="card-body">
+
+                    @if($empresa->logo_path)
+                        <div style="margin-bottom:12px;">
+                            <img src="{{ asset('storage/'.$empresa->logo_path) }}"
+                                style="max-height:80px;">
+                        </div>
+                    @endif
+
+                    <div class="form-group">
+                        <label class="form-label">Logo</label>
+                        <input type="file" name="logo" class="form-control"
+                            accept="image/png,image/jpeg">
+                    </div>
+
+                </div>
+            </div>
+
+            {{-- Configuración de Facturación --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🧾 Facturación</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label">Serie de Factura <span class="req">*</span></label>
+                        <input type="text" name="serie_factura" id="serie_factura" class="form-control"
+                               value="{{ old('serie_factura', $empresa->serie_factura ?? 'A') }}"
+                               maxlength="5" required style="text-transform: uppercase;">
+                        <span class="form-hint">Ej: A, B, F</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Folio Inicial <span class="req">*</span></label>
+                        <input type="number" name="folio_factura" class="form-control"
+                               value="{{ old('folio_factura', $empresa->folio_factura ?? 1) }}"
+                               min="1" required>
+                        <span class="form-hint">Siguiente folio a generar</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Configuración PAC --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔐 Timbrado (PAC)</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="pac_modo_prueba" value="1"
+                                   {{ old('pac_modo_prueba', $empresa->pac_modo_prueba) ? 'checked' : '' }}
+                                   style="width: 16px; height: 16px;">
+                            Modo Prueba (UUID fake)
+                        </label>
+                        <span class="form-hint">Activa para desarrollo sin consumir timbres</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Proveedor PAC</label>
+                        <select name="pac_nombre" class="form-control">
+                            <option value="">Seleccionar...</option>
+                            @foreach(['factel' => 'Factel', 'finkok' => 'Finkok', 'sw' => 'SW (SmartWeb)'] as $val => $label)
+                            <option value="{{ $val }}"
+                                {{ old('pac_nombre', $empresa->pac_nombre) == $val ? 'selected' : '' }}>
+                                {{ $label }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Usuario / API Key</label>
+                        <input type="text" name="pac_usuario" class="form-control"
+                               value="{{ old('pac_usuario', $empresa->pac_usuario) }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password / Token</label>
+                        <input type="password" name="pac_password" class="form-control"
+                               placeholder="••••••••">
+                        <span class="form-hint">Dejar en blanco para mantener el actual</span>
+                    </div>
+
+                    @if(!$empresa->pac_modo_prueba && $empresa->tienePACConfigurado())
+                    <form method="POST" action="{{ route('empresa.probar-pac') }}" style="margin-top: 12px;">
+                        @csrf
+                        <button type="submit" class="btn btn-success w-full">🔍 Probar Conexión PAC</button>
+                    </form>
+                    @endif
+                </div>
+            </div>
+
+            {{-- Certificados SAT --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📜 Certificados SAT</div>
+                </div>
+                <div class="card-body">
+                    @if($empresa->tieneCertificados())
+                    <div class="alert alert-success" style="margin-bottom: 16px;">
+                        <span>✅</span>
+                        <div>
+                            <div class="fw-600">Certificados cargados</div>
+                            @if($empresa->certificado_vigencia)
+                                <div style="font-size: 12px;">
+                                    Vigencia: {{ $empresa->certificado_vigencia->format('d/m/Y') }}
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ route('empresa.verificar-certificados') }}" style="margin-bottom: 16px;">
+                        @csrf
+                        <button type="submit" class="btn btn-info w-full">🔍 Verificar Certificados</button>
+                    </form>
+                    @endif
+
+                    <div class="form-group">
+                        <label class="form-label">Certificado (.cer)</label>
+                        <input type="file" name="certificado_cer" class="form-control" accept=".cer">
+                        <span class="form-hint">Archivo .cer del SAT</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Llave Privada (.key)</label>
+                        <input type="file" name="certificado_key" class="form-control" accept=".key">
+                        <span class="form-hint">Archivo .key del SAT</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Contraseña del Certificado</label>
+                        <input type="password" name="certificado_password" class="form-control"
+                               placeholder="••••••••">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    {{-- Botones --}}
+    <div class="card">
+        <div class="card-body" style="display: flex; gap: 12px; justify-content: flex-end;">
+            <a href="{{ route('dashboard') }}" class="btn btn-light">Cancelar</a>
+            <button type="submit" class="btn btn-primary">✓ Guardar Configuración</button>
+        </div>
+    </div>
+
+</form>
+
+@endsection
+
+@push('scripts')
+<script>
+    document.getElementById('rfc').addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+    document.getElementById('serie_factura').addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+</script>
+@endpush

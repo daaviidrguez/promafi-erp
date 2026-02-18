@@ -1,5 +1,9 @@
 {{-- resources/views/layouts/partials/header.blade.php --}}
+
 <header class="header">
+
+{{-- FILA SUPERIOR --}}
+    <div class="header-top-row">
 
     {{-- Mobile toggle --}}
     <button class="mobile-menu-btn" onclick="toggleSidebarMobile()">☰</button>
@@ -25,19 +29,6 @@
     {{-- Acciones --}}
     <div class="header-actions">
 
-        {{-- BÚSQUEDA GLOBAL --}}
-        <div class="header-search">
-            <span class="header-search-icon">🔍</span>
-            <input type="text"
-                   class="header-search-input"
-                   placeholder="Buscar en el sistema..."
-                   id="globalSearch"
-                   autocomplete="off">
-
-            {{-- Resultados --}}
-            <div id="globalSearchResults" class="global-search-results"></div>
-        </div>
-
         {{-- Notificaciones --}}
         <button class="header-icon-btn" title="Notificaciones">
             🔔
@@ -55,7 +46,18 @@
             </div>
         </div>
     </div>
+</div>
 
+{{-- FILA INFERIOR (Search) --}}
+    <div class="header-search">
+        <span class="header-search-icon">🔍</span>
+        <input type="text"
+               class="header-search-input"
+               placeholder="Buscar en el sistema..."
+               id="globalSearch"
+               autocomplete="off">
+        <div id="globalSearchResults" class="global-search-results"></div>
+    </div>
 </header>
 
 {{-- Dropdown usuario --}}

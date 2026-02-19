@@ -1,80 +1,35 @@
 <?php
 
-namespace App\Http\Controllers\Web;
+namespace App\Models;
 
-use App\Http\Controllers\Controller;
-use App\Models\Cliente;
-use App\Models\ClienteContacto;
-use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
-class ClienteContactoController extends Controller
+class ClienteContacto extends Model
 {
-    public function create(Cliente $cliente)
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'cliente_id',
+        'nombre',
+        'puesto',
+        'departamento',
+        'email',
+        'telefono',
+        'celular',
+        'principal',
+        'activo',
+        'notas',
+    ];
+
+    protected $casts = [
+        'principal' => 'boolean',
+        'activo' => 'boolean',
+    ];
+
+    public function cliente()
     {
-        return view('cliente_contactos.create', compact('cliente'));
-    }
-
-    public function store(Request $request, Cliente $cliente)
-    {
-        $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'telefono' => 'nullable|string|max:15',
-            'celular' => 'nullable|string|max:15',
-            'puesto' => 'nullable|string|max:255',
-            'departamento' => 'nullable|string|max:255',
-            'principal' => 'boolean',
-            'activo' => 'boolean',
-            'notas' => 'nullable|string',
-        ]);
-
-        if (!empty($validated['principal'])) {
-            $cliente->contactos()->update(['principal' => false]);
-        }
-
-        $cliente->contactos()->create($validated);
-
-        return redirect()
-            ->route('clientes.show', $cliente)
-            ->with('success', 'Contacto agregado correctamente');
-    }
-
-    public function edit(Cliente $cliente, ClienteContacto $contacto)
-    {
-        return view('cliente_contactos.edit', compact('cliente', 'contacto'));
-    }
-
-    public function update(Request $request, Cliente $cliente, ClienteContacto $contacto)
-    {
-        $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'telefono' => 'nullable|string|max:15',
-            'celular' => 'nullable|string|max:15',
-            'puesto' => 'nullable|string|max:255',
-            'departamento' => 'nullable|string|max:255',
-            'principal' => 'boolean',
-            'activo' => 'boolean',
-            'notas' => 'nullable|string',
-        ]);
-
-        if (!empty($validated['principal'])) {
-            $cliente->contactos()->update(['principal' => false]);
-        }
-
-        $contacto->update($validated);
-
-        return redirect()
-            ->route('clientes.show', $cliente)
-            ->with('success', 'Contacto actualizado correctamente');
-    }
-
-    public function destroy(Cliente $cliente, ClienteContacto $contacto)
-    {
-        $contacto->delete();
-
-        return redirect()
-            ->route('clientes.show', $cliente)
-            ->with('success', 'Contacto eliminado correctamente');
+        return $this->belongsTo(Cliente::class);
     }
 }

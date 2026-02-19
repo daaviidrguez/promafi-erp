@@ -3,63 +3,78 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\ClienteContacto;
 use Illuminate\Http\Request;
 
 class ClienteContactoController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function create(Cliente $cliente)
     {
-        //
+        return view('cliente_contactos.create', compact('cliente'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function store(Request $request, Cliente $cliente)
     {
-        //
+        $validated = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'email' => 'nullable|email',
+            'telefono' => 'nullable|string|max:15',
+            'celular' => 'nullable|string|max:15',
+            'puesto' => 'nullable|string|max:255',
+            'departamento' => 'nullable|string|max:255',
+            'principal' => 'boolean',
+            'activo' => 'boolean',
+            'notas' => 'nullable|string',
+        ]);
+
+        if (!empty($validated['principal'])) {
+            $cliente->contactos()->update(['principal' => false]);
+        }
+
+        $cliente->contactos()->create($validated);
+
+        return redirect()
+            ->route('clientes.show', $cliente)
+            ->with('success', 'Contacto agregado correctamente');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function edit(Cliente $cliente, ClienteContacto $contacto)
     {
-        //
+        return view('cliente_contactos.edit', compact('cliente', 'contacto'));
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(Request $request, Cliente $cliente, ClienteContacto $contacto)
     {
-        //
+        $validated = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'email' => 'nullable|email',
+            'telefono' => 'nullable|string|max:15',
+            'celular' => 'nullable|string|max:15',
+            'puesto' => 'nullable|string|max:255',
+            'departamento' => 'nullable|string|max:255',
+            'principal' => 'boolean',
+            'activo' => 'boolean',
+            'notas' => 'nullable|string',
+        ]);
+
+        if (!empty($validated['principal'])) {
+            $cliente->contactos()->update(['principal' => false]);
+        }
+
+        $contacto->update($validated);
+
+        return redirect()
+            ->route('clientes.show', $cliente)
+            ->with('success', 'Contacto actualizado correctamente');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function destroy(Cliente $cliente, ClienteContacto $contacto)
     {
-        //
-    }
+        $contacto->delete();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return redirect()
+            ->route('clientes.show', $cliente)
+            ->with('success', 'Contacto eliminado correctamente');
     }
 }

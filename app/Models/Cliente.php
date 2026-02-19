@@ -49,6 +49,21 @@ class Cliente extends Model
         'activo' => 'boolean',
     ];
 
+     /**
+     * Relación con contactos del cliente
+     */
+    public function contactos()
+    {
+        return $this->hasMany(ClienteContacto::class);
+    }
+
+    public function contactoPrincipal()
+    {
+        return $this->hasOne(ClienteContacto::class)
+                    ->where('principal', true)
+                    ->where('activo', true);
+    }
+
     /**
      * Relación con Facturas
      */

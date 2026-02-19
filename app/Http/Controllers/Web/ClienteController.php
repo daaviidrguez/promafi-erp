@@ -65,9 +65,14 @@ class ClienteController extends Controller
      */
     public function show(Cliente $cliente)
     {
-        $cliente->load(['facturas' => function($q) {
-            $q->latest()->limit(10);
-        }]);
+        $cliente->load([
+            'facturas' => function($q) {
+                $q->latest()->limit(10);
+            },
+            'contactos' => function($q) {
+                $q->orderByDesc('principal');
+            }
+        ]);
 
         return view('clientes.show', compact('cliente'));
     }

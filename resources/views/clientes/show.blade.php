@@ -53,6 +53,76 @@ $breadcrumbs = [
             </div>
         </div>
 
+        {{-- Información contactos del cliente --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📇 Contactos del Cliente</div>
+                <a href="{{ route('clientes.contactos.create', $cliente) }}"
+                class="btn btn-primary btn-sm">➕ Nuevo</a>
+            </div>
+
+            @if($cliente->contactos->count())
+                <div class="table-container" style="border:none; box-shadow:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Puesto</th>
+                                <th>Email</th>
+                                <th>Celular</th>
+                                <th class="td-center">Estado</th>
+                                <th class="td-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($cliente->contactos as $contacto)
+                                <tr>
+                                    <td>
+                                        {{ $contacto->nombre }}
+                                        @if($contacto->principal)
+                                            <span class="badge badge-success">Principal</span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $contacto->puesto ?? '—' }}</td>
+                                    <td>{{ $contacto->email ?? '—' }}</td>
+                                    <td>{{ $contacto->celular ?? '—' }}</td>
+                                    <td class="td-center">
+                                        @if($contacto->activo)
+                                            <span class="badge badge-success">Activo</span>
+                                        @else
+                                            <span class="badge badge-danger">Inactivo</span>
+                                        @endif
+                                    </td>
+                                    <td class="td-center">
+                                        <a href="{{ route('clientes.contactos.edit', [$cliente, $contacto]) }}"
+                                        class="btn btn-light btn-sm">✏️</a>
+                                        <form method="POST"
+                                            action="{{ route('clientes.contactos.destroy', [$cliente, $contacto]) }}"
+                                            style="display:inline;">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="btn btn-danger btn-sm"
+                                                    onclick="return confirm('¿Eliminar contacto?')">
+                                                🗑
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="card-body">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👤</div>
+                        <div class="empty-state-title">Sin contactos registrados</div>
+                    </div>
+                </div>
+            @endif
+        </div>
+
         {{-- Facturas Recientes --}}
         <div class="card">
             <div class="card-header">

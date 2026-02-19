@@ -10,6 +10,7 @@ use App\Http\Controllers\Web\GlobalSearchController;
 use App\Http\Controllers\Web\PerfilController;
 use App\Http\Controllers\Web\CotizacionController;
 use App\Http\Controllers\Web\ClienteController;
+use App\Http\Controllers\Web\ClienteContactoController;
 use App\Http\Controllers\Web\ProductoController;
 use App\Http\Controllers\Web\CategoriaProductoController;
 use App\Http\Controllers\Web\FacturaController;
@@ -87,6 +88,7 @@ Route::middleware('auth')->group(function () {
 
     // ───── CLIENTES ───── ✅
     Route::resource('clientes', ClienteController::class);
+    Route::resource('clientes.contactos', ClienteContactoController::class)->parameters(['contactos' => 'contacto']);
     
     // ───── PRODUCTOS ───── ✅
     Route::resource('productos', ProductoController::class);

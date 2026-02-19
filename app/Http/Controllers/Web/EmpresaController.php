@@ -39,7 +39,20 @@ class EmpresaController extends Controller
         // ===============================
         // DATOS GENERALES
         // ===============================
-        'rfc' => 'required|string|size:12|regex:/^[A-Z]{3,4}\d{6}[A-Z0-9]{3}$/',
+        'rfc' => [
+            'required',
+            'string',
+            'between:12,13',
+            function ($attribute, $value, $fail) {
+                $rfc = strtoupper(preg_replace('/\s/', '', $value));
+                $len = strlen($rfc);
+                $moral = $len === 12 && preg_match('/^[A-ZÑ&]{3}\d{6}[A-Z0-9]{3}$/', $rfc);
+                $fisica = $len === 13 && preg_match('/^[A-ZÑ&]{4}\d{6}[A-Z0-9]{3}$/', $rfc);
+                if (!$moral && !$fisica) {
+                    $fail('El RFC debe ser 12 caracteres (persona moral) o 13 (persona física). Ej: XA1901231ABC o GODE901231ABC.');
+                }
+            },
+        ],
         'razon_social' => 'required|string|max:255',
         'nombre_comercial' => 'nullable|string|max:255',
         'regimen_fiscal' => 'required|string|max:3',

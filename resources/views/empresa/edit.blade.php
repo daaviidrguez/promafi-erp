@@ -32,8 +32,9 @@ $breadcrumbs = [
                             <label class="form-label">RFC <span class="req">*</span></label>
                             <input type="text" name="rfc" id="rfc" class="form-control text-mono"
                                    value="{{ old('rfc', $empresa->rfc) }}"
-                                   maxlength="12" required style="text-transform: uppercase;">
-                            <span class="form-hint">12 caracteres — Ej: ABC123456XYZ</span>
+                                   maxlength="13" required style="text-transform: uppercase;"
+                                   placeholder="12 (moral) o 13 (física) caracteres">
+                            <span class="form-hint">Persona moral: 12 caracteres (ej. XA1901231ABC). Persona física: 13 caracteres (ej. GODE901231ABC).</span>
                             @error('rfc')
                                 <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
                             @enderror

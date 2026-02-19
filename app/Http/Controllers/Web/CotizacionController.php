@@ -86,9 +86,10 @@ class CotizacionController extends Controller
         $cotizacion = null;
         $folio = Cotizacion::generarFolio();
 
-        // Modo edición
+        // Modo edición: cargar cotización con detalles ordenados para repoblar el formulario
         if ($request->has('id')) {
-            $cotizacion = Cotizacion::with('detalles.producto')->findOrFail($request->id);
+            $cotizacion = Cotizacion::with(['detalles' => fn ($q) => $q->orderBy('orden'), 'detalles.producto'])
+                ->findOrFail($request->id);
 
             if (!$cotizacion->puedeEditarse()) {
                 return redirect()->route('cotizaciones.show', $cotizacion->id)
@@ -464,7 +465,21 @@ class CotizacionController extends Controller
                     ->orWhere('codigo', 'like', "%{$search}%");
             })
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'precio_venta', 'tasa_iva']);
+            ->get(['id', 'codigo', 'nombre', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto']);
+
+        // Coherencia con datos fiscales: Exento → tasa_iva null para cotización/factura
+        $productos = $productos->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'codigo' => $p->codigo,
+                'nombre' => $p->nombre,
+                'precio_venta' => $p->precio_venta,
+                'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
+                'tipo_factor' => $p->tipo_factor ?? 'Tasa',
+                'objeto_impuesto' => $p->objeto_impuesto ?? '02',
+                'tipo_impuesto' => $p->tipo_impuesto ?? '002',
+            ];
+        });
 
         return response()->json($productos);
     }

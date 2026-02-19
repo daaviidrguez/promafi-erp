@@ -283,34 +283,50 @@ $breadcrumbs = [
 
 @endsection
 
+@php
+    $detallesIniciales = [];
+    if (isset($cotizacion) && $cotizacion->detalles->count() > 0) {
+        $detallesIniciales = $cotizacion->detalles->sortBy('orden')->values()->map(function ($d) {
+            return [
+                'id'        => $d->producto_id,
+                'codigo'    => $d->codigo ?? 'MANUAL',
+                'nombre'    => $d->descripcion ?? '',
+                'cantidad'  => (float) $d->cantidad,
+                'precio'    => (float) $d->precio_unitario,
+                'descuento' => (float) ($d->descuento_porcentaje ?? 0),
+                'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
+                'manual'    => (bool) $d->es_producto_manual,
+            ];
+        })->all();
+    }
+@endphp
+
 @push('scripts')
 <script>
 let productos = [];
 let timerCliente, timerProducto;
+const cotizacionDetallesIniciales = @json($detallesIniciales);
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Cargar productos existentes si es edición
-    @if($isEdit && $cotizacion->detalles->count())
-    @php
-        $detallesJS = $cotizacion->detalles->map(function($d) {
-            return [
-                'id'        => $d->producto_id,
-                'codigo'    => $d->codigo,
-                'nombre'    => $d->descripcion,
-                'cantidad'  => $d->cantidad,
-                'precio'    => $d->precio_unitario,
-                'descuento' => $d->descuento_porcentaje,
-                'tasa_iva'  => $d->tasa_iva,
-                'manual'    => $d->es_producto_manual,
-            ];
-        })->values()->all();
-    @endphp
-    productos = @json($detallesJS);
-    renderProductos();
-    @endif
+    // Cargar productos existentes al editar (misma coherencia que al crear)
+    if (Array.isArray(cotizacionDetallesIniciales) && cotizacionDetallesIniciales.length > 0) {
+        productos = cotizacionDetallesIniciales.map(function (d) {
+            return {
+                id: d.id,
+                codigo: d.codigo,
+                nombre: d.nombre,
+                cantidad: d.cantidad,
+                precio: d.precio,
+                descuento: d.descuento,
+                tasa_iva: d.tasa_iva,
+                manual: d.manual,
+            };
+        });
+        renderProductos();
+    }
 
-    @if($isEdit && $cotizacion->tipo_venta === 'credito')
+    @if($isEdit && isset($cotizacion) && $cotizacion->tipo_venta === 'credito')
     document.getElementById('diasCreditoGroup').style.display = 'block';
     @endif
 

@@ -47,14 +47,21 @@ class ProductoController extends Controller
             'clave_sat' => 'required|string|max:8',
             'clave_unidad_sat' => 'required|string|max:3',
             'unidad' => 'required|string|max:20',
+            'objeto_impuesto' => 'required|in:01,02,03',
+            'tipo_impuesto' => 'nullable|string|max:3',
+            'tipo_factor' => 'required|in:Tasa,Exento',
+            'tasa_iva' => 'required|numeric|min:0|max:1',
             'precio_venta' => 'required|numeric|min:0',
             'costo' => 'nullable|numeric|min:0',
             'stock' => 'nullable|numeric|min:0',
             'stock_minimo' => 'nullable|numeric|min:0',
+            'controla_inventario' => 'boolean',
             'aplica_iva' => 'boolean',
         ]);
 
         $validated['activo'] = true;
+        $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
+        $validated['aplica_iva'] = ($validated['tipo_factor'] ?? 'Tasa') !== 'Exento';
 
         $producto = Producto::create($validated);
 
@@ -82,12 +89,23 @@ class ProductoController extends Controller
             'descripcion' => 'nullable|string',
             'categoria_id' => 'nullable|exists:categorias_productos,id',
             'clave_sat' => 'required|string|max:8',
+            'clave_unidad_sat' => 'required|string|max:3',
+            'unidad' => 'required|string|max:20',
+            'objeto_impuesto' => 'required|in:01,02,03',
+            'tipo_impuesto' => 'nullable|string|max:3',
+            'tipo_factor' => 'required|in:Tasa,Exento',
+            'tasa_iva' => 'required|numeric|min:0|max:1',
             'precio_venta' => 'required|numeric|min:0',
             'costo' => 'nullable|numeric|min:0',
             'stock' => 'nullable|numeric|min:0',
+            'stock_minimo' => 'nullable|numeric|min:0',
+            'controla_inventario' => 'boolean',
+            'aplica_iva' => 'boolean',
             'activo' => 'boolean',
         ]);
 
+        $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
+        $validated['aplica_iva'] = ($validated['tipo_factor'] ?? 'Tasa') !== 'Exento';
         $producto->update($validated);
 
         return redirect()->route('productos.show', $producto->id)

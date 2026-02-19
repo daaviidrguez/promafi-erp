@@ -86,6 +86,37 @@ $breadcrumbs = [
                                    value="{{ old('unidad', 'Pieza') }}" required>
                         </div>
                     </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-top: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Objeto del impuesto <span class="req">*</span></label>
+                            <select name="objeto_impuesto" class="form-control" required>
+                                <option value="01" {{ old('objeto_impuesto', '02') == '01' ? 'selected' : '' }}>01 No objeto</option>
+                                <option value="02" {{ old('objeto_impuesto', '02') == '02' ? 'selected' : '' }}>02 Sí objeto</option>
+                                <option value="03" {{ old('objeto_impuesto', '02') == '03' ? 'selected' : '' }}>03 Sí objeto y no obligado al desglose</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo de impuesto</label>
+                            <select name="tipo_impuesto" class="form-control">
+                                <option value="002" selected>IVA</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo factor <span class="req">*</span></label>
+                            <select name="tipo_factor" id="tipo_factor_create" class="form-control" onchange="actualizarTasaCreate()">
+                                <option value="Tasa" {{ old('tipo_factor', 'Tasa') == 'Tasa' ? 'selected' : '' }}>Tasa</option>
+                                <option value="Exento" {{ old('tipo_factor') == 'Exento' ? 'selected' : '' }}>Exento</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tasa <span class="req">*</span></label>
+                            <select name="tasa_iva" id="tasa_iva_create" class="form-control" onchange="actualizarPrecioIva()">
+                                <option value="0.160000" {{ old('tasa_iva', '0.16') == '0.16' || old('tasa_iva') == '0.160000' ? 'selected' : '' }}>0.160000 (16%)</option>
+                                <option value="0.080000" {{ old('tasa_iva') == '0.08' || old('tasa_iva') == '0.080000' ? 'selected' : '' }}>0.080000 (8%)</option>
+                                <option value="0.000000" {{ old('tasa_iva') == '0' || old('tasa_iva') == '0.000000' ? 'selected' : '' }}>0.000000 (0%)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -113,11 +144,11 @@ $breadcrumbs = [
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" name="aplica_iva" value="1"
+                            <input type="checkbox" name="aplica_iva" value="1" id="aplica_iva_create"
                                    {{ old('aplica_iva', true) ? 'checked' : '' }}
                                    style="width: 16px; height: 16px;"
                                    onchange="actualizarPrecioIva()">
-                            Aplica IVA (16%)
+                            Aplica IVA (según tasa del producto)
                         </label>
                     </div>
                     <div class="totales-panel">
@@ -179,14 +210,30 @@ $breadcrumbs = [
         this.value = this.value.toUpperCase();
     });
 
+    function actualizarTasaCreate() {
+        const tipoFactor = document.getElementById('tipo_factor_create').value;
+        const tasaSelect = document.getElementById('tasa_iva_create');
+        if (tipoFactor === 'Exento') {
+            tasaSelect.value = '0.000000';
+            tasaSelect.disabled = true;
+        } else {
+            tasaSelect.disabled = false;
+        }
+        actualizarPrecioIva();
+    }
+
     function actualizarPrecioIva() {
         const precio  = parseFloat(document.getElementById('precio_venta').value) || 0;
-        const aplica  = document.querySelector('[name="aplica_iva"]').checked;
-        const total   = aplica ? precio * 1.16 : precio;
+        const aplica  = document.getElementById('aplica_iva_create').checked;
+        const tipoFactor = document.getElementById('tipo_factor_create').value;
+        const tasaVal = document.getElementById('tasa_iva_create').value;
+        const tasa = (tipoFactor === 'Exento' || !aplica) ? 0 : parseFloat(tasaVal) || 0;
+        const total = precio * (1 + tasa);
         document.getElementById('precioConIvaDisplay').textContent =
             '$' + total.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
     }
 
+    actualizarTasaCreate();
     actualizarPrecioIva();
 </script>
 @endpush

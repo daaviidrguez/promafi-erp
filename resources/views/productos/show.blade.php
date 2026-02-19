@@ -72,12 +72,33 @@ $breadcrumbs = [
                         <div class="info-value">{{ $producto->unidad }}</div>
                     </div>
                     <div class="info-row">
-                        <div class="info-label">IVA</div>
+                        <div class="info-label">Objeto del impuesto</div>
+                        <div class="info-value text-mono">
+                            @php
+                                $objetos = ['01' => '01 No objeto', '02' => '02 Sí objeto', '03' => '03 Sí objeto y no obligado al desglose'];
+                            @endphp
+                            {{ $objetos[$producto->objeto_impuesto ?? '02'] ?? $producto->objeto_impuesto }}
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Tipo de impuesto</div>
+                        <div class="info-value">IVA</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Tipo factor</div>
+                        <div class="info-value">{{ $producto->tipo_factor ?? 'Tasa' }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Tasa</div>
+                        <div class="info-value text-mono">{{ number_format((float)($producto->tasa_iva ?? 0), 6, '.', '') }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">IVA (resumen)</div>
                         <div style="margin-top: 4px;">
-                            @if($producto->aplica_iva)
-                                <span class="badge badge-success">✓ IVA {{ $producto->tasa_iva * 100 }}%</span>
+                            @if(($producto->tipo_factor ?? 'Tasa') === 'Exento' || !$producto->aplica_iva)
+                                <span class="badge badge-warning">Exento</span>
                             @else
-                                <span class="badge badge-warning">Sin IVA</span>
+                                <span class="badge badge-success">✓ IVA {{ number_format(($producto->tasa_iva ?? 0) * 100, 0) }}%</span>
                             @endif
                         </div>
                     </div>

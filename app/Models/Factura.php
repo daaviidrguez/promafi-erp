@@ -168,12 +168,18 @@ class Factura extends Model
     }
 
     /**
-     * Calcular IVA
+     * Calcular IVA (desde impuestos traslado por línea, o estimado si no hay)
      */
     public function calcularIVA(): float
     {
+        $iva = $this->detalles->sum(function ($d) {
+            return $d->impuestos->sum(fn ($i) => $i->importe ?? 0);
+        });
+        if ($iva > 0 || $this->detalles->count() === 0) {
+            return (float) $iva;
+        }
         $baseIva = $this->subtotal - $this->descuento;
-        return $baseIva * 0.16;
+        return round($baseIva * 0.16, 2);
     }
 
     /**

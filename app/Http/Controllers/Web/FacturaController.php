@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Factura;
 use App\Models\FacturaDetalle;
+use App\Models\FacturaImpuesto;
 use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\Empresa;
@@ -106,12 +107,11 @@ class FacturaController extends Controller
                 $importe = $cantidad * $valorUnitario;
                 $subtotal += $importe;
                 $descuentoTotal += $descuento;
-                
-                // Calcular IVA (si aplica)
+
                 $producto = isset($prod['producto_id']) ? Producto::find($prod['producto_id']) : null;
-                if ($producto && $producto->aplica_iva) {
-                    $baseIva = $importe - $descuento;
-                    $ivaTotal += $baseIva * $producto->tasa_iva;
+                $baseImpuesto = $importe - $descuento;
+                if ($producto && $producto->aplicaImpuestoTraslado()) {
+                    $ivaTotal += round($baseImpuesto * (float)$producto->tasa_iva, 2);
                 }
             }
 
@@ -149,16 +149,13 @@ class FacturaController extends Controller
                 'usuario_id' => auth()->id(),
             ]);
 
-            // Crear detalles
+            // Crear detalles e impuestos por línea (datos fiscales del producto)
             foreach ($validated['productos'] as $index => $prod) {
                 $producto = isset($prod['producto_id']) ? Producto::find($prod['producto_id']) : null;
-                
-                $cantidad = $prod['cantidad'];
-                $valorUnitario = $prod['valor_unitario'];
-                $descuento = $prod['descuento'] ?? 0;
-                $importe = $cantidad * $valorUnitario;
-                
-                FacturaDetalle::create([
+                $objetoImpuesto = $producto ? ($producto->objeto_impuesto ?? '02') : '02';
+                $baseImpuesto = $prod['cantidad'] * $prod['valor_unitario'] - ($prod['descuento'] ?? 0);
+
+                $detalle = FacturaDetalle::create([
                     'factura_id' => $factura->id,
                     'producto_id' => $prod['producto_id'] ?? null,
                     'clave_prod_serv' => $producto?->clave_sat ?? '01010101',
@@ -166,17 +163,32 @@ class FacturaController extends Controller
                     'unidad' => $producto?->unidad ?? 'Pieza',
                     'no_identificacion' => $producto?->codigo ?? null,
                     'descripcion' => $prod['descripcion'],
-                    'cantidad' => $cantidad,
-                    'valor_unitario' => $valorUnitario,
-                    'importe' => $importe,
-                    'descuento' => $descuento,
-                    'base_impuesto' => $importe - $descuento,
+                    'cantidad' => $prod['cantidad'],
+                    'valor_unitario' => $prod['valor_unitario'],
+                    'importe' => $prod['cantidad'] * $prod['valor_unitario'],
+                    'descuento' => $prod['descuento'] ?? 0,
+                    'base_impuesto' => $baseImpuesto,
+                    'objeto_impuesto' => $objetoImpuesto,
                     'orden' => $index,
                 ]);
 
-                // Descontar inventario
+                // Impuestos traslado (IVA) según datos fiscales del producto
+                if ($producto && in_array($objetoImpuesto, ['02', '03'], true)) {
+                    $tipoFactor = $producto->tipo_factor ?? 'Tasa';
+                    $tasa = (float)($producto->tasa_iva ?? 0);
+                    FacturaImpuesto::create([
+                        'factura_detalle_id' => $detalle->id,
+                        'tipo' => 'traslado',
+                        'impuesto' => $producto->tipo_impuesto ?? '002',
+                        'tipo_factor' => $tipoFactor,
+                        'tasa_o_cuota' => $tipoFactor === 'Tasa' ? $tasa : null,
+                        'base' => $baseImpuesto,
+                        'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
+                    ]);
+                }
+
                 if ($producto && $producto->controla_inventario) {
-                    $producto->descontarStock($cantidad);
+                    $producto->descontarStock($prod['cantidad']);
                 }
             }
 
@@ -219,7 +231,7 @@ class FacturaController extends Controller
      */
     public function show(Factura $factura)
     {
-        $factura->load(['cliente', 'detalles.producto', 'cuentaPorCobrar', 'usuario']);
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario']);
         return view('facturas.show', compact('factura'));
     }
 

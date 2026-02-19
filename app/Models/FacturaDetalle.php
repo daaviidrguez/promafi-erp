@@ -26,6 +26,7 @@ class FacturaDetalle extends Model
         'importe',
         'descuento',
         'base_impuesto',
+        'objeto_impuesto',
         'orden',
     ];
 

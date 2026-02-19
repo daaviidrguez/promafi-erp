@@ -161,7 +161,7 @@ $breadcrumbs = [
                             <span class="monto" id="descuentoDisplay">−$0.00</span>
                         </div>
                         <div class="totales-row">
-                            <span>IVA (16%)</span>
+                            <span>IVA</span>
                             <span class="monto" id="ivaDisplay">$0.00</span>
                         </div>
                         <div class="totales-row grand">
@@ -210,19 +210,21 @@ document.getElementById('cliente_id').addEventListener('change', function() {
 function agregarProducto() {
     document.getElementById('emptyProductos').style.display = 'none';
     const i = productoIndex++;
-    const opciones = catalogoProductos.map(p =>
-        `<option value="${p.id}" data-precio="${p.precio_venta}" data-nombre="${p.nombre}">${p.codigo} — ${p.nombre}</option>`
-    ).join('');
+    const opciones = catalogoProductos.map(p => {
+        const tasa = p.tipo_factor === 'Exento' ? 0 : (parseFloat(p.tasa_iva) || 0);
+        return `<option value="${p.id}" data-precio="${p.precio_venta}" data-nombre="${p.nombre}" data-tasa-iva="${tasa}">${p.codigo} — ${p.nombre}</option>`;
+    }).join('');
 
     const tr = document.createElement('tr');
     tr.id = `prod-${i}`;
     tr.innerHTML = `
         <td>
-            <select class="form-control" style="font-size: 13px; margin-bottom: 6px;"
+            <select class="form-control form-control-producto" style="font-size: 13px; margin-bottom: 6px;" data-row="${i}"
                     onchange="seleccionarProducto(${i}, this)">
                 <option value="">Seleccionar del catálogo...</option>
                 ${opciones}
             </select>
+            <input type="hidden" name="productos[${i}][producto_id]" class="input-producto-id" value="">
             <input type="text" name="productos[${i}][descripcion]"
                    placeholder="Descripción *" class="form-control" style="font-size: 13px;" required>
         </td>
@@ -256,8 +258,9 @@ function seleccionarProducto(i, select) {
     if (!select.value) return;
     const opt = select.options[select.selectedIndex];
     const row = document.getElementById(`prod-${i}`);
-    row.querySelector('[name*="[descripcion]"]').value      = opt.dataset.nombre;
-    row.querySelector('[name*="[valor_unitario]"]').value   = parseFloat(opt.dataset.precio).toFixed(2);
+    row.querySelector('[name*="[descripcion]"]').value        = opt.dataset.nombre;
+    row.querySelector('[name*="[valor_unitario]"]').value      = parseFloat(opt.dataset.precio).toFixed(2);
+    row.querySelector('.input-producto-id').value             = select.value;
     calcularTotales();
 }
 
@@ -272,24 +275,27 @@ function quitarProducto(i) {
 function fmt(n) { return '$' + n.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'); }
 
 function calcularTotales() {
-    let subtotal = 0, descuento = 0;
-    document.querySelectorAll('#productosContainer tr').forEach((tr, idx) => {
+    let subtotal = 0, descuento = 0, iva = 0;
+    document.querySelectorAll('#productosContainer tr').forEach((tr) => {
         const cantidad = parseFloat(tr.querySelector('[name*="[cantidad]"]')?.value) || 0;
         const precio   = parseFloat(tr.querySelector('[name*="[valor_unitario]"]')?.value) || 0;
         const desc     = parseFloat(tr.querySelector('[name*="[descuento]"]')?.value) || 0;
         const importe  = cantidad * precio;
         subtotal  += importe;
         descuento += desc;
+        const baseImpuesto = importe - desc;
+        const sel = tr.querySelector('select.form-control-producto');
+        const tasa = (sel && sel.value && sel.options[sel.selectedIndex]) ? parseFloat(sel.options[sel.selectedIndex].dataset.tasaIva || 0) : 0;
+        iva += baseImpuesto * tasa;
         const imp = tr.querySelector('[id^="importe-"]');
         if (imp) imp.textContent = fmt(importe);
     });
-    const iva   = (subtotal - descuento) * 0.16;
     const total = subtotal - descuento + iva;
     document.getElementById('subtotalDisplay').textContent  = fmt(subtotal);
     document.getElementById('descuentoDisplay').textContent = '−' + fmt(descuento);
     document.getElementById('ivaDisplay').textContent       = fmt(iva);
-    document.getElementById('totalDisplay').textContent     = fmt(total);
-    document.getElementById('rowDescuento').style.display   = descuento > 0 ? 'flex' : 'none';
+    document.getElementById('totalDisplay').textContent      = fmt(total);
+    document.getElementById('rowDescuento').style.display     = descuento > 0 ? 'flex' : 'none';
 }
 
 document.getElementById('formFactura').addEventListener('submit', function(e) {

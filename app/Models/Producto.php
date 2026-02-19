@@ -18,6 +18,9 @@ class Producto extends Model
         'clave_sat',
         'clave_unidad_sat',
         'unidad',
+        'objeto_impuesto',
+        'tipo_impuesto',
+        'tipo_factor',
         'costo',
         'precio_venta',
         'precio_mayoreo',
@@ -59,15 +62,26 @@ class Producto extends Model
     }
 
     /**
-     * Calcular precio con IVA
+     * Calcular precio con IVA (según tipo_factor y tasa_iva)
      */
     public function getPrecioConIvaAttribute(): float
     {
-        if (!$this->aplica_iva) {
+        if ($this->tipo_factor === 'Exento' || !$this->aplica_iva) {
             return (float) $this->precio_venta;
         }
+        $tasa = (float) ($this->tasa_iva ?? 0);
+        return (float) ($this->precio_venta * (1 + $tasa));
+    }
 
-        return (float) ($this->precio_venta * (1 + $this->tasa_iva));
+    /**
+     * Si el concepto es objeto de impuesto y tiene tasa (no exento)
+     */
+    public function aplicaImpuestoTraslado(): bool
+    {
+        if (!in_array($this->objeto_impuesto ?? '02', ['02', '03'], true)) {
+            return false;
+        }
+        return ($this->tipo_factor ?? 'Tasa') === 'Tasa' && (float)($this->tasa_iva ?? 0) > 0;
     }
 
     /**

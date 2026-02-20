@@ -85,6 +85,7 @@ class EmpresaController extends Controller
         // IDENTIDAD / BANCO
         // ===============================
         'logo' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
+        'qr_sat' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
         'banco' => 'nullable|string|max:255',
         'numero_cuenta' => 'nullable|string|max:50',
         'clabe' => 'nullable|string|max:18',
@@ -119,6 +120,18 @@ class EmpresaController extends Controller
     // CONVERTIR CHECKBOX BOOLEAN
     // ===============================
     $validated['pac_modo_prueba'] = $request->has('pac_modo_prueba');
+
+    // Etiqueta completa del régimen fiscal (para PDF: "626 - Régimen Simplificado de Confianza")
+    $regimenEtiquetas = [
+        '601' => '601 - General de Ley Personas Morales',
+        '603' => '603 - Personas Morales sin Fines Lucrativos',
+        '605' => '605 - Sueldos y Salarios',
+        '606' => '606 - Arrendamiento',
+        '612' => '612 - Personas Físicas con Act. Empresariales',
+        '621' => '621 - Incorporación Fiscal',
+        '626' => '626 - Régimen Simplificado de Confianza',
+    ];
+    $validated['regimen_fiscal_etiqueta'] = $regimenEtiquetas[$validated['regimen_fiscal']] ?? $validated['regimen_fiscal'];
 
     // ===============================
     // CERTIFICADO .CER (privado)
@@ -159,6 +172,18 @@ class EmpresaController extends Controller
 
         $validated['logo_path'] =
             $request->file('logo')
+                ->store('empresa', 'public');
+    }
+
+    // ===============================
+    // QR IDENTIFICACIÓN SAT (público)
+    // ===============================
+    if ($request->hasFile('qr_sat')) {
+        if ($empresa->qr_sat_path) {
+            Storage::disk('public')->delete($empresa->qr_sat_path);
+        }
+        $validated['qr_sat_path'] =
+            $request->file('qr_sat')
                 ->store('empresa', 'public');
     }
 

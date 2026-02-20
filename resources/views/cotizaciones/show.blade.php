@@ -75,7 +75,8 @@ $breadcrumbs = [
                         <tr>
                             <th>Código</th>
                             <th>Descripción</th>
-                            <th class="td-center">Cantidad</th>
+                            <th class="td-center">Cant.</th>
+                            <th class="td-center">Unidad</th>
                             <th class="td-right">Precio Unit.</th>
                             <th class="td-center">Desc %</th>
                             <th class="td-center">IVA</th>
@@ -87,7 +88,7 @@ $breadcrumbs = [
                         @foreach($cotizacion->detalles as $d)
                         <tr>
                             <td>
-                                <span class="producto-row-code">{{ $d->codigo }}</span>
+                                <span class="producto-row-code">{{ $d->codigo === 'MANUAL' ? '—' : ($d->codigo ?? '—') }}</span>
                             </td>
                             <td>
                                 <div class="fw-600">{{ $d->descripcion }}</div>
@@ -96,6 +97,7 @@ $breadcrumbs = [
                                 @endif
                             </td>
                             <td class="td-center fw-600">{{ number_format($d->cantidad, 2) }}</td>
+                            <td class="td-center">{{ $d->unidad ?? $d->producto->unidad ?? 'PZA' }}</td>
                             <td class="td-right text-mono">${{ number_format($d->precio_unitario, 2) }}</td>
                             <td class="td-center">
                                 @if($d->descuento_porcentaje > 0)

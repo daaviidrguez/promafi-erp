@@ -10,7 +10,7 @@ class PDFService
 {
     public function generarDocumentoPDF($modelo, string $tipo): string
     {
-        $modelo->loadMissing(['detalles', 'cliente', 'usuario']);
+        $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario']);
         $empresa = Empresa::principal();
 
         $directory = storage_path('app/documentos/' . $tipo . '/' . now()->format('Y/m'));

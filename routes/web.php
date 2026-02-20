@@ -17,6 +17,12 @@ use App\Http\Controllers\Web\FacturaController;
 use App\Http\Controllers\Web\CuentaPorCobrarController;
 use App\Http\Controllers\Web\ComplementoPagoController;
 use App\Http\Controllers\Web\EmpresaController;
+use App\Http\Controllers\Web\CotizacionCompraController;
+use App\Http\Controllers\Web\OrdenCompraController;
+use App\Http\Controllers\Web\ProveedorController;
+use App\Http\Controllers\Web\CuentaPorPagarController;
+use App\Http\Controllers\Web\RemisionController;
+use App\Http\Controllers\Web\SugerenciaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -86,6 +92,56 @@ Route::middleware('auth')->group(function () {
     Route::get('/cotizaciones/{cotizacion}/descargar-pdf', [CotizacionController::class, 'descargarPDF'])->name('cotizaciones.descargar-pdf');
     Route::get('/cotizaciones/{cotizacion}/ver-pdf', [CotizacionController::class, 'verPDF'])->name('cotizaciones.ver-pdf');
 
+    // ========================================
+    // COTIZACIONES DE COMPRA
+    // ========================================
+    Route::get('/cotizaciones-compra/crear', [CotizacionCompraController::class, 'create'])->name('cotizaciones-compra.create');
+    Route::get('/cotizaciones-compra/buscar-proveedores', [CotizacionCompraController::class, 'buscarProveedores'])->name('cotizaciones-compra.buscar-proveedores');
+    Route::get('/cotizaciones-compra/buscar-productos', [CotizacionCompraController::class, 'buscarProductos'])->name('cotizaciones-compra.buscar-productos');
+    Route::get('/cotizaciones-compra', [CotizacionCompraController::class, 'index'])->name('cotizaciones-compra.index');
+    Route::post('/cotizaciones-compra', [CotizacionCompraController::class, 'store'])->name('cotizaciones-compra.store');
+    Route::get('/cotizaciones-compra/{cotizacionCompra}', [CotizacionCompraController::class, 'show'])->name('cotizaciones-compra.show');
+    Route::post('/cotizaciones-compra/{cotizacionCompra}/aprobar', [CotizacionCompraController::class, 'aprobar'])->name('cotizaciones-compra.aprobar');
+    Route::post('/cotizaciones-compra/{cotizacionCompra}/generar-orden', [CotizacionCompraController::class, 'generarOrdenCompra'])->name('cotizaciones-compra.generar-orden');
+
+    // ========================================
+    // ÓRDENES DE COMPRA
+    // ========================================
+    Route::get('/ordenes-compra/crear', [OrdenCompraController::class, 'create'])->name('ordenes-compra.create');
+    Route::get('/ordenes-compra', [OrdenCompraController::class, 'index'])->name('ordenes-compra.index');
+    Route::post('/ordenes-compra', [OrdenCompraController::class, 'store'])->name('ordenes-compra.store');
+    Route::get('/ordenes-compra/{ordenCompra}', [OrdenCompraController::class, 'show'])->name('ordenes-compra.show');
+    Route::post('/ordenes-compra/{ordenCompra}/aceptar', [OrdenCompraController::class, 'aceptar'])->name('ordenes-compra.aceptar');
+    Route::post('/ordenes-compra/{ordenCompra}/recibir', [OrdenCompraController::class, 'recibir'])->name('ordenes-compra.recibir');
+
+    // ========================================
+    // PROVEEDORES
+    // ========================================
+    Route::resource('proveedores', ProveedorController::class)->parameters(['proveedores' => 'proveedor']);
+
+    // ========================================
+    // CUENTAS POR PAGAR
+    // ========================================
+    Route::get('/cuentas-por-pagar', [CuentaPorPagarController::class, 'index'])->name('cuentas-por-pagar.index');
+    Route::get('/cuentas-por-pagar/{cuentaPorPagar}', [CuentaPorPagarController::class, 'show'])->name('cuentas-por-pagar.show');
+    Route::post('/cuentas-por-pagar/{cuentaPorPagar}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('cuentas-por-pagar.registrar-pago');
+
+    // ========================================
+    // REMISIONES
+    // ========================================
+    Route::get('/remisiones/crear', [RemisionController::class, 'create'])->name('remisiones.create');
+    Route::get('/remisiones/buscar-clientes', [RemisionController::class, 'buscarClientes'])->name('remisiones.buscar-clientes');
+    Route::get('/remisiones/buscar-productos', [RemisionController::class, 'buscarProductos'])->name('remisiones.buscar-productos');
+    Route::get('/remisiones', [RemisionController::class, 'index'])->name('remisiones.index');
+    Route::post('/remisiones', [RemisionController::class, 'store'])->name('remisiones.store');
+    Route::get('/remisiones/{remision}', [RemisionController::class, 'show'])->name('remisiones.show');
+    Route::get('/remisiones/{remision}/editar', [RemisionController::class, 'edit'])->name('remisiones.edit');
+    Route::put('/remisiones/{remision}', [RemisionController::class, 'update'])->name('remisiones.update');
+    Route::delete('/remisiones/{remision}', [RemisionController::class, 'destroy'])->name('remisiones.destroy');
+    Route::post('/remisiones/{remision}/enviar', [RemisionController::class, 'enviar'])->name('remisiones.enviar');
+    Route::post('/remisiones/{remision}/entregar', [RemisionController::class, 'entregar'])->name('remisiones.entregar');
+    Route::post('/remisiones/{remision}/cancelar', [RemisionController::class, 'cancelar'])->name('remisiones.cancelar');
+
     // ───── CLIENTES ───── ✅
     Route::resource('clientes', ClienteController::class);
     Route::resource('clientes.contactos', ClienteContactoController::class)->parameters(['contactos' => 'contacto']);
@@ -95,6 +151,10 @@ Route::middleware('auth')->group(function () {
 
     // ───── CATEGORIAS ───── ✅
     Route::resource('categorias', CategoriaProductoController::class);
+
+    // ───── SUGERENCIAS (partidas para cotizar manual) ─────
+    Route::get('/sugerencias/buscar', [SugerenciaController::class, 'buscar'])->name('sugerencias.buscar');
+    Route::resource('sugerencias', SugerenciaController::class)->parameters(['sugerencias' => 'sugerencia']);
 
     
     // ───── FACTURAS ───── ✅

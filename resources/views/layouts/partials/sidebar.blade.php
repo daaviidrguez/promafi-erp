@@ -54,6 +54,13 @@
                         <span class="sidebar-menu-text">Complementos Pago</span>
                     </a>
                 </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('remisiones.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('remisiones.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">🚚</span>
+                        <span class="sidebar-menu-text">Remisiones</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
@@ -86,6 +93,47 @@
                     class="sidebar-menu-link {{ request()->routeIs('categorias.*') ? 'active' : '' }}">
                         <span class="sidebar-menu-icon">🗂️</span>
                         <span class="sidebar-menu-text">Categorías</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('sugerencias.index') }}"
+                    class="sidebar-menu-link {{ request()->routeIs('sugerencias.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">💡</span>
+                        <span class="sidebar-menu-text">Sugerencias</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">Compras</div>
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('ordenes-compra.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('ordenes-compra.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">📦</span>
+                        <span class="sidebar-menu-text">Órdenes de Compra</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('cotizaciones-compra.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('cotizaciones-compra.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">📋</span>
+                        <span class="sidebar-menu-text">Cotizaciones de Compra</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('proveedores.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('proveedores.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">🏭</span>
+                        <span class="sidebar-menu-text">Proveedores</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('cuentas-por-pagar.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('cuentas-por-pagar.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">💳</span>
+                        <span class="sidebar-menu-text">Cuentas por Pagar</span>
                     </a>
                 </li>
             </ul>

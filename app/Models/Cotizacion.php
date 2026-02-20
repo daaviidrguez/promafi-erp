@@ -111,22 +111,23 @@ class Cotizacion extends Model
     }
 
     /**
-     * Generar folio automático
+     * Generar folio automático (COT-0001, COT-0002, ...)
      */
     public static function generarFolio(): string
     {
-        $year = date('Y');
-        $ultimo = self::where('folio', 'like', "COT-{$year}-%")
-            ->orderBy('id', 'desc')
-            ->first();
-
-        if ($ultimo && preg_match('/COT-' . $year . '-(\d{4})/', $ultimo->folio, $matches)) {
-            $numero = intval($matches[1]) + 1;
+        $ultimo = self::orderBy('id', 'desc')->first();
+        if (!$ultimo) {
+            return 'COT-0001';
+        }
+        $folio = $ultimo->folio;
+        if (preg_match('/^COT-\d{4}-(\d{4})$/', $folio, $m)) {
+            $numero = (int) $m[1] + 1;
+        } elseif (preg_match('/^COT-(\d{4})$/', $folio, $m)) {
+            $numero = (int) $m[1] + 1;
         } else {
             $numero = 1;
         }
-
-        return 'COT-' . $year . '-' . str_pad($numero, 4, '0', STR_PAD_LEFT);
+        return 'COT-' . str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
     }
 
     /**

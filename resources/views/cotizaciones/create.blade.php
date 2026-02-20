@@ -141,19 +141,20 @@ $breadcrumbs = [
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:32%;">Descripción</th>
-                                <th class="td-center" style="width:10%;">Cantidad</th>
-                                <th class="td-right" style="width:15%;">Precio</th>
-                                <th class="td-center" style="width:10%;">Desc %</th>
-                                <th class="td-center" style="width:10%;">IVA</th>
-                                <th class="td-right" style="width:13%;">Subtotal</th>
-                                <th class="td-right" style="width:13%;">Total</th>
-                                <th style="width:5%;"></th>
+                                <th style="width:28%;">Descripción</th>
+                                <th class="td-center" style="width:8%;">Cant.</th>
+                                <th class="td-center" style="width:8%;">Unidad</th>
+                                <th class="td-right" style="width:12%;">Precio</th>
+                                <th class="td-center" style="width:8%;">Desc %</th>
+                                <th class="td-center" style="width:8%;">IVA</th>
+                                <th class="td-right" style="width:12%;">Subtotal</th>
+                                <th class="td-right" style="width:12%;">Total</th>
+                                <th style="width:4%;"></th>
                             </tr>
                         </thead>
                         <tbody id="productosBody">
                             <tr id="emptyRow">
-                                <td colspan="8">
+                                <td colspan="9">
                                     <div style="padding:40px 20px; text-align:center; color:var(--color-gray-500);">
                                         <div style="font-size:36px; margin-bottom:10px; opacity:0.3;">📦</div>
                                         <div class="fw-600">Sin productos agregados</div>
@@ -166,6 +167,8 @@ $breadcrumbs = [
                         </tbody>
                     </table>
                 </div>
+                {{-- Dropdown de sugerencias posicionado fuera de la tabla para que se vea encima (igual que cliente/producto) --}}
+                <div id="sugerenciaResultsFlotante" class="autocomplete-results autocomplete-results-flotante" style="display:none; position:fixed; z-index:2000;"></div>
 
             </div>
         </div>
@@ -289,13 +292,15 @@ $breadcrumbs = [
         $detallesIniciales = $cotizacion->detalles->sortBy('orden')->values()->map(function ($d) {
             return [
                 'id'        => $d->producto_id,
-                'codigo'    => $d->codigo ?? 'MANUAL',
+                'codigo'    => ($d->codigo === 'MANUAL' ? '-' : $d->codigo) ?? '-',
                 'nombre'    => $d->descripcion ?? '',
                 'cantidad'  => (float) $d->cantidad,
+                'unidad'    => $d->unidad ?? $d->producto->unidad ?? 'PZA',
                 'precio'    => (float) $d->precio_unitario,
                 'descuento' => (float) ($d->descuento_porcentaje ?? 0),
                 'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
                 'manual'    => (bool) $d->es_producto_manual,
+                'sugerencia_id' => $d->sugerencia_id,
             ];
         })->all();
     }
@@ -304,7 +309,8 @@ $breadcrumbs = [
 @push('scripts')
 <script>
 let productos = [];
-let timerCliente, timerProducto;
+let timerCliente, timerProducto, timerSugerencia = {};
+let lastSugerenciaRowIndex = 0;
 const cotizacionDetallesIniciales = @json($detallesIniciales);
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -317,10 +323,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 codigo: d.codigo,
                 nombre: d.nombre,
                 cantidad: d.cantidad,
+                unidad: d.unidad || 'PZA',
                 precio: d.precio,
                 descuento: d.descuento,
                 tasa_iva: d.tasa_iva,
                 manual: d.manual,
+                sugerencia_id: d.sugerencia_id || null,
             };
         });
         renderProductos();
@@ -346,11 +354,12 @@ document.addEventListener('DOMContentLoaded', () => {
         timerProducto = setTimeout(() => buscarProductos(q), 280);
     });
 
-    // Cerrar dropdowns al hacer click fuera
+    // Cerrar dropdowns al hacer click fuera (no cerrar sugerencias si el clic es dentro del flotante)
     document.addEventListener('click', e => {
-        if (!e.target.closest('.search-box')) {
+        if (!e.target.closest('.search-box') && !e.target.closest('#sugerenciaResultsFlotante')) {
             closeDropdown('clienteResults');
             closeDropdown('productoResults');
+            closeSugerenciaFlotante();
         }
     });
 
@@ -435,7 +444,7 @@ function agregarProducto(p) {
     if (productos.find(x => x.id === p.id)) { alert('Este producto ya está en la lista'); return; }
     productos.push({
         id: p.id, codigo: p.codigo, nombre: p.nombre,
-        cantidad: 1, precio: parseFloat(p.precio_venta),
+        cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio_venta),
         descuento: 0, tasa_iva: p.tasa_iva, manual: false,
     });
     document.getElementById('buscarProducto').value = '';
@@ -444,14 +453,14 @@ function agregarProducto(p) {
 }
 
 function agregarManual() {
-    productos.push({ id: null, codigo: 'MANUAL', nombre: '', cantidad: 1, precio: 0, descuento: 0, tasa_iva: 0.16, manual: true });
+    productos.push({ id: null, codigo: '-', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: null });
     renderProductos();
 }
 
 function renderProductos() {
     const tbody = document.getElementById('productosBody');
     if (!productos.length) {
-        tbody.innerHTML = `<tr id="emptyRow"><td colspan="8">
+        tbody.innerHTML = `<tr id="emptyRow"><td colspan="9">
             <div class="empty-state" style="padding:28px 20px;">
                 <div class="empty-state-icon">📦</div>
                 <div class="empty-state-title">Sin productos</div>
@@ -468,16 +477,23 @@ function renderProductos() {
         return `<tr>
             <td>
                 ${p.manual
-                    ? `<input type="text" value="${p.nombre}" onchange="upd(${i},'nombre',this.value)" placeholder="Descripción..." class="form-control" style="font-size:13px;">
-                       <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">`
+                    ? `<div class="search-box search-box-manual">
+                       <input type="text" id="manualDesc_${i}" value="${(p.nombre||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control" style="font-size:13px;" autocomplete="off" data-row="${i}">
+                       </div>
+                       <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">
+                       <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">`
                     : `<div class="fw-600" style="font-size:13.5px;">${p.nombre}</div>
                        <span class="producto-row-code">${p.codigo}</span>`}
                 <input type="hidden" name="productos[${i}][producto_id]" value="${p.id || ''}">
-                <input type="hidden" name="productos[${i}][descripcion]" value="${p.nombre}">
+                <input type="hidden" name="productos[${i}][descripcion]" value="${(p.nombre||'').replace(/"/g,'&quot;')}">
             </td>
             <td class="td-center">
                 <input type="number" name="productos[${i}][cantidad]" value="${p.cantidad}" min="0.01" step="0.01"
                        onchange="upd(${i},'cantidad',+this.value)" class="form-control" style="text-align:center; width:80px;">
+            </td>
+            <td class="td-center">
+                <input type="text" name="productos[${i}][unidad]" value="${(p.unidad || 'PZA').replace(/"/g, '&quot;')}" 
+                       onchange="upd(${i},'unidad',this.value)" class="form-control" style="text-align:center; width:70px;" placeholder="PZA" maxlength="10">
             </td>
             <td class="td-center">
                 <input type="number" name="productos[${i}][precio_unitario]" value="${p.precio.toFixed(2)}" min="0" step="0.01"
@@ -514,6 +530,72 @@ function upd(i, field, val) {
     } else {
         renderProductos();
     }
+}
+
+function onManualDescInput(rowIndex, value) {
+    upd(rowIndex, 'nombre', value);
+    clearTimeout(timerSugerencia[rowIndex]);
+    const q = (value || '').trim();
+    if (q.length < 3) {
+        closeSugerenciaFlotante();
+        return;
+    }
+    timerSugerencia[rowIndex] = setTimeout(() => buscarSugerencias(rowIndex, q), 280);
+}
+
+function closeSugerenciaFlotante() {
+    const flotante = document.getElementById('sugerenciaResultsFlotante');
+    if (flotante) { flotante.innerHTML = ''; flotante.classList.remove('show'); flotante.style.display = 'none'; }
+}
+
+function onManualDescKeydown(rowIndex, e) {
+    if (e.key !== 'Enter') return;
+    const flotante = document.getElementById('sugerenciaResultsFlotante');
+    if (!flotante || !flotante.classList.contains('show')) return;
+    const first = flotante.querySelector('.autocomplete-item');
+    if (first) { first.click(); e.preventDefault(); }
+}
+
+async function buscarSugerencias(rowIndex, q) {
+    try {
+        const r = await fetch(`{{ route('sugerencias.buscar') }}?q=${encodeURIComponent(q)}`);
+        const data = await r.json();
+        const input = document.getElementById('manualDesc_' + rowIndex);
+        const flotante = document.getElementById('sugerenciaResultsFlotante');
+        if (!input || !flotante) return;
+        closeSugerenciaFlotante();
+        const rect = input.getBoundingClientRect();
+        flotante.style.top = (rect.bottom + 6) + 'px';
+        flotante.style.left = rect.left + 'px';
+        flotante.style.width = Math.max(rect.width, 320) + 'px';
+        flotante.style.minWidth = '280px';
+        if (!data.length) {
+            flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin sugerencias</div></div>';
+        } else {
+            flotante.innerHTML = data.map(s => {
+                const desc = (s.descripcion || '').substring(0, 50) + ((s.descripcion || '').length > 50 ? '…' : '');
+                const label = (s.codigo ? s.codigo + ' — ' : '') + desc;
+                return `<div class="autocomplete-item" data-id="${s.id}" data-desc="${(s.descripcion||'').replace(/"/g,'&quot;')}" data-unidad="${(s.unidad||'PZA').replace(/"/g,'&quot;')}" data-precio="${s.precio_unitario}" onclick="aplicarSugerencia(${rowIndex}, this)">
+                    <div class="autocomplete-item-name">${label.replace(/</g,'&lt;')}</div>
+                    <div class="autocomplete-item-sub">${(s.unidad||'PZA')} — $${parseFloat(s.precio_unitario).toFixed(2)}</div>
+                </div>`;
+            }).join('');
+        }
+        flotante.classList.add('show');
+        flotante.style.display = 'block';
+    } catch (e) { console.error(e); }
+}
+
+function aplicarSugerencia(rowIndex, el) {
+    if (!el || !el.dataset) return;
+    const id = el.dataset.id, desc = el.dataset.desc || '', unidad = el.dataset.unidad || 'PZA', precio = parseFloat(el.dataset.precio) || 0;
+    if (!id) return;
+    productos[rowIndex].nombre = desc;
+    productos[rowIndex].unidad = unidad;
+    productos[rowIndex].precio = precio;
+    productos[rowIndex].sugerencia_id = id;
+    closeSugerenciaFlotante();
+    renderProductos();
 }
 
 function quitarProducto(i) {

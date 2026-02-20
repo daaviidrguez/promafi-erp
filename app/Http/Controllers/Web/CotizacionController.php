@@ -9,6 +9,7 @@ use App\Models\Cotizacion;
 use App\Models\CotizacionDetalle;
 use App\Models\Cliente;
 use App\Models\Producto;
+use App\Models\Sugerencia;
 use App\Models\Empresa;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
@@ -117,10 +118,12 @@ class CotizacionController extends Controller
             'productos.*.producto_id' => 'nullable|exists:productos,id',
             'productos.*.descripcion' => 'required|string',
             'productos.*.cantidad' => 'required|numeric|min:0.01',
+            'productos.*.unidad' => 'nullable|string|max:10',
             'productos.*.precio_unitario' => 'required|numeric|min:0',
             'productos.*.descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
+            'productos.*.sugerencia_id' => 'nullable|exists:sugerencias,id',
         ]);
 
         DB::beginTransaction();
@@ -175,7 +178,7 @@ class CotizacionController extends Controller
                 'cliente_numero_exterior' => $cliente->numero_exterior,
                 'cliente_numero_interior' => $cliente->numero_interior,
                 'cliente_colonia' => $cliente->colonia,
-                'cliente_municipio' => $cliente->municipio,
+                'cliente_municipio' => $cliente->ciudad ?? $cliente->municipio ?? null,
                 'cliente_estado' => $cliente->estado,
                 'cliente_codigo_postal' => $cliente->codigo_postal,
                 
@@ -202,6 +205,11 @@ class CotizacionController extends Controller
                 'observaciones' => $validated['observaciones'],
             ]);
 
+            // Al editar, invalidar PDF para que se regenere con los datos actuales
+            if ($cotizacionId) {
+                $cotizacion->pdf_path = null;
+            }
+
             $cotizacion->save();
 
             // Crear detalles
@@ -211,18 +219,44 @@ class CotizacionController extends Controller
                     $producto = Producto::find($item['producto_id']);
                 }
 
+                $sugerenciaId = !empty($item['sugerencia_id']) ? (int) $item['sugerencia_id'] : null;
+                $esManual = $item['es_producto_manual'] ?? false;
+                $unidadDetalle = !empty($item['unidad']) ? $item['unidad'] : ($producto?->unidad ?? 'PZA');
+
+                // Si es partida manual sin sugerencia elegida, guardar/actualizar en sugerencias para futuras cotizaciones
+                if ($esManual && !$sugerenciaId && !empty(trim($item['descripcion'] ?? ''))) {
+                    $sugerencia = Sugerencia::firstOrCreate(
+                        [
+                            'descripcion' => trim($item['descripcion']),
+                            'unidad' => $unidadDetalle,
+                        ],
+                        [
+                            'codigo' => null,
+                            'precio_unitario' => $item['precio_unitario'],
+                        ]
+                    );
+                    $sugerencia->update(['precio_unitario' => $item['precio_unitario']]);
+                    $sugerenciaId = $sugerencia->id;
+                }
+
                 CotizacionDetalle::create([
                     'cotizacion_id' => $cotizacion->id,
                     'producto_id' => $producto?->id,
-                    'codigo' => $producto?->codigo ?? 'MANUAL',
+                    'sugerencia_id' => $sugerenciaId,
+                    'codigo' => $producto?->codigo ?? '-',
                     'descripcion' => $item['descripcion'],
-                    'es_producto_manual' => $item['es_producto_manual'] ?? false,
+                    'es_producto_manual' => $esManual,
                     'cantidad' => $item['cantidad'],
+                    'unidad' => $unidadDetalle,
                     'precio_unitario' => $item['precio_unitario'],
                     'descuento_porcentaje' => $item['descuento_porcentaje'] ?? 0,
                     'tasa_iva' => $item['tasa_iva'] ?? null,
                     'orden' => $index,
                 ]);
+                // Actualizar precio más reciente en la sugerencia para próximas cotizaciones
+                if ($sugerenciaId) {
+                    Sugerencia::where('id', $sugerenciaId)->update(['precio_unitario' => $item['precio_unitario']]);
+                }
             }
 
             DB::commit();
@@ -465,7 +499,7 @@ class CotizacionController extends Controller
                     ->orWhere('codigo', 'like', "%{$search}%");
             })
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto']);
+            ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto']);
 
         // Coherencia con datos fiscales: Exento → tasa_iva null para cotización/factura
         $productos = $productos->map(function ($p) {
@@ -473,6 +507,7 @@ class CotizacionController extends Controller
                 'id' => $p->id,
                 'codigo' => $p->codigo,
                 'nombre' => $p->nombre,
+                'unidad' => $p->unidad ?? 'PZA',
                 'precio_venta' => $p->precio_venta,
                 'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
                 'tipo_factor' => $p->tipo_factor ?? 'Tasa',

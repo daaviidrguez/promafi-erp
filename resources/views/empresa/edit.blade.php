@@ -201,6 +201,30 @@ $breadcrumbs = [
                 </div>
             </div>
 
+            {{-- QR identificación SAT --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📱 QR identificación SAT</div>
+                </div>
+                <div class="card-body">
+
+                    @if($empresa->qr_sat_path ?? null)
+                        <div style="margin-bottom:12px;">
+                            <img src="{{ asset('storage/'.$empresa->qr_sat_path) }}"
+                                style="max-height:80px;">
+                        </div>
+                    @endif
+
+                    <div class="form-group">
+                        <label class="form-label">Imagen QR SAT</label>
+                        <input type="file" name="qr_sat" class="form-control"
+                            accept="image/png,image/jpeg">
+                        <span class="form-hint">Se mostrará en el encabezado del PDF (cotizaciones, facturas).</span>
+                    </div>
+
+                </div>
+            </div>
+
             {{-- Configuración de Facturación --}}
             <div class="card">
                 <div class="card-header">

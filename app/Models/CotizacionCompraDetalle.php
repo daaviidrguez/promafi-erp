@@ -2,27 +2,23 @@
 
 namespace App\Models;
 
-// UBICACIÓN: app/Models/CotizacionDetalle.php
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CotizacionDetalle extends Model
+class CotizacionCompraDetalle extends Model
 {
     use HasFactory;
 
-    protected $table = 'cotizaciones_detalle';
+    protected $table = 'cotizaciones_compra_detalle';
 
     protected $fillable = [
-        'cotizacion_id',
+        'cotizacion_compra_id',
         'producto_id',
-        'sugerencia_id',
         'codigo',
         'descripcion',
         'es_producto_manual',
         'cantidad',
-        'unidad',
         'precio_unitario',
         'descuento_porcentaje',
         'tasa_iva',
@@ -48,58 +44,27 @@ class CotizacionDetalle extends Model
         'orden' => 'integer',
     ];
 
-    /**
-     * Relación con Cotización
-     */
-    public function cotizacion(): BelongsTo
+    public function cotizacionCompra(): BelongsTo
     {
-        return $this->belongsTo(Cotizacion::class);
+        return $this->belongsTo(CotizacionCompra::class);
     }
 
-    /**
-     * Relación con Producto
-     */
     public function producto(): BelongsTo
     {
         return $this->belongsTo(Producto::class);
     }
 
-    /**
-     * Relación con Sugerencia (partida manual sugerida)
-     */
-    public function sugerencia(): BelongsTo
-    {
-        return $this->belongsTo(Sugerencia::class);
-    }
-
-    /**
-     * Calcular importes automáticamente
-     */
     public static function calcularImportes(array $datos): array
     {
         $cantidad = floatval($datos['cantidad']);
         $precioUnitario = floatval($datos['precio_unitario']);
         $descuentoPorcentaje = floatval($datos['descuento_porcentaje'] ?? 0);
         $tasaIva = isset($datos['tasa_iva']) ? floatval($datos['tasa_iva']) : null;
-
-        // Subtotal
         $subtotal = $cantidad * $precioUnitario;
-
-        // Descuento
         $descuentoMonto = $subtotal * ($descuentoPorcentaje / 100);
-
-        // Base imponible
         $baseImponible = $subtotal - $descuentoMonto;
-
-        // IVA
-        $ivaMonto = 0;
-        if ($tasaIva !== null) {
-            $ivaMonto = $baseImponible * $tasaIva;
-        }
-
-        // Total
+        $ivaMonto = $tasaIva !== null ? $baseImponible * $tasaIva : 0;
         $total = $baseImponible + $ivaMonto;
-
         return [
             'subtotal' => round($subtotal, 2),
             'descuento_monto' => round($descuentoMonto, 2),
@@ -109,23 +74,16 @@ class CotizacionDetalle extends Model
         ];
     }
 
-    /**
-     * Boot del modelo para calcular importes automáticamente
-     */
     protected static function boot()
     {
         parent::boot();
-
         static::creating(function ($detalle) {
             if (!$detalle->subtotal) {
-                $importes = self::calcularImportes($detalle->toArray());
-                $detalle->fill($importes);
+                $detalle->fill(self::calcularImportes($detalle->toArray()));
             }
         });
-
         static::updating(function ($detalle) {
-            $importes = self::calcularImportes($detalle->toArray());
-            $detalle->fill($importes);
+            $detalle->fill(self::calcularImportes($detalle->toArray()));
         });
     }
 }

@@ -15,6 +15,7 @@ class Cliente extends Model
         'codigo',
         'nombre',
         'nombre_comercial',
+        'tipo_persona',
         'rfc',
         'regimen_fiscal',
         'uso_cfdi_default',
@@ -79,6 +80,14 @@ class Cliente extends Model
     public function cuentasPorCobrar()
     {
         return $this->hasMany(CuentaPorCobrar::class);
+    }
+
+    /**
+     * Relación con Remisiones
+     */
+    public function remisiones()
+    {
+        return $this->hasMany(Remision::class);
     }
 
     /**

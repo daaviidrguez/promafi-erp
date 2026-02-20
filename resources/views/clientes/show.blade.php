@@ -17,26 +17,45 @@ $breadcrumbs = [
 
     {{-- Columna izquierda --}}
     <div>
-        {{-- Información General --}}
+        {{-- Datos Generales --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">📋 Información General</div>
+                <div class="card-title">📋 Datos Generales</div>
                 <a href="{{ route('clientes.edit', $cliente->id) }}" class="btn btn-primary btn-sm">✏️ Editar</a>
             </div>
             <div class="card-body">
                 <div class="info-grid-2">
                     <div class="info-row">
-                        <div class="info-label">RFC</div>
-                        <div class="info-value text-mono">{{ $cliente->rfc }}</div>
+                        <div class="info-label">Nombre / Razón Social</div>
+                        <div class="info-value">{{ $cliente->nombre }}</div>
                     </div>
+                    @if($cliente->nombre_comercial)
                     <div class="info-row">
-                        <div class="info-label">Régimen Fiscal</div>
-                        <div class="info-value">{{ $cliente->regimen_fiscal ?? '—' }}</div>
+                        <div class="info-label">Nombre Comercial</div>
+                        <div class="info-value">{{ $cliente->nombre_comercial }}</div>
                     </div>
+                    @endif
                     <div class="info-row">
-                        <div class="info-label">Uso de CFDI</div>
-                        <div class="info-value">{{ $cliente->uso_cfdi_default }}</div>
+                        <div class="info-label">Tipo de Persona</div>
+                        <div class="info-value">
+                            @if($cliente->tipo_persona === 'moral')
+                                <span class="badge badge-info">Persona Moral</span>
+                            @else
+                                <span class="badge badge-info">Persona Física</span>
+                            @endif
+                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Contacto --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📞 Contacto</div>
+            </div>
+            <div class="card-body">
+                <div class="info-grid-2">
                     <div class="info-row">
                         <div class="info-label">Email</div>
                         <div class="info-value-sm">{{ $cliente->email ?? '—' }}</div>
@@ -49,11 +68,62 @@ $breadcrumbs = [
                         <div class="info-label">Celular</div>
                         <div class="info-value-sm">{{ $cliente->celular ?? '—' }}</div>
                     </div>
+                    @if($cliente->contacto_nombre || $cliente->contacto_puesto)
+                    <div class="info-row">
+                        <div class="info-label">Contacto</div>
+                        <div class="info-value-sm">{{ $cliente->contacto_nombre ?? '—' }}{{ $cliente->contacto_puesto ? ' · ' . $cliente->contacto_puesto : '' }}</div>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
 
-        {{-- Información contactos del cliente --}}
+        {{-- Domicilio Fiscal --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📍 Domicilio Fiscal</div>
+            </div>
+            <div class="card-body">
+                @if($cliente->calle || $cliente->ciudad)
+                <div class="info-grid-2">
+                    @if($cliente->calle)
+                    <div class="info-row">
+                        <div class="info-label">Calle</div>
+                        <div class="info-value">{{ $cliente->calle }}{{ $cliente->numero_exterior ? ' ' . $cliente->numero_exterior : '' }}{{ $cliente->numero_interior ? ' Int. ' . $cliente->numero_interior : '' }}</div>
+                    </div>
+                    @endif
+                    @if($cliente->colonia)
+                    <div class="info-row">
+                        <div class="info-label">Colonia</div>
+                        <div class="info-value">{{ $cliente->colonia }}</div>
+                    </div>
+                    @endif
+                    @if($cliente->ciudad || $cliente->estado)
+                    <div class="info-row">
+                        <div class="info-label">Ciudad / Estado</div>
+                        <div class="info-value">{{ $cliente->ciudad ?? '—' }}{{ $cliente->estado ? ', ' . $cliente->estado : '' }}</div>
+                    </div>
+                    @endif
+                    @if($cliente->codigo_postal)
+                    <div class="info-row">
+                        <div class="info-label">C.P.</div>
+                        <div class="info-value text-mono">{{ $cliente->codigo_postal }}</div>
+                    </div>
+                    @endif
+                    @if($cliente->pais)
+                    <div class="info-row">
+                        <div class="info-label">País</div>
+                        <div class="info-value">{{ $cliente->pais }}</div>
+                    </div>
+                    @endif
+                </div>
+                @else
+                <p class="text-muted" style="margin:0;">Sin domicilio registrado</p>
+                @endif
+            </div>
+        </div>
+
+        {{-- Contactos del Cliente --}}
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📇 Contactos del Cliente</div>
@@ -172,6 +242,29 @@ $breadcrumbs = [
 
     {{-- Columna derecha --}}
     <div>
+        {{-- Información Fiscal --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📑 Información Fiscal</div>
+            </div>
+            <div class="card-body">
+                <div class="info-grid-2">
+                    <div class="info-row">
+                        <div class="info-label">RFC</div>
+                        <div class="info-value text-mono">{{ $cliente->rfc }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Régimen Fiscal</div>
+                        <div class="info-value">{{ $cliente->regimen_fiscal ?? '—' }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Uso de CFDI</div>
+                        <div class="info-value">{{ $cliente->uso_cfdi_default ?? '—' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- Estadísticas --}}
         <div class="card">
             <div class="card-header">

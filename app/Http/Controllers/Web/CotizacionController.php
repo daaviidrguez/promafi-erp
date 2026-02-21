@@ -11,6 +11,10 @@ use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\Sugerencia;
 use App\Models\Empresa;
+use App\Models\Factura;
+use App\Models\FacturaDetalle;
+use App\Models\FacturaImpuesto;
+use App\Models\CuentaPorCobrar;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -480,7 +484,7 @@ class CotizacionController extends Controller
     {
         DB::beginTransaction();
         try {
-            $cotizacion = Cotizacion::with(['detalles', 'detalles.producto'])->findOrFail($id);
+            $cotizacion = Cotizacion::with(['detalles.producto', 'cliente', 'empresa'])->findOrFail($id);
 
             if (!$cotizacion->puedeFacturarse()) {
                 throw new \Exception('Esta cotización no puede facturarse.');
@@ -491,20 +495,120 @@ class CotizacionController extends Controller
                 throw new \Exception($motivo);
             }
 
-            $empresa = Empresa::principal();
+            $empresa = $cotizacion->empresa ?? Empresa::principal();
+            if (!$empresa) {
+                throw new \Exception('No hay empresa configurada.');
+            }
 
-            // Crear factura (similar al código que ya tienes)
-            // Aquí irá la lógica de conversión que ya implementaste
-            // en el controlador de facturas
+            $cliente = $cotizacion->cliente;
+            if (!$cliente) {
+                throw new \Exception('La cotización no tiene cliente asociado.');
+            }
 
-            // Por ahora, solo marcamos como facturada
+            $folio = $empresa->folio_factura;
+            $metodoPago = strtolower($cotizacion->tipo_venta ?? 'contado') === 'credito' ? 'PPD' : 'PUE';
+            $formaPago = '03'; // Transferencia por defecto
+            $usoCfdi = $cliente->uso_cfdi_default ?? 'G03';
+
+            $factura = Factura::create([
+                'serie' => $empresa->serie_factura,
+                'folio' => $folio,
+                'tipo_comprobante' => 'I',
+                'estado' => 'borrador',
+                'cliente_id' => $cliente->id,
+                'empresa_id' => $empresa->id,
+                'rfc_emisor' => $empresa->rfc,
+                'nombre_emisor' => $empresa->razon_social,
+                'regimen_fiscal_emisor' => $empresa->regimen_fiscal,
+                'rfc_receptor' => $cliente->rfc,
+                'nombre_receptor' => $cliente->nombre,
+                'uso_cfdi' => $usoCfdi,
+                'regimen_fiscal_receptor' => $cliente->regimen_fiscal,
+                'domicilio_fiscal_receptor' => $cliente->codigo_postal,
+                'lugar_expedicion' => $empresa->codigo_postal,
+                'fecha_emision' => now()->toDateString(),
+                'forma_pago' => $formaPago,
+                'metodo_pago' => $metodoPago,
+                'moneda' => $cotizacion->moneda ?? 'MXN',
+                'tipo_cambio' => $cotizacion->tipo_cambio ?? 1,
+                'subtotal' => $cotizacion->subtotal,
+                'descuento' => $cotizacion->descuento ?? 0,
+                'total' => $cotizacion->total,
+                'cotizacion_id' => $cotizacion->id,
+                'observaciones' => $cotizacion->observaciones,
+                'usuario_id' => auth()->id(),
+            ]);
+
+            foreach ($cotizacion->detalles as $index => $d) {
+                $producto = $d->producto;
+                if (!$producto) {
+                    continue;
+                }
+                $valorUnitario = (float) $d->precio_unitario;
+                $cantidad = (float) $d->cantidad;
+                $descuentoMonto = (float) ($d->descuento_monto ?? 0);
+                $importe = $cantidad * $valorUnitario;
+                $baseImpuesto = $importe - $descuentoMonto;
+                $objetoImpuesto = $producto->objeto_impuesto ?? '02';
+
+                $detalle = FacturaDetalle::create([
+                    'factura_id' => $factura->id,
+                    'producto_id' => $producto->id,
+                    'clave_prod_serv' => $producto->clave_sat ?? '01010101',
+                    'clave_unidad' => $producto->clave_unidad_sat ?? 'H87',
+                    'unidad' => $producto->unidad ?? 'Pieza',
+                    'no_identificacion' => $producto->codigo,
+                    'descripcion' => $d->descripcion,
+                    'cantidad' => $cantidad,
+                    'valor_unitario' => $valorUnitario,
+                    'importe' => $importe,
+                    'descuento' => $descuentoMonto,
+                    'base_impuesto' => $baseImpuesto,
+                    'objeto_impuesto' => $objetoImpuesto,
+                    'orden' => $index,
+                ]);
+
+                if (in_array($objetoImpuesto, ['02', '03'], true)) {
+                    $tipoFactor = $producto->tipo_factor ?? 'Tasa';
+                    $tasa = (float) ($producto->tasa_iva ?? 0);
+                    FacturaImpuesto::create([
+                        'factura_detalle_id' => $detalle->id,
+                        'tipo' => 'traslado',
+                        'impuesto' => $producto->tipo_impuesto ?? '002',
+                        'tipo_factor' => $tipoFactor,
+                        'tasa_o_cuota' => $tipoFactor === 'Tasa' ? $tasa : null,
+                        'base' => $baseImpuesto,
+                        'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
+                    ]);
+                }
+                // El descuento de inventario se hace al timbrar la factura, no en borrador
+            }
+
+            $empresa->incrementarFolioFactura();
+
+            if ($metodoPago === 'PPD') {
+                $diasCredito = (int) ($cotizacion->dias_credito_aplicados ?? $cliente->dias_credito ?? 0);
+                $fechaVencimiento = $diasCredito > 0 ? now()->addDays($diasCredito) : now();
+
+                CuentaPorCobrar::create([
+                    'factura_id' => $factura->id,
+                    'cliente_id' => $cliente->id,
+                    'monto_total' => $cotizacion->total,
+                    'monto_pagado' => 0,
+                    'monto_pendiente' => $cotizacion->total,
+                    'fecha_emision' => $factura->fecha_emision,
+                    'fecha_vencimiento' => $fechaVencimiento,
+                    'estado' => 'pendiente',
+                ]);
+                $cliente->actualizarSaldo();
+            }
+
             $cotizacion->marcarComoFacturada();
 
             DB::commit();
 
-            return redirect()->route('facturas.index')
-                ->with('success', 'Cotización convertida a factura exitosamente');
-
+            return redirect()->route('facturas.show', $factura->id)
+                ->with('success', 'Cotización convertida a factura en borrador. Puede timbrar cuando esté listo.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error al convertir: ' . $e->getMessage());

@@ -193,19 +193,7 @@ class FacturaController extends Controller
                         'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
                     ]);
                 }
-
-                if ($producto && $producto->controla_inventario) {
-                    InventarioMovimiento::registrar(
-                        $producto,
-                        InventarioMovimiento::TIPO_SALIDA_FACTURA,
-                        (float) $prod['cantidad'],
-                        auth()->id(),
-                        $factura->id,
-                        null,
-                        null,
-                        null
-                    );
-                }
+                // El descuento de inventario se hace al timbrar la factura, no en borrador
             }
 
             // Incrementar folio
@@ -280,6 +268,24 @@ class FacturaController extends Controller
                 'cadena_original' => $resultado['cadena_original'] ?? null,
                 'xml_content' => $resultado['xml'] ?? null,
             ]);
+
+            // Descontar inventario al timbrar (no en borrador)
+            $factura->load('detalles.producto');
+            foreach ($factura->detalles as $detalle) {
+                $producto = $detalle->producto;
+                if ($producto && $producto->controla_inventario) {
+                    InventarioMovimiento::registrar(
+                        $producto,
+                        InventarioMovimiento::TIPO_SALIDA_FACTURA,
+                        (float) $detalle->cantidad,
+                        auth()->id(),
+                        $factura->id,
+                        null,
+                        null,
+                        null
+                    );
+                }
+            }
 
             // Guardar XML
             if (isset($resultado['xml'])) {

@@ -190,12 +190,15 @@ class Cotizacion extends Model
     }
 
     /**
-     * Puede convertir a factura: estado correcto, todos los datos necesarios y stock suficiente
-     * en productos que controlan inventario.
+     * Puede convertir a factura: estado correcto, sin partidas manuales pendientes
+     * y stock suficiente en productos que controlan inventario.
      */
     public function puedeConvertirAFactura(): bool
     {
         if (!$this->puedeFacturarse()) {
+            return false;
+        }
+        if ($this->tienePartidasManuales()) {
             return false;
         }
         foreach ($this->detalles as $d) {
@@ -209,12 +212,15 @@ class Cotizacion extends Model
     }
 
     /**
-     * Mensaje por el cual no se puede convertir a factura (stock u otro)
+     * Mensaje por el cual no se puede convertir a factura (partidas manuales, stock u otro)
      */
     public function motivoNoConvertirAFactura(): ?string
     {
         if (!$this->puedeFacturarse()) {
             return 'La cotización debe estar aceptada o enviada.';
+        }
+        if ($this->tienePartidasManuales()) {
+            return 'Primero debe crear los productos desde las partidas manuales (botón «Crear producto(s)»).';
         }
         $sinStock = [];
         foreach ($this->detalles as $d) {

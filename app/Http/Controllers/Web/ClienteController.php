@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 
 class ClienteController extends Controller
 {
@@ -40,12 +41,18 @@ class ClienteController extends Controller
      */
     public function store(Request $request)
     {
+        $rfcSize = $request->input('tipo_persona') === 'moral' ? 12 : 13;
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
             'nombre_comercial' => 'nullable|string|max:255',
             'tipo_persona' => 'required|in:fisica,moral',
-            'rfc' => 'required|string|size:13|unique:clientes,rfc',
-            'regimen_fiscal' => 'nullable|string|max:3',
+            'rfc' => [
+                'required',
+                'string',
+                'size:' . $rfcSize,
+                'unique:clientes,rfc',
+            ],
+            'regimen_fiscal' => 'nullable|string|in:' . implode(',', array_keys(Config::get('regimenes_fiscales', []))),
             'uso_cfdi_default' => 'required|string|max:3',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:15',
@@ -105,12 +112,18 @@ class ClienteController extends Controller
      */
     public function update(Request $request, Cliente $cliente)
     {
+        $rfcSize = $request->input('tipo_persona') === 'moral' ? 12 : 13;
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
             'nombre_comercial' => 'nullable|string|max:255',
             'tipo_persona' => 'required|in:fisica,moral',
-            'rfc' => 'required|string|size:13|unique:clientes,rfc,' . $cliente->id,
-            'regimen_fiscal' => 'nullable|string|max:3',
+            'rfc' => [
+                'required',
+                'string',
+                'size:' . $rfcSize,
+                'unique:clientes,rfc,' . $cliente->id,
+            ],
+            'regimen_fiscal' => 'nullable|string|in:' . implode(',', array_keys(Config::get('regimenes_fiscales', []))),
             'uso_cfdi_default' => 'required|string|max:3',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:15',

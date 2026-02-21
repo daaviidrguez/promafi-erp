@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Storage;
 
 class EmpresaController extends Controller
@@ -55,7 +56,7 @@ class EmpresaController extends Controller
         ],
         'razon_social' => 'required|string|max:255',
         'nombre_comercial' => 'nullable|string|max:255',
-        'regimen_fiscal' => 'required|string|max:3',
+        'regimen_fiscal' => 'required|string|in:' . implode(',', array_keys(Config::get('regimenes_fiscales', []))),
 
         // ===============================
         // DOMICILIO
@@ -121,17 +122,9 @@ class EmpresaController extends Controller
     // ===============================
     $validated['pac_modo_prueba'] = $request->has('pac_modo_prueba');
 
-    // Etiqueta completa del régimen fiscal (para PDF: "626 - Régimen Simplificado de Confianza")
-    $regimenEtiquetas = [
-        '601' => '601 - General de Ley Personas Morales',
-        '603' => '603 - Personas Morales sin Fines Lucrativos',
-        '605' => '605 - Sueldos y Salarios',
-        '606' => '606 - Arrendamiento',
-        '612' => '612 - Personas Físicas con Act. Empresariales',
-        '621' => '621 - Incorporación Fiscal',
-        '626' => '626 - Régimen Simplificado de Confianza',
-    ];
-    $validated['regimen_fiscal_etiqueta'] = $regimenEtiquetas[$validated['regimen_fiscal']] ?? $validated['regimen_fiscal'];
+    // Etiqueta completa del régimen fiscal (para PDF) desde config único
+    $regimenes = Config::get('regimenes_fiscales', []);
+    $validated['regimen_fiscal_etiqueta'] = $regimenes[$validated['regimen_fiscal']] ?? $validated['regimen_fiscal'];
 
     // ===============================
     // CERTIFICADO .CER (privado)

@@ -43,19 +43,11 @@ $breadcrumbs = [
                             <label class="form-label">Régimen Fiscal <span class="req">*</span></label>
                             <select name="regimen_fiscal" class="form-control" required>
                                 <option value="">Seleccionar...</option>
-                                @foreach([
-                                    '601' => '601 - General de Ley Personas Morales',
-                                    '603' => '603 - Personas Morales sin Fines Lucrativos',
-                                    '605' => '605 - Sueldos y Salarios',
-                                    '606' => '606 - Arrendamiento',
-                                    '612' => '612 - Personas Físicas con Act. Empresariales',
-                                    '621' => '621 - Incorporación Fiscal',
-                                    '626' => '626 - Régimen Simplificado de Confianza',
-                                ] as $val => $label)
-                                <option value="{{ $val }}"
-                                    {{ old('regimen_fiscal', $empresa->regimen_fiscal) == $val ? 'selected' : '' }}>
-                                    {{ $label }}
-                                </option>
+                                @foreach(config('regimenes_fiscales', []) as $codigo => $etiqueta)
+                                    <option value="{{ $codigo }}"
+                                        {{ old('regimen_fiscal', $empresa->regimen_fiscal) == $codigo ? 'selected' : '' }}>
+                                        {{ $etiqueta }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>

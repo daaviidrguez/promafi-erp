@@ -161,15 +161,21 @@ $breadcrumbs = [
                         <label class="form-label">RFC <span class="req">*</span></label>
                         <input type="text" name="rfc" id="rfc" class="form-control text-mono"
                                value="{{ old('rfc') }}" maxlength="13" required
-                               style="text-transform: uppercase;">
+                               style="text-transform: uppercase;"
+                               data-max-fisica="13" data-max-moral="12">
+                        <span class="form-hint" id="rfcHint">Persona física: 13 caracteres (ej. GODE901231ABC).</span>
                         @error('rfc')
                             <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
                         @enderror
                     </div>
                     <div class="form-group">
                         <label class="form-label">Régimen Fiscal</label>
-                        <input type="text" name="regimen_fiscal" class="form-control"
-                               value="{{ old('regimen_fiscal') }}" maxlength="3" placeholder="Ej: 601">
+                        <select name="regimen_fiscal" class="form-control">
+                            <option value="">Seleccionar...</option>
+                            @foreach(config('regimenes_fiscales', []) as $codigo => $etiqueta)
+                                <option value="{{ $codigo }}" {{ old('regimen_fiscal') == $codigo ? 'selected' : '' }}>{{ $etiqueta }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Uso de CFDI <span class="req">*</span></label>
@@ -236,8 +242,22 @@ $breadcrumbs = [
 
 @push('scripts')
 <script>
-    document.getElementById('rfc').addEventListener('input', function() {
-        this.value = this.value.toUpperCase();
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    var rfc = document.getElementById('rfc');
+    var tipoPersona = document.querySelector('select[name="tipo_persona"]');
+    var rfcHint = document.getElementById('rfcHint');
+    function actualizarRfcPorTipo() {
+        var esMoral = tipoPersona && tipoPersona.value === 'moral';
+        var max = esMoral ? 12 : 13;
+        rfc.maxLength = max;
+        rfcHint.textContent = esMoral
+            ? 'Persona moral: 12 caracteres (ej. XA1901231ABC).'
+            : 'Persona física: 13 caracteres (ej. GODE901231ABC).';
+        if (rfc.value.length > max) rfc.value = rfc.value.slice(0, max);
+    }
+    if (tipoPersona) tipoPersona.addEventListener('change', actualizarRfcPorTipo);
+    actualizarRfcPorTipo();
+    rfc.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+});
 </script>
 @endpush

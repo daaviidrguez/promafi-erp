@@ -43,8 +43,14 @@ class Empresa extends Model
         'folio_factura',
         'serie_nota_credito',
         'folio_nota_credito',
+        'serie_nota_debito',
+        'folio_nota_debito',
         'serie_complemento',
         'folio_complemento',
+        'serie_cotizacion',
+        'folio_cotizacion',
+        'serie_remision',
+        'folio_remision',
         'pac_nombre',
         'pac_api_key',
         'pac_endpoint',
@@ -58,7 +64,10 @@ class Empresa extends Model
         'activo' => 'boolean',
         'folio_factura' => 'integer',
         'folio_nota_credito' => 'integer',
+        'folio_nota_debito' => 'integer',
         'folio_complemento' => 'integer',
+        'folio_cotizacion' => 'integer',
+        'folio_remision' => 'integer',
     ];
 
     protected $hidden = [
@@ -104,6 +113,38 @@ class Empresa extends Model
     public function incrementarFolioComplemento(): void
     {
         $this->increment('folio_complemento');
+    }
+
+    /**
+     * Obtener siguiente folio de cotización (sin incrementar)
+     */
+    public function obtenerSiguienteFolioCotizacion(): string
+    {
+        return $this->serie_cotizacion . '-' . str_pad((string) $this->folio_cotizacion, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Incrementar folio de cotización
+     */
+    public function incrementarFolioCotizacion(): void
+    {
+        $this->increment('folio_cotizacion');
+    }
+
+    /**
+     * Obtener siguiente folio de remisión (sin incrementar)
+     */
+    public function obtenerSiguienteFolioRemision(): string
+    {
+        return $this->serie_remision . '-' . str_pad((string) $this->folio_remision, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Incrementar folio de remisión
+     */
+    public function incrementarFolioRemision(): void
+    {
+        $this->increment('folio_remision');
     }
 
     /**

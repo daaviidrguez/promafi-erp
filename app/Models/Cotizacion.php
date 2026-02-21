@@ -111,18 +111,24 @@ class Cotizacion extends Model
     }
 
     /**
-     * Generar folio automático (COT-0001, COT-0002, ...)
+     * Generar folio desde configuración de empresa (serie + folio).
+     * Reserva el folio incrementando el contador de la empresa.
      */
     public static function generarFolio(): string
     {
+        $empresa = \App\Models\Empresa::principal();
+        if ($empresa) {
+            $folio = $empresa->obtenerSiguienteFolioCotizacion();
+            $empresa->incrementarFolioCotizacion();
+            return $folio;
+        }
+        // Fallback si no hay empresa: secuencia por último registro
         $ultimo = self::orderBy('id', 'desc')->first();
         if (!$ultimo) {
             return 'COT-0001';
         }
         $folio = $ultimo->folio;
-        if (preg_match('/^COT-\d{4}-(\d{4})$/', $folio, $m)) {
-            $numero = (int) $m[1] + 1;
-        } elseif (preg_match('/^COT-(\d{4})$/', $folio, $m)) {
+        if (preg_match('/^.+-(\d{4})$/', $folio, $m)) {
             $numero = (int) $m[1] + 1;
         } else {
             $numero = 1;

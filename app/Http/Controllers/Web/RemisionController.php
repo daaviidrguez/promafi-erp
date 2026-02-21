@@ -38,7 +38,7 @@ class RemisionController extends Controller
         if (!$empresa) {
             return redirect()->route('dashboard')->with('error', 'Configura la empresa primero');
         }
-        $folio = Remision::generarFolio();
+        $folio = $empresa ? $empresa->obtenerSiguienteFolioRemision() : 'REM-0001';
         return view('remisiones.create', compact('folio'));
     }
 

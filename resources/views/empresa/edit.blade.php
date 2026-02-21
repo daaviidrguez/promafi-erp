@@ -223,19 +223,108 @@ $breadcrumbs = [
                     <div class="card-title">🧾 Facturación</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Serie de Factura <span class="req">*</span></label>
-                        <input type="text" name="serie_factura" id="serie_factura" class="form-control"
-                               value="{{ old('serie_factura', $empresa->serie_factura ?? 'A') }}"
-                               maxlength="5" required style="text-transform: uppercase;">
-                        <span class="form-hint">Ej: A, B, F</span>
+                    <p class="text-muted small mb-4">Serie y folio inicial para cada tipo de documento. El folio es el siguiente número a asignar.</p>
+
+                    {{-- Facturas --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie <span class="req">*</span></label>
+                            <input type="text" name="serie_factura" id="serie_factura" class="form-control"
+                                   value="{{ old('serie_factura', $empresa->serie_factura ?? 'A') }}"
+                                   maxlength="5" required style="text-transform: uppercase;">
+                            <span class="form-hint">Ej: A, B, F</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_factura" class="form-control"
+                                   value="{{ old('folio_factura', $empresa->folio_factura ?? 1) }}" min="1" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Folio Inicial <span class="req">*</span></label>
-                        <input type="number" name="folio_factura" class="form-control"
-                               value="{{ old('folio_factura', $empresa->folio_factura ?? 1) }}"
-                               min="1" required>
-                        <span class="form-hint">Siguiente folio a generar</span>
+
+                    {{-- Notas de Crédito --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📝 Notas de Crédito</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie <span class="req">*</span></label>
+                            <input type="text" name="serie_nota_credito" class="form-control"
+                                   value="{{ old('serie_nota_credito', $empresa->serie_nota_credito ?? 'NC') }}"
+                                   maxlength="5" required style="text-transform: uppercase;">
+                            <span class="form-hint">Ej: NC, NCR</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_nota_credito" class="form-control"
+                                   value="{{ old('folio_nota_credito', $empresa->folio_nota_credito ?? 1) }}" min="1" required>
+                        </div>
+                    </div>
+
+                    {{-- Notas de Débito --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📝 Notas de Débito</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie <span class="req">*</span></label>
+                            <input type="text" name="serie_nota_debito" class="form-control"
+                                   value="{{ old('serie_nota_debito', $empresa->serie_nota_debito ?? 'ND') }}"
+                                   maxlength="5" required style="text-transform: uppercase;">
+                            <span class="form-hint">Ej: ND, NDB</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_nota_debito" class="form-control"
+                                   value="{{ old('folio_nota_debito', $empresa->folio_nota_debito ?? 1) }}" min="1" required>
+                        </div>
+                    </div>
+
+                    {{-- Complementos de Pago --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">💳 Complementos de Pago</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie <span class="req">*</span></label>
+                            <input type="text" name="serie_complemento" class="form-control"
+                                   value="{{ old('serie_complemento', $empresa->serie_complemento ?? 'CP') }}"
+                                   maxlength="5" required style="text-transform: uppercase;">
+                            <span class="form-hint">Ej: CP, P</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_complemento" class="form-control"
+                                   value="{{ old('folio_complemento', $empresa->folio_complemento ?? 1) }}" min="1" required>
+                        </div>
+                    </div>
+
+                    {{-- Cotizaciones --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📝 Cotizaciones</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie / Prefijo <span class="req">*</span></label>
+                            <input type="text" name="serie_cotizacion" class="form-control"
+                                   value="{{ old('serie_cotizacion', $empresa->serie_cotizacion ?? 'COT') }}"
+                                   maxlength="10" required style="text-transform: uppercase;">
+                            <span class="form-hint">Ej: COT, COT-2026</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_cotizacion" class="form-control"
+                                   value="{{ old('folio_cotizacion', $empresa->folio_cotizacion ?? 1) }}" min="1" required>
+                        </div>
+                    </div>
+
+                    {{-- Remisiones --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📦 Remisiones</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie / Prefijo <span class="req">*</span></label>
+                            <input type="text" name="serie_remision" class="form-control"
+                                   value="{{ old('serie_remision', $empresa->serie_remision ?? 'REM') }}"
+                                   maxlength="10" required style="text-transform: uppercase;">
+                            <span class="form-hint">Ej: REM, REM-2026</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_remision" class="form-control"
+                                   value="{{ old('folio_remision', $empresa->folio_remision ?? 1) }}" min="1" required>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -59,8 +59,19 @@ class Remision extends Model
         return $this->hasMany(RemisionDetalle::class)->orderBy('orden');
     }
 
+    /**
+     * Generar folio desde configuración de empresa (serie + folio).
+     * Reserva el folio incrementando el contador de la empresa.
+     */
     public static function generarFolio(): string
     {
+        $empresa = \App\Models\Empresa::principal();
+        if ($empresa) {
+            $folio = $empresa->obtenerSiguienteFolioRemision();
+            $empresa->incrementarFolioRemision();
+            return $folio;
+        }
+        // Fallback si no hay empresa: REM-AÑO-0001
         $year = date('Y');
         $ultimo = self::where('folio', 'like', "REM-{$year}-%")->orderBy('id', 'desc')->first();
         $numero = $ultimo && preg_match('/REM-' . $year . '-(\d{4})/', $ultimo->folio, $m) ? (int) $m[1] + 1 : 1;

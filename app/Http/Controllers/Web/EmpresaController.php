@@ -82,6 +82,16 @@ class EmpresaController extends Controller
         // ===============================
         'serie_factura' => 'required|string|max:5',
         'folio_factura' => 'required|integer|min:1',
+        'serie_nota_credito' => 'required|string|max:5',
+        'folio_nota_credito' => 'required|integer|min:1',
+        'serie_nota_debito' => 'required|string|max:5',
+        'folio_nota_debito' => 'required|integer|min:1',
+        'serie_complemento' => 'required|string|max:5',
+        'folio_complemento' => 'required|integer|min:1',
+        'serie_cotizacion' => 'required|string|max:10',
+        'folio_cotizacion' => 'required|integer|min:1',
+        'serie_remision' => 'required|string|max:10',
+        'folio_remision' => 'required|integer|min:1',
 
         // ===============================
         // IDENTIDAD / BANCO

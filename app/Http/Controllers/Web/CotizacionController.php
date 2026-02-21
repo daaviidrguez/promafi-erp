@@ -85,7 +85,7 @@ class CotizacionController extends Controller
         }
 
         $cotizacion = null;
-        $folio = Cotizacion::generarFolio();
+        $folio = $empresa ? $empresa->obtenerSiguienteFolioCotizacion() : 'COT-0001';
 
         // Modo edición: cargar cotización con detalles ordenados para repoblar el formulario
         if ($request->has('id')) {

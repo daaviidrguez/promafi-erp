@@ -117,7 +117,7 @@ class Producto extends Model
     }
 
     /**
-     * Descontar stock
+     * Descontar stock (usar InventarioMovimiento::registrar para trazabilidad)
      */
     public function descontarStock(float $cantidad): void
     {
@@ -127,13 +127,18 @@ class Producto extends Model
     }
 
     /**
-     * Aumentar stock
+     * Aumentar stock (usar InventarioMovimiento::registrar para trazabilidad)
      */
     public function aumentarStock(float $cantidad): void
     {
         if ($this->controla_inventario) {
             $this->increment('stock', $cantidad);
         }
+    }
+
+    public function movimientos()
+    {
+        return $this->hasMany(InventarioMovimiento::class)->orderByDesc('created_at');
     }
 
     /**

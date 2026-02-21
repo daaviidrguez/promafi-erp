@@ -60,8 +60,8 @@ $breadcrumbs = [
             <div class="card-body">
                 <div class="info-grid-2">
                     <div class="info-row">
-                        <div class="info-label">Clave Producto / Servicio</div>
-                        <div class="info-value text-mono">{{ $producto->clave_sat }}</div>
+                        <div class="info-label">Clave Prod./Serv.</div>
+                        <div class="info-value">{{ $claveSatEtiqueta ?? $producto->clave_sat }}</div>
                     </div>
                     <div class="info-row">
                         <div class="info-label">Clave Unidad</div>
@@ -156,6 +156,12 @@ $breadcrumbs = [
                                     {{ number_format($producto->stock_minimo, 0) }}
                                 </div>
                             </div>
+                            @if($producto->stock_maximo !== null)
+                            <div class="info-row">
+                                <div class="info-label">Stock Máximo</div>
+                                <div class="info-value">{{ number_format($producto->stock_maximo, 0) }}</div>
+                            </div>
+                            @endif
                         </div>
                         @if($producto->bajoEnStock())
                         <div class="alert alert-danger" style="margin-top: 12px; margin-bottom: 0;">
@@ -166,6 +172,7 @@ $breadcrumbs = [
                             </div>
                         </div>
                         @endif
+                        <a href="{{ route('inventario.show-producto', $producto->id) }}" class="btn btn-outline btn-sm" style="margin-top:12px;">📋 Ver movimientos en Inventario</a>
                     </div>
                 @else
                     <div class="alert alert-info" style="margin-top: 16px; margin-bottom: 0;">

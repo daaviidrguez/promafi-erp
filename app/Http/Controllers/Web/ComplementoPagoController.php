@@ -12,6 +12,7 @@ use App\Models\DocumentoRelacionadoPago;
 use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\Empresa;
+use App\Models\FormaPago;
 use App\Services\PACServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,14 +59,15 @@ class ComplementoPagoController extends Controller
         }
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();
-        
+        $formasPago = FormaPago::activos()->get();
+
         // Si viene de una cuenta por cobrar específica
         $cuentaPreseleccionada = null;
         if ($request->has('cuenta_id')) {
             $cuentaPreseleccionada = CuentaPorCobrar::with('factura')->find($request->cuenta_id);
         }
 
-        return view('complementos.create', compact('empresa', 'clientes', 'cuentaPreseleccionada'));
+        return view('complementos.create', compact('empresa', 'clientes', 'cuentaPreseleccionada', 'formasPago'));
     }
 
     /**
@@ -76,7 +78,7 @@ class ComplementoPagoController extends Controller
         $validated = $request->validate([
             'cliente_id' => 'required|exists:clientes,id',
             'fecha_pago' => 'required|date',
-            'forma_pago' => 'required|string|max:2',
+            'forma_pago' => 'required|string|exists:formas_pago,clave',
             'monto_total' => 'required|numeric|min:0.01',
             'moneda' => 'required|string|max:3',
             'num_operacion' => 'nullable|string|max:100',

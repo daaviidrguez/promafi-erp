@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
+use App\Models\FormaPago;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -52,7 +53,8 @@ class CuentaPorCobrarController extends Controller
     public function show(CuentaPorCobrar $cuentaPorCobrar)
     {
         $cuentaPorCobrar->load(['cliente', 'factura.detalles']);
-        return view('cuentas-cobrar.show', compact('cuentaPorCobrar'));
+        $formasPago = FormaPago::activos()->get();
+        return view('cuentas-cobrar.show', compact('cuentaPorCobrar', 'formasPago'));
     }
 
     /**
@@ -63,7 +65,7 @@ class CuentaPorCobrarController extends Controller
         $validated = $request->validate([
             'monto' => 'required|numeric|min:0.01|max:' . $cuentaPorCobrar->monto_pendiente,
             'fecha_pago' => 'required|date',
-            'forma_pago' => 'required|string|max:2',
+            'forma_pago' => 'required|string|exists:formas_pago,clave',
             'referencia' => 'nullable|string|max:100',
             'notas' => 'nullable|string',
         ]);

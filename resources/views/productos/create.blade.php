@@ -68,22 +68,35 @@ $breadcrumbs = [
                 </div>
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
-                        <div class="form-group">
+                        <div class="form-group search-box">
                             <label class="form-label">Clave Prod./Serv. <span class="req">*</span></label>
-                            <input type="text" name="clave_sat" class="form-control text-mono"
-                                   value="{{ old('clave_sat', '01010101') }}" maxlength="8" required>
-                            <span class="form-hint">8 dígitos SAT</span>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Clave Unidad <span class="req">*</span></label>
-                            <input type="text" name="clave_unidad_sat" class="form-control text-mono"
-                                   value="{{ old('clave_unidad_sat', 'H87') }}" maxlength="3" required>
-                            <span class="form-hint">H87 = Pieza</span>
+                            <input type="hidden" name="clave_sat" id="clave_sat_hidden" value="{{ $claveSatDefault ?? '01010101' }}" required>
+                            <input type="text" id="clave_sat_input" class="form-control text-mono"
+                                   value="{{ $claveSatEtiqueta ?? $claveSatDefault ?? '01010101' }}"
+                                   placeholder="Escribe clave o descripción..."
+                                   autocomplete="off">
+                            <div id="claveSatResults" class="autocomplete-results"></div>
+                            <span class="form-hint">Escribe para buscar en el catálogo SAT (se muestra clave y nombre)</span>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Unidad <span class="req">*</span></label>
-                            <input type="text" name="unidad" class="form-control"
-                                   value="{{ old('unidad', 'Pieza') }}" required>
+                            <select id="unidad_medida_select" class="form-control" required>
+                                @foreach($unidadesMedida ?? [] as $u)
+                                    <option value="{{ $u->clave }}" data-descripcion="{{ strlen($u->descripcion) > 20 ? substr($u->descripcion, 0, 20) : $u->descripcion }}"
+                                        {{ old('clave_unidad_sat', 'H87') == $u->clave ? 'selected' : '' }}>
+                                        {{ $u->etiqueta }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <span class="form-hint">Catálogo unidades de medida SAT</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Clave Unidad <span class="req">*</span></label>
+                            <input type="text" name="clave_unidad_sat" id="clave_unidad_sat_input" class="form-control text-mono"
+                                   value="{{ old('clave_unidad_sat', 'H87') }}" maxlength="3" required readonly
+                                   style="background: var(--color-gray-50);">
+                            <input type="hidden" name="unidad" id="unidad_input" value="{{ old('unidad', 'Pieza') }}">
+                            <span class="form-hint">Se llena al elegir la unidad</span>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-top: 16px;">
@@ -166,16 +179,19 @@ $breadcrumbs = [
                     <div class="card-title">📊 Inventario</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Stock Inicial</label>
-                        <input type="number" name="stock" class="form-control"
-                               value="{{ old('stock', 0) }}" min="0" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Stock Mínimo</label>
-                        <input type="number" name="stock_minimo" class="form-control"
-                               value="{{ old('stock_minimo', 0) }}" min="0" step="0.01">
-                        <span class="form-hint">Se generará alerta cuando caiga por debajo</span>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div class="form-group">
+                            <label class="form-label">Stock Mínimo</label>
+                            <input type="number" name="stock_minimo" class="form-control"
+                                   value="{{ old('stock_minimo', 0) }}" min="0" step="0.01">
+                            <span class="form-hint">Alerta cuando el stock caiga por debajo</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Stock Máximo</label>
+                            <input type="number" name="stock_maximo" class="form-control"
+                                   value="{{ old('stock_maximo') }}" min="0" step="0.01" placeholder="Opcional">
+                            <span class="form-hint">Límite de control (opcional)</span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -184,7 +200,7 @@ $breadcrumbs = [
                                    style="width: 16px; height: 16px;">
                             Controlar inventario
                         </label>
-                        <span class="form-hint">Desactivar para servicios o consumibles</span>
+                        <span class="form-hint">El stock se gestiona desde el módulo Inventario (entradas/salidas). Desactivar para servicios o consumibles.</span>
                     </div>
                 </div>
             </div>
@@ -235,5 +251,67 @@ $breadcrumbs = [
 
     actualizarTasaCreate();
     actualizarPrecioIva();
+
+    // Unidad de medida: al elegir, precargar clave y nombre
+    var sel = document.getElementById('unidad_medida_select');
+    var claveUnidadInput = document.getElementById('clave_unidad_sat_input');
+    var unidadInput = document.getElementById('unidad_input');
+    function syncUnidadDesdeSelect() {
+        var opt = sel.options[sel.selectedIndex];
+        if (opt) {
+            claveUnidadInput.value = opt.value;
+            unidadInput.value = opt.getAttribute('data-descripcion') || opt.text;
+        }
+    }
+    sel.addEventListener('change', syncUnidadDesdeSelect);
+    syncUnidadDesdeSelect();
+
+    // Autocomplete Clave Prod./Serv. SAT
+    var timerClaveSat = null;
+    var claveSatInput = document.getElementById('clave_sat_input');
+    var claveSatResults = document.getElementById('claveSatResults');
+    claveSatInput.addEventListener('input', function() {
+        clearTimeout(timerClaveSat);
+        var q = this.value.trim();
+        if (q.length < 2) { claveSatResults.classList.remove('show'); return; }
+        timerClaveSat = setTimeout(function() { buscarClaveSat(q); }, 280);
+    });
+    claveSatInput.addEventListener('focus', function() {
+        var v = this.value.trim();
+        if (v.length < 2) return;
+        var q = v.indexOf(' - ') !== -1 ? v.split(' - ')[0].trim() : v;
+        if (q.length >= 2) buscarClaveSat(q);
+    });
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.search-box')) claveSatResults.classList.remove('show');
+    });
+    function buscarClaveSat(q) {
+        fetch('{{ route("productos.buscar-clave-sat") }}?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.length) {
+                    claveSatResults.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+                } else {
+                    claveSatResults.innerHTML = data.map(function(item) {
+                        var desc = (item.descripcion || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                        var clave = (item.clave || '').replace(/"/g, '&quot;');
+                        var etiqueta = (item.clave || '') + ' - ' + (item.descripcion || '');
+                        return '<div class="autocomplete-item" data-clave="' + clave + '" data-etiqueta="' + etiqueta.replace(/"/g, '&quot;') + '">' +
+                            '<div class="autocomplete-item-name">' + (item.clave || '') + ' - ' + (item.descripcion || '') + '</div>' +
+                            '</div>';
+                    }).join('');
+                    claveSatResults.querySelectorAll('.autocomplete-item').forEach(function(el) {
+                        el.addEventListener('click', function() {
+                            document.getElementById('clave_sat_hidden').value = this.dataset.clave || '';
+                            claveSatInput.value = this.dataset.etiqueta || this.dataset.clave || '';
+                            claveSatResults.classList.remove('show');
+                            claveSatInput.focus();
+                        });
+                    });
+                }
+                claveSatResults.classList.add('show');
+            })
+            .catch(function(err) { console.error(err); });
+    }
 </script>
 @endpush

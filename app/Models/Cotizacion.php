@@ -168,11 +168,60 @@ class Cotizacion extends Model
     }
 
     /**
-     * Verificar si puede facturarse
+     * Verificar si puede facturarse (estado)
      */
     public function puedeFacturarse(): bool
     {
         return in_array($this->estado, ['aceptada', 'enviada']);
+    }
+
+    /**
+     * Si tiene al menos una partida manual
+     */
+    public function tienePartidasManuales(): bool
+    {
+        return $this->detalles()->where('es_producto_manual', true)->exists();
+    }
+
+    /**
+     * Puede convertir a factura: estado correcto, todos los datos necesarios y stock suficiente
+     * en productos que controlan inventario.
+     */
+    public function puedeConvertirAFactura(): bool
+    {
+        if (!$this->puedeFacturarse()) {
+            return false;
+        }
+        foreach ($this->detalles as $d) {
+            if ($d->producto_id && $d->producto) {
+                if ($d->producto->controla_inventario && !$d->producto->tieneStock((float) $d->cantidad)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Mensaje por el cual no se puede convertir a factura (stock u otro)
+     */
+    public function motivoNoConvertirAFactura(): ?string
+    {
+        if (!$this->puedeFacturarse()) {
+            return 'La cotización debe estar aceptada o enviada.';
+        }
+        $sinStock = [];
+        foreach ($this->detalles as $d) {
+            if ($d->producto_id && $d->producto && $d->producto->controla_inventario) {
+                if (!$d->producto->tieneStock((float) $d->cantidad)) {
+                    $sinStock[] = $d->producto->nombre . ' (requiere ' . $d->cantidad . ', hay ' . $d->producto->stock . ')';
+                }
+            }
+        }
+        if (!empty($sinStock)) {
+            return 'Falta stock: ' . implode('; ', $sinStock);
+        }
+        return null;
     }
 
     /**

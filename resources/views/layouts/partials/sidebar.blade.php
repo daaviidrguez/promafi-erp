@@ -34,6 +34,13 @@
             <div class="sidebar-section-title">Facturación</div>
             <ul class="sidebar-menu">
                 <li class="sidebar-menu-item">
+                    <a href="{{ route('catalogos-sat.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('catalogos-sat.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">📑</span>
+                        <span class="sidebar-menu-text">Catálogos SAT</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
                     <a href="{{ route('facturas.index') }}"
                        class="sidebar-menu-link {{ request()->routeIs('facturas.*') ? 'active' : '' }}">
                         <span class="sidebar-menu-icon">📄</span>
@@ -87,7 +94,13 @@
                         <span class="sidebar-menu-text">Productos</span>
                     </a>
                 </li>
-
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('inventario.index') }}"
+                    class="sidebar-menu-link {{ request()->routeIs('inventario.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">📊</span>
+                        <span class="sidebar-menu-text">Inventario</span>
+                    </a>
+                </li>
                 <li class="sidebar-menu-item">
                     <a href="{{ route('categorias.index') }}"
                     class="sidebar-menu-link {{ request()->routeIs('categorias.*') ? 'active' : '' }}">

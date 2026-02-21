@@ -268,11 +268,9 @@ $breadcrumbs = [
                     <div class="form-group">
                         <label class="form-label">Forma de Pago <span class="req">*</span></label>
                         <select name="forma_pago" class="form-control" required>
-                            <option value="01">01 - Efectivo</option>
-                            <option value="02">02 - Cheque nominativo</option>
-                            <option value="03" selected>03 - Transferencia</option>
-                            <option value="04">04 - Tarjeta de crédito</option>
-                            <option value="28">28 - Tarjeta de débito</option>
+                            @foreach($formasPago ?? [] as $fp)
+                                <option value="{{ $fp->clave }}" {{ old('forma_pago', '03') == $fp->clave ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
+                            @endforeach
                         </select>
                     </div>
                 </div>

@@ -17,8 +17,9 @@ class DatabaseSeeder extends Seeder
         // Llamar a los seeders en orden
         $this->call([
             UserSeeder::class,                // Usuarios
-            EmpresaSeeder::class,             // Empresa (configuración) ← NUEVO
+            EmpresaSeeder::class,             // Empresa (configuración)
             CategoriaProductoSeeder::class,   // Categorías
+            CatalogosSatSeeder::class,        // Catálogos SAT (regímenes, usos CFDI, etc.)
             ProductoSeeder::class,            // Productos de ejemplo
         ]);
         

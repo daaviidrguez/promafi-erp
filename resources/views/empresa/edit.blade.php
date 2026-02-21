@@ -43,10 +43,10 @@ $breadcrumbs = [
                             <label class="form-label">Régimen Fiscal <span class="req">*</span></label>
                             <select name="regimen_fiscal" class="form-control" required>
                                 <option value="">Seleccionar...</option>
-                                @foreach(config('regimenes_fiscales', []) as $codigo => $etiqueta)
-                                    <option value="{{ $codigo }}"
-                                        {{ old('regimen_fiscal', $empresa->regimen_fiscal) == $codigo ? 'selected' : '' }}>
-                                        {{ $etiqueta }}
+                                @foreach($regimenes ?? [] as $r)
+                                    <option value="{{ $r->clave }}"
+                                        {{ old('regimen_fiscal', $empresa->regimen_fiscal) == $r->clave ? 'selected' : '' }}>
+                                        {{ $r->etiqueta }}
                                     </option>
                                 @endforeach
                             </select>

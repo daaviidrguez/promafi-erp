@@ -179,8 +179,29 @@ class RemisionController extends Controller
         if (!$remision->puedeEntregarse()) {
             return back()->with('error', 'Solo se puede marcar como entregada una remisión enviada');
         }
-        $remision->update(['estado' => 'entregada', 'fecha_entrega' => now()]);
-        return back()->with('success', 'Remisión marcada como entregada');
+        \DB::beginTransaction();
+        try {
+            foreach ($remision->detalles as $detalle) {
+                if ($detalle->producto_id && $detalle->producto && $detalle->producto->controla_inventario) {
+                    \App\Models\InventarioMovimiento::registrar(
+                        $detalle->producto,
+                        \App\Models\InventarioMovimiento::TIPO_SALIDA_REMISION,
+                        (float) $detalle->cantidad,
+                        auth()->id(),
+                        null,
+                        $remision->id,
+                        null,
+                        null
+                    );
+                }
+            }
+            $remision->update(['estado' => 'entregada', 'fecha_entrega' => now()]);
+            \DB::commit();
+            return back()->with('success', 'Remisión marcada como entregada. Se registró la salida de inventario.');
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     public function cancelar(Remision $remision)

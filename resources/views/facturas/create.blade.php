@@ -113,29 +113,25 @@ $breadcrumbs = [
                     <div class="form-group">
                         <label class="form-label">Forma de Pago <span class="req">*</span></label>
                         <select name="forma_pago" class="form-control" required>
-                            <option value="01">01 - Efectivo</option>
-                            <option value="02">02 - Cheque nominativo</option>
-                            <option value="03" selected>03 - Transferencia electrónica</option>
-                            <option value="04">04 - Tarjeta de crédito</option>
-                            <option value="28">28 - Tarjeta de débito</option>
-                            <option value="99">99 - Por definir</option>
+                            @foreach($formasPago ?? [] as $fp)
+                                <option value="{{ $fp->clave }}" {{ old('forma_pago', '03') == $fp->clave ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Método de Pago <span class="req">*</span></label>
                         <select name="metodo_pago" id="metodo_pago" class="form-control" required>
-                            <option value="PUE" selected>PUE - Pago en una sola exhibición</option>
-                            <option value="PPD">PPD - Pago en parcialidades o diferido</option>
+                            @foreach($metodosPago ?? [] as $mp)
+                                <option value="{{ $mp->clave }}" {{ old('metodo_pago', 'PUE') == $mp->clave ? 'selected' : '' }}>{{ $mp->etiqueta }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Uso de CFDI <span class="req">*</span></label>
                         <select name="uso_cfdi" id="uso_cfdi" class="form-control" required>
-                            <option value="G03">G03 - Gastos en general</option>
-                            <option value="P01">P01 - Por definir</option>
-                            <option value="S01">S01 - Sin efectos fiscales</option>
-                            <option value="D01">D01 - Honorarios médicos</option>
-                            <option value="D02">D02 - Gastos médicos</option>
+                            @foreach($usosCfdi ?? [] as $u)
+                                <option value="{{ $u->clave }}" {{ old('uso_cfdi', 'G03') == $u->clave ? 'selected' : '' }}>{{ $u->etiqueta }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div class="form-group">

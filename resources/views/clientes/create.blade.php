@@ -172,16 +172,16 @@ $breadcrumbs = [
                         <label class="form-label">Régimen Fiscal</label>
                         <select name="regimen_fiscal" class="form-control">
                             <option value="">Seleccionar...</option>
-                            @foreach(config('regimenes_fiscales', []) as $codigo => $etiqueta)
-                                <option value="{{ $codigo }}" {{ old('regimen_fiscal') == $codigo ? 'selected' : '' }}>{{ $etiqueta }}</option>
+                            @foreach($regimenes ?? [] as $r)
+                                <option value="{{ $r->clave }}" {{ old('regimen_fiscal') == $r->clave ? 'selected' : '' }}>{{ $r->etiqueta }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Uso de CFDI <span class="req">*</span></label>
-                        <select name="uso_cfdi_default" class="form-control" required>
-                            @foreach(['G03'=>'G03 - Gastos en general','P01'=>'P01 - Por definir','S01'=>'S01 - Sin efectos fiscales','D01'=>'D01 - Honorarios médicos','D02'=>'D02 - Gastos médicos','D03'=>'D03 - Gastos funerales','D04'=>'D04 - Donativos','I01'=>'I01 - Construcciones'] as $val => $label)
-                            <option value="{{ $val }}" {{ old('uso_cfdi_default', 'G03') == $val ? 'selected' : '' }}>{{ $label }}</option>
+<select name="uso_cfdi_default" class="form-control" required>
+                            @foreach($usosCfdi ?? [] as $u)
+                                <option value="{{ $u->clave }}" {{ old('uso_cfdi_default', 'G03') == $u->clave ? 'selected' : '' }}>{{ $u->etiqueta }}</option>
                             @endforeach
                         </select>
                     </div>

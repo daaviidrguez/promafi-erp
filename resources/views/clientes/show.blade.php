@@ -255,11 +255,11 @@ $breadcrumbs = [
                     </div>
                     <div class="info-row">
                         <div class="info-label">Régimen Fiscal</div>
-                        <div class="info-value">{{ $cliente->regimen_fiscal ? (config('regimenes_fiscales.'.$cliente->regimen_fiscal) ?? $cliente->regimen_fiscal) : '—' }}</div>
+                        <div class="info-value">{{ $regimenEtiqueta ?? '—' }}</div>
                     </div>
                     <div class="info-row">
                         <div class="info-label">Uso de CFDI</div>
-                        <div class="info-value">{{ $cliente->uso_cfdi_default ?? '—' }}</div>
+                        <div class="info-value">{{ $usoCfdiEtiqueta ?? '—' }}</div>
                     </div>
                 </div>
             </div>

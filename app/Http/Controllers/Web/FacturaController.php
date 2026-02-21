@@ -13,6 +13,10 @@ use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\Empresa;
 use App\Models\CuentaPorCobrar;
+use App\Models\InventarioMovimiento;
+use App\Models\FormaPago;
+use App\Models\MetodoPago;
+use App\Models\UsoCfdi;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
@@ -60,13 +64,16 @@ class FacturaController extends Controller
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();
         $productos = Producto::activos()->with('categoria')->orderBy('nombre')->get();
-        
+        $formasPago = FormaPago::activos()->get();
+        $metodosPago = MetodoPago::activos()->get();
+        $usosCfdi = UsoCfdi::activos()->get();
+
         $clientePreseleccionado = null;
         if ($request->has('cliente_id')) {
             $clientePreseleccionado = Cliente::find($request->cliente_id);
         }
 
-        return view('facturas.create', compact('empresa', 'clientes', 'productos', 'clientePreseleccionado'));
+        return view('facturas.create', compact('empresa', 'clientes', 'productos', 'clientePreseleccionado', 'formasPago', 'metodosPago', 'usosCfdi'));
     }
 
     /**
@@ -77,9 +84,9 @@ class FacturaController extends Controller
         $validated = $request->validate([
             'cliente_id' => 'required|exists:clientes,id',
             'fecha_emision' => 'required|date',
-            'forma_pago' => 'required|string|max:2',
-            'metodo_pago' => 'required|string|max:3',
-            'uso_cfdi' => 'required|string|max:3',
+            'forma_pago' => 'required|string|exists:formas_pago,clave',
+            'metodo_pago' => 'required|string|exists:metodos_pago,clave',
+            'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
             'observaciones' => 'nullable|string',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
@@ -188,7 +195,16 @@ class FacturaController extends Controller
                 }
 
                 if ($producto && $producto->controla_inventario) {
-                    $producto->descontarStock($prod['cantidad']);
+                    InventarioMovimiento::registrar(
+                        $producto,
+                        InventarioMovimiento::TIPO_SALIDA_FACTURA,
+                        (float) $prod['cantidad'],
+                        auth()->id(),
+                        $factura->id,
+                        null,
+                        null,
+                        null
+                    );
                 }
             }
 
@@ -319,10 +335,19 @@ class FacturaController extends Controller
                 'acuse_cancelacion' => $resultado['acuse'] ?? null,
             ]);
 
-            // Devolver productos al inventario
+            // Devolver productos al inventario (trazabilidad: devolucion_factura)
             foreach ($factura->detalles as $detalle) {
                 if ($detalle->producto && $detalle->producto->controla_inventario) {
-                    $detalle->producto->aumentarStock($detalle->cantidad);
+                    InventarioMovimiento::registrar(
+                        $detalle->producto,
+                        InventarioMovimiento::TIPO_DEVOLUCION_FACTURA,
+                        (float) $detalle->cantidad,
+                        auth()->id(),
+                        $factura->id,
+                        null,
+                        null,
+                        'Factura cancelada'
+                    );
                 }
             }
 

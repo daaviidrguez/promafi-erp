@@ -6,8 +6,9 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Models\RegimenFiscal;
+use App\Models\UsoCfdi;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 
 class ClienteController extends Controller
 {
@@ -33,7 +34,9 @@ class ClienteController extends Controller
      */
     public function create()
     {
-        return view('clientes.create');
+        $regimenes = RegimenFiscal::activos()->get();
+        $usosCfdi = UsoCfdi::activos()->get();
+        return view('clientes.create', compact('regimenes', 'usosCfdi'));
     }
 
     /**
@@ -52,8 +55,8 @@ class ClienteController extends Controller
                 'size:' . $rfcSize,
                 'unique:clientes,rfc',
             ],
-            'regimen_fiscal' => 'nullable|string|in:' . implode(',', array_keys(Config::get('regimenes_fiscales', []))),
-            'uso_cfdi_default' => 'required|string|max:3',
+            'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
+            'uso_cfdi_default' => 'required|string|exists:usos_cfdi,clave',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:15',
             'celular' => 'nullable|string|max:15',
@@ -87,6 +90,12 @@ class ClienteController extends Controller
      */
     public function show(Cliente $cliente)
     {
+        $regimenEtiqueta = $cliente->regimen_fiscal
+            ? (optional(RegimenFiscal::where('clave', $cliente->regimen_fiscal)->first())->etiqueta ?? $cliente->regimen_fiscal)
+            : null;
+        $usoCfdiEtiqueta = $cliente->uso_cfdi_default
+            ? (optional(UsoCfdi::where('clave', $cliente->uso_cfdi_default)->first())->etiqueta ?? $cliente->uso_cfdi_default)
+            : null;
         $cliente->load([
             'facturas' => function($q) {
                 $q->latest()->limit(10);
@@ -96,7 +105,7 @@ class ClienteController extends Controller
             }
         ]);
 
-        return view('clientes.show', compact('cliente'));
+        return view('clientes.show', compact('cliente', 'regimenEtiqueta', 'usoCfdiEtiqueta'));
     }
 
     /**
@@ -104,7 +113,9 @@ class ClienteController extends Controller
      */
     public function edit(Cliente $cliente)
     {
-        return view('clientes.edit', compact('cliente'));
+        $regimenes = RegimenFiscal::activos()->get();
+        $usosCfdi = UsoCfdi::activos()->get();
+        return view('clientes.edit', compact('cliente', 'regimenes', 'usosCfdi'));
     }
 
     /**
@@ -123,8 +134,8 @@ class ClienteController extends Controller
                 'size:' . $rfcSize,
                 'unique:clientes,rfc,' . $cliente->id,
             ],
-            'regimen_fiscal' => 'nullable|string|in:' . implode(',', array_keys(Config::get('regimenes_fiscales', []))),
-            'uso_cfdi_default' => 'required|string|max:3',
+            'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
+            'uso_cfdi_default' => 'required|string|exists:usos_cfdi,clave',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:15',
             'celular' => 'nullable|string|max:15',

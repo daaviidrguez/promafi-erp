@@ -25,6 +25,15 @@ use App\Http\Controllers\Web\RemisionController;
 use App\Http\Controllers\Web\SugerenciaController;
 use App\Http\Controllers\Web\UsuarioController;
 use App\Http\Controllers\Web\RoleController;
+use App\Http\Controllers\Web\InventarioController;
+use App\Http\Controllers\Web\CatalogosSatController;
+use App\Http\Controllers\Web\RegimenFiscalController;
+use App\Http\Controllers\Web\UsoCfdiController;
+use App\Http\Controllers\Web\FormaPagoController;
+use App\Http\Controllers\Web\MetodoPagoController;
+use App\Http\Controllers\Web\MonedaController;
+use App\Http\Controllers\Web\UnidadMedidaSatController;
+use App\Http\Controllers\Web\ClaveProdServicioController;
 
 /*
 |--------------------------------------------------------------------------
@@ -88,6 +97,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cotizaciones/{cotizacion}/aceptar', [CotizacionController::class, 'aceptar'])->name('cotizaciones.aceptar');
     Route::post('/cotizaciones/{cotizacion}/enviar', [CotizacionController::class, 'enviar'])->name('cotizaciones.enviar');
     Route::post('/cotizaciones/{cotizacion}/convertir-factura', [CotizacionController::class, 'convertirFactura'])->name('cotizaciones.convertir-factura');
+    Route::post('/cotizaciones/{cotizacion}/crear-productos-manuales', [CotizacionController::class, 'crearProductosDesdeManuales'])->name('cotizaciones.crear-productos-manuales');
     
     // PDFs
     Route::get('/cotizaciones/{cotizacion}/generar-pdf', [CotizacionController::class, 'generarPDF'])->name('cotizaciones.generar-pdf');
@@ -149,10 +159,18 @@ Route::middleware('auth')->group(function () {
     Route::resource('clientes.contactos', ClienteContactoController::class)->parameters(['contactos' => 'contacto']);
     
     // ───── PRODUCTOS ───── ✅
+    Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
     Route::resource('productos', ProductoController::class);
 
     // ───── CATEGORIAS ───── ✅
     Route::resource('categorias', CategoriaProductoController::class);
+
+    // ───── INVENTARIO ─────
+    Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
+    Route::get('/inventario/movimientos', [InventarioController::class, 'movimientos'])->name('inventario.movimientos');
+    Route::get('/inventario/movimientos/crear', [InventarioController::class, 'createMovimiento'])->name('inventario.create-movimiento');
+    Route::post('/inventario/movimientos', [InventarioController::class, 'storeMovimiento'])->name('inventario.store-movimiento');
+    Route::get('/inventario/producto/{producto}', [InventarioController::class, 'showProducto'])->name('inventario.show-producto');
 
     // ───── SUGERENCIAS (partidas para cotizar manual) ─────
     Route::get('/sugerencias/buscar', [SugerenciaController::class, 'buscar'])->name('sugerencias.buscar');
@@ -166,6 +184,18 @@ Route::middleware('auth')->group(function () {
     Route::delete('/facturas/{factura}/cancelar', [FacturaController::class, 'cancelar'])->name('facturas.cancelar');
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');
     Route::get('/facturas/{factura}/descargar-pdf', [FacturaController::class, 'descargarPDF'])->name('facturas.descargar-pdf');
+
+    // ───── CATÁLOGOS SAT (Facturación) ─────
+    Route::get('/catalogos-sat', [CatalogosSatController::class, 'index'])->name('catalogos-sat.index');
+    Route::resource('catalogos-sat/regimenes-fiscales', RegimenFiscalController::class)->parameters(['regimenes_fiscales' => 'regimenes_fiscale'])->names('catalogos-sat.regimenes-fiscales');
+    Route::resource('catalogos-sat/usos-cfdi', UsoCfdiController::class)->parameters(['usos_cfdi' => 'usos_cfdi'])->names('catalogos-sat.usos-cfdi');
+    Route::resource('catalogos-sat/formas-pago', FormaPagoController::class)->parameters(['formas_pago' => 'formas_pago'])->names('catalogos-sat.formas-pago');
+    Route::resource('catalogos-sat/metodos-pago', MetodoPagoController::class)->parameters(['metodos_pago' => 'metodos_pago'])->names('catalogos-sat.metodos-pago');
+    Route::resource('catalogos-sat/monedas', MonedaController::class)->parameters(['monedas' => 'moneda'])->names('catalogos-sat.monedas');
+    Route::resource('catalogos-sat/unidades-medida', UnidadMedidaSatController::class)->parameters(['unidades_medida' => 'unidades_medida'])->names('catalogos-sat.unidades-medida');
+    Route::get('/catalogos-sat/claves-producto-servicio/plantilla', [ClaveProdServicioController::class, 'descargarPlantilla'])->name('catalogos-sat.claves-producto-servicio.plantilla');
+    Route::post('/catalogos-sat/claves-producto-servicio/importar', [ClaveProdServicioController::class, 'importar'])->name('catalogos-sat.claves-producto-servicio.importar');
+    Route::resource('catalogos-sat/claves-producto-servicio', ClaveProdServicioController::class)->parameters(['claves_producto_servicio' => 'claves_producto_servicio'])->names('catalogos-sat.claves-producto-servicio')->except(['show']);
     
     // ───── CUENTAS POR COBRAR ───── ✅
     Route::get('/cuentas-cobrar', [CuentaPorCobrarController::class, 'index'])->name('cuentas-cobrar.index');

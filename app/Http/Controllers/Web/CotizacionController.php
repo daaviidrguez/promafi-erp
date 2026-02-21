@@ -409,16 +409,86 @@ class CotizacionController extends Controller
     }
 
     /**
-     * Convertir a factura
+     * Crear productos desde partidas manuales (cotización aceptada/enviada).
+     * Crea un producto por cada detalle manual con descripción, unidad y precio de venta.
      */
-    public function convertirFactura($id)
+    public function crearProductosDesdeManuales($id)
     {
         DB::beginTransaction();
         try {
             $cotizacion = Cotizacion::with('detalles')->findOrFail($id);
 
             if (!$cotizacion->puedeFacturarse()) {
-                throw new \Exception('Esta cotización no puede facturarse');
+                return back()->with('error', 'La cotización debe estar aceptada o enviada.');
+            }
+
+            $manuales = $cotizacion->detalles()->where('es_producto_manual', true)->orderBy('orden')->get();
+            if ($manuales->isEmpty()) {
+                return back()->with('error', 'No hay partidas manuales para crear productos.');
+            }
+
+            $creados = 0;
+            foreach ($manuales as $detalle) {
+                $codigo = 'COT-' . $cotizacion->id . '-' . $detalle->orden;
+                $base = $codigo;
+                $contador = 0;
+                while (Producto::where('codigo', $codigo)->exists()) {
+                    $contador++;
+                    $codigo = $base . '-' . $contador;
+                }
+
+                $producto = Producto::create([
+                    'codigo' => $codigo,
+                    'nombre' => \Str::limit((string) $detalle->descripcion, 255),
+                    'descripcion' => $detalle->descripcion,
+                    'unidad' => $detalle->unidad ?? 'PZA',
+                    'clave_sat' => '01010101',
+                    'clave_unidad_sat' => 'H87',
+                    'objeto_impuesto' => '02',
+                    'tipo_impuesto' => '002',
+                    'tipo_factor' => 'Tasa',
+                    'tasa_iva' => (float) ($detalle->tasa_iva ?? 0.16),
+                    'aplica_iva' => true,
+                    'precio_venta' => (float) $detalle->precio_unitario,
+                    'stock' => 0,
+                    'controla_inventario' => true,
+                    'activo' => true,
+                ]);
+
+                $detalle->update([
+                    'producto_id' => $producto->id,
+                    'codigo' => $producto->codigo,
+                    'es_producto_manual' => false,
+                ]);
+                $creados++;
+            }
+
+            DB::commit();
+
+            return redirect()->route('cotizaciones.show', $cotizacion)
+                ->with('success', "Se crearon {$creados} producto(s) desde las partidas manuales. Puedes convertir a factura cuando tengan stock.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error al crear productos: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Convertir a factura
+     */
+    public function convertirFactura($id)
+    {
+        DB::beginTransaction();
+        try {
+            $cotizacion = Cotizacion::with(['detalles', 'detalles.producto'])->findOrFail($id);
+
+            if (!$cotizacion->puedeFacturarse()) {
+                throw new \Exception('Esta cotización no puede facturarse.');
+            }
+
+            $motivo = $cotizacion->motivoNoConvertirAFactura();
+            if ($motivo !== null) {
+                throw new \Exception($motivo);
             }
 
             $empresa = Empresa::principal();

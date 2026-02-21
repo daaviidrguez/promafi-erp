@@ -6,8 +6,8 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
+use App\Models\RegimenFiscal;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Storage;
 
 class EmpresaController extends Controller
@@ -18,7 +18,8 @@ class EmpresaController extends Controller
     public function edit()
     {
         $empresa = Empresa::principal();
-        
+        $regimenes = RegimenFiscal::activos()->get();
+
         // Si no existe, crear una nueva
         if (!$empresa) {
             $empresa = new Empresa([
@@ -28,7 +29,7 @@ class EmpresaController extends Controller
             ]);
         }
 
-        return view('empresa.edit', compact('empresa'));
+        return view('empresa.edit', compact('empresa', 'regimenes'));
     }
 
     /**
@@ -56,7 +57,7 @@ class EmpresaController extends Controller
         ],
         'razon_social' => 'required|string|max:255',
         'nombre_comercial' => 'nullable|string|max:255',
-        'regimen_fiscal' => 'required|string|in:' . implode(',', array_keys(Config::get('regimenes_fiscales', []))),
+        'regimen_fiscal' => 'required|string|exists:regimenes_fiscales,clave',
 
         // ===============================
         // DOMICILIO
@@ -122,9 +123,9 @@ class EmpresaController extends Controller
     // ===============================
     $validated['pac_modo_prueba'] = $request->has('pac_modo_prueba');
 
-    // Etiqueta completa del régimen fiscal (para PDF) desde config único
-    $regimenes = Config::get('regimenes_fiscales', []);
-    $validated['regimen_fiscal_etiqueta'] = $regimenes[$validated['regimen_fiscal']] ?? $validated['regimen_fiscal'];
+    // Etiqueta del régimen fiscal (para PDF)
+    $reg = RegimenFiscal::where('clave', $validated['regimen_fiscal'])->first();
+    $validated['regimen_fiscal_etiqueta'] = $reg ? $reg->etiqueta : $validated['regimen_fiscal'];
 
     // ===============================
     // CERTIFICADO .CER (privado)

@@ -282,7 +282,18 @@ $breadcrumbs = [
                 </form>
                 @endif
 
+                @if($cotizacion->puedeFacturarse() && $cotizacion->tienePartidasManuales())
+                <form method="POST" action="{{ route('cotizaciones.crear-productos-manuales', $cotizacion->id) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-outline w-full"
+                            onclick="return confirm('¿Crear productos en el catálogo a partir de las partidas manuales? Se usará descripción, unidad y precio unitario.')">
+                        📦 Crear producto(s)
+                    </button>
+                </form>
+                @endif
+
                 @if($cotizacion->puedeFacturarse())
+                @if($cotizacion->puedeConvertirAFactura())
                 <form method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
                     @csrf
                     <button type="submit" class="btn btn-primary w-full"
@@ -290,6 +301,13 @@ $breadcrumbs = [
                         💰 Convertir a Factura
                     </button>
                 </form>
+                @else
+                <button type="button" class="btn btn-primary w-full" disabled
+                        title="{{ $cotizacion->motivoNoConvertirAFactura() }}">
+                    💰 Convertir a Factura
+                </button>
+                <p class="text-muted small mt-1 mb-0">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
+                @endif
                 @endif
 
                 <a href="{{ route('cotizaciones.index') }}" class="btn btn-light w-full">← Volver</a>

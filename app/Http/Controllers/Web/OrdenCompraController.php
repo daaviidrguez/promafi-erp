@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\InventarioMovimiento;
 use App\Models\OrdenCompra;
 use App\Models\OrdenCompraDetalle;
 use App\Models\CotizacionCompra;
@@ -172,8 +173,17 @@ class OrdenCompraController extends Controller
         DB::beginTransaction();
         try {
             foreach ($ordenCompra->detalles as $detalle) {
-                if ($detalle->producto_id && $detalle->producto) {
-                    $detalle->producto->aumentarStock($detalle->cantidad);
+                if ($detalle->producto_id && $detalle->producto && $detalle->producto->controla_inventario) {
+                    InventarioMovimiento::registrar(
+                        $detalle->producto,
+                        InventarioMovimiento::TIPO_ENTRADA_COMPRA,
+                        (float) $detalle->cantidad,
+                        auth()->id(),
+                        null,
+                        null,
+                        $ordenCompra->id,
+                        null
+                    );
                 }
             }
             $ordenCompra->update(['estado' => 'recibida', 'fecha_recepcion' => now()]);

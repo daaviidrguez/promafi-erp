@@ -567,16 +567,17 @@ async function buscarSugerencias(rowIndex, q) {
         const rect = input.getBoundingClientRect();
         flotante.style.top = (rect.bottom + 6) + 'px';
         flotante.style.left = rect.left + 'px';
-        flotante.style.width = Math.max(rect.width, 320) + 'px';
-        flotante.style.minWidth = '280px';
+        flotante.style.width = Math.max(rect.width, 420) + 'px';
+        flotante.style.minWidth = '380px';
         if (!data.length) {
             flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin sugerencias</div></div>';
         } else {
             flotante.innerHTML = data.map(s => {
-                const desc = (s.descripcion || '').substring(0, 50) + ((s.descripcion || '').length > 50 ? '…' : '');
-                const label = (s.codigo ? s.codigo + ' — ' : '') + desc;
-                return `<div class="autocomplete-item" data-id="${s.id}" data-desc="${(s.descripcion||'').replace(/"/g,'&quot;')}" data-unidad="${(s.unidad||'PZA').replace(/"/g,'&quot;')}" data-precio="${s.precio_unitario}" onclick="aplicarSugerencia(${rowIndex}, this)">
-                    <div class="autocomplete-item-name">${label.replace(/</g,'&lt;')}</div>
+                const descCompleta = (s.descripcion || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                const label = (s.codigo ? (s.codigo + ' — ') : '') + (s.descripcion || '');
+                const labelEscaped = label.replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                return `<div class="autocomplete-item autocomplete-item-sugerencia" data-id="${s.id}" data-desc="${(s.descripcion||'').replace(/"/g,'&quot;')}" data-unidad="${(s.unidad||'PZA').replace(/"/g,'&quot;')}" data-precio="${s.precio_unitario}" onclick="aplicarSugerencia(${rowIndex}, this)">
+                    <div class="autocomplete-item-name autocomplete-item-desc-full">${labelEscaped}</div>
                     <div class="autocomplete-item-sub">${(s.unidad||'PZA')} — $${parseFloat(s.precio_unitario).toFixed(2)}</div>
                 </div>`;
             }).join('');

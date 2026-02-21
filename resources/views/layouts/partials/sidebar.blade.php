@@ -156,6 +156,20 @@
             <div class="sidebar-section-title">Sistema</div>
             <ul class="sidebar-menu">
                 <li class="sidebar-menu-item">
+                    <a href="{{ route('usuarios.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('usuarios.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">👤</span>
+                        <span class="sidebar-menu-text">Usuarios</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('roles.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('roles.*') ? 'active' : '' }}">
+                        <span class="sidebar-menu-icon">🔐</span>
+                        <span class="sidebar-menu-text">Roles y permisos</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
                     <a href="{{ route('empresa.edit') }}"
                        class="sidebar-menu-link {{ request()->routeIs('empresa.*') ? 'active' : '' }}">
                         <span class="sidebar-menu-icon">⚙️</span>

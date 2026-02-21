@@ -23,6 +23,8 @@ use App\Http\Controllers\Web\ProveedorController;
 use App\Http\Controllers\Web\CuentaPorPagarController;
 use App\Http\Controllers\Web\RemisionController;
 use App\Http\Controllers\Web\SugerenciaController;
+use App\Http\Controllers\Web\UsuarioController;
+use App\Http\Controllers\Web\RoleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -183,5 +185,11 @@ Route::middleware('auth')->group(function () {
     // ───── BUSCADOR GLOBAL ─────
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');
 
+    // ───── SISTEMA: Usuarios y Roles ─────
+    Route::resource('usuarios', UsuarioController::class)->parameters(['usuarios' => 'usuario']);
+    Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
+    Route::get('/roles/{role}/editar', [RoleController::class, 'edit'])->name('roles.edit');
+    Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
 
 });

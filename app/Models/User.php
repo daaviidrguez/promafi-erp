@@ -6,13 +6,33 @@ namespace App\Models;
 // Este archivo YA EXISTE en Laravel, solo reemplaza su contenido
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens; // Para tokens de API
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasApiTokens;
+
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    /** Nombre del rol (para compatibilidad API y vistas que esperan string) */
+    public function getRoleNameAttribute(): ?string
+    {
+        return $this->role ? $this->role->name : null;
+    }
+
+    public function hasPermission(string $key): bool
+    {
+        if (!$this->role) {
+            return false;
+        }
+        return $this->role->hasPermission($key);
+    }
 
     /**
      * Los atributos que se pueden asignar masivamente.
@@ -21,7 +41,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role',
+        'role_id',
         'activo',
     ];
 
@@ -50,7 +70,7 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->role && $this->role->name === 'admin';
     }
 
     /**
@@ -58,7 +78,7 @@ class User extends Authenticatable
      */
     public function isVendedor(): bool
     {
-        return $this->role === 'vendedor';
+        return $this->role && $this->role->name === 'vendedor';
     }
 
     /**
@@ -66,23 +86,23 @@ class User extends Authenticatable
      */
     public function isContador(): bool
     {
-        return $this->role === 'contador';
+        return $this->role && $this->role->name === 'contador';
     }
 
     /**
      * Verificar si tiene un rol específico
      */
-    public function hasRole(string $role): bool
+    public function hasRole(string $roleName): bool
     {
-        return $this->role === $role;
+        return $this->role && $this->role->name === $roleName;
     }
 
     /**
      * Verificar si tiene alguno de los roles
      */
-    public function hasAnyRole(array $roles): bool
+    public function hasAnyRole(array $roleNames): bool
     {
-        return in_array($this->role, $roles);
+        return $this->role && in_array($this->role->name, $roleNames);
     }
 
     /**

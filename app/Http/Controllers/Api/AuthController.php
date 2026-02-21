@@ -65,7 +65,7 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'role' => $user->role,
+                    'role' => $user->role_name,
                 ],
                 'token' => $token,
             ],
@@ -101,14 +101,15 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:admin,vendedor,contador,almacen',
+            'role' => 'required|in:admin,vendedor,contador,usuario',
         ]);
 
+        $role = \App\Models\Role::where('name', $request->role)->firstOrFail();
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role,
+            'role_id' => $role->id,
             'activo' => true,
         ]);
 
@@ -120,7 +121,7 @@ class AuthController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'role' => $user->role,
+                    'role' => $user->role_name,
                 ],
             ],
         ], 201);
@@ -141,7 +142,7 @@ class AuthController extends Controller
                     'id' => $request->user()->id,
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
-                    'role' => $request->user()->role,
+                    'role' => $request->user()->role_name,
                 ],
             ],
         ]);
@@ -163,7 +164,7 @@ class AuthController extends Controller
                     'id' => $request->user()->id,
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
-                    'role' => $request->user()->role,
+                    'role' => $request->user()->role_name,
                 ],
             ],
         ]);

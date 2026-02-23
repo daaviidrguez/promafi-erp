@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Web;
 use App\Exports\ClaveProdServicioPlantillaExport;
 use App\Http\Controllers\Controller;
 use App\Imports\ClaveProdServicioImport;
+use App\Jobs\ImportarClavesProdServicioJob;
 use App\Models\ClaveProdServicio;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -79,26 +81,25 @@ class ClaveProdServicioController extends Controller
 
     /**
      * Importar claves desde Excel (misma estructura que la plantilla).
+     * Archivos grandes (ej. 54k filas) se procesan en segundo plano para evitar timeout.
      */
     public function importar(Request $request)
     {
         $request->validate([
-            'archivo' => 'required|file|mimes:xlsx,xls|max:10240',
+            'archivo' => 'required|file|mimes:xlsx,xls,csv|max:51200',
+        ], [
+            'archivo.max' => 'El archivo no debe superar 50 MB. Para más de 50 mil filas considera dividirlo.',
         ]);
 
-        try {
-            Excel::import(new ClaveProdServicioImport, $request->file('archivo'));
-            return redirect()->route('catalogos-sat.claves-producto-servicio.index')
-                ->with('success', 'Claves importadas correctamente.');
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $failures = $e->failures();
-            $msg = 'Errores en filas: ';
-            foreach ($failures as $f) {
-                $msg .= 'Fila ' . $f->row() . ': ' . implode(', ', $f->errors()) . '; ';
-            }
-            return back()->with('error', $msg);
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Error al importar: ' . $e->getMessage());
+        $file = $request->file('archivo');
+        $path = $file->store('imports/claves', 'local');
+        if (!$path) {
+            return back()->with('error', 'No se pudo guardar el archivo.');
         }
+
+        ImportarClavesProdServicioJob::dispatch($path);
+
+        return redirect()->route('catalogos-sat.claves-producto-servicio.index')
+            ->with('success', 'Importación en segundo plano. Con 54 mil filas puede tardar varios minutos. Ejecuta en la terminal: php artisan queue:work — y actualiza esta página para ver las claves.');
     }
 }

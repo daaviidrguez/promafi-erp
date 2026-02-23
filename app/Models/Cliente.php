@@ -19,6 +19,7 @@ class Cliente extends Model
         'rfc',
         'regimen_fiscal',
         'uso_cfdi_default',
+        'forma_pago',
         'calle',
         'numero_exterior',
         'numero_interior',

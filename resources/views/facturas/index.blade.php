@@ -25,7 +25,7 @@ $breadcrumbs = [
                 <select name="estado" class="form-control" style="min-width: 160px;">
                     <option value="">Todos los estados</option>
                     <option value="borrador"  {{ ($estado ?? '') == 'borrador'  ? 'selected' : '' }}>📝 Borrador</option>
-                    <option value="timbrada"  {{ ($estado ?? '') == 'timbrada'  ? 'selected' : '' }}>✅ Timbrada</option>
+                    <option value="timbrada"  {{ ($estado ?? '') == 'timbrada'  ? 'selected' : '' }}>Timbrada</option>
                     <option value="cancelada" {{ ($estado ?? '') == 'cancelada' ? 'selected' : '' }}>❌ Cancelada</option>
                 </select>
 
@@ -70,7 +70,7 @@ $breadcrumbs = [
                 <td>
                     <div>{{ $factura->fecha_emision->format('d/m/Y') }}</div>
                     @if($factura->fecha_timbrado)
-                        <div style="font-size: 11px; color: var(--color-success);">✓ {{ $factura->fecha_timbrado->format('H:i') }}</div>
+                        <div style="font-size: 11px; color: var(--color-success);">{{ $factura->fecha_timbrado->format('H:i') }}</div>
                     @endif
                 </td>
                 <td class="td-center">

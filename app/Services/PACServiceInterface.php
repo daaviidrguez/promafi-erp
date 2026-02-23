@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Factura;
 use App\Models\ComplementoPago;
+use App\Models\NotaCredito;
 
 interface PACServiceInterface
 {
@@ -24,6 +25,14 @@ interface PACServiceInterface
      * @return array ['success' => bool, 'uuid' => string, 'xml' => string, 'message' => string]
      */
     public function timbrarComplemento(ComplementoPago $complemento): array;
+
+    /**
+     * Timbrar una nota de crédito (CFDI tipo E)
+     *
+     * @param NotaCredito $notaCredito
+     * @return array ['success' => bool, 'uuid' => string, 'xml' => string, 'message' => string, ...]
+     */
+    public function timbrarNotaCredito(NotaCredito $notaCredito): array;
 
     /**
      * Cancelar una factura

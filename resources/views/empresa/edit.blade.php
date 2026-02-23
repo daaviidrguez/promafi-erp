@@ -225,20 +225,37 @@ $breadcrumbs = [
                 <div class="card-body">
                     <p class="text-muted small mb-4">Serie y folio inicial para cada tipo de documento. El folio es el siguiente número a asignar.</p>
 
-                    {{-- Facturas --}}
-                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas</div>
+                    {{-- Facturas Contado --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas Contado</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                         <div class="form-group">
                             <label class="form-label">Serie <span class="req">*</span></label>
                             <input type="text" name="serie_factura" id="serie_factura" class="form-control"
-                                   value="{{ old('serie_factura', $empresa->serie_factura ?? 'A') }}"
+                                   value="{{ old('serie_factura', $empresa->serie_factura ?? 'FA') }}"
                                    maxlength="5" required style="text-transform: uppercase;">
-                            <span class="form-hint">Ej: A, B, F</span>
+                            <span class="form-hint">Sugerido: FA (modificable)</span>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Folio inicial <span class="req">*</span></label>
                             <input type="number" name="folio_factura" class="form-control"
                                    value="{{ old('folio_factura', $empresa->folio_factura ?? 1) }}" min="1" required>
+                        </div>
+                    </div>
+
+                    {{-- Facturas Crédito --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas Crédito</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Serie <span class="req">*</span></label>
+                            <input type="text" name="serie_factura_credito" id="serie_factura_credito" class="form-control"
+                                   value="{{ old('serie_factura_credito', $empresa->serie_factura_credito ?? 'FB') }}"
+                                   maxlength="5" required style="text-transform: uppercase;">
+                            <span class="form-hint">Sugerido: FB (modificable)</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Folio inicial <span class="req">*</span></label>
+                            <input type="number" name="folio_factura_credito" class="form-control"
+                                   value="{{ old('folio_factura_credito', $empresa->folio_factura_credito ?? 1) }}" min="1" required>
                         </div>
                     </div>
 
@@ -329,53 +346,63 @@ $breadcrumbs = [
                 </div>
             </div>
 
-            {{-- Configuración PAC --}}
+            {{-- Configuración PAC / Facturama --}}
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">🔐 Timbrado (PAC)</div>
+                    <div class="card-title">🔐 Timbrado (PAC / Facturama)</div>
                 </div>
                 <div class="card-body">
+                    @php
+                        $pacProvider = old('pac_provider', $empresa->pac_provider ?? 'fake');
+                    @endphp
                     <div class="form-group">
-                        <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" name="pac_modo_prueba" value="1"
-                                   {{ old('pac_modo_prueba', $empresa->pac_modo_prueba) ? 'checked' : '' }}
-                                   style="width: 16px; height: 16px;">
-                            Modo Prueba (UUID fake)
-                        </label>
-                        <span class="form-hint">Activa para desarrollo sin consumir timbres</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Proveedor PAC</label>
-                        <select name="pac_nombre" class="form-control">
-                            <option value="">Seleccionar...</option>
-                            @foreach(['factel' => 'Factel', 'finkok' => 'Finkok', 'sw' => 'SW (SmartWeb)'] as $val => $label)
-                            <option value="{{ $val }}"
-                                {{ old('pac_nombre', $empresa->pac_nombre) == $val ? 'selected' : '' }}>
-                                {{ $label }}
-                            </option>
-                            @endforeach
+                        <label class="form-label">Modo de timbrado</label>
+                        <select name="pac_provider" id="pac_provider" class="form-control" required>
+                            <option value="fake" {{ $pacProvider === 'fake' ? 'selected' : '' }}>Modo Prueba (UUID fake)</option>
+                            <option value="facturama_sandbox" {{ $pacProvider === 'facturama_sandbox' ? 'selected' : '' }}>Modo Prueba Facturama (sandbox)</option>
+                            <option value="facturama_production" {{ $pacProvider === 'facturama_production' ? 'selected' : '' }}>Producción Facturama</option>
                         </select>
+                        <span class="form-hint">UUID fake: sin PAC; Facturama: timbrado real en sandbox o producción</span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Usuario / API Key</label>
-                        <input type="text" name="pac_usuario" class="form-control"
-                               value="{{ old('pac_usuario', $empresa->pac_usuario) }}">
+                    <div id="facturama_url_box" class="form-group" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
+                        <label class="form-label">URL de petición</label>
+                        <input type="text" class="form-control" readonly
+                               value="{{ $pacProvider === 'facturama_sandbox' ? 'https://apisandbox.facturama.mx/' : ($pacProvider === 'facturama_production' ? 'https://api.facturama.mx/' : '') }}"
+                               id="facturama_url_display">
+                        <span class="form-hint">Sandbox: <code>https://apisandbox.facturama.mx/</code> · Producción: <code>https://api.facturama.mx/</code></span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Password / Token</label>
-                        <input type="password" name="pac_password" class="form-control"
+                    <div id="facturama_creds_box" class="form-group" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
+                        <label class="form-label">Usuario Facturama</label>
+                        <input type="text" name="pac_facturama_user" class="form-control"
+                               value="{{ old('pac_facturama_user', $empresa->pac_facturama_user) }}"
+                               placeholder="Usuario de tu cuenta Facturama">
+                    </div>
+                    <div id="facturama_pass_box" class="form-group" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
+                        <label class="form-label">Contraseña Facturama</label>
+                        <input type="password" name="pac_facturama_password" class="form-control"
                                placeholder="••••••••">
-                        <span class="form-hint">Dejar en blanco para mantener el actual</span>
+                        <span class="form-hint">Dejar en blanco para no cambiar la actual</span>
                     </div>
+                    {{-- Compatibilidad: mantener checkbox para lógica legacy (cuando provider=fake) --}}
+                    <input type="hidden" name="pac_modo_prueba" value="1">
 
-                    @if(!$empresa->pac_modo_prueba && $empresa->tienePACConfigurado())
-                    <form method="POST" action="{{ route('empresa.probar-pac') }}" style="margin-top: 12px;">
-                        @csrf
-                        <button type="submit" class="btn btn-success w-full">🔍 Probar Conexión PAC</button>
-                    </form>
+                    @if(in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) && $empresa->pac_facturama_user)
+                    <div style="margin-top: 12px;">
+                        <button type="submit" form="probar-facturama-form" class="btn btn-success w-full">🔍 Probar conexión Facturama</button>
+                    </div>
                     @endif
                 </div>
             </div>
+            <script>
+            document.getElementById('pac_provider').addEventListener('change', function() {
+                var v = this.value;
+                var isFacturama = (v === 'facturama_sandbox' || v === 'facturama_production');
+                document.getElementById('facturama_url_box').style.display = isFacturama ? '' : 'none';
+                document.getElementById('facturama_creds_box').style.display = isFacturama ? '' : 'none';
+                document.getElementById('facturama_pass_box').style.display = isFacturama ? '' : 'none';
+                document.getElementById('facturama_url_display').value = v === 'facturama_sandbox' ? 'https://apisandbox.facturama.mx/' : (v === 'facturama_production' ? 'https://api.facturama.mx/' : '');
+            });
+            </script>
 
             {{-- Certificados SAT --}}
             <div class="card">
@@ -432,6 +459,11 @@ $breadcrumbs = [
 
 </form>
 
+{{-- Form solo para probar conexión Facturama (fuera del form principal para que no envíe Guardar) --}}
+<form id="probar-facturama-form" method="POST" action="{{ route('empresa.probar-pac') }}" style="display: none;">
+    @csrf
+</form>
+
 @endsection
 
 @push('scripts')
@@ -440,6 +472,9 @@ $breadcrumbs = [
         this.value = this.value.toUpperCase();
     });
     document.getElementById('serie_factura').addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+    document.getElementById('serie_factura_credito').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });
 </script>

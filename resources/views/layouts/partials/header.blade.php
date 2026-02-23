@@ -42,7 +42,7 @@
             </div>
             <div>
                 <div class="header-user-name">{{ Auth::user()->name ?? 'Usuario' }}</div>
-                <div class="header-user-role">Administrador</div>
+                <div class="header-user-role">{{ Auth::user()->role?->display_name ?? 'Usuario' }}</div>
             </div>
         </div>
     </div>
@@ -63,8 +63,13 @@
 {{-- Dropdown usuario --}}
 <div id="userDropdown" class="user-dropdown" style="display:none;">
     <div class="user-dropdown-inner">
+        @can('configuracion.editar')
         <a href="{{ route('empresa.edit') }}" class="user-dropdown-item">
             <span class="icon">⚙️</span> Configuración
+        </a>
+        @endcan
+        <a href="{{ route('perfil.edit') }}" class="user-dropdown-item">
+            <span class="icon">👤</span> Mi perfil
         </a>
         <div class="user-dropdown-divider"></div>
         <a href="#" onclick="logout(); return false;" class="user-dropdown-item danger">

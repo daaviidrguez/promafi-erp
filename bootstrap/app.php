@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'permiso' => \App\Http\Middleware\CheckPermission::class,
+            'route.permission' => \App\Http\Middleware\EnsureUserHasRoutePermission::class,
+        ]);
     })
     ->withProviders([
         App\Providers\PACServiceProvider::class, // ← REGISTRADO AQUÍ

@@ -13,6 +13,23 @@ $breadcrumbs = [
 
 @section('content')
 
+@if(session('error'))
+    <div class="alert alert-danger">
+        <span>✗</span> {{ session('error') }}
+    </div>
+@endif
+@if($errors->any())
+    <div class="alert alert-danger">
+        <span>✗</span>
+        <strong>Revisa los datos:</strong>
+        <ul class="mb-0 mt-1" style="padding-left: 1.2rem;">
+            @foreach($errors->all() as $message)
+                <li>{{ $message }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
 <form method="POST" action="{{ route('complementos.store') }}" id="formComplemento">
     @csrf
 
@@ -34,7 +51,7 @@ $breadcrumbs = [
                             <option value="">Seleccionar cliente...</option>
                             @foreach($clientes as $cliente)
                                 <option value="{{ $cliente->id }}"
-                                    {{ ($cuentaPreseleccionada && $cuentaPreseleccionada->cliente_id == $cliente->id) ? 'selected' : '' }}>
+                                    {{ old('cliente_id', $cuentaPreseleccionada?->cliente_id) == $cliente->id ? 'selected' : '' }}>
                                     {{ $cliente->nombre }} — {{ $cliente->rfc }}
                                 </option>
                             @endforeach
@@ -69,6 +86,7 @@ $breadcrumbs = [
                         <input type="number" id="monto_total" name="monto_total" class="form-control"
                                min="0.01" step="0.01" value="{{ old('monto_total') }}" required
                                oninput="actualizarTotales()">
+                        @error('monto_total')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
                     </div>
                     <div class="form-group">
                         <label class="form-label">Número de Operación / Referencia</label>
@@ -131,6 +149,7 @@ $breadcrumbs = [
                     <div class="alert alert-info" style="margin-top: 16px; margin-bottom: 0;">
                         <span>💡</span>
                         <div>El monto aplicado debe coincidir exactamente con el monto del pago para poder timbrar.</div>
+                        <div style="margin-top: 8px; font-size: 12px;">El «Pendiente» por factura ya descuenta lo cubierto por Notas de Crédito; no se puede emitir un complemento por ese monto (coherencia SAT).</div>
                     </div>
                 </div>
             </div>
@@ -140,11 +159,16 @@ $breadcrumbs = [
 
     {{-- Botones --}}
     <div class="card">
-        <div class="card-body" style="display: flex; gap: 12px; justify-content: flex-end;">
-            <a href="{{ route('complementos.index') }}" class="btn btn-light">Cancelar</a>
-            <button type="submit" class="btn btn-primary" id="btnGuardar" disabled>
-                ✓ Guardar Complemento
-            </button>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 12px;">
+            <p class="text-muted" style="font-size: 13px; margin: 0;">
+                Guarda el complemento en <strong>borrador</strong>. Después, en la ficha del complemento, usa <strong>Emitir complemento</strong> para timbrarlo y aplicar el pago a las cuentas por cobrar.
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <a href="{{ route('complementos.index') }}" class="btn btn-light">Cancelar</a>
+                <button type="submit" class="btn btn-primary" id="btnGuardar">
+                    Guardar en borrador
+                </button>
+            </div>
         </div>
     </div>
 
@@ -225,7 +249,41 @@ async function cargarFacturasPendientes() {
                 </table>
             </div>`;
 
+        // Restaurar valores de old() tras error de validación (por factura_id, no por índice)
+        if (window.oldFacturas && Array.isArray(window.oldFacturas)) {
+            const oldByFacturaId = {};
+            window.oldFacturas.forEach(function(f) {
+                if (f && f.factura_id) oldByFacturaId[String(f.factura_id)] = parseFloat(f.monto_pagado) || 0;
+            });
+            listDiv.querySelectorAll('input[name*="[factura_id]"]').forEach(function(hidden) {
+                const fid = hidden.value;
+                const name = hidden.getAttribute('name');
+                const idx = name.match(/facturas\[(\d+)\]/)[1];
+                const montoInp = listDiv.querySelector('input[name="facturas[' + idx + '][monto_pagado]"]');
+                if (montoInp && oldByFacturaId[fid] !== undefined) montoInp.value = oldByFacturaId[fid].toFixed(2);
+            });
+            if (window.oldMontoTotal != null && window.oldMontoTotal !== '')
+                document.getElementById('monto_total').value = window.oldMontoTotal;
+        }
+
         actualizarTotales();
+
+        // Si llegamos desde Cuenta por Cobrar: preseleccionar factura y monto
+        if (window.cuentaPreseleccionada && !window.oldFacturas) {
+            const cp = window.cuentaPreseleccionada;
+            listDiv.querySelectorAll('input[name*="[factura_id]"]').forEach(hidden => {
+                if (parseInt(hidden.value, 10) === cp.factura_id) {
+                    const name = hidden.getAttribute('name');
+                    const idx = name.match(/facturas\[(\d+)\]/)[1];
+                    const montoInp = listDiv.querySelector(`input[name="facturas[${idx}][monto_pagado]"]`);
+                    if (montoInp) {
+                        montoInp.value = parseFloat(cp.monto_pendiente).toFixed(2);
+                        document.getElementById('monto_total').value = parseFloat(cp.monto_pendiente).toFixed(2);
+                        actualizarTotales();
+                    }
+                }
+            });
+        }
 
     } catch (err) {
         console.error(err);
@@ -254,11 +312,59 @@ function actualizarTotales() {
     document.getElementById('totalAplicadoDisplay').textContent = fmt(totalAplicado);
     document.getElementById('diferenciaDisplay').textContent  = fmt(Math.abs(diferencia));
     document.getElementById('diferenciaDisplay').style.color  = ok ? 'var(--color-success)' : 'var(--color-danger)';
-    document.getElementById('btnGuardar').disabled = !ok || montoTotal === 0;
 }
 
-@if($cuentaPreseleccionada)
-document.addEventListener('DOMContentLoaded', cargarFacturasPendientes);
+function validarAntesDeEnviar() {
+    const montoTotal = parseFloat(document.getElementById('monto_total').value) || 0;
+    let totalAplicado = 0;
+    document.querySelectorAll('.monto-pago').forEach(inp => {
+        totalAplicado += parseFloat(inp.value) || 0;
+    });
+    const diferencia = Math.abs(montoTotal - totalAplicado);
+    if (montoTotal === 0) {
+        alert('Ingresa el monto total del pago.');
+        return false;
+    }
+    if (!document.getElementById('cliente_id').value) {
+        alert('Selecciona un cliente.');
+        return false;
+    }
+    const listDiv = document.getElementById('facturasList');
+    if (!listDiv || listDiv.style.display === 'none' || !listDiv.querySelectorAll('.monto-pago').length) {
+        alert('Selecciona un cliente y espera a que se carguen las facturas pendientes.');
+        return false;
+    }
+    if (diferencia >= 0.01) {
+        alert('El monto aplicado a las facturas debe coincidir con el monto total del pago. Revisa que la suma de la columna "Pagar" sea igual al monto total.');
+        return false;
+    }
+    const algunMonto = Array.from(listDiv.querySelectorAll('.monto-pago')).some(inp => (parseFloat(inp.value) || 0) > 0);
+    if (!algunMonto) {
+        alert('Indica al menos un monto a aplicar en alguna factura.');
+        return false;
+    }
+    return true;
+}
+
+document.getElementById('formComplemento').addEventListener('submit', function(e) {
+    if (!validarAntesDeEnviar()) {
+        e.preventDefault();
+    }
+});
+
+@if(old('facturas'))
+window.oldFacturas = @json(old('facturas'));
+window.oldMontoTotal = @json(old('monto_total'));
 @endif
+@if($cuentaPreseleccionada)
+window.cuentaPreseleccionada = {
+    factura_id: {{ $cuentaPreseleccionada->factura_id }},
+    monto_pendiente: {{ number_format($cuentaPreseleccionada->monto_pendiente, 2, '.', '') }}
+};
+@endif
+document.addEventListener('DOMContentLoaded', function() {
+    var clienteId = document.getElementById('cliente_id').value;
+    if (clienteId) cargarFacturasPendientes();
+});
 </script>
 @endpush

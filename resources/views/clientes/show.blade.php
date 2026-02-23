@@ -261,6 +261,10 @@ $breadcrumbs = [
                         <div class="info-label">Uso de CFDI</div>
                         <div class="info-value">{{ $usoCfdiEtiqueta ?? '—' }}</div>
                     </div>
+                    <div class="info-row">
+                        <div class="info-label">Forma de pago</div>
+                        <div class="info-value">{{ $formaPagoEtiqueta ?? '—' }}</div>
+                    </div>
                 </div>
             </div>
         </div>

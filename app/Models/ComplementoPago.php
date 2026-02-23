@@ -45,6 +45,7 @@ class ComplementoPago extends Model
         'fecha_timbrado',
         'xml_content',
         'xml_path',
+        'pdf_path',
         
         // Control
         'usuario_id',

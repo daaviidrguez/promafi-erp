@@ -29,7 +29,7 @@ $breadcrumbs = [
                 <select name="estado" class="form-control" style="min-width: 150px;">
                     <option value="">Todos los estados</option>
                     <option value="borrador"  {{ ($estado ?? '') == 'borrador'  ? 'selected' : '' }}>📝 Borrador</option>
-                    <option value="timbrado"  {{ ($estado ?? '') == 'timbrado'  ? 'selected' : '' }}>✅ Timbrado</option>
+                    <option value="timbrado"  {{ ($estado ?? '') == 'timbrado'  ? 'selected' : '' }}>Timbrado</option>
                     <option value="cancelado" {{ ($estado ?? '') == 'cancelado' ? 'selected' : '' }}>❌ Cancelado</option>
                 </select>
                 <button type="submit"
@@ -94,7 +94,7 @@ $breadcrumbs = [
                 </td>
                 <td class="td-center">
                     @if($complemento->estado === 'timbrado')
-                        <span class="badge badge-success">✓ Timbrado</span>
+                        <span class="badge badge-success">Timbrado</span>
                     @elseif($complemento->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else

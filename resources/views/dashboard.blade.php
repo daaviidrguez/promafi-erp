@@ -2,7 +2,7 @@
 
 @section('title', 'Dashboard')
 @section('page-title', '📊 Dashboard')
-@section('page-subtitle', 'Vista general del sistema')
+@section('page-subtitle', 'Resumen por departamento')
 
 @php
 $breadcrumbs = [
@@ -12,37 +12,32 @@ $breadcrumbs = [
 
 @section('content')
 
-{{-- Stats --}}
-<div class="stats-grid">
+{{-- KPIs principales --}}
+<div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
     <div class="stat-card stat-info">
         <div class="stat-info-box">
-            <div class="stat-label">Total Clientes</div>
+            <div class="stat-label">Clientes</div>
             <div class="stat-value">{{ $totalClientes ?? 0 }}</div>
             <div class="stat-sub">{{ $clientesActivos ?? 0 }} activos</div>
         </div>
         <div class="stat-icon">👥</div>
     </div>
-
     <div class="stat-card stat-success">
         <div class="stat-info-box">
-            <div class="stat-label">Facturas del Mes</div>
+            <div class="stat-label">Facturas del mes</div>
             <div class="stat-value">{{ $facturasDelMes ?? 0 }}</div>
-            <div class="stat-sub">${{ number_format($montoFacturado ?? 0, 2, '.', ',') }}</div>
+            <div class="stat-sub">${{ number_format($montoFacturado ?? 0, 0, '.', ',') }}</div>
         </div>
         <div class="stat-icon">🧾</div>
     </div>
-
     <div class="stat-card stat-warning">
         <div class="stat-info-box">
-            <div class="stat-label">Por Cobrar</div>
-            <div class="stat-value" style="font-size: 22px;">
-                ${{ number_format($porCobrar ?? 0, 0, '.', ',') }}
-            </div>
+            <div class="stat-label">Por cobrar</div>
+            <div class="stat-value" style="font-size: 20px;">${{ number_format($porCobrar ?? 0, 0, '.', ',') }}</div>
             <div class="stat-sub">{{ $cuentasVencidas ?? 0 }} vencidas</div>
         </div>
         <div class="stat-icon">💰</div>
     </div>
-
     <div class="stat-card stat-danger">
         <div class="stat-info-box">
             <div class="stat-label">Productos</div>
@@ -51,16 +46,107 @@ $breadcrumbs = [
         </div>
         <div class="stat-icon">📦</div>
     </div>
+    <div class="stat-card" style="border-left-color: var(--color-gray-500);">
+        <div class="stat-info-box">
+            <div class="stat-label">Por pagar</div>
+            <div class="stat-value" style="font-size: 20px;">${{ number_format($porPagar ?? 0, 0, '.', ',') }}</div>
+            <div class="stat-sub">{{ $cuentasPorPagarPendientes ?? 0 }} cuentas</div>
+        </div>
+        <div class="stat-icon">📤</div>
+    </div>
 </div>
 
-{{-- Cuentas Vencidas (alerta) --}}
+{{-- Secciones por departamento --}}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-top: 24px;">
+
+    {{-- Facturación --}}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">🧾 Facturación</div>
+            <a href="{{ route('facturas.index') }}" class="btn btn-light btn-sm">Ver</a>
+        </div>
+        <div class="card-body">
+            <ul class="dashboard-list">
+                <li><span class="dashboard-list-label">Facturas del mes</span><span class="dashboard-list-value">{{ $facturasDelMes ?? 0 }}</span> <span class="text-muted">(${{ number_format($montoFacturado ?? 0, 2, '.', ',') }})</span></li>
+                <li><span class="dashboard-list-label">Borradores</span><span class="dashboard-list-value">{{ $facturasBorrador ?? 0 }}</span></li>
+                <li><span class="dashboard-list-label">Cotizaciones</span><span class="dashboard-list-value">{{ $cotizacionesTotal ?? 0 }}</span> <span class="text-muted">({{ $cotizacionesPendientes ?? 0 }} pend.)</span></li>
+                <li><span class="dashboard-list-label">Complementos pago (mes)</span><span class="dashboard-list-value">{{ $complementosMes ?? 0 }}</span></li>
+                <li><span class="dashboard-list-label">Remisiones (mes)</span><span class="dashboard-list-value">{{ $remisionesMes ?? 0 }}</span></li>
+                <li><span class="dashboard-list-label">Notas de crédito (mes)</span><span class="dashboard-list-value">{{ $notasCreditoMes ?? 0 }}</span></li>
+            </ul>
+            <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <a href="{{ route('facturas.create') }}" class="btn btn-primary btn-sm">➕ Factura</a>
+                <a href="{{ route('cotizaciones.index') }}" class="btn btn-outline btn-sm">Cotizaciones</a>
+                <a href="{{ route('complementos.index') }}" class="btn btn-outline btn-sm">Complementos</a>
+            </div>
+        </div>
+    </div>
+
+    {{-- Cobranza / Finanzas --}}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">💰 Cobranza</div>
+            <a href="{{ route('cuentas-cobrar.index') }}" class="btn btn-light btn-sm">Ver</a>
+        </div>
+        <div class="card-body">
+            <ul class="dashboard-list">
+                <li><span class="dashboard-list-label">Total por cobrar</span><span class="dashboard-list-value" style="color: var(--color-warning);">${{ number_format($porCobrar ?? 0, 2, '.', ',') }}</span></li>
+                <li><span class="dashboard-list-label">Cuentas vencidas</span><span class="dashboard-list-value" style="color: {{ ($cuentasVencidas ?? 0) > 0 ? 'var(--color-danger)' : 'inherit' }};">{{ $cuentasVencidas ?? 0 }}</span></li>
+            </ul>
+            <div style="margin-top: 12px;">
+                <a href="{{ route('estado-cuenta.index') }}" class="btn btn-outline btn-sm">📋 Estado de cuenta</a>
+                <a href="{{ route('cuentas-cobrar.index') }}" class="btn btn-primary btn-sm">Cuentas por cobrar</a>
+            </div>
+        </div>
+    </div>
+
+    {{-- Compras --}}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">🏭 Compras</div>
+            <a href="{{ route('ordenes-compra.index') }}" class="btn btn-light btn-sm">Ver</a>
+        </div>
+        <div class="card-body">
+            <ul class="dashboard-list">
+                <li><span class="dashboard-list-label">Proveedores</span><span class="dashboard-list-value">{{ $totalProveedores ?? 0 }}</span> <span class="text-muted">({{ $proveedoresActivos ?? 0 }} activos)</span></li>
+                <li><span class="dashboard-list-label">Órdenes de compra (mes)</span><span class="dashboard-list-value">{{ $ordenesMes ?? 0 }}</span></li>
+                <li><span class="dashboard-list-label">OC borrador</span><span class="dashboard-list-value">{{ $ordenesBorrador ?? 0 }}</span></li>
+                <li><span class="dashboard-list-label">OC aceptadas / recibidas</span><span class="dashboard-list-value">{{ ($ordenesAceptadas ?? 0) + ($ordenesRecibidas ?? 0) }}</span></li>
+                <li><span class="dashboard-list-label">Cotizaciones de compra</span><span class="dashboard-list-value">{{ $cotizacionesCompraTotal ?? 0 }}</span></li>
+                <li><span class="dashboard-list-label">Por pagar</span><span class="dashboard-list-value">${{ number_format($porPagar ?? 0, 2, '.', ',') }}</span></li>
+            </ul>
+            <div style="margin-top: 12px;">
+                <a href="{{ route('ordenes-compra.index') }}" class="btn btn-primary btn-sm">Órdenes</a>
+                <a href="{{ route('cuentas-por-pagar.index') }}" class="btn btn-outline btn-sm">CxP</a>
+            </div>
+        </div>
+    </div>
+
+    {{-- Inventario / Productos --}}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">📦 Inventario</div>
+            <a href="{{ route('productos.index') }}" class="btn btn-light btn-sm">Ver</a>
+        </div>
+        <div class="card-body">
+            <ul class="dashboard-list">
+                <li><span class="dashboard-list-label">Productos</span><span class="dashboard-list-value">{{ $totalProductos ?? 0 }}</span> <span class="text-muted">({{ $productosActivos ?? 0 }} activos)</span></li>
+                <li><span class="dashboard-list-label">Bajo stock</span><span class="dashboard-list-value" style="color: {{ ($productosBajoStock ?? 0) > 0 ? 'var(--color-danger)' : 'inherit' }};">{{ $productosBajoStock ?? 0 }}</span></li>
+            </ul>
+            <div style="margin-top: 12px;">
+                <a href="{{ route('productos.index') }}" class="btn btn-primary btn-sm">Productos</a>
+                <a href="{{ route('inventario.index') }}" class="btn btn-outline btn-sm">Movimientos</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Cuentas vencidas (alerta) --}}
 @if(isset($cuentasVencidasList) && count($cuentasVencidasList) > 0)
-<div class="card" style="border-left: 4px solid var(--color-danger);">
+<div class="card" style="margin-top: 24px; border-left: 4px solid var(--color-danger);">
     <div class="card-header" style="border-bottom-color: rgba(239,68,68,0.15);">
-        <div class="card-title" style="color: var(--color-danger);">⚠️ Cuentas Vencidas — Requieren Atención</div>
-        <a href="{{ route('cuentas-cobrar.index') }}?estado=vencidas" class="btn btn-danger btn-sm">
-            Ver todas
-        </a>
+        <div class="card-title" style="color: var(--color-danger);">⚠️ Cuentas vencidas — Requieren atención</div>
+        <a href="{{ route('cuentas-cobrar.index') }}?estado=vencidas" class="btn btn-danger btn-sm">Ver todas</a>
     </div>
     <div class="table-container" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
         <table>
@@ -69,8 +155,8 @@ $breadcrumbs = [
                     <th>Cliente</th>
                     <th>Factura</th>
                     <th>Vencimiento</th>
-                    <th class="td-center">Días Vencido</th>
-                    <th class="td-right">Monto Pendiente</th>
+                    <th class="td-center">Días vencido</th>
+                    <th class="td-right">Pendiente</th>
                 </tr>
             </thead>
             <tbody>
@@ -83,15 +169,12 @@ $breadcrumbs = [
                         @endif
                     </td>
                     <td>
-                        <a href="{{ route('facturas.show', $cuenta->factura->id) }}"
-                           class="text-mono fw-600" style="color: var(--color-primary);">
+                        <a href="{{ route('facturas.show', $cuenta->factura->id) }}" class="text-mono fw-600" style="color: var(--color-primary);">
                             {{ $cuenta->factura->folio_completo }}
                         </a>
                     </td>
                     <td>{{ $cuenta->fecha_vencimiento->format('d/m/Y') }}</td>
-                    <td class="td-center">
-                        <span class="badge badge-danger">{{ $cuenta->dias_vencido }} días</span>
-                    </td>
+                    <td class="td-center"><span class="badge badge-danger">{{ $cuenta->dias_vencido }} días</span></td>
                     <td class="td-right text-mono fw-600" style="color: var(--color-danger);">
                         ${{ number_format($cuenta->monto_pendiente, 2, '.', ',') }}
                     </td>
@@ -103,13 +186,12 @@ $breadcrumbs = [
 </div>
 @endif
 
-{{-- Facturas Recientes --}}
-<div class="card">
+{{-- Facturas recientes --}}
+<div class="card" style="margin-top: 24px;">
     <div class="card-header">
-        <div class="card-title">🧾 Facturas Recientes</div>
-        <a href="{{ route('facturas.create') }}" class="btn btn-primary btn-sm">➕ Nueva Factura</a>
+        <div class="card-title">🧾 Facturas recientes</div>
+        <a href="{{ route('facturas.create') }}" class="btn btn-primary btn-sm">➕ Nueva factura</a>
     </div>
-
     @if(isset($facturasRecientes) && count($facturasRecientes) > 0)
     <div class="table-container" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
         <table>
@@ -126,17 +208,13 @@ $breadcrumbs = [
             <tbody>
                 @foreach($facturasRecientes as $factura)
                 <tr>
-                    <td>
-                        <span class="text-mono fw-600">{{ $factura->folio_completo }}</span>
-                    </td>
+                    <td><span class="text-mono fw-600">{{ $factura->folio_completo }}</span></td>
                     <td>
                         <div class="fw-600" style="color: var(--color-primary);">{{ $factura->cliente->nombre }}</div>
                         <div class="text-muted" style="font-size: 12px;">{{ $factura->cliente->rfc }}</div>
                     </td>
                     <td>{{ $factura->fecha_emision->format('d/m/Y') }}</td>
-                    <td class="td-right text-mono fw-600">
-                        ${{ number_format($factura->total, 2, '.', ',') }}
-                    </td>
+                    <td class="td-right text-mono fw-600">${{ number_format($factura->total, 2, '.', ',') }}</td>
                     <td class="td-center">
                         @if($factura->estado === 'timbrada')
                             <span class="badge badge-success">✓ Timbrada</span>
@@ -147,8 +225,7 @@ $breadcrumbs = [
                         @endif
                     </td>
                     <td class="td-actions">
-                        <a href="{{ route('facturas.show', $factura->id) }}"
-                           class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
+                        <a href="{{ route('facturas.show', $factura->id) }}" class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
                     </td>
                 </tr>
                 @endforeach
@@ -160,10 +237,18 @@ $breadcrumbs = [
         <div class="empty-state-icon">📄</div>
         <div class="empty-state-title">No hay facturas recientes</div>
         <div style="margin-top: 16px;">
-            <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Crear Primera Factura</a>
+            <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Crear primera factura</a>
         </div>
     </div>
     @endif
 </div>
+
+<style>
+.dashboard-list { list-style: none; margin: 0; padding: 0; }
+.dashboard-list li { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--color-gray-100); gap: 12px; }
+.dashboard-list li:last-child { border-bottom: none; }
+.dashboard-list-label { color: var(--color-gray-600); font-size: 13px; }
+.dashboard-list-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
 
 @endsection

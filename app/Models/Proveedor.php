@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Proveedor extends Model
 {
@@ -54,5 +55,20 @@ class Proveedor extends Model
                 ->orWhere('codigo', 'like', "%{$search}%")
                 ->orWhere('rfc', 'like', "%{$search}%");
         });
+    }
+
+    public function ordenesCompra(): HasMany
+    {
+        return $this->hasMany(OrdenCompra::class);
+    }
+
+    public function cuentasPorPagar(): HasMany
+    {
+        return $this->hasMany(CuentaPorPagar::class);
+    }
+
+    public function esContado(): bool
+    {
+        return (int) ($this->dias_credito ?? 0) === 0;
     }
 }

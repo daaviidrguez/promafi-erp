@@ -45,13 +45,20 @@ class OrdenCompraController extends Controller
         $folio = OrdenCompra::generarFolio();
         $orden = null;
         $cotizacionCompra = null;
+        $proveedorPrecargado = null;
         if ($request->has('cotizacion_id')) {
             $cotizacionCompra = CotizacionCompra::with('detalles.producto')->findOrFail($request->cotizacion_id);
             if (!$cotizacionCompra->puedeGenerarOrden()) {
                 return redirect()->route('cotizaciones-compra.show', $cotizacionCompra->id)->with('error', 'La cotización debe estar aprobada');
             }
         }
-        return view('ordenes-compra.create', compact('empresa', 'folio', 'orden', 'cotizacionCompra'));
+        if ($request->filled('proveedor_id')) {
+            $p = Proveedor::find($request->proveedor_id);
+            if ($p) {
+                $proveedorPrecargado = $p->only(['id', 'codigo', 'nombre', 'rfc', 'dias_credito']);
+            }
+        }
+        return view('ordenes-compra.create', compact('empresa', 'folio', 'orden', 'cotizacionCompra', 'proveedorPrecargado'));
     }
 
     public function store(Request $request)
@@ -60,6 +67,7 @@ class OrdenCompraController extends Controller
             'proveedor_id' => 'required|exists:proveedores,id',
             'fecha' => 'required|date',
             'fecha_entrega_estimada' => 'nullable|date',
+            'dias_credito' => 'nullable|integer|min:0',
             'observaciones' => 'nullable|string',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
@@ -99,7 +107,7 @@ class OrdenCompraController extends Controller
             $orden->descuento = $descuento;
             $orden->iva = $iva;
             $orden->total = $total;
-            $orden->dias_credito = $proveedor->dias_credito ?? 0;
+            $orden->dias_credito = isset($validated['dias_credito']) ? (int) $validated['dias_credito'] : ($proveedor->dias_credito ?? 0);
             $orden->observaciones = $validated['observaciones'] ?? null;
             $orden->usuario_id = auth()->id();
             $orden->save();
@@ -146,19 +154,24 @@ class OrdenCompraController extends Controller
         DB::beginTransaction();
         try {
             $ordenCompra->update(['estado' => 'aceptada']);
-            $vencimiento = $ordenCompra->fecha->copy()->addDays($ordenCompra->dias_credito);
-            CuentaPorPagar::create([
-                'orden_compra_id' => $ordenCompra->id,
-                'proveedor_id' => $ordenCompra->proveedor_id,
-                'monto_total' => $ordenCompra->total,
-                'monto_pagado' => 0,
-                'monto_pendiente' => $ordenCompra->total,
-                'fecha_emision' => $ordenCompra->fecha,
-                'fecha_vencimiento' => $vencimiento,
-                'estado' => 'pendiente',
-            ]);
+            $diasCredito = (int) ($ordenCompra->dias_credito ?? 0);
+            if ($diasCredito > 0) {
+                $vencimiento = $ordenCompra->fecha->copy()->addDays($diasCredito);
+                CuentaPorPagar::create([
+                    'orden_compra_id' => $ordenCompra->id,
+                    'proveedor_id' => $ordenCompra->proveedor_id,
+                    'monto_total' => $ordenCompra->total,
+                    'monto_pagado' => 0,
+                    'monto_pendiente' => $ordenCompra->total,
+                    'fecha_emision' => $ordenCompra->fecha,
+                    'fecha_vencimiento' => $vencimiento,
+                    'estado' => 'pendiente',
+                ]);
+                DB::commit();
+                return back()->with('success', 'Orden aceptada. Se creó la cuenta por pagar. Puedes recibir la mercancía.');
+            }
             DB::commit();
-            return back()->with('success', 'Orden aceptada. Se creó la cuenta por pagar. Puedes recibir la mercancía.');
+            return back()->with('success', 'Orden aceptada. Compra de contado (0 días crédito), no se registró en Cuentas por Pagar. Puedes recibir la mercancía.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', $e->getMessage());

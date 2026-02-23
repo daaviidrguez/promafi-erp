@@ -2,69 +2,118 @@
 
 namespace App\Http\Controllers\Web;
 
-// UBICACIÓN: app/Http/Controllers/Web/DashboardController.php
-
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\Factura;
 use App\Models\Producto;
 use App\Models\CuentaPorCobrar;
+use App\Models\Cotizacion;
+use App\Models\ComplementoPago;
+use App\Models\Remision;
+use App\Models\NotaCredito;
+use App\Models\Proveedor;
+use App\Models\OrdenCompra;
+use App\Models\CotizacionCompra;
+use App\Models\CuentaPorPagar;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     /**
-     * Mostrar dashboard
+     * Mostrar dashboard con resúmenes por departamento.
      */
     public function index()
     {
-        // Estadísticas generales
+        $mes = now()->month;
+        $año = now()->year;
+
+        // ─── CLIENTES (Administración) ───
         $totalClientes = Cliente::count();
         $clientesActivos = Cliente::where('activo', true)->count();
-        
-        $totalProductos = Producto::count();
-        $productosBajoStock = Producto::bajoStock()->count();
-        
-        // Facturas del mes actual
-        $facturasDelMes = Factura::whereMonth('fecha_emision', now()->month)
-            ->whereYear('fecha_emision', now()->year)
+
+        // ─── FACTURACIÓN ───
+        $facturasDelMes = Factura::whereMonth('fecha_emision', $mes)
+            ->whereYear('fecha_emision', $año)
             ->count();
-        
-        $montoFacturado = Factura::whereMonth('fecha_emision', now()->month)
-            ->whereYear('fecha_emision', now()->year)
+        $montoFacturado = (float) Factura::whereMonth('fecha_emision', $mes)
+            ->whereYear('fecha_emision', $año)
             ->where('estado', 'timbrada')
             ->sum('total');
-        
-        // Cuentas por cobrar
-        $porCobrar = CuentaPorCobrar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+        $facturasBorrador = Factura::where('estado', 'borrador')->count();
+
+        $cotizacionesTotal = Cotizacion::count();
+        $cotizacionesMes = Cotizacion::whereMonth('fecha', $mes)->whereYear('fecha', $año)->count();
+        $cotizacionesPendientes = Cotizacion::whereIn('estado', ['enviada', 'aceptada'])->count();
+
+        $complementosMes = ComplementoPago::whereMonth('fecha_emision', $mes)->whereYear('fecha_emision', $año)->count();
+        $remisionesMes = Remision::whereMonth('fecha', $mes)->whereYear('fecha', $año)->count();
+        $notasCreditoMes = NotaCredito::whereMonth('fecha_emision', $mes)->whereYear('fecha_emision', $año)->count();
+
+        // ─── COBRANZA / FINANZAS ───
+        $porCobrar = (float) CuentaPorCobrar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])
             ->sum('monto_pendiente');
-        
         $cuentasVencidas = CuentaPorCobrar::where('estado', 'vencida')->count();
-        
-        // Facturas recientes
-        $facturasRecientes = Factura::with('cliente')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-        
-        // Cuentas vencidas (top 5)
         $cuentasVencidasList = CuentaPorCobrar::with(['cliente', 'factura'])
             ->where('estado', 'vencida')
             ->orderBy('dias_vencido', 'desc')
             ->limit(5)
             ->get();
 
+        $facturasRecientes = Factura::with('cliente')
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+
+        // ─── PRODUCTOS / INVENTARIO ───
+        $totalProductos = Producto::count();
+        $productosBajoStock = Producto::bajoStock()->count();
+        $productosActivos = Producto::where('activo', true)->count();
+
+        // ─── COMPRAS ───
+        $totalProveedores = Proveedor::count();
+        $proveedoresActivos = Proveedor::activos()->count();
+
+        $ordenesBorrador = OrdenCompra::where('estado', 'borrador')->count();
+        $ordenesAceptadas = OrdenCompra::where('estado', 'aceptada')->count();
+        $ordenesRecibidas = OrdenCompra::where('estado', 'recibida')->count();
+        $ordenesMes = OrdenCompra::whereMonth('fecha', $mes)->whereYear('fecha', $año)->count();
+
+        $cotizacionesCompraTotal = CotizacionCompra::count();
+        $cotizacionesCompraMes = CotizacionCompra::whereMonth('created_at', $mes)->whereYear('created_at', $año)->count();
+
+        $porPagar = (float) CuentaPorPagar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+            ->sum('monto_pendiente');
+        $cuentasPorPagarPendientes = CuentaPorPagar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])->count();
+
         return view('dashboard', compact(
             'totalClientes',
             'clientesActivos',
             'totalProductos',
             'productosBajoStock',
+            'productosActivos',
             'facturasDelMes',
             'montoFacturado',
+            'facturasBorrador',
+            'cotizacionesTotal',
+            'cotizacionesMes',
+            'cotizacionesPendientes',
+            'complementosMes',
+            'remisionesMes',
+            'notasCreditoMes',
             'porCobrar',
             'cuentasVencidas',
+            'cuentasVencidasList',
             'facturasRecientes',
-            'cuentasVencidasList'
+            'totalProveedores',
+            'proveedoresActivos',
+            'ordenesBorrador',
+            'ordenesAceptadas',
+            'ordenesRecibidas',
+            'ordenesMes',
+            'cotizacionesCompraTotal',
+            'cotizacionesCompraMes',
+            'porPagar',
+            'cuentasPorPagarPendientes'
         ));
     }
 }

@@ -40,6 +40,7 @@ body {
     margin-bottom: 15px;
     font-size: 8pt;
     line-height: 1.35;
+    vertical-align: top;
 }
 
 /* =====================
@@ -217,11 +218,8 @@ body {
             <div style="display:table-cell; vertical-align:top; font-size:8pt; line-height:1.4;">
                 <strong>RFC:</strong> {{ $empresa->rfc }}<br>
                 <strong>Regimen Fiscal:</strong> {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}<br>
-                {{ $empresa->calle ?? '' }} {{ $empresa->numero_exterior ?? '' }}<br>
-                {{ $empresa->colonia ?? '' }}
-                {{ ($empresa->municipio ?? $empresa->ciudad ?? '') 
-                    ? ', ' . ($empresa->municipio ?? $empresa->ciudad) 
-                    : '' }}<br>
+                {{ $empresa->calle ?? '' }} {{ $empresa->numero_exterior ?? '' }}{{ $empresa->numero_interior ? ' Int. ' . $empresa->numero_interior : '' }}<br>
+                {{ $empresa->colonia ?? '' }}{{ ($empresa->municipio ?? $empresa->ciudad ?? '') ? ', ' . ($empresa->municipio ?? $empresa->ciudad) : '' }}{{ ($empresa->estado ?? '') ? ', ' . $empresa->estado : '' }}{{ ($empresa->codigo_postal ?? '') ? ', C.P. ' . $empresa->codigo_postal : '' }}<br>
                 Tel: {{ $empresa->telefono ?? '' }} 
                 | Email: {{ $empresa->email ?? '' }}
             </div>
@@ -242,17 +240,42 @@ body {
             </div>
             @endif
 
+            @if($esFactura)
+            <div style="font-size:9pt; color:#0B3C5D; margin-bottom:2px;">
+                Comprobante Fiscal Digital por Internet
+            </div>
+            <div style="font-size:11pt; font-weight:bold;">CFDI 4.0 - Factura</div>
+            @elseif($esNotaCredito)
+            <div style="font-size:9pt; color:#0B3C5D; margin-bottom:2px;">
+                Comprobante Fiscal Digital por Internet
+            </div>
+            <div style="font-size:11pt; font-weight:bold;">CFDI 4.0 - Nota de Crédito</div>
+            @elseif($esComplemento)
+            <div style="font-size:9pt; color:#0B3C5D; margin-bottom:2px;">
+                Comprobante Fiscal Digital por Internet
+            </div>
+            <div style="font-size:11pt; font-weight:bold;">CFDI 4.0 - Complemento de Pago</div>
+            @else
             <div style="font-size:12pt; font-weight:bold; color:#0B3C5D;">
                 {{ strtoupper($tipo) }}
             </div>
+            @endif
 
             <div style="font-size:12pt; font-weight:bold; margin-top:2px;">
-                {{ $doc->folio }}
+                {{ $doc->serie ?? '' }} {{ $doc->folio }}
             </div>
 
-            @if($esFactura && ($doc->uuid ?? null))
-            <div style="color:#10B981; font-weight:bold; margin-top:4px;">
-                &#10003; CFDI TIMBRADO
+            @if(($esFactura || $esNotaCredito) && ($doc->uuid ?? null))
+            <div style="font-weight:bold; margin-top:4px;">
+                @if(($doc->estado ?? '') === 'cancelada')
+                    <span style="color:#DC2626;">CANCELADA</span>
+                @else
+                    <span style="color:#10B981;">TIMBRADO</span>
+                @endif
+            </div>
+            @elseif($esComplemento && ($doc->uuid ?? null))
+            <div style="font-weight:bold; margin-top:4px;">
+                <span style="color:#10B981;">TIMBRADO</span>
             </div>
             @endif
 
@@ -266,11 +289,18 @@ body {
 {{-- /HEADER --}}
 
 {{-- =====================
-     CLIENTE / INFO
+     FACTURA: contenido CFDI 4.0 completo
+     COMPLEMENTO: receptor, pagos, documentos relacionados
+     COTIZACIÓN/OTROS: cliente, info, productos, totales
 ===================== --}}
+@if($esFactura || $esNotaCredito)
+    @include('pdf.partials.factura-cfdi')
+@elseif($esComplemento)
+    @include('pdf.partials.complemento-pago')
+@else
+{{-- CLIENTE / INFO (cotización, remisión, etc.) --}}
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
-
 <td width="48%" valign="top">
     <div class="info-box">
         <div class="section-title">DATOS DEL CLIENTE</div>
@@ -300,17 +330,12 @@ body {
         @endif
     </div>
 </td>
-
 <td width="4%"></td>
-
 <td width="48%" valign="top">
     <div class="info-box">
         <div class="section-title">{{ $esCotizacion ? 'INFORMACION FISCAL' : 'INFORMACION' }}</div>
-
         Fecha Emision: {{ \Carbon\Carbon::parse($doc->fecha ?? $doc->fecha_emision)->format('d/m/Y') }}<br>
-
         @if($esCotizacion)
-            {{-- Condicion de Compra con color --}}
             @if($doc->tipo_venta === 'credito' && ($doc->dias_credito_aplicados ?? 0) > 0)
             <strong>Condicion de Compra:</strong>
             <span style="color:#F59E0B; font-weight:bold;">CREDITO {{ $doc->dias_credito_aplicados }} DIAS</span><br>
@@ -324,20 +349,12 @@ body {
             Elaboro: {{ $doc->usuario->name ?? $doc->usuario->email }}
             @endif
         @endif
-
-        @if($esFactura)
-            UUID: {{ $doc->uuid ?? 'Pendiente' }}
-        @endif
     </div>
 </td>
-
 </tr>
 </table>
 
-
-{{-- =====================
-     PRODUCTOS
-===================== --}}
+{{-- PRODUCTOS (cotización, remisión) --}}
 <table class="productos-table">
 <thead>
 <tr>
@@ -385,37 +402,14 @@ body {
 </tbody>
 </table>
 
-
-{{-- =====================
-     TOTALES
-===================== --}}
 <table class="totales-table">
-<tr>
-    <td>Subtotal:</td>
-    <td>${{ number_format($doc->subtotal, 2) }}</td>
-</tr>
+<tr><td>Subtotal:</td><td>${{ number_format($doc->subtotal, 2) }}</td></tr>
 @if($esCotizacion && ($doc->descuento ?? 0) > 0)
-<tr>
-    <td>Descuento:</td>
-    <td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td>
-</tr>
+<tr><td>Descuento:</td><td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td></tr>
 @endif
-<tr>
-    <td>IVA:</td>
-    <td>${{ number_format($doc->iva, 2) }}</td>
-</tr>
-<tr class="total-final">
-    <td>TOTAL:</td>
-    <td>${{ number_format($doc->total, 2) }} MXN</td>
-</tr>
+<tr><td>IVA:</td><td>${{ number_format($doc->iva ?? 0, 2) }}</td></tr>
+<tr class="total-final"><td>TOTAL:</td><td>${{ number_format($doc->total, 2) }} MXN</td></tr>
 </table>
-
-
-{{-- =====================
-     TIMBRADO (solo factura)
-===================== --}}
-@if($esFactura)
-    @include('pdf.partials.timbrado')
 @endif
 
 
@@ -467,14 +461,10 @@ body {
         @endif
     @endif
 
-    {{-- Nota CFDI --}}
-    @if($esFactura)
-    <div style="margin-bottom:4px; font-size:7pt; color:#6B7280; text-align:center;">
-        @if($doc->uuid ?? null)
-            Este documento es una representacion impresa de un CFDI
-        @else
-            DOCUMENTO BORRADOR - NO VALIDO COMO COMPROBANTE FISCAL
-        @endif
+    {{-- Nota CFDI (leyenda completa ya está en el bloque CFDI 4.0 de factura) --}}
+    @if($esFactura && !($doc->uuid ?? null))
+    <div style="margin-bottom:4px; font-size:7pt; color:#B45309; text-align:center;">
+        Documento en borrador — no válido como comprobante fiscal.
     </div>
     @endif
 

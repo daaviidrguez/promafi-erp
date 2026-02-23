@@ -15,6 +15,7 @@ use App\Models\Factura;
 use App\Models\FacturaDetalle;
 use App\Models\FacturaImpuesto;
 use App\Models\CuentaPorCobrar;
+use App\Models\FormaPago;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -102,7 +103,8 @@ class CotizacionController extends Controller
             }
         }
 
-        return view('cotizaciones.create', compact('empresa', 'folio', 'cotizacion'));
+        $formasPago = FormaPago::activos()->get();
+        return view('cotizaciones.create', compact('empresa', 'folio', 'cotizacion', 'formasPago'));
     }
 
     /**
@@ -116,6 +118,7 @@ class CotizacionController extends Controller
             'fecha_vencimiento' => 'required|date|after_or_equal:fecha',
             'tipo_venta' => 'required|in:contado,credito',
             'dias_credito' => 'nullable|integer|min:0',
+            'forma_pago' => 'nullable|string|exists:formas_pago,clave',
             'condiciones_pago' => 'nullable|string',
             'observaciones' => 'nullable|string',
             'productos' => 'required|array|min:1',
@@ -205,6 +208,7 @@ class CotizacionController extends Controller
                 'dias_credito_aplicados' => $validated['tipo_venta'] === 'credito' 
                     ? ($validated['dias_credito'] ?? 0) 
                     : 0,
+                'forma_pago' => $validated['forma_pago'] ?? $cliente->forma_pago ?? '03',
                 'condiciones_pago' => $validated['condiciones_pago'],
                 'observaciones' => $validated['observaciones'],
             ]);
@@ -505,14 +509,21 @@ class CotizacionController extends Controller
                 throw new \Exception('La cotización no tiene cliente asociado.');
             }
 
-            $folio = $empresa->folio_factura;
             $metodoPago = strtolower($cotizacion->tipo_venta ?? 'contado') === 'credito' ? 'PPD' : 'PUE';
-            $formaPago = '03'; // Transferencia por defecto
+            $esCredito = $metodoPago === 'PPD';
+            if ($esCredito) {
+                $serieFactura = $empresa->serie_factura_credito ?? 'FB';
+                $folioFactura = (int) ($empresa->folio_factura_credito ?? 1);
+            } else {
+                $serieFactura = $empresa->serie_factura ?? 'FA';
+                $folioFactura = (int) ($empresa->folio_factura ?? 1);
+            }
+            $formaPago = $cotizacion->forma_pago ?? $cliente->forma_pago ?? '03';
             $usoCfdi = $cliente->uso_cfdi_default ?? 'G03';
 
             $factura = Factura::create([
-                'serie' => $empresa->serie_factura,
-                'folio' => $folio,
+                'serie' => $serieFactura,
+                'folio' => $folioFactura,
                 'tipo_comprobante' => 'I',
                 'estado' => 'borrador',
                 'cliente_id' => $cliente->id,
@@ -584,7 +595,11 @@ class CotizacionController extends Controller
                 // El descuento de inventario se hace al timbrar la factura, no en borrador
             }
 
-            $empresa->incrementarFolioFactura();
+            if ($esCredito) {
+                $empresa->incrementarFolioFacturaCredito();
+            } else {
+                $empresa->incrementarFolioFactura();
+            }
 
             if ($metodoPago === 'PPD') {
                 $diasCredito = (int) ($cotizacion->dias_credito_aplicados ?? $cliente->dias_credito ?? 0);
@@ -655,7 +670,7 @@ class CotizacionController extends Controller
                     ->orWhere('rfc', 'like', "%{$search}%");
             })
             ->limit(10)
-            ->get(['id', 'nombre', 'rfc', 'email', 'dias_credito']);
+            ->get(['id', 'nombre', 'rfc', 'email', 'dias_credito', 'forma_pago']);
 
         return response()->json($clientes);
     }

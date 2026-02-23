@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Web;
 // Este controlador maneja las vistas (no API)
 
 use App\Http\Controllers\Controller;
+use App\Models\Empresa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -22,7 +23,8 @@ class AuthController extends Controller
             return redirect()->route('dashboard');
         }
 
-        return view('login');
+        $empresa = Empresa::principal();
+        return view('login', compact('empresa'));
     }
 
     /**

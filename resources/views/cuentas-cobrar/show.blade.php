@@ -109,11 +109,11 @@ $breadcrumbs = [
             </div>
         </div>
 
-        {{-- Historial de Pagos --}}
-        @if($cuentaPorCobrar->pagos && $cuentaPorCobrar->pagos->count() > 0)
+        {{-- Historial de Pagos (complementos timbrados aplicados a esta factura) --}}
+        @if($cuentaPorCobrar->factura->documentosRelacionadosPago && $cuentaPorCobrar->factura->documentosRelacionadosPago->count() > 0)
         <div class="card">
             <div class="card-header">
-                <div class="card-title">📋 Historial de Pagos</div>
+                <div class="card-title">Historial de Pagos</div>
             </div>
             <div class="table-container" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
                 <table>
@@ -121,20 +121,26 @@ $breadcrumbs = [
                         <tr>
                             <th>Fecha</th>
                             <th>Forma</th>
-                            <th>Referencia</th>
+                            <th>Complemento</th>
                             <th class="td-right">Monto</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($cuentaPorCobrar->pagos as $pago)
+                        @foreach($cuentaPorCobrar->factura->documentosRelacionadosPago as $doc)
                         <tr>
-                            <td>{{ $pago->fecha_pago->format('d/m/Y') }}</td>
-                            <td>{{ $pago->forma_pago }}</td>
-                            <td class="text-mono text-muted" style="font-size: 12px;">
-                                {{ $pago->referencia ?? '—' }}
+                            <td>{{ $doc->pagoRecibido->fecha_pago->format('d/m/Y') }}</td>
+                            <td>{{ $doc->pagoRecibido->forma_pago }}</td>
+                            <td>
+                                @if($doc->pagoRecibido->complementoPago)
+                                <a href="{{ route('complementos.show', $doc->pagoRecibido->complementoPago->id) }}" class="text-mono" style="color: var(--color-primary);">
+                                    {{ $doc->pagoRecibido->complementoPago->folio_completo }}
+                                </a>
+                                @else
+                                —
+                                @endif
                             </td>
                             <td class="td-right text-mono fw-600" style="color: var(--color-success);">
-                                ${{ number_format($pago->monto, 2, '.', ',') }}
+                                ${{ number_format($doc->monto_pagado, 2, '.', ',') }}
                             </td>
                         </tr>
                         @endforeach
@@ -218,15 +224,17 @@ $breadcrumbs = [
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
                 @if(!$cuentaPorCobrar->estaPagada())
-                <button type="button"
-                        onclick="document.getElementById('modalPago').classList.add('show')"
-                        class="btn btn-primary w-full">
-                    💵 Registrar Pago
-                </button>
+                <a href="{{ route('complementos.create', ['cuenta_id' => $cuentaPorCobrar->id]) }}"
+                   class="btn btn-primary w-full">
+                    💵 Crear Complemento de Pago
+                </a>
+                <span class="form-hint" style="text-align: center; font-size: 12px;">
+                    Crea el CFDI de pago, timbralo y el pago se aplicará a esta cuenta.
+                </span>
                 @endif
 
                 <a href="{{ route('facturas.show', $cuentaPorCobrar->factura_id) }}"
-                   class="btn btn-outline w-full">🧾 Ver Factura</a>
+                   class="btn btn-outline w-full">Ver Factura</a>
 
                 <a href="{{ route('cuentas-cobrar.index') }}"
                    class="btn btn-light w-full">← Volver</a>
@@ -235,65 +243,5 @@ $breadcrumbs = [
 
     </div>
 </div>
-
-{{-- Modal Registrar Pago --}}
-@if(!$cuentaPorCobrar->estaPagada())
-<div id="modalPago" class="modal">
-    <div class="modal-box">
-        <div class="modal-header">
-            <div class="modal-title">💵 Registrar Pago</div>
-            <button class="modal-close"
-                    onclick="document.getElementById('modalPago').classList.remove('show')">✕</button>
-        </div>
-        <form method="POST" action="{{ route('cuentas-cobrar.registrar-pago', $cuentaPorCobrar->id) }}">
-            @csrf
-            <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label">Monto <span class="req">*</span></label>
-                    <input type="number" name="monto" class="form-control"
-                           min="0.01" step="0.01"
-                           max="{{ $cuentaPorCobrar->monto_pendiente }}"
-                           value="{{ old('monto', $cuentaPorCobrar->monto_pendiente) }}"
-                           required>
-                    <span class="form-hint">
-                        Máximo: ${{ number_format($cuentaPorCobrar->monto_pendiente, 2, '.', ',') }}
-                    </span>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Fecha de Pago <span class="req">*</span></label>
-                        <input type="date" name="fecha_pago" class="form-control"
-                               value="{{ old('fecha_pago', now()->format('Y-m-d')) }}" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Forma de Pago <span class="req">*</span></label>
-                        <select name="forma_pago" class="form-control" required>
-                            @foreach($formasPago ?? [] as $fp)
-                                <option value="{{ $fp->clave }}" {{ old('forma_pago', '03') == $fp->clave ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Referencia / No. Operación</label>
-                    <input type="text" name="referencia" class="form-control"
-                           maxlength="100" placeholder="Ej: Transferencia #123456">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Notas</label>
-                    <textarea name="notas" class="form-control" rows="2"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light"
-                        onclick="document.getElementById('modalPago').classList.remove('show')">
-                    Cancelar
-                </button>
-                <button type="submit" class="btn btn-primary">✓ Registrar Pago</button>
-            </div>
-        </form>
-    </div>
-</div>
-@endif
 
 @endsection

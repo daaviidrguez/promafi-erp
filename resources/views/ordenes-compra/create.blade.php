@@ -51,9 +51,19 @@ $breadcrumbs = [
                     <div id="proveedorResults" class="autocomplete-results"></div>
                 </div>
                 <div id="proveedorInfo" style="display:none;margin-top:12px;padding:12px;background:var(--color-gray-50);border-radius:var(--radius-md);">
-                    <span class="fw-600" id="proveedorNombre"></span>
-                    <span class="text-muted" id="proveedorRfc"></span>
-                    <button type="button" onclick="limpiarProveedor()" class="btn btn-light btn-sm" style="margin-left:8px;">Cambiar</button>
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                        <span class="fw-600" id="proveedorNombre"></span>
+                        <span class="text-muted" id="proveedorRfc"></span>
+                        <span class="badge" id="proveedorTipoCredito"></span>
+                        <button type="button" onclick="limpiarProveedor()" class="btn btn-light btn-sm">Cambiar</button>
+                    </div>
+                    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label class="form-label">Días de crédito</label>
+                            <input type="number" name="dias_credito" id="dias_credito" min="0" value="0" class="form-control" style="width:100px;">
+                            <span class="form-hint">0 = contado (no va a Cuentas por Pagar). &gt;0 = crédito (sí va a CxP al aceptar).</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -123,6 +133,9 @@ let productos = [];
 let timerProveedor, timerProducto;
 
 document.addEventListener('DOMContentLoaded', () => {
+    @if(!empty($proveedorPrecargado))
+    seleccionarProveedor(@json($proveedorPrecargado));
+    @endif
     document.getElementById('buscarProveedor').addEventListener('input', function() {
         clearTimeout(timerProveedor);
         const q = this.value.trim();
@@ -160,6 +173,17 @@ function seleccionarProveedor(p) {
     document.getElementById('buscarProveedor').value = p.nombre;
     document.getElementById('proveedorNombre').textContent = p.nombre;
     document.getElementById('proveedorRfc').textContent = p.rfc ? ' RFC: ' + p.rfc : '';
+    var dias = p.dias_credito != null ? parseInt(p.dias_credito, 10) : 0;
+    if (isNaN(dias)) dias = 0;
+    document.getElementById('dias_credito').value = dias;
+    var badge = document.getElementById('proveedorTipoCredito');
+    if (dias > 0) {
+        badge.textContent = dias + ' días crédito (irá a CxP)';
+        badge.className = 'badge badge-warning';
+    } else {
+        badge.textContent = 'Contado (no CxP)';
+        badge.className = 'badge badge-success';
+    }
     document.getElementById('proveedorInfo').style.display = 'block';
     closeDropdown('proveedorResults');
 }
@@ -168,6 +192,7 @@ function limpiarProveedor() {
     document.getElementById('proveedor_id').value = '';
     document.getElementById('buscarProveedor').value = '';
     document.getElementById('proveedorInfo').style.display = 'none';
+    document.getElementById('dias_credito').value = '0';
 }
 
 async function buscarProductos(q) {

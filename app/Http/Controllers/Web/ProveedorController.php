@@ -44,7 +44,19 @@ class ProveedorController extends Controller
 
     public function show(Proveedor $proveedor)
     {
-        return view('proveedores.show', compact('proveedor'));
+        $proveedor->load([
+            'ordenesCompra' => fn ($q) => $q->latest()->limit(10),
+            'cuentasPorPagar',
+        ]);
+        $estadisticas = [
+            'total_ordenes' => $proveedor->ordenesCompra()->count(),
+            'ordenes_borrador' => $proveedor->ordenesCompra()->where('estado', 'borrador')->count(),
+            'ordenes_aceptadas' => $proveedor->ordenesCompra()->where('estado', 'aceptada')->count(),
+            'ordenes_recibidas' => $proveedor->ordenesCompra()->where('estado', 'recibida')->count(),
+            'cuentas_pendientes' => $proveedor->cuentasPorPagar()->whereIn('estado', ['pendiente', 'parcial', 'vencida'])->count(),
+            'monto_pendiente' => (float) $proveedor->cuentasPorPagar()->whereIn('estado', ['pendiente', 'parcial', 'vencida'])->sum('monto_pendiente'),
+        ];
+        return view('proveedores.show', compact('proveedor', 'estadisticas'));
     }
 
     public function edit(Proveedor $proveedor)

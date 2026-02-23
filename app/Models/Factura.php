@@ -37,6 +37,7 @@ class Factura extends Model
         'descuento',
         'total',
         'uuid',
+        'pac_cfdi_id',
         'fecha_timbrado',
         'no_certificado_sat',
         'sello_cfdi',
@@ -109,6 +110,30 @@ class Factura extends Model
     public function cuentaPorCobrar()
     {
         return $this->hasOne(CuentaPorCobrar::class);
+    }
+
+    /**
+     * Documentos relacionados en complementos de pago (pagos aplicados a esta factura)
+     */
+    public function documentosRelacionadosPago()
+    {
+        return $this->hasMany(DocumentoRelacionadoPago::class);
+    }
+
+    /**
+     * Devoluciones asociadas a esta factura
+     */
+    public function devoluciones()
+    {
+        return $this->hasMany(Devolucion::class);
+    }
+
+    /**
+     * Notas de crédito que referencian esta factura
+     */
+    public function notasCredito()
+    {
+        return $this->hasMany(NotaCredito::class);
     }
 
     /**

@@ -10,7 +10,15 @@ class PDFService
 {
     public function generarDocumentoPDF($modelo, string $tipo): string
     {
-        $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario']);
+        if ($tipo === 'factura') {
+            $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'cliente', 'usuario', 'empresa']);
+        } elseif ($tipo === 'nota_credito') {
+            $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'factura', 'cliente', 'usuario', 'empresa']);
+        } elseif ($tipo === 'complemento') {
+            $modelo->loadMissing(['pagosRecibidos.documentosRelacionados.factura', 'cliente', 'usuario', 'empresa']);
+        } else {
+            $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario']);
+        }
         $empresa = Empresa::principal();
 
         $directory = storage_path('app/documentos/' . $tipo . '/' . now()->format('Y/m'));
@@ -27,6 +35,7 @@ class PDFService
             'empresa' => $empresa,
             'tipo' => $tipo,
             'esFactura' => $tipo === 'factura',
+            'esNotaCredito' => $tipo === 'nota_credito',
             'esCotizacion' => $tipo === 'cotizacion',
             'esRemision' => $tipo === 'remision',
             'esComplemento' => $tipo === 'complemento',
@@ -56,7 +65,17 @@ class PDFService
     {
         return $this->generarDocumentoPDF($factura, 'factura');
     }
-    
+
+    public function generarComplementoPDF($complemento): string
+    {
+        return $this->generarDocumentoPDF($complemento, 'complemento');
+    }
+
+    public function generarNotaCreditoPDF($notaCredito): string
+    {
+        return $this->generarDocumentoPDF($notaCredito, 'nota_credito');
+    }
+
     public function descargarPDF(string $relativePath, string $filename)
     {
         $fullPath = storage_path('app/' . $relativePath);

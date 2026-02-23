@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Factura;
 use App\Models\ComplementoPago;
+use App\Models\NotaCredito;
 use App\Models\Empresa;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -25,7 +26,7 @@ class PACService implements PACServiceInterface
     public function __construct()
     {
         $this->empresa = Empresa::principal();
-        $this->modoPrueba = $this->empresa?->pac_modo_prueba ?? true;
+        $this->modoPrueba = ($this->empresa->pac_provider ?? 'fake') === 'fake' && ($this->empresa->pac_modo_prueba ?? true);
     }
 
     /**
@@ -42,11 +43,9 @@ class PACService implements PACServiceInterface
                 ];
             }
 
-            // Generar XML CFDI 4.0
-            $xml = $this->generarXMLFactura($factura);
-
-            // En modo prueba, generar UUID fake
+            // Modo prueba (UUID fake): no llama a ningún PAC
             if ($this->modoPrueba) {
+                $xml = $this->generarXMLFactura($factura);
                 $uuid = Str::uuid()->toString();
                 $fechaTimbrado = now();
                 $noCertificadoSAT = '00001000000123456789';
@@ -63,33 +62,26 @@ class PACService implements PACServiceInterface
                     'sello_cfdi' => $selloCFDI,
                     'sello_sat' => $selloSAT,
                     'cadena_original' => $cadenaOriginal,
-                    'message' => '✅ Factura timbrada exitosamente (MODO PRUEBA)',
+                    'message' => '✅ Factura timbrada exitosamente (MODO PRUEBA - UUID fake)',
                 ];
             }
 
-            // TODO: Aquí iría la implementación real con el PAC
-            // Ejemplo para diferentes PACs:
-            
-            /*
-            // FACTEL
-            if ($this->empresa->pac_nombre === 'factel') {
-                return $this->timbrarConFactel($xml);
+            // Facturama (sandbox o producción)
+            $provider = $this->empresa->pac_provider ?? 'fake';
+            if (in_array($provider, ['facturama_sandbox', 'facturama_production'], true)) {
+                if (empty($this->empresa->pac_facturama_user) || empty($this->empresa->pac_facturama_password)) {
+                    return [
+                        'success' => false,
+                        'message' => 'Configura usuario y contraseña de Facturama en Datos de la empresa.',
+                    ];
+                }
+                $facturama = new \App\Services\FacturamaService($this->empresa);
+                return $facturama->timbrarFactura($factura);
             }
-            
-            // FINKOK
-            if ($this->empresa->pac_nombre === 'finkok') {
-                return $this->timbrarConFinkok($xml);
-            }
-            
-            // SW (SmartWeb)
-            if ($this->empresa->pac_nombre === 'sw') {
-                return $this->timbrarConSW($xml);
-            }
-            */
 
             return [
                 'success' => false,
-                'message' => 'PAC no configurado. Activa el modo prueba o configura tu PAC.',
+                'message' => 'PAC no configurado. Elige Modo Prueba (UUID fake) o Facturama en la empresa.',
             ];
 
         } catch (\Exception $e) {
@@ -122,17 +114,72 @@ class PACService implements PACServiceInterface
                 ];
             }
 
-            // TODO: Implementación real con PAC
+            $provider = $this->empresa->pac_provider ?? 'fake';
+            if (in_array($provider, ['facturama_sandbox', 'facturama_production'], true)) {
+                if (empty($this->empresa->pac_facturama_user) || empty($this->empresa->pac_facturama_password)) {
+                    return [
+                        'success' => false,
+                        'message' => 'Configura usuario y contraseña de Facturama en Datos de la empresa.',
+                    ];
+                }
+                $facturama = new \App\Services\FacturamaService($this->empresa);
+                return $facturama->timbrarComplementoPago($complemento);
+            }
 
             return [
                 'success' => false,
-                'message' => 'PAC no configurado para complementos',
+                'message' => 'Timbrar complementos no disponible. Usa Modo Prueba o Facturama.',
             ];
 
         } catch (\Exception $e) {
             return [
                 'success' => false,
                 'message' => 'Error al timbrar complemento: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Timbrar nota de crédito (CFDI tipo E)
+     */
+    public function timbrarNotaCredito(NotaCredito $notaCredito): array
+    {
+        try {
+            if ($this->modoPrueba) {
+                $uuid = Str::uuid()->toString();
+                return [
+                    'success' => true,
+                    'uuid' => $uuid,
+                    'xml' => '<?xml version="1.0"?><NotaCredito uuid="' . $uuid . '" modo="prueba"/>',
+                    'fecha_timbrado' => now(),
+                    'no_certificado_sat' => '00001000000123456789',
+                    'sello_cfdi' => '',
+                    'sello_sat' => '',
+                    'cadena_original' => '',
+                    'message' => 'Nota de crédito timbrada (MODO PRUEBA).',
+                ];
+            }
+
+            $provider = $this->empresa->pac_provider ?? 'fake';
+            if (in_array($provider, ['facturama_sandbox', 'facturama_production'], true)) {
+                if (empty($this->empresa->pac_facturama_user) || empty($this->empresa->pac_facturama_password)) {
+                    return [
+                        'success' => false,
+                        'message' => 'Configura usuario y contraseña de Facturama en la empresa.',
+                    ];
+                }
+                $facturama = new \App\Services\FacturamaService($this->empresa);
+                return $facturama->timbrarNotaCredito($notaCredito);
+            }
+
+            return [
+                'success' => false,
+                'message' => 'Timbrado de notas de crédito no configurado. Usa Modo Prueba o Facturama.',
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error al timbrar nota de crédito: ' . $e->getMessage(),
             ];
         }
     }
@@ -151,7 +198,20 @@ class PACService implements PACServiceInterface
                 ];
             }
 
-            // TODO: Implementación real de cancelación con PAC
+            $provider = $this->empresa->pac_provider ?? 'fake';
+            if (in_array($provider, ['facturama_sandbox', 'facturama_production'], true)) {
+                if (empty($this->empresa->pac_facturama_user) || empty($this->empresa->pac_facturama_password)) {
+                    return [
+                        'success' => false,
+                        'message' => 'Configura usuario y contraseña de Facturama en Datos de la empresa.',
+                    ];
+                }
+                $factura = Factura::where('uuid', $uuid)->first();
+                $pacCfdiId = $factura ? $factura->pac_cfdi_id : null;
+                $facturama = new \App\Services\FacturamaService($this->empresa);
+                $resultado = $facturama->cancelarFactura($uuid, $motivo, $uuidSustitucion, $pacCfdiId);
+                return array_merge($resultado, ['acuse' => $resultado['acuse'] ?? null]);
+            }
 
             return [
                 'success' => false,

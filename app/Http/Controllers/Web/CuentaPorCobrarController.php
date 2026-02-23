@@ -9,7 +9,6 @@ use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\FormaPago;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class CuentaPorCobrarController extends Controller
 {
@@ -52,40 +51,12 @@ class CuentaPorCobrarController extends Controller
      */
     public function show(CuentaPorCobrar $cuentaPorCobrar)
     {
-        $cuentaPorCobrar->load(['cliente', 'factura.detalles']);
+        $cuentaPorCobrar->load([
+            'cliente',
+            'factura.detalles',
+            'factura.documentosRelacionadosPago.pagoRecibido.complementoPago',
+        ]);
         $formasPago = FormaPago::activos()->get();
         return view('cuentas-cobrar.show', compact('cuentaPorCobrar', 'formasPago'));
-    }
-
-    /**
-     * Registrar pago
-     */
-    public function registrarPago(Request $request, CuentaPorCobrar $cuentaPorCobrar)
-    {
-        $validated = $request->validate([
-            'monto' => 'required|numeric|min:0.01|max:' . $cuentaPorCobrar->monto_pendiente,
-            'fecha_pago' => 'required|date',
-            'forma_pago' => 'required|string|exists:formas_pago,clave',
-            'referencia' => 'nullable|string|max:100',
-            'notas' => 'nullable|string',
-        ]);
-
-        DB::beginTransaction();
-        try {
-            // Registrar el pago
-            $cuentaPorCobrar->registrarPago($validated['monto']);
-
-            // TODO: Aquí podrías crear un registro de pago
-            // para llevar el historial completo
-
-            DB::commit();
-
-            return redirect()->route('cuentas-cobrar.show', $cuentaPorCobrar->id)
-                ->with('success', 'Pago registrado exitosamente');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Error al registrar pago: ' . $e->getMessage());
-        }
     }
 }

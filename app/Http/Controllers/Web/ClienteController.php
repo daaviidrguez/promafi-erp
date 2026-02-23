@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
+use App\Models\FormaPago;
 use App\Models\RegimenFiscal;
 use App\Models\UsoCfdi;
 use Illuminate\Http\Request;
@@ -36,7 +37,8 @@ class ClienteController extends Controller
     {
         $regimenes = RegimenFiscal::activos()->get();
         $usosCfdi = UsoCfdi::activos()->get();
-        return view('clientes.create', compact('regimenes', 'usosCfdi'));
+        $formasPago = FormaPago::activos()->get();
+        return view('clientes.create', compact('regimenes', 'usosCfdi', 'formasPago'));
     }
 
     /**
@@ -57,6 +59,7 @@ class ClienteController extends Controller
             ],
             'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
             'uso_cfdi_default' => 'required|string|exists:usos_cfdi,clave',
+            'forma_pago' => 'nullable|string|exists:formas_pago,clave',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:15',
             'celular' => 'nullable|string|max:15',
@@ -78,6 +81,7 @@ class ClienteController extends Controller
 
         $validated['rfc'] = cleanRFC($validated['rfc']);
         $validated['activo'] = $request->boolean('activo', true);
+        $validated['forma_pago'] = $validated['forma_pago'] ?? '03';
 
         $cliente = Cliente::create($validated);
 
@@ -96,6 +100,9 @@ class ClienteController extends Controller
         $usoCfdiEtiqueta = $cliente->uso_cfdi_default
             ? (optional(UsoCfdi::where('clave', $cliente->uso_cfdi_default)->first())->etiqueta ?? $cliente->uso_cfdi_default)
             : null;
+        $formaPagoEtiqueta = $cliente->forma_pago
+            ? (optional(FormaPago::where('clave', $cliente->forma_pago)->first())->etiqueta ?? $cliente->forma_pago)
+            : null;
         $cliente->load([
             'facturas' => function($q) {
                 $q->latest()->limit(10);
@@ -105,7 +112,7 @@ class ClienteController extends Controller
             }
         ]);
 
-        return view('clientes.show', compact('cliente', 'regimenEtiqueta', 'usoCfdiEtiqueta'));
+        return view('clientes.show', compact('cliente', 'regimenEtiqueta', 'usoCfdiEtiqueta', 'formaPagoEtiqueta'));
     }
 
     /**
@@ -115,7 +122,8 @@ class ClienteController extends Controller
     {
         $regimenes = RegimenFiscal::activos()->get();
         $usosCfdi = UsoCfdi::activos()->get();
-        return view('clientes.edit', compact('cliente', 'regimenes', 'usosCfdi'));
+        $formasPago = FormaPago::activos()->get();
+        return view('clientes.edit', compact('cliente', 'regimenes', 'usosCfdi', 'formasPago'));
     }
 
     /**
@@ -136,6 +144,7 @@ class ClienteController extends Controller
             ],
             'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
             'uso_cfdi_default' => 'required|string|exists:usos_cfdi,clave',
+            'forma_pago' => 'nullable|string|exists:formas_pago,clave',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:15',
             'celular' => 'nullable|string|max:15',
@@ -158,6 +167,7 @@ class ClienteController extends Controller
 
         $validated['rfc'] = cleanRFC($validated['rfc']);
         $validated['activo'] = $request->boolean('activo', true);
+        $validated['forma_pago'] = $validated['forma_pago'] ?? '03';
 
         $cliente->update($validated);
 

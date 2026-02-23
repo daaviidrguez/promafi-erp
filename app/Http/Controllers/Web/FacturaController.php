@@ -96,10 +96,21 @@ class FacturaController extends Controller
             'productos.*.descuento' => 'nullable|numeric|min:0',
         ]);
 
+        $empresa = Empresa::principal();
+            $cliente = Cliente::findOrFail($validated['cliente_id']);
+
+            if (empty($empresa->codigo_postal) || strlen(preg_replace('/\D/', '', $empresa->codigo_postal)) < 5) {
+                return back()->withInput()->with('error', 'La empresa debe tener un código postal de 5 dígitos (Configuración → Domicilio Fiscal) para emitir facturas.');
+            }
+            if (empty($cliente->codigo_postal) || strlen(preg_replace('/\D/', '', $cliente->codigo_postal)) < 5) {
+                return back()->withInput()->with('error', 'El cliente debe tener un código postal de 5 dígitos para facturar. Edita el cliente y completa su domicilio fiscal.');
+            }
+            if (empty($cliente->regimen_fiscal) || !preg_match('/^\d{3}$/', $cliente->regimen_fiscal)) {
+                return back()->withInput()->with('error', 'El cliente debe tener un régimen fiscal (clave de 3 dígitos del SAT). Edita el cliente.');
+            }
+
         DB::beginTransaction();
         try {
-            $empresa = Empresa::principal();
-            $cliente = Cliente::findOrFail($validated['cliente_id']);
 
             // Calcular totales
             $subtotal = 0;
@@ -124,12 +135,19 @@ class FacturaController extends Controller
 
             $total = $subtotal - $descuentoTotal + $ivaTotal;
 
-            // Obtener siguiente folio
-            $folio = $empresa->folio_factura;
-            
+            // Serie y folio según método de pago: PPD = crédito (FB), PUE = contado (FA)
+            $esCredito = ($validated['metodo_pago'] ?? '') === 'PPD';
+            if ($esCredito) {
+                $serie = $empresa->serie_factura_credito ?? 'FB';
+                $folio = (int) ($empresa->folio_factura_credito ?? 1);
+            } else {
+                $serie = $empresa->serie_factura ?? 'FA';
+                $folio = (int) ($empresa->folio_factura ?? 1);
+            }
+
             // Crear factura
             $factura = Factura::create([
-                'serie' => $empresa->serie_factura,
+                'serie' => $serie,
                 'folio' => $folio,
                 'tipo_comprobante' => 'I',
                 'estado' => 'borrador',
@@ -196,8 +214,12 @@ class FacturaController extends Controller
                 // El descuento de inventario se hace al timbrar la factura, no en borrador
             }
 
-            // Incrementar folio
-            $empresa->incrementarFolioFactura();
+            // Incrementar folio según tipo (contado o crédito)
+            if ($esCredito) {
+                $empresa->incrementarFolioFacturaCredito();
+            } else {
+                $empresa->incrementarFolioFactura();
+            }
 
             // Si es a crédito (PPD), crear cuenta por cobrar
             if ($factura->metodo_pago === 'PPD') {
@@ -261,6 +283,7 @@ class FacturaController extends Controller
             $factura->update([
                 'estado' => 'timbrada',
                 'uuid' => $resultado['uuid'],
+                'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
                 'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
                 'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
                 'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
@@ -341,6 +364,10 @@ class FacturaController extends Controller
                 'acuse_cancelacion' => $resultado['acuse'] ?? null,
             ]);
 
+            // Regenerar PDF para que muestre "CANCELADA"
+            $pdfPath = $this->pdfService->generarFacturaPDF($factura);
+            $factura->update(['pdf_path' => $pdfPath]);
+
             // Devolver productos al inventario (trazabilidad: devolucion_factura)
             foreach ($factura->detalles as $detalle) {
                 if ($detalle->producto && $detalle->producto->controla_inventario) {
@@ -406,6 +433,23 @@ class FacturaController extends Controller
         }
 
         return response()->download($filepath, $factura->folio_completo . '.xml');
+    }
+
+    /**
+     * Ver PDF en el navegador (como en cotizaciones)
+     */
+    public function verPDF(Factura $factura)
+    {
+        if (!$factura->pdf_path || !file_exists(storage_path('app/' . $factura->pdf_path))) {
+            try {
+                $pdfPath = $this->pdfService->generarFacturaPDF($factura);
+                $factura->update(['pdf_path' => $pdfPath]);
+            } catch (\Exception $e) {
+                return back()->with('error', 'Error al generar PDF: ' . $e->getMessage());
+            }
+        }
+
+        return response()->file(storage_path('app/' . $factura->pdf_path));
     }
 
     /**

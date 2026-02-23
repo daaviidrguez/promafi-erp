@@ -23,8 +23,10 @@ class EmpresaController extends Controller
         // Si no existe, crear una nueva
         if (!$empresa) {
             $empresa = new Empresa([
-                'serie_factura' => 'A',
+                'serie_factura' => 'FA',
                 'folio_factura' => 1,
+                'serie_factura_credito' => 'FB',
+                'folio_factura_credito' => 1,
                 'pac_modo_prueba' => true,
             ]);
         }
@@ -82,6 +84,8 @@ class EmpresaController extends Controller
         // ===============================
         'serie_factura' => 'required|string|max:5',
         'folio_factura' => 'required|integer|min:1',
+        'serie_factura_credito' => 'required|string|max:5',
+        'folio_factura_credito' => 'required|integer|min:1',
         'serie_nota_credito' => 'required|string|max:5',
         'folio_nota_credito' => 'required|integer|min:1',
         'serie_nota_debito' => 'required|string|max:5',
@@ -103,12 +107,15 @@ class EmpresaController extends Controller
         'clabe' => 'nullable|string|max:18',
 
         // ===============================
-        // PAC
+        // PAC / Facturama
         // ===============================
         'pac_modo_prueba' => 'boolean',
         'pac_nombre' => 'nullable|string|max:50',
         'pac_usuario' => 'nullable|string|max:255',
         'pac_password' => 'nullable|string|max:255',
+        'pac_provider' => 'nullable|string|in:fake,facturama_sandbox,facturama_production',
+        'pac_facturama_user' => 'nullable|string|max:255',
+        'pac_facturama_password' => 'nullable|string|max:255',
 
         // ===============================
         // CERTIFICADOS
@@ -132,6 +139,11 @@ class EmpresaController extends Controller
     // CONVERTIR CHECKBOX BOOLEAN
     // ===============================
     $validated['pac_modo_prueba'] = $request->has('pac_modo_prueba');
+    $validated['pac_provider'] = $validated['pac_provider'] ?? 'fake';
+    // No sobrescribir contraseña Facturama si viene vacía
+    if (empty($validated['pac_facturama_password'])) {
+        unset($validated['pac_facturama_password']);
+    }
 
     // Etiqueta del régimen fiscal (para PDF)
     $reg = RegimenFiscal::where('clave', $validated['regimen_fiscal'])->first();
@@ -213,16 +225,48 @@ class EmpresaController extends Controller
             return back()->with('error', 'Configura los datos de la empresa primero');
         }
 
-        if ($empresa->pac_modo_prueba) {
+        $provider = $empresa->pac_provider ?? 'fake';
+        if ($provider === 'fake') {
             return back()->with('success', '✅ Modo prueba activo. El timbrado generará UUIDs fake para desarrollo.');
+        }
+
+        if (in_array($provider, ['facturama_sandbox', 'facturama_production'])) {
+            if (empty($empresa->pac_facturama_user) || empty($empresa->pac_facturama_password)) {
+                return back()->with('error', 'Configura Usuario y Contraseña de Facturama (guarda los cambios antes de probar).');
+            }
+            try {
+                $baseUrl = rtrim($empresa->facturama_base_url, '/');
+                // API Web: GET /TaxEntity obtiene el perfil fiscal (doc: https://apisandbox.facturama.mx/docs/api/GET-TaxEntity)
+                $response = \Illuminate\Support\Facades\Http::withBasicAuth($empresa->pac_facturama_user, $empresa->pac_facturama_password)
+                    ->acceptJson()
+                    ->timeout(15)
+                    ->get($baseUrl . '/TaxEntity');
+                if ($response->successful()) {
+                    return back()->with('success', '✅ Conexión con Facturama correcta (' . ($provider === 'facturama_sandbox' ? 'sandbox' : 'producción') . '). Puedes timbrar facturas.');
+                }
+                $body = $response->json();
+                $msg = $body['Message'] ?? $body['message'] ?? $response->body();
+                if (is_array($msg)) {
+                    $msg = json_encode($msg);
+                }
+                if (strlen($msg) > 300) {
+                    $msg = substr($msg, 0, 300) . '…';
+                }
+                $status = $response->status();
+                if ($status === 401) {
+                    return back()->with('error', 'Facturama: Credenciales incorrectas (usuario o contraseña). Revisa que sea la cuenta de ' . ($provider === 'facturama_sandbox' ? 'sandbox' : 'producción') . '.');
+                }
+                return back()->with('error', 'Facturama respondió con error ' . $status . ': ' . ($msg ?: 'Sin mensaje'));
+            } catch (\Throwable $e) {
+                return back()->with('error', 'Error al conectar con Facturama: ' . $e->getMessage());
+            }
         }
 
         if (!$empresa->tienePACConfigurado()) {
             return back()->with('error', 'Configura las credenciales del PAC primero');
         }
 
-        // TODO: Aquí iría la prueba real de conexión con el PAC
-        return back()->with('success', '✅ Conexión con PAC configurada correctamente (implementar prueba real)');
+        return back()->with('success', '✅ Conexión con PAC configurada correctamente');
     }
 
     /**

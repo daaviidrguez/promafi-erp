@@ -179,9 +179,17 @@ $breadcrumbs = [
                     </div>
                     <div class="form-group">
                         <label class="form-label">Uso de CFDI <span class="req">*</span></label>
-<select name="uso_cfdi_default" class="form-control" required>
+                        <select name="uso_cfdi_default" class="form-control" required>
                             @foreach($usosCfdi ?? [] as $u)
                                 <option value="{{ $u->clave }}" {{ old('uso_cfdi_default', 'G03') == $u->clave ? 'selected' : '' }}>{{ $u->etiqueta }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Forma de pago</label>
+                        <select name="forma_pago" class="form-control">
+                            @foreach($formasPago ?? [] as $fp)
+                                <option value="{{ $fp->clave }}" {{ old('forma_pago', '03') == $fp->clave ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
                             @endforeach
                         </select>
                     </div>

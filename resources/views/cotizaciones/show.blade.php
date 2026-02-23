@@ -225,6 +225,12 @@ $breadcrumbs = [
                         @endif
                     </div>
                 </div>
+                @if($cotizacion->forma_pago)
+                <div class="info-row">
+                    <div class="info-label">Forma de pago</div>
+                    <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}</div>
+                </div>
+                @endif
                 <div class="info-row">
                     <div class="info-label">Moneda</div>
                     <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>

@@ -36,6 +36,7 @@ $breadcrumbs = [
                                         data-rfc="{{ $cliente->rfc }}"
                                         data-regimen="{{ $cliente->regimen_fiscal }}"
                                         data-uso-cfdi="{{ $cliente->uso_cfdi_default }}"
+                                        data-forma-pago="{{ $cliente->forma_pago ?? '03' }}"
                                         data-credito="{{ $cliente->dias_credito }}"
                                         {{ ($clientePreseleccionado && $clientePreseleccionado->id == $cliente->id) ? 'selected' : '' }}>
                                     {{ $cliente->nombre }} — {{ $cliente->rfc }}
@@ -112,9 +113,9 @@ $breadcrumbs = [
                     </div>
                     <div class="form-group">
                         <label class="form-label">Forma de Pago <span class="req">*</span></label>
-                        <select name="forma_pago" class="form-control" required>
+                        <select name="forma_pago" id="forma_pago" class="form-control" required>
                             @foreach($formasPago ?? [] as $fp)
-                                <option value="{{ $fp->clave }}" {{ old('forma_pago', '03') == $fp->clave ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
+                                <option value="{{ $fp->clave }}" {{ old('forma_pago', optional($clientePreseleccionado)->forma_pago ?? '03') == $fp->clave ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -122,7 +123,7 @@ $breadcrumbs = [
                         <label class="form-label">Método de Pago <span class="req">*</span></label>
                         <select name="metodo_pago" id="metodo_pago" class="form-control" required>
                             @foreach($metodosPago ?? [] as $mp)
-                                <option value="{{ $mp->clave }}" {{ old('metodo_pago', 'PUE') == $mp->clave ? 'selected' : '' }}>{{ $mp->etiqueta }}</option>
+                                <option value="{{ $mp->clave }}" {{ old('metodo_pago', ($clientePreseleccionado && ($clientePreseleccionado->dias_credito ?? 0) > 0) ? 'PPD' : 'PUE') == $mp->clave ? 'selected' : '' }}>{{ $mp->etiqueta }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -196,6 +197,7 @@ document.getElementById('cliente_id').addEventListener('change', function() {
         document.getElementById('infoRFC').textContent     = opt.dataset.rfc;
         document.getElementById('infoRegimen').textContent = opt.dataset.regimen || 'N/A';
         document.getElementById('uso_cfdi').value          = opt.dataset.usoCfdi || 'G03';
+        document.getElementById('forma_pago').value        = opt.dataset.formaPago || '03';
         document.getElementById('metodo_pago').value       = parseInt(opt.dataset.credito) > 0 ? 'PPD' : 'PUE';
         info.style.display = 'block';
     } else {

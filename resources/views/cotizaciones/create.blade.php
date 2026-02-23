@@ -211,6 +211,15 @@ $breadcrumbs = [
                         class="form-control">
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">Forma de pago</label>
+                    <select name="forma_pago" id="formaPagoCotizacion" class="form-control">
+                        @foreach($formasPago ?? [] as $fp)
+                            <option value="{{ $fp->clave }}" {{ ($isEdit && ($cotizacion->forma_pago ?? '03') == $fp->clave) || (!$isEdit && old('forma_pago', '03') == $fp->clave) ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
             </div>
         </div>
 
@@ -401,11 +410,15 @@ function seleccionarCliente(c) {
     document.getElementById('clienteRfc').textContent = `RFC: ${c.rfc}`;
     document.getElementById('clienteInfo').style.display = 'block';
     closeDropdown('clienteResults');
-    // Auto-configurar crédito
+    // Auto-configurar crédito y forma de pago
     if (c.dias_credito > 0) {
         document.getElementById('tipoVenta').value = 'credito';
         document.getElementById('diasCredito').value = c.dias_credito;
         document.getElementById('diasCreditoGroup').style.display = 'block';
+    }
+    const fpSelect = document.getElementById('formaPagoCotizacion');
+    if (fpSelect && c.forma_pago) {
+        fpSelect.value = c.forma_pago;
     }
 }
 

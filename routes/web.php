@@ -15,7 +15,10 @@ use App\Http\Controllers\Web\ProductoController;
 use App\Http\Controllers\Web\CategoriaProductoController;
 use App\Http\Controllers\Web\FacturaController;
 use App\Http\Controllers\Web\CuentaPorCobrarController;
+use App\Http\Controllers\Web\EstadoCuentaController;
 use App\Http\Controllers\Web\ComplementoPagoController;
+use App\Http\Controllers\Web\DevolucionController;
+use App\Http\Controllers\Web\NotaCreditoController;
 use App\Http\Controllers\Web\EmpresaController;
 use App\Http\Controllers\Web\CotizacionCompraController;
 use App\Http\Controllers\Web\OrdenCompraController;
@@ -56,9 +59,9 @@ Route::post('/login', [AuthController::class, 'login'])->name('login.submit');
 // RUTAS PROTEGIDAS (requieren autenticación)
 // ============================================================================
 
-Route::middleware('auth')->group(function () {
-    
-    // ───── LOGOUT ─────
+Route::middleware(['auth', 'route.permission'])->group(function () {
+
+    // ───── LOGOUT (no requiere permiso) ─────
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     
     // ───── DASHBOARD ─────
@@ -183,6 +186,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/facturas/{factura}/generar-pdf', [FacturaController::class, 'generarPDF'])->name('facturas.generar-pdf');
     Route::delete('/facturas/{factura}/cancelar', [FacturaController::class, 'cancelar'])->name('facturas.cancelar');
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');
+    Route::get('/facturas/{factura}/ver-pdf', [FacturaController::class, 'verPDF'])->name('facturas.ver-pdf');
     Route::get('/facturas/{factura}/descargar-pdf', [FacturaController::class, 'descargarPDF'])->name('facturas.descargar-pdf');
 
     // ───── CATÁLOGOS SAT (Facturación) ─────
@@ -200,7 +204,11 @@ Route::middleware('auth')->group(function () {
     // ───── CUENTAS POR COBRAR ───── ✅
     Route::get('/cuentas-cobrar', [CuentaPorCobrarController::class, 'index'])->name('cuentas-cobrar.index');
     Route::get('/cuentas-cobrar/{cuentaPorCobrar}', [CuentaPorCobrarController::class, 'show'])->name('cuentas-cobrar.show');
-    Route::post('/cuentas-cobrar/{cuentaPorCobrar}/pagar', [CuentaPorCobrarController::class, 'registrarPago'])->name('cuentas-cobrar.registrar-pago');
+
+    // ───── ESTADO DE CUENTA ─────
+    Route::get('/estado-cuenta', [EstadoCuentaController::class, 'index'])->name('estado-cuenta.index');
+    Route::get('/estado-cuenta/ver', [EstadoCuentaController::class, 'ver'])->name('estado-cuenta.ver');
+    Route::get('/estado-cuenta/pdf', [EstadoCuentaController::class, 'pdf'])->name('estado-cuenta.pdf');
     
     // ───── COMPLEMENTOS DE PAGO ───── ✅
     // IMPORTANTE: Rutas específicas ANTES de rutas con parámetros
@@ -210,7 +218,26 @@ Route::middleware('auth')->group(function () {
     Route::post('/complementos', [ComplementoPagoController::class, 'store'])->name('complementos.store');
     Route::get('/complementos/{complemento}', [ComplementoPagoController::class, 'show'])->name('complementos.show');
     Route::post('/complementos/{complemento}/timbrar', [ComplementoPagoController::class, 'timbrar'])->name('complementos.timbrar');
+    Route::get('/complementos/{complemento}/ver-pdf', [ComplementoPagoController::class, 'verPDF'])->name('complementos.ver-pdf');
+    Route::get('/complementos/{complemento}/descargar-pdf', [ComplementoPagoController::class, 'descargarPDF'])->name('complementos.descargar-pdf');
     Route::get('/complementos/{complemento}/descargar-xml', [ComplementoPagoController::class, 'descargarXML'])->name('complementos.descargar-xml');
+
+    // ───── DEVOLUCIONES ─────
+    Route::get('/devoluciones', [DevolucionController::class, 'index'])->name('devoluciones.index');
+    Route::get('/devoluciones/crear', [DevolucionController::class, 'create'])->name('devoluciones.create');
+    Route::post('/devoluciones', [DevolucionController::class, 'store'])->name('devoluciones.store');
+    Route::get('/devoluciones/{devolucion}', [DevolucionController::class, 'show'])->name('devoluciones.show');
+    Route::post('/devoluciones/{devolucion}/autorizar', [DevolucionController::class, 'autorizar'])->name('devoluciones.autorizar');
+
+    // ───── NOTAS DE CRÉDITO ─────
+    Route::get('/notas-credito', [NotaCreditoController::class, 'index'])->name('notas-credito.index');
+    Route::get('/notas-credito/crear', [NotaCreditoController::class, 'create'])->name('notas-credito.create');
+    Route::post('/notas-credito', [NotaCreditoController::class, 'store'])->name('notas-credito.store');
+    Route::get('/notas-credito/{notaCredito}', [NotaCreditoController::class, 'show'])->name('notas-credito.show');
+    Route::post('/notas-credito/{notaCredito}/timbrar', [NotaCreditoController::class, 'timbrar'])->name('notas-credito.timbrar');
+    Route::get('/notas-credito/{notaCredito}/ver-pdf', [NotaCreditoController::class, 'verPDF'])->name('notas-credito.ver-pdf');
+    Route::get('/notas-credito/{notaCredito}/descargar-pdf', [NotaCreditoController::class, 'descargarPDF'])->name('notas-credito.descargar-pdf');
+    Route::get('/notas-credito/{notaCredito}/descargar-xml', [NotaCreditoController::class, 'descargarXML'])->name('notas-credito.descargar-xml');
     
     // ───── BUSCADOR GLOBAL ─────
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');

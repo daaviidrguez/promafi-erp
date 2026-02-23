@@ -55,6 +55,7 @@ class Cotizacion extends Model
         // Condiciones de pago
         'tipo_venta',
         'dias_credito_aplicados',
+        'forma_pago',
         'condiciones_pago',
         'observaciones',
         

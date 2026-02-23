@@ -13,14 +13,17 @@ use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\Empresa;
 use App\Models\FormaPago;
+use App\Models\NotaCredito;
 use App\Services\PACServiceInterface;
+use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ComplementoPagoController extends Controller
 {
     public function __construct(
-        protected PACServiceInterface $pacService
+        protected PACServiceInterface $pacService,
+        protected PDFService $pdfService
     ) {}
 
     /**
@@ -84,8 +87,47 @@ class ComplementoPagoController extends Controller
             'num_operacion' => 'nullable|string|max:100',
             'facturas' => 'required|array|min:1',
             'facturas.*.factura_id' => 'required|exists:facturas,id',
-            'facturas.*.monto_pagado' => 'required|numeric|min:0.01',
+            'facturas.*.monto_pagado' => 'required|numeric|min:0',
+        ], [
+            'facturas.required' => 'Debes aplicar el pago al menos a una factura.',
+            'facturas.min' => 'Debes aplicar el pago al menos a una factura.',
         ]);
+
+        $montoTotal = (float) $validated['monto_total'];
+        $sumaAplicada = collect($validated['facturas'])->sum(fn ($f) => (float) ($f['monto_pagado'] ?? 0));
+        if (abs($sumaAplicada - $montoTotal) >= 0.01) {
+            return back()->withInput()->withErrors([
+                'monto_total' => 'La suma de montos aplicados a las facturas (' . number_format($sumaAplicada, 2) . ') debe coincidir con el monto total del pago (' . number_format($montoTotal, 2) . ').',
+            ]);
+        }
+        $conMonto = array_filter($validated['facturas'], fn ($f) => ((float) ($f['monto_pagado'] ?? 0)) >= 0.01);
+        if (empty($conMonto)) {
+            return back()->withInput()->withErrors([
+                'facturas' => ['Indica al menos un monto mayor a 0 en alguna factura.'],
+            ]);
+        }
+
+        // No permitir registrar pago por montos ya cubiertos por Notas de Crédito (coherencia SAT)
+        foreach ($validated['facturas'] as $facturaData) {
+            $montoPagado = (float) ($facturaData['monto_pagado'] ?? 0);
+            if ($montoPagado < 0.01) {
+                continue;
+            }
+            $facturaId = (int) $facturaData['factura_id'];
+            $cuenta = CuentaPorCobrar::where('factura_id', $facturaId)->first();
+            if (!$cuenta) {
+                continue;
+            }
+            $montoCubiertoPorNC = (float) NotaCredito::where('factura_id', $facturaId)->where('estado', 'timbrada')->sum('total');
+            $maxPermitido = max(0, (float) $cuenta->monto_pendiente - $montoCubiertoPorNC);
+            if ($montoPagado > $maxPermitido + 0.01) {
+                $factura = $cuenta->factura;
+                $folio = $factura ? $factura->folio_completo : $facturaId;
+                return back()->withInput()->withErrors([
+                    'facturas' => ["No se puede registrar un Complemento de Pago por un monto mayor al disponible en la factura {$folio}. El monto ya cubierto por Notas de Crédito no puede pagarse con un complemento (máximo permitido: " . number_format($maxPermitido, 2) . ")."],
+                ]);
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -138,8 +180,13 @@ class ComplementoPagoController extends Controller
                 'cuenta_beneficiario' => $request->input('cuenta_beneficiario'),
             ]);
 
-            // Crear documentos relacionados (facturas pagadas)
+            // Crear documentos relacionados (solo facturas con monto aplicado > 0)
             foreach ($validated['facturas'] as $index => $facturaData) {
+                $montoPagado = (float) ($facturaData['monto_pagado'] ?? 0);
+                if ($montoPagado < 0.01) {
+                    continue;
+                }
+
                 $factura = \App\Models\Factura::findOrFail($facturaData['factura_id']);
                 $cuentaPorCobrar = $factura->cuentaPorCobrar;
 
@@ -152,7 +199,7 @@ class ComplementoPagoController extends Controller
                 
                 // Calcular saldo anterior
                 $saldoAnterior = $cuentaPorCobrar->monto_pendiente;
-                $saldoInsoluto = $saldoAnterior - $facturaData['monto_pagado'];
+                $saldoInsoluto = $saldoAnterior - $montoPagado;
 
                 DocumentoRelacionadoPago::create([
                     'pago_recibido_id' => $pago->id,
@@ -164,12 +211,11 @@ class ComplementoPagoController extends Controller
                     'monto_total' => $factura->total,
                     'parcialidad' => $parcialidad,
                     'saldo_anterior' => $saldoAnterior,
-                    'monto_pagado' => $facturaData['monto_pagado'],
+                    'monto_pagado' => $montoPagado,
                     'saldo_insoluto' => $saldoInsoluto,
                 ]);
 
-                // Registrar pago en cuenta por cobrar
-                $cuentaPorCobrar->registrarPago($facturaData['monto_pagado']);
+                // El pago se aplica a la cuenta por cobrar solo al TIMBRAR el complemento (flujo fiscal correcto)
             }
 
             // Incrementar folio del complemento
@@ -238,10 +284,25 @@ class ComplementoPagoController extends Controller
                 $complemento->update(['xml_path' => $xmlPath]);
             }
 
+            // Aplicar pagos a Cuentas por Cobrar (solo al timbrar, flujo fiscal correcto)
+            $complemento->load('pagosRecibidos.documentosRelacionados.factura');
+            foreach ($complemento->pagosRecibidos as $pagoRecibido) {
+                foreach ($pagoRecibido->documentosRelacionados as $doc) {
+                    $cuenta = $doc->factura->cuentaPorCobrar;
+                    if ($cuenta) {
+                        $cuenta->registrarPago((float) $doc->monto_pagado);
+                    }
+                }
+            }
+
+            // Generar PDF del complemento
+            $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
+            $complemento->update(['pdf_path' => $pdfPath]);
+
             DB::commit();
 
             return redirect()->route('complementos.show', $complemento->id)
-                ->with('success', $resultado['message']);
+                ->with('success', $resultado['message'] . ' - PDF generado.');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -268,6 +329,33 @@ class ComplementoPagoController extends Controller
     }
 
     /**
+     * Ver PDF en el navegador
+     */
+    public function verPDF(ComplementoPago $complemento)
+    {
+        if (!$complemento->pdf_path || !file_exists(storage_path('app/' . $complemento->pdf_path))) {
+            $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
+            $complemento->update(['pdf_path' => $pdfPath]);
+        }
+        return response()->file(storage_path('app/' . $complemento->pdf_path));
+    }
+
+    /**
+     * Descargar PDF
+     */
+    public function descargarPDF(ComplementoPago $complemento)
+    {
+        if (!$complemento->pdf_path || !file_exists(storage_path('app/' . $complemento->pdf_path))) {
+            $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
+            $complemento->update(['pdf_path' => $pdfPath]);
+        }
+        return response()->download(
+            storage_path('app/' . $complemento->pdf_path),
+            $complemento->folio_completo . '.pdf'
+        );
+    }
+
+    /**
      * Obtener facturas pendientes de un cliente
      */
     public function facturasPendientes(Request $request)
@@ -283,20 +371,27 @@ class ComplementoPagoController extends Controller
             ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
             ->where('monto_pendiente', '>', 0)
             ->whereHas('factura', function ($q) {
-                $q->whereNotNull('uuid'); // 🔥 SOLO TIMBRADAS
+                $q->whereNotNull('uuid'); // SOLO facturas timbradas
             })
             ->get();
 
-        return response()->json($cuentas->map(function($cuenta) {
+        return response()->json($cuentas->map(function ($cuenta) {
+            $montoCubiertoPorNC = (float) NotaCredito::where('factura_id', $cuenta->factura_id)
+                ->where('estado', 'timbrada')
+                ->sum('total');
+            $pendienteDisponible = max(0, (float) $cuenta->monto_pendiente - $montoCubiertoPorNC);
             return [
                 'id' => $cuenta->factura_id,
                 'folio' => $cuenta->factura->folio_completo,
                 'uuid' => $cuenta->factura->uuid,
                 'fecha' => $cuenta->fecha_emision->format('d/m/Y'),
                 'total' => $cuenta->monto_total,
-                'pendiente' => $cuenta->monto_pendiente,
+                'pendiente' => round($pendienteDisponible, 2),
+                'pendiente_sin_nc' => round((float) $cuenta->monto_pendiente, 2),
             ];
-        }));
+        })->filter(function ($item) {
+            return $item['pendiente'] > 0;
+        })->values());
     }
 
     /**

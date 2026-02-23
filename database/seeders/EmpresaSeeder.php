@@ -43,8 +43,10 @@ class EmpresaSeeder extends Seeder
             'telefono' => '5555555555',
             
             // Facturación
-            'serie_factura' => 'A',
+            'serie_factura' => 'FA',
             'folio_factura' => 1,
+            'serie_factura_credito' => 'FB',
+            'folio_factura_credito' => 1,
             
             // PAC (modo prueba por defecto)
             'pac_modo_prueba' => true,
@@ -56,7 +58,7 @@ class EmpresaSeeder extends Seeder
         echo "   Dashboard → Configuración\n";
         echo "\n";
         echo "📋 RFC: XAXX010101000 (genérico - cámbialo)\n";
-        echo "🧾 Serie: A | Folio inicial: 1\n";
+        echo "🧾 Facturas Contado: FA | Facturas Crédito: FB | Folio inicial: 1\n";
         echo "🔐 Modo prueba: ACTIVADO (timbrado genera UUID fake)\n";
         echo "\n";
     }

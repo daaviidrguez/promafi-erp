@@ -143,7 +143,7 @@ $breadcrumbs = [
                     <div class="info-label">Estado</div>
                     <div style="margin-top: 4px;">
                         @if($factura->estado === 'timbrada')
-                            <span class="badge badge-success">✓ Timbrada</span>
+                            <span class="badge badge-success">Timbrada</span>
                         @elseif($factura->estado === 'borrador')
                             <span class="badge badge-warning">📝 Borrador</span>
                         @else
@@ -175,7 +175,7 @@ $breadcrumbs = [
                 </div>
                 <div class="info-row">
                     <div class="info-label">Forma de Pago</div>
-                    <div class="info-value-sm">{{ $factura->forma_pago }}</div>
+                    <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $factura->forma_pago)->first())->etiqueta ?? $factura->forma_pago }}</div>
                 </div>
                 @if($factura->uuid)
                 <div class="info-row">
@@ -201,10 +201,13 @@ $breadcrumbs = [
             </div>
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
+                <a href="{{ route('facturas.ver-pdf', $factura->id) }}"
+                   target="_blank" class="btn btn-outline w-full">👁️ Ver Factura</a>
+
                 @if($factura->esBorrador())
                 <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}">
                     @csrf
-                    <button type="submit" class="btn btn-primary w-full">✓ Timbrar Factura</button>
+                    <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>
                 </form>
                 @endif
 
@@ -222,6 +225,15 @@ $breadcrumbs = [
                     <button type="button"
                             onclick="document.getElementById('modalCancelar').classList.add('show')"
                             class="btn btn-danger w-full">✗ Cancelar Factura</button>
+                @endif
+
+                @if($factura->estaTimbrada())
+                <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
+                @endif
+
+                @if($factura->estaTimbrada())
+                <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Registrar devolución</a>
+                <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Emitir nota de crédito</a>
                 @endif
 
                 <a href="{{ route('facturas.index') }}" class="btn btn-light w-full">← Volver</a>

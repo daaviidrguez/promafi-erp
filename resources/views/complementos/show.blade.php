@@ -133,7 +133,7 @@ $breadcrumbs = [
                     <div class="info-label">Estado</div>
                     <div style="margin-top: 4px;">
                         @if($complemento->estado === 'timbrado')
-                            <span class="badge badge-success">✓ Timbrado</span>
+                            <span class="badge badge-success">Timbrado</span>
                         @elseif($complemento->estado === 'borrador')
                             <span class="badge badge-warning">📝 Borrador</span>
                         @else
@@ -173,21 +173,28 @@ $breadcrumbs = [
         {{-- Acciones --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">⚡ Acciones</div>
+                <div class="card-title">Acciones</div>
             </div>
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
                 @if($complemento->estado === 'borrador')
+                <p class="text-muted" style="font-size: 13px; margin: 0 0 8px 0;">
+                    Al emitir se timbrará el complemento y se aplicará el pago a las cuentas por cobrar.
+                </p>
                 <form method="POST" action="{{ route('complementos.timbrar', $complemento->id) }}">
                     @csrf
-                    <button type="submit" class="btn btn-primary w-full">✓ Timbrar Complemento</button>
+                    <button type="submit" class="btn btn-primary w-full">Emitir complemento</button>
                 </form>
                 @endif
 
                 @if($complemento->estado === 'timbrado')
+                    <a href="{{ route('complementos.ver-pdf', $complemento->id) }}"
+                       target="_blank" class="btn btn-outline w-full">Ver PDF</a>
+                    <a href="{{ route('complementos.descargar-pdf', $complemento->id) }}"
+                       class="btn btn-outline w-full">Descargar PDF</a>
                     @if($complemento->xml_path)
                     <a href="{{ route('complementos.descargar-xml', $complemento->id) }}"
-                       class="btn btn-success w-full">📄 Descargar XML</a>
+                       class="btn btn-success w-full">Descargar XML</a>
                     @endif
                 @endif
 

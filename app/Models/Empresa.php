@@ -23,6 +23,7 @@ class Empresa extends Model
         'numero_interior',
         'colonia',
         'ciudad',
+        'municipio',
         'estado',
         'codigo_postal',
         'pais',
@@ -41,6 +42,8 @@ class Empresa extends Model
         'certificado_vigencia',
         'serie_factura',
         'folio_factura',
+        'serie_factura_credito',
+        'folio_factura_credito',
         'serie_nota_credito',
         'folio_nota_credito',
         'serie_nota_debito',
@@ -55,6 +58,9 @@ class Empresa extends Model
         'pac_api_key',
         'pac_endpoint',
         'pac_modo_prueba',
+        'pac_provider',
+        'pac_facturama_user',
+        'pac_facturama_password',
         'activo',
     ];
 
@@ -63,6 +69,7 @@ class Empresa extends Model
         'pac_modo_prueba' => 'boolean',
         'activo' => 'boolean',
         'folio_factura' => 'integer',
+        'folio_factura_credito' => 'integer',
         'folio_nota_credito' => 'integer',
         'folio_nota_debito' => 'integer',
         'folio_complemento' => 'integer',
@@ -73,6 +80,7 @@ class Empresa extends Model
     protected $hidden = [
         'certificado_password',
         'pac_api_key',
+        'pac_facturama_password',
     ];
 
     /**
@@ -84,19 +92,39 @@ class Empresa extends Model
     }
 
     /**
-     * Obtener siguiente folio de factura
+     * Obtener siguiente folio de factura (contado)
      */
     public function obtenerSiguienteFolioFactura(): string
     {
-        return $this->serie_factura . '-' . str_pad($this->folio_factura, 4, '0', STR_PAD_LEFT);
+        $serie = $this->serie_factura ?? 'FA';
+        $folio = (int) ($this->folio_factura ?? 1);
+        return $serie . '-' . str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
     }
 
     /**
-     * Incrementar folio de factura
+     * Incrementar folio de factura (contado)
      */
     public function incrementarFolioFactura(): void
     {
         $this->increment('folio_factura');
+    }
+
+    /**
+     * Obtener siguiente folio de factura crédito
+     */
+    public function obtenerSiguienteFolioFacturaCredito(): string
+    {
+        $serie = $this->serie_factura_credito ?? 'FB';
+        $folio = (int) ($this->folio_factura_credito ?? 1);
+        return $serie . '-' . str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Incrementar folio de factura crédito
+     */
+    public function incrementarFolioFacturaCredito(): void
+    {
+        $this->increment('folio_factura_credito');
     }
 
     /**
@@ -158,13 +186,27 @@ class Empresa extends Model
     }
 
     /**
-     * Verificar si tiene PAC configurado
+     * Verificar si tiene PAC configurado (Facturama u otro)
      */
     public function tienePACConfigurado(): bool
     {
-        return !empty($this->pac_nombre) && 
-               !empty($this->pac_api_key) && 
-               !empty($this->pac_endpoint);
+        if (in_array($this->pac_provider ?? 'fake', ['facturama_sandbox', 'facturama_production'], true)) {
+            return !empty($this->pac_facturama_user) && !empty($this->pac_facturama_password);
+        }
+        return !empty($this->pac_nombre) && !empty($this->pac_api_key) && !empty($this->pac_endpoint);
+    }
+
+    /**
+     * URL base de la API según proveedor (Facturama)
+     */
+    public function getFacturamaBaseUrlAttribute(): ?string
+    {
+        $provider = $this->pac_provider ?? 'fake';
+        return match ($provider) {
+            'facturama_sandbox' => 'https://apisandbox.facturama.mx',
+            'facturama_production' => 'https://api.facturama.mx',
+            default => null,
+        };
     }
 
     /**

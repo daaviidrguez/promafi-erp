@@ -12,8 +12,12 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-logo">
-                <img src="{{ asset('images/logo-promafi.png') }}" alt="Promafi Logo">
-                <h1>ERP Comercial</h1>
+                @if(isset($empresa) && $empresa && $empresa->logo_path)
+                    <img src="{{ asset('storage/' . $empresa->logo_path) }}" alt="{{ $empresa->nombre_comercial ?? $empresa->razon_social ?? 'Logo' }}" class="login-logo-img">
+                @else
+                    <img src="{{ asset('images/logo-promafi.png') }}" alt="Logo" class="login-logo-img">
+                @endif
+                <h1>{{ isset($empresa) && $empresa ? ($empresa->nombre_comercial ?? $empresa->razon_social ?? 'ERP Comercial') : 'ERP Comercial' }}</h1>
                 <p>Sistema de Gestión Empresarial</p>
             </div>
 

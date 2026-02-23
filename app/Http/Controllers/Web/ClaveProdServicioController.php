@@ -14,10 +14,19 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ClaveProdServicioController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $items = ClaveProdServicio::orderBy('orden')->orderBy('clave')->paginate(50);
-        return view('catalogos-sat.claves-producto-servicio.index', compact('items'));
+        $query = ClaveProdServicio::query();
+        $search = $request->filled('search') ? trim($request->search) : null;
+        if ($search !== null && $search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('clave', 'like', '%' . $search . '%')
+                  ->orWhere('descripcion', 'like', '%' . $search . '%');
+            });
+        }
+        $items = $query->orderBy('orden')->orderBy('clave')->paginate(50)->withQueryString();
+        $totalItems = (clone $query)->count();
+        return view('catalogos-sat.claves-producto-servicio.index', compact('items', 'totalItems', 'search'));
     }
 
     public function create()

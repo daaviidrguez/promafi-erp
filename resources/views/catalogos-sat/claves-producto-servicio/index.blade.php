@@ -12,6 +12,14 @@ $breadcrumbs = [
 ];
 @endphp
 
+@push('styles')
+<style>
+.claves-filtro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0; }
+.claves-filtro-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.claves-total { font-size: 14px; }
+</style>
+@endpush
+
 @section('content')
 
 @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
@@ -35,6 +43,20 @@ $breadcrumbs = [
                 <button type="submit" class="btn btn-primary">Subir e importar</button>
             </div>
         </form>
+    </div>
+    <div class="card-body">
+        <div class="claves-filtro">
+            <form method="GET" action="{{ route('catalogos-sat.claves-producto-servicio.index') }}" class="claves-filtro-form">
+                <input type="text" name="search" class="form-control" placeholder="Buscar por clave o descripción..." value="{{ old('search', $search ?? '') }}" style="max-width:320px;">
+                <button type="submit" class="btn btn-primary">Buscar</button>
+                @if(request()->filled('search'))
+                    <a href="{{ route('catalogos-sat.claves-producto-servicio.index') }}" class="btn btn-light">Limpiar</a>
+                @endif
+            </form>
+            <div class="claves-total text-muted">
+                <strong>{{ number_format($totalItems ?? 0) }}</strong> {{ ($totalItems ?? 0) === 1 ? 'item' : 'items' }}
+            </div>
+        </div>
     </div>
     <div class="card-body" style="padding:0;">
         <div class="table-container" style="margin-bottom:0;">

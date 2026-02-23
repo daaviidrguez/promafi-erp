@@ -84,7 +84,7 @@ $breadcrumbs = [
                             <tr>
                                 <th>Descripción</th>
                                 <th class="td-center">Cant.</th>
-                                <th class="td-right">Precio</th>
+                                <th class="td-right">Costo</th>
                                 <th class="td-center">Desc %</th>
                                 <th class="td-center">IVA</th>
                                 <th class="td-right">Total</th>
@@ -200,14 +200,14 @@ async function buscarProductos(q) {
         const r = await fetch(`{{ route('cotizaciones-compra.buscar-productos') }}?q=${encodeURIComponent(q)}`);
         const data = await r.json();
         const box = document.getElementById('productoResults');
-        box.innerHTML = data.length ? data.map(p => `<div class="autocomplete-item" onclick='agregarProducto(${JSON.stringify(p)})'><div class="autocomplete-item-name">${p.nombre}</div><div class="autocomplete-item-sub">${p.codigo} — $${parseFloat(p.precio_venta).toFixed(2)}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+        box.innerHTML = data.length ? data.map(p => `<div class="autocomplete-item" onclick='agregarProducto(${JSON.stringify(p)})'><div class="autocomplete-item-name">${p.nombre}</div><div class="autocomplete-item-sub">${p.codigo} — Costo $${(parseFloat(p.costo) || 0).toFixed(2)}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
         box.classList.add('show');
     } catch(e) { console.error(e); }
 }
 
 function agregarProducto(p) {
     if (productos.some(x => x.id && x.id === p.id)) { alert('Ya está en la lista'); return; }
-    productos.push({ id: p.id, codigo: p.codigo, nombre: p.nombre, cantidad: 1, precio: parseFloat(p.precio_venta), descuento: 0, tasa_iva: p.tasa_iva != null ? p.tasa_iva : null, manual: false });
+    productos.push({ id: p.id, codigo: p.codigo, nombre: p.nombre, cantidad: 1, precio: parseFloat(p.costo) || 0, descuento: 0, tasa_iva: p.tasa_iva != null ? p.tasa_iva : null, manual: false });
     document.getElementById('buscarProducto').value = '';
     closeDropdown('productoResults');
     renderProductos();

@@ -226,14 +226,20 @@ class CotizacionCompraController extends Controller
         $list = Producto::where('activo', true)
             ->where(fn ($query) => $query->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%"))
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'precio_venta', 'tasa_iva', 'tipo_factor']);
-        $list = $list->map(fn ($p) => [
-            'id' => $p->id,
-            'codigo' => $p->codigo,
-            'nombre' => $p->nombre,
-            'precio_venta' => $p->precio_venta,
-            'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
-        ]);
+            ->get(['id', 'codigo', 'nombre', 'costo', 'costo_promedio', 'precio_venta', 'tasa_iva', 'tipo_factor']);
+        $list = $list->map(function ($p) {
+            $costoPromedio = $p->costo_promedio_mostrar;
+            $costo = $costoPromedio ?? (float) $p->costo;
+            return [
+                'id' => $p->id,
+                'codigo' => $p->codigo,
+                'nombre' => $p->nombre,
+                'costo' => $costo,
+                'costo_promedio' => $costoPromedio,
+                'precio_venta' => $p->precio_venta,
+                'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
+            ];
+        });
         return response()->json($list);
     }
 }

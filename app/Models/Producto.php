@@ -22,6 +22,7 @@ class Producto extends Model
         'tipo_impuesto',
         'tipo_factor',
         'costo',
+        'costo_promedio',
         'precio_venta',
         'precio_mayoreo',
         'precio_minimo',
@@ -40,6 +41,7 @@ class Producto extends Model
 
     protected $casts = [
         'costo' => 'decimal:2',
+        'costo_promedio' => 'decimal:2',
         'precio_venta' => 'decimal:2',
         'precio_mayoreo' => 'decimal:2',
         'precio_minimo' => 'decimal:2',
@@ -139,6 +141,46 @@ class Producto extends Model
     public function movimientos()
     {
         return $this->hasMany(InventarioMovimiento::class)->orderByDesc('created_at');
+    }
+
+    /**
+     * Detalles de órdenes de compra (para calcular costo promedio)
+     */
+    public function ordenesCompraDetalle()
+    {
+        return $this->hasMany(OrdenCompraDetalle::class)->whereHas('ordenCompra', function ($q) {
+            $q->where('estado', 'recibida');
+        });
+    }
+
+    /**
+     * Costo promedio calculado desde compras recibidas (promedio ponderado por cantidad).
+     * Si no hay compras, devuelve null; la vista puede mostrar costo base o "—".
+     */
+    public function getCostoPromedioCalculadoAttribute(): ?float
+    {
+        $d = \Illuminate\Support\Facades\DB::table('ordenes_compra_detalle as d')
+            ->join('ordenes_compra as o', 'o.id', '=', 'd.orden_compra_id')
+            ->where('d.producto_id', $this->id)
+            ->where('o.estado', 'recibida')
+            ->whereNull('o.deleted_at')
+            ->selectRaw('COALESCE(SUM(d.total), 0) as sum_total, COALESCE(SUM(d.cantidad), 0) as sum_cantidad')
+            ->first();
+        if (!$d || (float) $d->sum_cantidad <= 0) {
+            return null;
+        }
+        return round((float) $d->sum_total / (float) $d->sum_cantidad, 2);
+    }
+
+    /**
+     * Costo promedio a mostrar: almacenado o calculado desde compras
+     */
+    public function getCostoPromedioMostrarAttribute(): ?float
+    {
+        if ($this->costo_promedio !== null && (float) $this->costo_promedio > 0) {
+            return (float) $this->costo_promedio;
+        }
+        return $this->costo_promedio_calculado;
     }
 
     /**

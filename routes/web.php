@@ -6,6 +6,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\TableroController;
 use App\Http\Controllers\Web\GlobalSearchController;
 use App\Http\Controllers\Web\PerfilController;
 use App\Http\Controllers\Web\CotizacionController;
@@ -66,8 +67,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     
     // ───── DASHBOARD ─────
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
-    // ───── DASHBOARD ─────
+    Route::get('/tablero', [TableroController::class, 'index'])->name('tablero.index');
+
+    // ───── PERFIL ─────
     Route::get('/perfil', [PerfilController::class, 'edit'])->name('perfil.edit');
     Route::put('/perfil', [PerfilController::class, 'update'])->name('perfil.update');
     Route::put('/perfil/password', [PerfilController::class, 'updatePassword'])->name('perfil.password');

@@ -120,6 +120,16 @@ $breadcrumbs = [
                         </div>
                     </div>
                     <div class="info-row">
+                        <div class="info-label">Costo promedio</div>
+                        <div class="info-value text-mono">
+                            @if($producto->costo_promedio_mostrar !== null)
+                                ${{ number_format($producto->costo_promedio_mostrar, 2, '.', ',') }}
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="info-row">
                         <div class="info-label">Precio de Venta</div>
                         <div class="info-value text-mono" style="color: var(--color-primary); font-size: 18px;">
                             ${{ number_format($producto->precio_venta, 2, '.', ',') }}

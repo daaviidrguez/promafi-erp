@@ -165,6 +165,17 @@ $breadcrumbs = [
                                value="{{ old('costo', $producto->costo) }}" min="0" step="0.01">
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Costo promedio</label>
+                        <div class="form-control text-mono" style="background: var(--color-gray-50); font-weight: 600;" readonly tabindex="-1">
+                            @if($producto->costo_promedio_mostrar !== null)
+                                ${{ number_format($producto->costo_promedio_mostrar, 2, '.', ',') }}
+                            @else
+                                —
+                            @endif
+                        </div>
+                        <span class="form-hint">Promedio sobre compras recibidas</span>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" name="aplica_iva" value="1" id="aplica_iva_edit"
                                    {{ old('aplica_iva', $producto->aplica_iva) ? 'checked' : '' }}

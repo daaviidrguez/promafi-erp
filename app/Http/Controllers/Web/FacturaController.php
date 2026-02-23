@@ -73,7 +73,10 @@ class FacturaController extends Controller
             $clientePreseleccionado = Cliente::find($request->cliente_id);
         }
 
-        return view('facturas.create', compact('empresa', 'clientes', 'productos', 'clientePreseleccionado', 'formasPago', 'metodosPago', 'usosCfdi'));
+        $folioContado = $empresa ? $empresa->obtenerSiguienteFolioFactura() : 'FA-0001';
+        $folioCredito = $empresa ? $empresa->obtenerSiguienteFolioFacturaCredito() : 'FB-0001';
+
+        return view('facturas.create', compact('empresa', 'clientes', 'productos', 'clientePreseleccionado', 'formasPago', 'metodosPago', 'usosCfdi', 'folioContado', 'folioCredito'));
     }
 
     /**

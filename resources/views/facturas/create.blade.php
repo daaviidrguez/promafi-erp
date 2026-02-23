@@ -107,6 +107,16 @@ $breadcrumbs = [
                 </div>
                 <div class="card-body">
                     <div class="form-group">
+                        <label class="form-label">Folio</label>
+                        <div class="form-control" style="background: var(--color-gray-50); font-weight: 600; font-variant-numeric: tabular-nums;" id="visorFolio" readonly tabindex="-1">
+                            @php
+                                $metodoInicial = old('metodo_pago', ($clientePreseleccionado && ($clientePreseleccionado->dias_credito ?? 0) > 0) ? 'PPD' : 'PUE');
+                            @endphp
+                            {{ $metodoInicial === 'PPD' ? ($folioCredito ?? 'FB-0001') : ($folioContado ?? 'FA-0001') }}
+                        </div>
+                        <span class="form-hint">Según método de pago (PUE = contado, PPD = crédito)</span>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
                         <input type="date" name="fecha_emision" class="form-control"
                                value="{{ old('fecha_emision', now()->format('Y-m-d')) }}" required>
@@ -188,6 +198,15 @@ $breadcrumbs = [
 <script>
 let productoIndex = 0;
 const catalogoProductos = @json($productos);
+const folioContado = @json($folioContado ?? 'FA-0001');
+const folioCredito = @json($folioCredito ?? 'FB-0001');
+
+function actualizarVisorFolio() {
+    const metodo = document.getElementById('metodo_pago').value;
+    document.getElementById('visorFolio').textContent = metodo === 'PPD' ? folioCredito : folioContado;
+}
+
+document.getElementById('metodo_pago').addEventListener('change', actualizarVisorFolio);
 
 // Info cliente al cambiar select
 document.getElementById('cliente_id').addEventListener('change', function() {
@@ -200,6 +219,7 @@ document.getElementById('cliente_id').addEventListener('change', function() {
         document.getElementById('forma_pago').value        = opt.dataset.formaPago || '03';
         document.getElementById('metodo_pago').value       = parseInt(opt.dataset.credito) > 0 ? 'PPD' : 'PUE';
         info.style.display = 'block';
+        actualizarVisorFolio();
     } else {
         info.style.display = 'none';
     }

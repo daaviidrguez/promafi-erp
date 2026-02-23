@@ -6,17 +6,13 @@
 @endphp
 <aside class="sidebar">
 
-    {{-- Logo (mismo que en Configuración) --}}
+    {{-- Logo (mismo que en Configuración), sin nombre de empresa --}}
     <div class="sidebar-logo">
         <div class="sidebar-logo-initials">{{ strtoupper(mb_substr($nombreSidebar, 0, 2)) }}</div>
         <img src="{{ $logoUrlSidebar }}"
              alt="{{ $nombreSidebar }}"
              class="sidebar-logo-img"
              onerror="this.style.display='none'">
-        <div>
-            <div class="sidebar-logo-text">{{ $nombreSidebar }}</div>
-            <div class="sidebar-logo-sub">Sistema Comercial</div>
-        </div>
     </div>
 
     {{-- Navegación --}}

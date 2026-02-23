@@ -18,43 +18,26 @@
         <div class="card">
             <div class="card-body" style="text-align: center; padding: 32px 20px;">
 
-                {{-- Avatar --}}
-                <div style="position: relative; display: inline-block; margin-bottom: 16px;">
+                {{-- Foto de perfil (arriba del nombre) --}}
+                <div class="perfil-avatar-wrap">
                     @if(auth()->user()->avatar)
                         <img src="{{ asset('storage/' . auth()->user()->avatar) }}"
-                             alt="Avatar"
-                             style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;
-                                    border: 3px solid var(--color-primary); box-shadow: var(--shadow-md);">
+                             alt="Foto de perfil"
+                             class="perfil-avatar-img">
                     @else
-                        <div style="width: 100px; height: 100px; border-radius: 50%;
-                                    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-                                    display: flex; align-items: center; justify-content: center;
-                                    font-size: 42px; font-weight: 800; color: #fff;
-                                    border: 3px solid var(--color-primary); box-shadow: var(--shadow-md);
-                                    margin: 0 auto;">
-                            {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                        <div class="perfil-avatar-iniciales">
+                            {{ strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
                         </div>
                     @endif
                 </div>
 
-                <div style="font-size: 18px; font-weight: 700; color: var(--color-dark); margin-bottom: 4px;">
-                    {{ auth()->user()->name }}
-                </div>
-                <div class="text-muted" style="font-size: 13px; margin-bottom: 8px;">
-                    {{ auth()->user()->email }}
-                </div>
-                <div style="margin-bottom: 20px;">
-                    @php
-                        $rol = auth()->user()->rol ?? 'usuario';
-                    @endphp
-                    @if($rol === 'admin')
-                        <span class="badge badge-primary">👑 Administrador</span>
-                    @elseif($rol === 'vendedor')
-                        <span class="badge badge-info">💼 Vendedor</span>
-                    @elseif($rol === 'contador')
-                        <span class="badge badge-success">📊 Contador</span>
+                <div class="perfil-nombre">{{ auth()->user()->name }}</div>
+                <div class="text-muted perfil-email">{{ auth()->user()->email }}</div>
+                <div class="perfil-rol">
+                    @if(auth()->user()->role)
+                        <span class="badge badge-primary">👤 {{ auth()->user()->role->display_name }}</span>
                     @else
-                        <span class="badge badge-gray">👤 {{ ucfirst($rol) }}</span>
+                        <span class="badge badge-gray">👤 Usuario</span>
                     @endif
                 </div>
 
@@ -205,6 +188,26 @@
 </div>
 
 @endsection
+
+@push('styles')
+<style>
+.perfil-avatar-wrap { margin-bottom: 16px; }
+.perfil-avatar-img {
+    width: 100px; height: 100px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--color-primary); box-shadow: var(--shadow-md);
+}
+.perfil-avatar-iniciales {
+    width: 100px; height: 100px; border-radius: 50%; margin: 0 auto;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px; font-weight: 800; color: #fff;
+    border: 3px solid var(--color-primary); box-shadow: var(--shadow-md);
+}
+.perfil-nombre { font-size: 18px; font-weight: 700; color: var(--color-dark); margin-bottom: 4px; }
+.perfil-email { font-size: 13px; margin-bottom: 8px; }
+.perfil-rol { margin-bottom: 20px; }
+</style>
+@endpush
 
 @push('scripts')
 <script>

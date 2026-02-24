@@ -108,7 +108,7 @@
         @if(auth()->user()->can('ordenes_compra.ver') || auth()->user()->can('cotizaciones_compra.ver') || auth()->user()->can('proveedores.ver') || auth()->user()->can('cuentas_por_pagar.ver'))
         <div class="sidebar-dropdown {{ $compHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $compHasActive ? 'active' : '' }}" data-dropdown="compras" title="Compras">
-                <span class="sidebar-menu-icon">🏭</span>
+                <span class="sidebar-menu-icon">🛒</span>
                 <span class="sidebar-menu-text">Compras</span>
                 <span class="sidebar-dropdown-chevron">▼</span>
             </button>

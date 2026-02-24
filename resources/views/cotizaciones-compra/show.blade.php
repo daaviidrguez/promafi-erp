@@ -40,7 +40,7 @@ $breadcrumbs = [
                             <th>Código</th>
                             <th>Descripción</th>
                             <th class="td-center">Cant.</th>
-                            <th class="td-right">P. Unit.</th>
+                            <th class="td-right">Costo unit.</th>
                             <th class="td-center">IVA</th>
                             <th class="td-right">Total</th>
                         </tr>

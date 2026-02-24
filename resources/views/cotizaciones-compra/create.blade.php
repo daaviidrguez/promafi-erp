@@ -159,7 +159,7 @@ $breadcrumbs = [
                             <tr>
                                 <th style="width:32%;">Descripción</th>
                                 <th class="td-center" style="width:10%;">Cantidad</th>
-                                <th class="td-right" style="width:15%;">Precio</th>
+                                <th class="td-right" style="width:15%;">Costo</th>
                                 <th class="td-center" style="width:10%;">Desc %</th>
                                 <th class="td-center" style="width:10%;">IVA</th>
                                 <th class="td-right" style="width:13%;">Subtotal</th>
@@ -348,7 +348,7 @@ async function buscarProductos(q) {
             box.innerHTML = data.map(p => `
                 <div class="autocomplete-item" onclick='agregarProducto(${JSON.stringify(p)})'>
                     <div class="autocomplete-item-name">${p.nombre}</div>
-                    <div class="autocomplete-item-sub">${p.codigo} — $${parseFloat(p.precio_venta).toFixed(2)}</div>
+                    <div class="autocomplete-item-sub">${p.codigo} — Costo $${(parseFloat(p.costo) || 0).toFixed(2)}</div>
                 </div>
             `).join('');
         }
@@ -360,7 +360,7 @@ function agregarProducto(p) {
     if (productos.find(x => x.id === p.id)) { alert('Este producto ya está en la lista'); return; }
     productos.push({
         id: p.id, codigo: p.codigo, nombre: p.nombre,
-        cantidad: 1, precio: parseFloat(p.precio_venta),
+        cantidad: 1, precio: parseFloat(p.costo) || 0,
         descuento: 0, tasa_iva: p.tasa_iva, manual: false,
     });
     document.getElementById('buscarProducto').value = '';

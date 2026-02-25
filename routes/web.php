@@ -186,7 +186,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     
     // ───── FACTURAS ───── ✅
-    Route::resource('facturas', FacturaController::class)->except(['edit', 'update']);
+    Route::resource('facturas', FacturaController::class);
     Route::post('/facturas/{factura}/timbrar', [FacturaController::class, 'timbrar'])->name('facturas.timbrar');
     Route::post('/facturas/{factura}/generar-pdf', [FacturaController::class, 'generarPDF'])->name('facturas.generar-pdf');
     Route::delete('/facturas/{factura}/cancelar', [FacturaController::class, 'cancelar'])->name('facturas.cancelar');

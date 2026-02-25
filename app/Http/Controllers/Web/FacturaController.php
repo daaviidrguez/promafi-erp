@@ -265,6 +265,188 @@ class FacturaController extends Controller
     }
 
     /**
+     * Formulario editar factura (solo borrador)
+     */
+    public function edit(Factura $factura)
+    {
+        if (!$factura->esBorrador()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'Solo se pueden editar facturas en borrador.');
+        }
+
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
+        $empresa = Empresa::principal();
+        $clientes = Cliente::activos()->orderBy('nombre')->get();
+        $productos = Producto::activos()->with('categoria')->orderBy('nombre')->get();
+        $formasPago = FormaPago::activos()->get();
+        $metodosPago = MetodoPago::activos()->get();
+        $usosCfdi = UsoCfdi::activos()->get();
+
+        return view('facturas.edit', compact('factura', 'empresa', 'clientes', 'productos', 'formasPago', 'metodosPago', 'usosCfdi'));
+    }
+
+    /**
+     * Actualizar factura (solo borrador)
+     */
+    public function update(Request $request, Factura $factura)
+    {
+        if (!$factura->esBorrador()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'Solo se pueden editar facturas en borrador.');
+        }
+
+        $validated = $request->validate([
+            'cliente_id' => 'required|exists:clientes,id',
+            'fecha_emision' => 'required|date',
+            'forma_pago' => 'required|string|exists:formas_pago,clave',
+            'metodo_pago' => 'required|string|exists:metodos_pago,clave',
+            'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
+            'observaciones' => 'nullable|string',
+            'productos' => 'required|array|min:1',
+            'productos.*.producto_id' => 'nullable|exists:productos,id',
+            'productos.*.descripcion' => 'required|string',
+            'productos.*.cantidad' => 'required|numeric|min:0.01',
+            'productos.*.valor_unitario' => 'required|numeric|min:0',
+            'productos.*.descuento' => 'nullable|numeric|min:0',
+        ]);
+
+        $empresa = Empresa::principal();
+        $cliente = Cliente::findOrFail($validated['cliente_id']);
+
+        if (empty($empresa->codigo_postal) || strlen(preg_replace('/\D/', '', $empresa->codigo_postal)) < 5) {
+            return back()->withInput()->with('error', 'La empresa debe tener un código postal de 5 dígitos.');
+        }
+        if (empty($cliente->codigo_postal) || strlen(preg_replace('/\D/', '', $cliente->codigo_postal)) < 5) {
+            return back()->withInput()->with('error', 'El cliente debe tener un código postal de 5 dígitos.');
+        }
+        if (empty($cliente->regimen_fiscal) || !preg_match('/^\d{3}$/', $cliente->regimen_fiscal)) {
+            return back()->withInput()->with('error', 'El cliente debe tener un régimen fiscal.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $subtotal = 0;
+            $descuentoTotal = 0;
+            $ivaTotal = 0;
+
+            foreach ($validated['productos'] as $prod) {
+                $cantidad = $prod['cantidad'];
+                $valorUnitario = $prod['valor_unitario'];
+                $descuento = $prod['descuento'] ?? 0;
+                $importe = $cantidad * $valorUnitario;
+                $subtotal += $importe;
+                $descuentoTotal += $descuento;
+                $producto = isset($prod['producto_id']) ? Producto::find($prod['producto_id']) : null;
+                $baseImpuesto = $importe - $descuento;
+                if ($producto && $producto->aplicaImpuestoTraslado()) {
+                    $ivaTotal += round($baseImpuesto * (float) $producto->tasa_iva, 2);
+                }
+            }
+
+            $total = $subtotal - $descuentoTotal + $ivaTotal;
+
+            // Actualizar factura
+            $factura->update([
+                'cliente_id' => $cliente->id,
+                'rfc_receptor' => $cliente->rfc,
+                'nombre_receptor' => $cliente->nombre,
+                'regimen_fiscal_receptor' => $cliente->regimen_fiscal,
+                'domicilio_fiscal_receptor' => $cliente->codigo_postal,
+                'uso_cfdi' => $validated['uso_cfdi'],
+                'forma_pago' => $validated['forma_pago'],
+                'metodo_pago' => $validated['metodo_pago'],
+                'fecha_emision' => $validated['fecha_emision'],
+                'subtotal' => $subtotal,
+                'descuento' => $descuentoTotal,
+                'total' => $total,
+                'observaciones' => $validated['observaciones'],
+            ]);
+
+            // Eliminar detalles e impuestos anteriores
+            foreach ($factura->detalles as $d) {
+                $d->impuestos()->delete();
+            }
+            $factura->detalles()->delete();
+
+            // Crear nuevos detalles e impuestos
+            foreach ($validated['productos'] as $index => $prod) {
+                $producto = isset($prod['producto_id']) ? Producto::find($prod['producto_id']) : null;
+                $objetoImpuesto = $producto ? ($producto->objeto_impuesto ?? '02') : '02';
+                $baseImpuesto = $prod['cantidad'] * $prod['valor_unitario'] - ($prod['descuento'] ?? 0);
+
+                $detalle = FacturaDetalle::create([
+                    'factura_id' => $factura->id,
+                    'producto_id' => $prod['producto_id'] ?? null,
+                    'clave_prod_serv' => $producto?->clave_sat ?? '01010101',
+                    'clave_unidad' => $producto?->clave_unidad_sat ?? 'H87',
+                    'unidad' => $producto?->unidad ?? 'Pieza',
+                    'no_identificacion' => $producto?->codigo ?? null,
+                    'descripcion' => $prod['descripcion'],
+                    'cantidad' => $prod['cantidad'],
+                    'valor_unitario' => $prod['valor_unitario'],
+                    'importe' => $prod['cantidad'] * $prod['valor_unitario'],
+                    'descuento' => $prod['descuento'] ?? 0,
+                    'base_impuesto' => $baseImpuesto,
+                    'objeto_impuesto' => $objetoImpuesto,
+                    'orden' => $index,
+                ]);
+
+                if ($producto && in_array($objetoImpuesto, ['02', '03'], true)) {
+                    $tipoFactor = $producto->tipo_factor ?? 'Tasa';
+                    $tasa = (float) ($producto->tasa_iva ?? 0);
+                    FacturaImpuesto::create([
+                        'factura_detalle_id' => $detalle->id,
+                        'tipo' => 'traslado',
+                        'impuesto' => $producto->tipo_impuesto ?? '002',
+                        'tipo_factor' => $tipoFactor,
+                        'tasa_o_cuota' => $tipoFactor === 'Tasa' ? $tasa : null,
+                        'base' => $baseImpuesto,
+                        'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
+                    ]);
+                }
+            }
+
+            // Cuenta por cobrar: actualizar o crear/eliminar según método de pago
+            $cuentaExistente = $factura->cuentaPorCobrar;
+            $nuevoEsCredito = ($validated['metodo_pago'] ?? '') === 'PPD';
+
+            if ($cuentaExistente && !$nuevoEsCredito) {
+                $cuentaExistente->delete();
+                $cliente->actualizarSaldo();
+            } elseif (!$cuentaExistente && $nuevoEsCredito) {
+                $fechaVencimiento = now()->addDays($cliente->dias_credito);
+                CuentaPorCobrar::create([
+                    'factura_id' => $factura->id,
+                    'cliente_id' => $cliente->id,
+                    'monto_total' => $total,
+                    'monto_pagado' => 0,
+                    'monto_pendiente' => $total,
+                    'fecha_emision' => $validated['fecha_emision'],
+                    'fecha_vencimiento' => $fechaVencimiento,
+                    'estado' => 'pendiente',
+                ]);
+                $cliente->actualizarSaldo();
+            } elseif ($cuentaExistente && $nuevoEsCredito) {
+                $cuentaExistente->update([
+                    'monto_total' => $total,
+                    'monto_pendiente' => $total,
+                    'fecha_emision' => $validated['fecha_emision'],
+                    'fecha_vencimiento' => now()->addDays($cliente->dias_credito),
+                ]);
+                $cliente->actualizarSaldo();
+            }
+
+            DB::commit();
+
+            return redirect()->route('facturas.show', $factura)
+                ->with('success', 'Factura actualizada correctamente.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withInput()->with('error', 'Error al actualizar: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Timbrar factura
      */
     public function timbrar(Factura $factura)

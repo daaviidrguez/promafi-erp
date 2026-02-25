@@ -32,6 +32,8 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'facturas_impuestos',
         'facturas_detalle',
         'facturas',
+        'listas_precios_detalle',
+        'listas_precios',
         'cotizaciones_detalle',
         'cotizaciones',
         'remisiones_detalle',

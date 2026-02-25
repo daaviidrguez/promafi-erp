@@ -212,6 +212,9 @@ $breadcrumbs = [
                    target="_blank" class="btn btn-outline w-full">👁️ Ver Factura</a>
 
                 @if($factura->esBorrador())
+                @can('facturas.crear')
+                <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-primary w-full">✏️ Editar Factura</a>
+                @endcan
                 <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}">
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>

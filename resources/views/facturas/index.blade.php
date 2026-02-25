@@ -100,6 +100,10 @@ $breadcrumbs = [
                     <div style="display: flex; gap: 8px; justify-content: center;">
                         <a href="{{ route('facturas.show', $factura->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
+                        @if($factura->esBorrador() && auth()->user()->can('facturas.crear'))
+                            <a href="{{ route('facturas.edit', $factura->id) }}"
+                               class="btn btn-primary btn-sm btn-icon" title="Editar">✏️</a>
+                        @endif
                         @if($factura->xml_path)
                             <a href="{{ route('facturas.descargar-xml', $factura->id) }}"
                                class="btn btn-success btn-sm btn-icon" title="Descargar XML">📄</a>

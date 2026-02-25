@@ -9,6 +9,7 @@ use App\Models\Cotizacion;
 use App\Models\CotizacionDetalle;
 use App\Models\Cliente;
 use App\Models\Producto;
+use App\Models\ListaPrecio;
 use App\Models\Sugerencia;
 use App\Models\Empresa;
 use App\Models\Factura;
@@ -706,6 +707,54 @@ class CotizacionController extends Controller
         });
 
         return response()->json($productos);
+    }
+
+    /**
+     * API: Listas de precios disponibles para un cliente
+     */
+    public function listasPreciosCliente(Request $request)
+    {
+        $clienteId = $request->get('cliente_id');
+        if (!$clienteId) {
+            return response()->json([]);
+        }
+        $listas = ListaPrecio::activas()
+            ->paraCliente((int) $clienteId)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'descripcion']);
+        return response()->json($listas);
+    }
+
+    /**
+     * API: Productos de una lista de precios con precio calculado
+     */
+    public function productosListaPrecio(Request $request)
+    {
+        $listaId = $request->get('lista_id');
+        if (!$listaId) {
+            return response()->json([]);
+        }
+        $lista = ListaPrecio::with(['detalles.producto'])->find($listaId);
+        if (!$lista) {
+            return response()->json([]);
+        }
+        $items = $lista->detalles->map(function ($d) {
+            $p = $d->producto;
+            if (!$p) return null;
+            $precio = $d->precio_resultante;
+            return [
+                'id' => $p->id,
+                'codigo' => $p->codigo,
+                'nombre' => $p->nombre,
+                'unidad' => $p->unidad ?? 'PZA',
+                'precio' => $precio,
+                'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
+                'tipo_factor' => $p->tipo_factor ?? 'Tasa',
+                'objeto_impuesto' => $p->objeto_impuesto ?? '02',
+                'tipo_impuesto' => $p->tipo_impuesto ?? '002',
+            ];
+        })->filter()->values()->all();
+        return response()->json($items);
     }
 
     /**

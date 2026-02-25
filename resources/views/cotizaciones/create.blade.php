@@ -116,6 +116,31 @@ $breadcrumbs = [
             </div>
         </div>
 
+        {{-- Cargar desde Lista de Precios (visible cuando hay cliente) --}}
+        <div class="card card-search" id="cardListaPrecios" style="display:none;">
+            <div class="card-header">
+                <div class="card-title">💰 Cargar desde Lista de Precios</div>
+            </div>
+            <div class="card-body" id="cardListaPreciosBody" style="display:grid;grid-template-columns:1fr;gap:24px;align-items:start;">
+                <div class="form-group">
+                    <label class="form-label">Lista asignada al cliente</label>
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                        <select id="selectListaPrecio" class="form-control" style="flex:1;min-width:200px;">
+                            <option value="">— Selecciona una lista —</option>
+                        </select>
+                        <button type="button" id="btnCargarLista" class="btn btn-primary" disabled>
+                            Cargar todos
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group search-box" id="searchListaPrecioBox" style="display:none; position:relative; z-index:1600;">
+                    <label class="form-label">Buscar producto en la lista</label>
+                    <input type="text" id="buscarProductoLista" placeholder="Buscar por código o nombre..." autocomplete="off" class="form-control">
+                    <div id="productoListaResults" class="autocomplete-results" style="min-width:100%; z-index:1600;"></div>
+                    <span class="form-hint" style="margin-top:8px;display:block;">Selecciona una lista y busca productos para cargarlos con el precio de la lista.</span>
+                </div>
+            </div>
+        </div>
 
         {{-- Productos --}}
         <div class="card card-search">
@@ -368,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.closest('.search-box') && !e.target.closest('#sugerenciaResultsFlotante')) {
             closeDropdown('clienteResults');
             closeDropdown('productoResults');
+            closeDropdown('productoListaResults');
             closeSugerenciaFlotante();
         }
     });
@@ -376,6 +402,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clienteInfo').style.display = 'block';
     document.getElementById('clienteNombre').textContent = '{{ $cotizacion->cliente->nombre }}';
     document.getElementById('clienteRfc').textContent = 'RFC: {{ $cotizacion->cliente->rfc }}';
+    document.getElementById('cardListaPrecios').style.display = 'block';
+    fetchListasPreciosCliente({{ $cotizacion->cliente_id }});
     @endif
 });
 
@@ -409,7 +437,9 @@ function seleccionarCliente(c) {
     document.getElementById('clienteNombre').textContent = c.nombre;
     document.getElementById('clienteRfc').textContent = `RFC: ${c.rfc}`;
     document.getElementById('clienteInfo').style.display = 'block';
+    document.getElementById('cardListaPrecios').style.display = 'block';
     closeDropdown('clienteResults');
+    fetchListasPreciosCliente(c.id);
     // Auto-configurar crédito y forma de pago
     if (c.dias_credito > 0) {
         document.getElementById('tipoVenta').value = 'credito';
@@ -426,6 +456,13 @@ function limpiarCliente() {
     document.getElementById('cliente_id').value = '';
     document.getElementById('buscarCliente').value = '';
     document.getElementById('clienteInfo').style.display = 'none';
+    document.getElementById('cardListaPrecios').style.display = 'none';
+    document.getElementById('selectListaPrecio').innerHTML = '<option value="">— Selecciona una lista —</option>';
+    document.getElementById('btnCargarLista').disabled = true;
+    document.getElementById('searchListaPrecioBox').style.display = 'none';
+    document.getElementById('buscarProductoLista').value = '';
+    document.getElementById('productoListaResults').classList.remove('show');
+    productosDeLista = [];
     document.getElementById('buscarCliente').focus();
 }
 
@@ -433,6 +470,98 @@ function onTipoVentaChange() {
     const tipo = document.getElementById('tipoVenta').value;
     document.getElementById('diasCreditoGroup').style.display = tipo === 'credito' ? 'block' : 'none';
 }
+
+async function fetchListasPreciosCliente(clienteId) {
+    try {
+        const r = await fetch(`{{ route('cotizaciones.listas-precios-cliente') }}?cliente_id=${clienteId}`);
+        const data = await r.json();
+        const sel = document.getElementById('selectListaPrecio');
+        sel.innerHTML = '<option value="">— Selecciona una lista —</option>' +
+            (data.length ? data.map(l => `<option value="${l.id}">${l.nombre}</option>`).join('') : '');
+        document.getElementById('btnCargarLista').disabled = !data.length;
+    } catch (e) { console.error(e); }
+}
+
+let productosDeLista = [];
+let timerBuscarLista;
+
+const selLista = document.getElementById('selectListaPrecio');
+const btnCargar = document.getElementById('btnCargarLista');
+if (selLista) selLista.addEventListener('change', async function() {
+    const listaId = this.value;
+    if (btnCargar) btnCargar.disabled = !listaId;
+    const searchBox = document.getElementById('searchListaPrecioBox');
+    const buscarInput = document.getElementById('buscarProductoLista');
+    if (listaId) {
+        searchBox.style.display = 'block';
+        document.getElementById('cardListaPreciosBody').style.gridTemplateColumns = '1fr 1fr';
+        try {
+            const r = await fetch(`{{ route('cotizaciones.productos-lista-precio') }}?lista_id=${listaId}`);
+            productosDeLista = await r.json();
+        } catch (e) { productosDeLista = []; }
+        buscarInput.value = '';
+        document.getElementById('productoListaResults').classList.remove('show');
+    } else {
+        searchBox.style.display = 'none';
+        document.getElementById('cardListaPreciosBody').style.gridTemplateColumns = '1fr';
+        productosDeLista = [];
+    }
+});
+
+document.getElementById('buscarProductoLista')?.addEventListener('input', function() {
+    clearTimeout(timerBuscarLista);
+    const q = this.value.trim();
+    const box = document.getElementById('productoListaResults');
+    if (q.length < 2) { box.classList.remove('show'); return; }
+    timerBuscarLista = setTimeout(() => {
+        const ql = q.toLowerCase();
+        const list = productosDeLista.filter(p =>
+            (p.nombre || '').toLowerCase().includes(ql) || (p.codigo || '').toLowerCase().includes(ql)
+        ).slice(0, 10);
+        window._productosListaFiltrados = list;
+        box.innerHTML = list.length ? list.map((p, i) => `
+            <div class="autocomplete-item" onclick="cargarProductoListaByIdx(${i})">
+                <div class="autocomplete-item-name">${(p.nombre || '').replace(/</g,'&lt;')}</div>
+                <div class="autocomplete-item-sub">${(p.codigo || '')} — $${parseFloat(p.precio).toFixed(2)}</div>
+            </div>
+        `).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+        box.classList.add('show');
+    }, 200);
+});
+
+function cargarProductoListaByIdx(i) {
+    const p = (window._productosListaFiltrados || [])[i];
+    if (!p) return;
+    if (productos.find(x => x.id === p.id)) { alert('Este producto ya está en la cotización'); return; }
+    productos.push({
+        id: p.id, codigo: p.codigo, nombre: p.nombre,
+        cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
+        descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+    });
+    document.getElementById('buscarProductoLista').value = '';
+    document.getElementById('productoListaResults').classList.remove('show');
+    renderProductos();
+}
+
+if (btnCargar) btnCargar.addEventListener('click', async function() {
+    const listaId = document.getElementById('selectListaPrecio')?.value;
+    if (!listaId) return;
+    try {
+        const r = await fetch(`{{ route('cotizaciones.productos-lista-precio') }}?lista_id=${listaId}`);
+        const items = await r.json();
+        if (!items.length) { alert('La lista no tiene productos.'); return; }
+        items.forEach(p => {
+            if (!productos.find(x => x.id === p.id)) {
+                productos.push({
+                    id: p.id, codigo: p.codigo, nombre: p.nombre,
+                    cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
+                    descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+                });
+            }
+        });
+        renderProductos();
+    } catch (e) { console.error(e); alert('Error al cargar la lista.'); }
+});
 
 async function buscarProductos(q) {
     try {

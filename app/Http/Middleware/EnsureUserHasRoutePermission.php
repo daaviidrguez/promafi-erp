@@ -17,6 +17,7 @@ class EnsureUserHasRoutePermission
         'configuracion' => 'configuracion.editar',
         'cotizaciones' => 'cotizaciones.ver',
         'facturas' => 'facturas.ver',
+        'listas-precios' => 'listas_precios.ver',
         'clientes' => 'clientes.ver',
         'catalogos-sat' => 'catalogos_sat.ver',
         'complementos' => 'complementos.ver',

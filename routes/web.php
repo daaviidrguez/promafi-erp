@@ -38,6 +38,7 @@ use App\Http\Controllers\Web\MetodoPagoController;
 use App\Http\Controllers\Web\MonedaController;
 use App\Http\Controllers\Web\UnidadMedidaSatController;
 use App\Http\Controllers\Web\ClaveProdServicioController;
+use App\Http\Controllers\Web\ListaPrecioController;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,6 +90,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/cotizaciones/estadisticas', [CotizacionController::class, 'estadisticas'])->name('cotizaciones.estadisticas');
     Route::get('/cotizaciones/buscar-clientes', [CotizacionController::class, 'buscarClientes'])->name('cotizaciones.buscar-clientes');
     Route::get('/cotizaciones/buscar-productos', [CotizacionController::class, 'buscarProductos'])->name('cotizaciones.buscar-productos');
+    Route::get('/cotizaciones/listas-precios-cliente', [CotizacionController::class, 'listasPreciosCliente'])->name('cotizaciones.listas-precios-cliente');
+    Route::get('/cotizaciones/productos-lista-precio', [CotizacionController::class, 'productosListaPrecio'])->name('cotizaciones.productos-lista-precio');
     
     // Listado y guardar
     Route::get('/cotizaciones', [CotizacionController::class, 'index'])->name('cotizaciones.index');
@@ -190,6 +193,22 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');
     Route::get('/facturas/{factura}/ver-pdf', [FacturaController::class, 'verPDF'])->name('facturas.ver-pdf');
     Route::get('/facturas/{factura}/descargar-pdf', [FacturaController::class, 'descargarPDF'])->name('facturas.descargar-pdf');
+
+    // ───── LISTAS DE PRECIOS ─────
+    Route::get('/listas-precios/crear', [ListaPrecioController::class, 'create'])->name('listas-precios.create');
+    Route::get('/listas-precios', [ListaPrecioController::class, 'index'])->name('listas-precios.index');
+    Route::post('/listas-precios', [ListaPrecioController::class, 'store'])->name('listas-precios.store');
+    Route::get('/listas-precios/{listaPrecio}', [ListaPrecioController::class, 'show'])->name('listas-precios.show');
+    Route::get('/listas-precios/{listaPrecio}/ver-pdf', [ListaPrecioController::class, 'verPDF'])->name('listas-precios.ver-pdf');
+    Route::get('/listas-precios/{listaPrecio}/ver-pdf-cliente', [ListaPrecioController::class, 'verPDFCliente'])->name('listas-precios.ver-pdf-cliente');
+    Route::get('/listas-precios/{listaPrecio}/descargar-pdf', [ListaPrecioController::class, 'descargarPDF'])->name('listas-precios.descargar-pdf');
+    Route::get('/listas-precios/{listaPrecio}/editar', [ListaPrecioController::class, 'edit'])->name('listas-precios.edit');
+    Route::get('/listas-precios/{listaPrecio}/editar-masivamente', [ListaPrecioController::class, 'editarMasivamente'])->name('listas-precios.editar-masivamente');
+    Route::get('/listas-precios/{listaPrecio}/descargar-plantilla', [ListaPrecioController::class, 'descargarPlantilla'])->name('listas-precios.descargar-plantilla');
+    Route::post('/listas-precios/{listaPrecio}/importar-masivo', [ListaPrecioController::class, 'importarMasivo'])->name('listas-precios.importar-masivo');
+    Route::put('/listas-precios/{listaPrecio}', [ListaPrecioController::class, 'update'])->name('listas-precios.update');
+    Route::patch('/listas-precios/{listaPrecio}/toggle-activo', [ListaPrecioController::class, 'toggleActivo'])->name('listas-precios.toggle-activo');
+    Route::delete('/listas-precios/{listaPrecio}', [ListaPrecioController::class, 'destroy'])->name('listas-precios.destroy');
 
     // ───── CATÁLOGOS SAT (Facturación) ─────
     Route::get('/catalogos-sat', [CatalogosSatController::class, 'index'])->name('catalogos-sat.index');

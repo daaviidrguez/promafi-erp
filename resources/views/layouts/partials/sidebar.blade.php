@@ -45,9 +45,9 @@
 
         {{-- Facturación (dropdown) --}}
         @php
-            $factHasActive = request()->routeIs('catalogos-sat.*') || request()->routeIs('facturas.*') || request()->routeIs('cotizaciones.*') || request()->routeIs('complementos.*') || request()->routeIs('remisiones.*') || request()->routeIs('devoluciones.*') || request()->routeIs('notas-credito.*');
+            $factHasActive = request()->routeIs('catalogos-sat.*') || request()->routeIs('facturas.*') || request()->routeIs('cotizaciones.*') || request()->routeIs('listas-precios.*') || request()->routeIs('complementos.*') || request()->routeIs('remisiones.*') || request()->routeIs('devoluciones.*') || request()->routeIs('notas-credito.*');
         @endphp
-        @if(auth()->user()->can('catalogos_sat.ver') || auth()->user()->can('facturas.ver') || auth()->user()->can('cotizaciones.ver') || auth()->user()->can('complementos.ver') || auth()->user()->can('remisiones.ver') || auth()->user()->can('devoluciones.ver') || auth()->user()->can('notas_credito.ver'))
+        @if(auth()->user()->can('catalogos_sat.ver') || auth()->user()->can('facturas.ver') || auth()->user()->can('cotizaciones.ver') || auth()->user()->can('listas_precios.ver') || auth()->user()->can('complementos.ver') || auth()->user()->can('remisiones.ver') || auth()->user()->can('devoluciones.ver') || auth()->user()->can('notas_credito.ver'))
         <div class="sidebar-dropdown {{ $factHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $factHasActive ? 'active' : '' }}" data-dropdown="facturacion" title="Facturación">
                 <span class="sidebar-menu-icon">🧾</span>
@@ -58,6 +58,7 @@
                 @can('catalogos_sat.ver')<li><a href="{{ route('catalogos-sat.index') }}" class="sidebar-menu-link {{ request()->routeIs('catalogos-sat.*') ? 'active' : '' }}" title="Catálogos SAT"><span class="sidebar-menu-icon">📑</span><span class="sidebar-menu-text">Catálogos SAT</span></a></li>@endcan
                 @can('facturas.ver')<li><a href="{{ route('facturas.index') }}" class="sidebar-menu-link {{ request()->routeIs('facturas.*') ? 'active' : '' }}" title="Facturas CFDI"><span class="sidebar-menu-icon">📄</span><span class="sidebar-menu-text">Facturas CFDI</span></a></li>@endcan
                 @can('cotizaciones.ver')<li><a href="{{ route('cotizaciones.index') }}" class="sidebar-menu-link {{ request()->routeIs('cotizaciones.*') ? 'active' : '' }}" title="Cotizaciones"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Cotizaciones</span></a></li>@endcan
+                @can('listas_precios.ver')<li><a href="{{ route('listas-precios.index') }}" class="sidebar-menu-link {{ request()->routeIs('listas-precios.*') ? 'active' : '' }}" title="Listas de Precios"><span class="sidebar-menu-icon">💰</span><span class="sidebar-menu-text">Listas de Precios</span></a></li>@endcan
                 @can('complementos.ver')<li><a href="{{ route('complementos.index') }}" class="sidebar-menu-link {{ request()->routeIs('complementos.*') ? 'active' : '' }}" title="Complementos Pago"><span class="sidebar-menu-icon">💳</span><span class="sidebar-menu-text">Complementos Pago</span></a></li>@endcan
                 @can('remisiones.ver')<li><a href="{{ route('remisiones.index') }}" class="sidebar-menu-link {{ request()->routeIs('remisiones.*') ? 'active' : '' }}" title="Remisiones"><span class="sidebar-menu-icon">🚚</span><span class="sidebar-menu-text">Remisiones</span></a></li>@endcan
                 @can('devoluciones.ver')<li><a href="{{ route('devoluciones.index') }}" class="sidebar-menu-link {{ request()->routeIs('devoluciones.*') ? 'active' : '' }}" title="Devoluciones"><span class="sidebar-menu-icon">↩️</span><span class="sidebar-menu-text">Devoluciones</span></a></li>@endcan

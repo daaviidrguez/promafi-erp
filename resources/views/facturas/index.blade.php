@@ -83,13 +83,17 @@ $breadcrumbs = [
                 <td class="td-right text-mono fw-600" style="font-size: 15px;">
                     ${{ number_format($factura->total, 2, '.', ',') }}
                 </td>
-                <td class="td-center">
+                <td class="td-center" style="max-width:220px;">
                     @if($factura->estado === 'timbrada')
-                        <span class="badge badge-success">✓ Timbrada</span>
+                        @if($factura->codigo_estatus_cancelacion && (str_starts_with($factura->codigo_estatus_cancelacion, 'R') || str_starts_with($factura->codigo_estatus_cancelacion, 'Rechazada')))
+                            <span class="badge badge-warning" title="{{ \App\Models\Factura::descripcionCodigoCancelacion($factura->codigo_estatus_cancelacion) }}">⚠️ {{ $factura->estado_etiqueta }}</span>
+                        @else
+                            <span class="badge badge-success">✓ Timbrada</span>
+                        @endif
                     @elseif($factura->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        <span class="badge badge-danger">✗ Cancelada</span>
+                        <span class="badge badge-danger" title="{{ $factura->fecha_cancelacion ? $factura->fecha_cancelacion->format('d/m/Y H:i') : '' }}">✗ {{ $factura->estado_etiqueta }}</span>
                     @endif
                 </td>
                 <td class="td-actions">

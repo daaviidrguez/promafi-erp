@@ -63,6 +63,7 @@ $breadcrumbs = [
                 <option value="parcial"   {{ ($estado ?? '') == 'parcial'   ? 'selected' : '' }}>📊 Parcial</option>
                 <option value="vencidas"  {{ ($estado ?? '') == 'vencidas'  ? 'selected' : '' }}>⚠️ Vencidas</option>
                 <option value="pagada"    {{ ($estado ?? '') == 'pagada'    ? 'selected' : '' }}>✅ Pagadas</option>
+                <option value="cancelada" {{ ($estado ?? '') == 'cancelada' ? 'selected' : '' }}>❌ Canceladas</option>
             </select>
             <button type="submit"
                     style="padding: 9px 20px; background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
@@ -128,6 +129,8 @@ $breadcrumbs = [
                 <td class="td-center">
                     @if($cuenta->estado === 'pagada')
                         <span class="badge badge-success">✅ Pagada</span>
+                    @elseif($cuenta->estado === 'cancelada')
+                        <span class="badge badge-gray">❌ Cancelada</span>
                     @elseif($cuenta->estado === 'vencida')
                         <span class="badge badge-danger">⚠️ Vencida</span>
                     @elseif($cuenta->estado === 'parcial')

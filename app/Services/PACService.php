@@ -195,6 +195,7 @@ class PACService implements PACServiceInterface
                     'success' => true,
                     'message' => '✅ Factura cancelada exitosamente (MODO PRUEBA)',
                     'acuse' => base64_encode('ACUSE DE CANCELACION - MODO PRUEBA'),
+                    'codigo_estatus' => '201',
                 ];
             }
 

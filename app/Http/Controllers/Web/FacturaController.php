@@ -359,12 +359,13 @@ class FacturaController extends Controller
                 throw new \Exception($resultado['message']);
             }
 
-            // Actualizar factura
+            // Actualizar factura (incluye código SAT del acuse)
             $factura->update([
                 'estado' => 'cancelada',
                 'motivo_cancelacion' => $validated['motivo_cancelacion'],
                 'fecha_cancelacion' => now(),
                 'acuse_cancelacion' => $resultado['acuse'] ?? null,
+                'codigo_estatus_cancelacion' => $resultado['codigo_estatus'] ?? '201',
             ]);
 
             // Regenerar PDF para que muestre "CANCELADA"
@@ -387,9 +388,12 @@ class FacturaController extends Controller
                 }
             }
 
-            // Si tiene cuenta por cobrar, cancelarla
+            // Si tiene cuenta por cobrar, cancelarla (coherencia finanzas)
             if ($factura->cuentaPorCobrar) {
-                $factura->cuentaPorCobrar->update(['estado' => 'cancelada']);
+                $factura->cuentaPorCobrar->update([
+                    'estado' => 'cancelada',
+                    'monto_pendiente' => 0,
+                ]);
                 $factura->cliente->actualizarSaldo();
             }
 
@@ -400,8 +404,31 @@ class FacturaController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error al cancelar: ' . $e->getMessage());
+            $msg = $e->getMessage();
+            $codigo = $this->extraerCodigoErrorCancelacion($msg);
+            $factura->update(['codigo_estatus_cancelacion' => $codigo]);
+            return back()->with('error', 'Error al cancelar: ' . $msg);
         }
+    }
+
+    /**
+     * Extrae código SAT o etiqueta de error de cancelación.
+     */
+    protected function extraerCodigoErrorCancelacion(string $mensaje): string
+    {
+        if (preg_match('/\b(201|202|203|204|205|206|301|302|401|601)\b/', $mensaje, $m)) {
+            return 'R-' . $m[1];
+        }
+        if (stripos($mensaje, 'ya fue cancelad') !== false || stripos($mensaje, 'already cancelled') !== false) {
+            return 'R-202';
+        }
+        if (stripos($mensaje, 'no se encontró') !== false || stripos($mensaje, 'not found') !== false) {
+            return 'R-205';
+        }
+        if (stripos($mensaje, 'documentos relacionados') !== false || stripos($mensaje, 'no cancelable') !== false) {
+            return 'R-601';
+        }
+        return 'R';
     }
 
     /**

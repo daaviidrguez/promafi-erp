@@ -49,6 +49,7 @@ class Factura extends Model
         'motivo_cancelacion',
         'fecha_cancelacion',
         'acuse_cancelacion',
+        'codigo_estatus_cancelacion',
         'cotizacion_id',
         'observaciones',
         'usuario_id',
@@ -225,6 +226,61 @@ class Factura extends Model
         
         return $query->whereMonth('fecha_emision', $mes)
                     ->whereYear('fecha_emision', $anio);
+    }
+
+    /**
+     * Etiqueta del estado para mostrar en listados (incluye código SAT de cancelación).
+     * Códigos SAT: https://apisandbox.facturama.mx/docs
+     */
+    public function getEstadoEtiquetaAttribute(): string
+    {
+        if ($this->estado === 'borrador') {
+            return 'Borrador';
+        }
+        if ($this->estado === 'timbrada') {
+            $cod = $this->codigo_estatus_cancelacion;
+            if ($cod && (str_starts_with($cod, 'R') || str_starts_with($cod, 'Rechazada'))) {
+                return 'Timbrada (' . self::descripcionCodigoCancelacion($cod) . ')';
+            }
+            return 'Timbrada';
+        }
+        if ($this->estado === 'cancelada') {
+            $cod = $this->codigo_estatus_cancelacion;
+            if ($cod) {
+                return 'Cancelada (' . $cod . ')';
+            }
+            return 'Cancelada';
+        }
+        return $this->estado ?? '—';
+    }
+
+    /**
+     * Descripción del código de estatus de cancelación SAT.
+     * Documentación: https://apisandbox.facturama.mx/docs
+     */
+    public static function descripcionCodigoCancelacion(?string $codigo): string
+    {
+        $map = [
+            '201' => 'Solicitud procesada',
+            '202' => 'UUID previamente enviado',
+            '203' => 'UUID no corresponde al emisor',
+            '204' => 'UUID no aplicable',
+            '205' => 'UUID no existe',
+            '206' => 'En proceso (pendiente aceptación)',
+            '301' => 'Sello inválido',
+            '302' => 'Certificado revocado/caduco',
+            '401' => 'Fecha fuera de rango',
+            '601' => 'No cancelable',
+        ];
+        $cod = (string) $codigo;
+        if (str_starts_with($cod, 'R-')) {
+            $num = substr($cod, 2);
+            return ($map[$num] ?? $num) . ' (Rechazada)';
+        }
+        if (str_starts_with($cod, 'R') || str_starts_with($cod, 'Rechazada')) {
+            return 'Rechazada';
+        }
+        return $map[$cod] ?? $codigo ?? '—';
     }
 
     /**

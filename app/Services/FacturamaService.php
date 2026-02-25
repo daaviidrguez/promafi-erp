@@ -434,12 +434,56 @@ class FacturamaService
 
         $data = $response->json();
         $acuse = $data['AcuseXmlBase64'] ?? null;
+        $codigoEstatus = $acuse ? self::extraerCodigoEstatusDelAcuse($acuse) : '201';
 
         return [
             'success' => true,
             'message' => 'Factura cancelada en el SAT correctamente.',
             'acuse' => $acuse,
+            'codigo_estatus' => $codigoEstatus,
         ];
+    }
+
+    /**
+     * Extrae el código de estatus SAT del acuse de cancelación (XML base64).
+     * Estructura SAT: Folios/EstatusUUID o CodigoEstatus.
+     *
+     * @param string $acuseBase64 XML del acuse en base64
+     * @return string Código (201, 202, 601, etc.) o '201' por defecto
+     */
+    public static function extraerCodigoEstatusDelAcuse(string $acuseBase64): string
+    {
+        $xml = @base64_decode($acuseBase64, true);
+        if ($xml === false || trim($xml) === '') {
+            return '201';
+        }
+        $prev = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        if (!$dom->loadXML($xml)) {
+            libxml_clear_errors();
+            libxml_use_internal_errors($prev);
+            return '201';
+        }
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('cfdi', 'http://cancelacfd.sat.gob.mx');
+        $xpath->registerNamespace('', 'http://cancelacfd.sat.gob.mx');
+
+        $nodes = $xpath->query('//*[local-name()="EstatusUUID"]');
+        if ($nodes->length > 0 && trim($nodes->item(0)->textContent) !== '') {
+            return trim($nodes->item(0)->textContent);
+        }
+        $nodes = $xpath->query('//*[local-name()="CodigoEstatus"]');
+        if ($nodes->length > 0 && trim($nodes->item(0)->textContent) !== '') {
+            return trim($nodes->item(0)->textContent);
+        }
+        $nodes = $xpath->query('//*[local-name()="estatusuuid"]');
+        if ($nodes->length > 0 && trim($nodes->item(0)->textContent) !== '') {
+            return trim($nodes->item(0)->textContent);
+        }
+        return '201';
     }
 
     /**

@@ -143,11 +143,18 @@ $breadcrumbs = [
                     <div class="info-label">Estado</div>
                     <div style="margin-top: 4px;">
                         @if($factura->estado === 'timbrada')
-                            <span class="badge badge-success">Timbrada</span>
+                            @if($factura->codigo_estatus_cancelacion && str_starts_with($factura->codigo_estatus_cancelacion, 'R'))
+                                <span class="badge badge-warning" title="{{ \App\Models\Factura::descripcionCodigoCancelacion($factura->codigo_estatus_cancelacion) }}">⚠️ {{ $factura->estado_etiqueta }}</span>
+                            @else
+                                <span class="badge badge-success">Timbrada</span>
+                            @endif
                         @elseif($factura->estado === 'borrador')
                             <span class="badge badge-warning">📝 Borrador</span>
                         @else
-                            <span class="badge badge-danger">✗ Cancelada</span>
+                            <span class="badge badge-danger">✗ {{ $factura->estado_etiqueta }}</span>
+                            @if($factura->fecha_cancelacion)
+                                <div class="text-muted" style="font-size: 11px; margin-top: 4px;">{{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}</div>
+                            @endif
                         @endif
                     </div>
                 </div>

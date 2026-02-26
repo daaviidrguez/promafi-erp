@@ -40,7 +40,7 @@ class Sugerencia extends Model
             });
         }
         return $query->where(function ($qry) use ($term) {
-            $qry->whereRaw('LOWER(COALESCE(codigo, "")) LIKE LOWER(?)', [$term])
+            $qry->whereRaw('LOWER(COALESCE(codigo, \'\')) LIKE LOWER(?)', [$term])
                 ->orWhereRaw('LOWER(descripcion) LIKE LOWER(?)', [$term]);
         });
     }

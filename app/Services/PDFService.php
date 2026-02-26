@@ -15,7 +15,7 @@ class PDFService
         } elseif ($tipo === 'nota_credito') {
             $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'factura', 'cliente', 'usuario', 'empresa']);
         } elseif ($tipo === 'complemento') {
-            $modelo->loadMissing(['pagosRecibidos.documentosRelacionados.factura', 'cliente', 'usuario', 'empresa']);
+            $modelo->loadMissing(['pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar', 'cliente', 'usuario', 'empresa']);
         } else {
             $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario']);
         }

@@ -86,6 +86,12 @@ $breadcrumbs = [
                         </thead>
                         <tbody>
                             @foreach($pago->documentosRelacionados as $doc)
+                            @php
+                                $cuenta = $doc->factura->cuentaPorCobrar;
+                                $saldoActual = $cuenta ? (float) $cuenta->saldo_pendiente_real : 0;
+                                $saldoAnterior = $saldoActual + (float) $doc->monto_pagado;
+                                $saldoInsoluto = $saldoActual;
+                            @endphp
                             <tr>
                                 <td>
                                     <a href="{{ route('facturas.show', $doc->factura->id) }}"
@@ -100,14 +106,14 @@ $breadcrumbs = [
                                     <span class="badge badge-info">Parc. {{ $doc->parcialidad }}</span>
                                 </td>
                                 <td class="td-right text-mono">
-                                    ${{ number_format($doc->saldo_anterior, 2, '.', ',') }}
+                                    ${{ number_format($saldoAnterior, 2, '.', ',') }}
                                 </td>
                                 <td class="td-right text-mono fw-600" style="color: var(--color-success);">
                                     ${{ number_format($doc->monto_pagado, 2, '.', ',') }}
                                 </td>
                                 <td class="td-right text-mono fw-600"
-                                    style="color: {{ $doc->saldo_insoluto > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
-                                    ${{ number_format($doc->saldo_insoluto, 2, '.', ',') }}
+                                    style="color: {{ $saldoInsoluto > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
+                                    ${{ number_format($saldoInsoluto, 2, '.', ',') }}
                                 </td>
                             </tr>
                             @endforeach

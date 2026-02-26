@@ -359,7 +359,7 @@ window.oldMontoTotal = @json(old('monto_total'));
 @if($cuentaPreseleccionada)
 window.cuentaPreseleccionada = {
     factura_id: {{ $cuentaPreseleccionada->factura_id }},
-    monto_pendiente: {{ number_format($cuentaPreseleccionada->monto_pendiente, 2, '.', '') }}
+    monto_pendiente: {{ number_format($cuentaPreseleccionada->saldo_pendiente_real, 2, '.', '') }}
 };
 @endif
 document.addEventListener('DOMContentLoaded', function() {

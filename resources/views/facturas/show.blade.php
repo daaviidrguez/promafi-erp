@@ -266,7 +266,7 @@ $breadcrumbs = [
                 <div class="info-row">
                     <div class="info-label">Monto Pendiente</div>
                     <div class="info-value" style="color: var(--color-warning);">
-                        ${{ number_format($factura->cuentaPorCobrar->monto_pendiente, 2, '.', ',') }}
+                        ${{ number_format($factura->cuentaPorCobrar->saldo_pendiente_real, 2, '.', ',') }}
                     </div>
                 </div>
                 <div class="info-row">
@@ -280,9 +280,13 @@ $breadcrumbs = [
                         @endif
                     </div>
                 </div>
-                <div style="margin-top: 12px;">
+                <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
                     <a href="{{ route('cuentas-cobrar.show', $factura->cuentaPorCobrar->id) }}"
                        class="btn btn-primary w-full">Ver Detalles</a>
+                    @if($factura->cuentaPorCobrar->saldo_pendiente_real > 0)
+                    <a href="{{ route('complementos.create', ['cuenta_id' => $factura->cuentaPorCobrar->id]) }}"
+                       class="btn btn-outline w-full">💵 Crear Complemento de Pago</a>
+                    @endif
                 </div>
             </div>
         </div>

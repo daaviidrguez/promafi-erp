@@ -197,8 +197,8 @@ class ComplementoPagoController extends Controller
                 // Calcular parcialidad
                 $parcialidad = DocumentoRelacionadoPago::where('factura_uuid', $factura->uuid)->count() + 1;
                 
-                // Calcular saldo anterior
-                $saldoAnterior = $cuentaPorCobrar->monto_pendiente;
+                // Calcular saldo anterior (saldo_pendiente_real considera notas de crédito)
+                $saldoAnterior = (float) $cuentaPorCobrar->saldo_pendiente_real;
                 $saldoInsoluto = $saldoAnterior - $montoPagado;
 
                 DocumentoRelacionadoPago::create([
@@ -245,7 +245,7 @@ class ComplementoPagoController extends Controller
     {
         $complemento->load([
             'cliente',
-            'pagosRecibidos.documentosRelacionados.factura',
+            'pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar',
             'usuario'
         ]);
 

@@ -192,8 +192,8 @@ $breadcrumbs = [
                     <div class="totales-row grand" style="font-size: 16px;">
                         <span>Pendiente</span>
                         <span class="monto"
-                              style="color: {{ $cuentaPorCobrar->monto_pendiente > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
-                            ${{ number_format($cuentaPorCobrar->monto_pendiente, 2, '.', ',') }}
+                              style="color: {{ $cuentaPorCobrar->saldo_pendiente_real > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
+                            ${{ number_format($cuentaPorCobrar->saldo_pendiente_real, 2, '.', ',') }}
                         </span>
                     </div>
                 </div>
@@ -223,7 +223,7 @@ $breadcrumbs = [
             </div>
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
-                @if(!$cuentaPorCobrar->estaPagada())
+                @if(!$cuentaPorCobrar->estaPagada() && $cuentaPorCobrar->saldo_pendiente_real > 0)
                 <a href="{{ route('complementos.create', ['cuenta_id' => $cuentaPorCobrar->id]) }}"
                    class="btn btn-primary w-full">
                     💵 Crear Complemento de Pago

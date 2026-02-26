@@ -567,23 +567,48 @@ async function buscarProductos(q) {
     try {
         const r = await fetch(`{{ route('cotizaciones.buscar-productos') }}?q=${encodeURIComponent(q)}`);
         const data = await r.json();
+        window._busquedaProductosTemp = data;
         const box = document.getElementById('productoResults');
         if (!data.length) {
             box.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
         } else {
-            box.innerHTML = data.map(p => `
-                <div class="autocomplete-item" onclick='agregarProducto(${JSON.stringify(p)})'>
-                    <div class="autocomplete-item-name">${p.nombre}</div>
-                    <div class="autocomplete-item-sub">${p.codigo} — $${parseFloat(p.precio_venta).toFixed(2)}</div>
-                </div>
-            `).join('');
+            box.innerHTML = data.map((item, idx) => {
+                const esc = (v) => (v || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+                const precio = item.tipo === 'sugerencia' ? item.precio_unitario : item.precio_venta;
+                const label = item.codigo ? `${esc(item.codigo)} — ${esc(item.nombre)}` : esc(item.nombre);
+                return `<div class="autocomplete-item ${item.tipo === 'sugerencia' ? 'autocomplete-item-sugerencia' : ''}" data-idx="${idx}" onclick="agregarDesdeBusqueda(window._busquedaProductosTemp[this.dataset.idx])">
+                    <div class="autocomplete-item-name">${label}</div>
+                    <div class="autocomplete-item-sub">${item.tipo === 'sugerencia' ? '💡 Sugerencia' : '📦 Producto'} — $${parseFloat(precio).toFixed(2)}</div>
+                </div>`;
+            }).join('');
         }
         box.classList.add('show');
     } catch(e) { console.error(e); }
 }
 
+function agregarDesdeBusqueda(item) {
+    if (item.tipo === 'sugerencia') {
+        if (productos.find(x => x.sugerencia_id === item.id)) { alert('Esta sugerencia ya está en la cotización'); return; }
+        productos.push({
+            id: null, codigo: item.codigo || '-', nombre: item.nombre,
+            cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
+            descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id,
+        });
+    } else {
+        if (productos.find(x => x.id === item.id && !x.manual)) { alert('Este producto ya está en la cotización'); return; }
+        productos.push({
+            id: item.id, codigo: item.codigo, nombre: item.nombre,
+            cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
+            descuento: 0, tasa_iva: item.tasa_iva, manual: false,
+        });
+    }
+    document.getElementById('buscarProducto').value = '';
+    closeDropdown('productoResults');
+    renderProductos();
+}
+
 function agregarProducto(p) {
-    if (productos.find(x => x.id === p.id)) { alert('Este producto ya está en la lista'); return; }
+    if (productos.find(x => x.id === p.id && !x.manual)) { alert('Este producto ya está en la lista'); return; }
     productos.push({
         id: p.id, codigo: p.codigo, nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio_venta),

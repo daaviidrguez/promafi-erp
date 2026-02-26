@@ -117,6 +117,18 @@ class CuentaPorCobrar extends Model
     }
 
     /**
+     * Saldo pendiente real (considerando notas de crédito timbradas).
+     * Coherente con complemento de pago y estado de cuenta.
+     */
+    public function getSaldoPendienteRealAttribute(): float
+    {
+        $montoCubiertoPorNC = (float) \App\Models\NotaCredito::where('factura_id', $this->factura_id)
+            ->where('estado', 'timbrada')
+            ->sum('total');
+        return max(0, (float) $this->monto_pendiente - $montoCubiertoPorNC);
+    }
+
+    /**
      * Scope para cuentas vencidas
      */
     public function scopeVencidas($query)

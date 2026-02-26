@@ -64,15 +64,21 @@
 <tbody>
 @foreach($c->pagosRecibidos ?? [] as $pago)
     @foreach($pago->documentosRelacionados ?? [] as $doc)
+    @php
+        $cuenta = $doc->factura->cuentaPorCobrar ?? null;
+        $saldoActual = $cuenta ? (float) $cuenta->saldo_pendiente_real : 0;
+        $saldoAnterior = $saldoActual + (float) $doc->monto_pagado;
+        $saldoInsoluto = $saldoActual;
+    @endphp
     <tr>
         <td>
             {{ $doc->serie ?? '' }} {{ $doc->folio }}<br>
             <span style="font-size:6pt; color:#6B7280;">{{ $doc->factura_uuid ?? '' }}</span>
         </td>
         <td class="center">{{ $doc->parcialidad }}</td>
-        <td class="right">${{ number_format($doc->saldo_anterior, 2) }}</td>
+        <td class="right">${{ number_format($saldoAnterior, 2) }}</td>
         <td class="right">${{ number_format($doc->monto_pagado, 2) }}</td>
-        <td class="right">${{ number_format($doc->saldo_insoluto, 2) }}</td>
+        <td class="right">${{ number_format($saldoInsoluto, 2) }}</td>
     </tr>
     @endforeach
 @endforeach

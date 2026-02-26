@@ -677,36 +677,61 @@ class CotizacionController extends Controller
     }
 
     /**
-     * API: Búsqueda de productos
+     * API: Búsqueda de productos y sugerencias (para cotizaciones create/edit)
      */
     public function buscarProductos(Request $request)
     {
-        $search = $request->get('q', '');
+        $search = trim($request->get('q', ''));
+        $resultados = [];
 
-        $productos = Producto::where('activo', true)
-            ->where(function($query) use ($search) {
-                $query->where('nombre', 'like', "%{$search}%")
-                    ->orWhere('codigo', 'like', "%{$search}%");
-            })
-            ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto']);
+        // Productos del catálogo (mínimo 2 caracteres)
+        if (strlen($search) >= 2) {
+            $productos = Producto::where('activo', true)
+                ->where(function ($query) use ($search) {
+                    $query->where('nombre', 'like', '%' . addcslashes($search, '%_\\') . '%')
+                        ->orWhere('codigo', 'like', '%' . addcslashes($search, '%_\\') . '%');
+                })
+                ->limit(10)
+                ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto']);
 
-        // Coherencia con datos fiscales: Exento → tasa_iva null para cotización/factura
-        $productos = $productos->map(function ($p) {
-            return [
-                'id' => $p->id,
-                'codigo' => $p->codigo,
-                'nombre' => $p->nombre,
-                'unidad' => $p->unidad ?? 'PZA',
-                'precio_venta' => $p->precio_venta,
-                'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
-                'tipo_factor' => $p->tipo_factor ?? 'Tasa',
-                'objeto_impuesto' => $p->objeto_impuesto ?? '02',
-                'tipo_impuesto' => $p->tipo_impuesto ?? '002',
-            ];
-        });
+            foreach ($productos as $p) {
+                $resultados[] = [
+                    'tipo' => 'producto',
+                    'id' => $p->id,
+                    'codigo' => $p->codigo,
+                    'nombre' => $p->nombre,
+                    'unidad' => $p->unidad ?? 'PZA',
+                    'precio_venta' => (float) $p->precio_venta,
+                    'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? null : (float) $p->tasa_iva,
+                ];
+            }
+        }
 
-        return response()->json($productos);
+        // Sugerencias (mínimo 2 caracteres, coherente con búsqueda de producto)
+        if (strlen($search) >= 2) {
+            $term = '%' . addcslashes($search, '%_\\') . '%';
+            $sugerencias = Sugerencia::query()
+                ->where(function ($q) use ($term) {
+                    $q->where('descripcion', 'like', $term)
+                        ->orWhere('codigo', 'like', $term);
+                })
+                ->orderBy('descripcion')
+                ->limit(10)
+                ->get(['id', 'codigo', 'descripcion', 'unidad', 'precio_unitario']);
+
+            foreach ($sugerencias as $s) {
+                $resultados[] = [
+                    'tipo' => 'sugerencia',
+                    'id' => $s->id,
+                    'codigo' => $s->codigo ?? '',
+                    'nombre' => $s->descripcion,
+                    'unidad' => $s->unidad ?? 'PZA',
+                    'precio_unitario' => (float) $s->precio_unitario,
+                ];
+            }
+        }
+
+        return response()->json($resultados);
     }
 
     /**

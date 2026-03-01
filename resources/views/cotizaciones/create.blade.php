@@ -28,58 +28,15 @@ $breadcrumbs = [
     <input type="hidden" name="cotizacion_id" value="{{ $cotizacion->id }}">
 @endif
 
-<div style="display:grid; grid-template-columns:2fr 1fr; gap:20px;">
+<div style="display:flex; flex-direction:column; gap:20px;">
 
-    {{-- ========================= --}}
-    {{-- COLUMNA IZQUIERDA --}}
-    {{-- ========================= --}}
-    <div>
-
-        {{-- Información General --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📋 Información General</div>
-            </div>
-            <div class="card-body">
-
-                <div class="form-group">
-                    <label class="form-label">Folio</label>
-                    <input type="text"
-                           value="{{ $isEdit ? $cotizacion->folio : $folio }}"
-                           readonly
-                           class="form-control text-mono fw-bold"
-                           style="background: var(--color-gray-100);">
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                    <div class="form-group">
-                        <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
-                        <input type="date"
-                               name="fecha"
-                               value="{{ $isEdit ? $cotizacion->fecha->format('Y-m-d') : date('Y-m-d') }}"
-                               required class="form-control">
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Válida Hasta <span class="req">*</span></label>
-                        <input type="date"
-                               name="fecha_vencimiento"
-                               value="{{ $isEdit ? $cotizacion->fecha_vencimiento->format('Y-m-d') : date('Y-m-d', strtotime('+15 days')) }}"
-                               required class="form-control">
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-
-        {{-- Cliente --}}
+    {{-- Fila 1: Cliente | Condiciones | Información General --}}
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
         <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">👤 Cliente</div>
             </div>
             <div class="card-body">
-
                 <div class="form-group search-box">
                     <label class="form-label">Buscar Cliente <span class="req">*</span></label>
                     <input type="text"
@@ -112,11 +69,80 @@ $breadcrumbs = [
                         </button>
                     </div>
                 </div>
-
             </div>
         </div>
 
-        {{-- Cargar desde Lista de Precios (visible cuando hay cliente) --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">💳 Condiciones</div>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Tipo de Venta <span class="req">*</span></label>
+                    <select name="tipo_venta" id="tipoVenta"
+                            onchange="onTipoVentaChange()" class="form-control">
+                        <option value="contado" {{ ($isEdit && $cotizacion->tipo_venta === 'contado') ? 'selected' : '' }}>
+                            Contado
+                        </option>
+                        <option value="credito" {{ ($isEdit && $cotizacion->tipo_venta === 'credito') ? 'selected' : '' }}>
+                            Crédito
+                        </option>
+                    </select>
+                </div>
+                <div class="form-group" id="diasCreditoGroup" style="display:none;">
+                    <label class="form-label">Días de Crédito</label>
+                    <input type="number"
+                        name="dias_credito"
+                        id="diasCredito"
+                        value="{{ $isEdit ? $cotizacion->dias_credito_aplicados : '' }}"
+                        min="1"
+                        class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Forma de pago</label>
+                    <select name="forma_pago" id="formaPagoCotizacion" class="form-control">
+                        @foreach($formasPago ?? [] as $fp)
+                            <option value="{{ $fp->clave }}" {{ ($isEdit && ($cotizacion->forma_pago ?? '03') == $fp->clave) || (!$isEdit && old('forma_pago', '03') == $fp->clave) ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📋 Información General</div>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Folio</label>
+                    <input type="text"
+                           value="{{ $isEdit ? $cotizacion->folio : $folio }}"
+                           readonly
+                           class="form-control text-mono fw-bold"
+                           style="background: var(--color-gray-100);">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <div class="form-group">
+                        <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
+                        <input type="date"
+                               name="fecha"
+                               value="{{ $isEdit ? $cotizacion->fecha->format('Y-m-d') : date('Y-m-d') }}"
+                               required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Válida Hasta <span class="req">*</span></label>
+                        <input type="date"
+                               name="fecha_vencimiento"
+                               value="{{ $isEdit ? $cotizacion->fecha_vencimiento->format('Y-m-d') : date('Y-m-d', strtotime('+15 days')) }}"
+                               required class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Cargar desde Lista de Precios (visible cuando hay cliente) --}}
         <div class="card card-search" id="cardListaPrecios" style="display:none;">
             <div class="card-header">
                 <div class="card-title">💰 Cargar desde Lista de Precios</div>
@@ -142,8 +168,8 @@ $breadcrumbs = [
             </div>
         </div>
 
-        {{-- Productos --}}
-        <div class="card card-search">
+    {{-- Fila 2: Productos y Servicios (ancho completo) --}}
+    <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">📦 Productos y Servicios</div>
                 <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">
@@ -163,18 +189,29 @@ $breadcrumbs = [
                 </div>
 
                 <div class="table-container" style="border:none; box-shadow:none; border-radius:0; margin-bottom:0;">
-                    <table>
+                    <table class="table-productos-cotizacion" style="table-layout:fixed; width:100%;">
+                        <colgroup>
+                            <col>
+                            <col style="width:76px;">
+                            <col style="width:64px;">
+                            <col style="width:92px;">
+                            <col style="width:60px;">
+                            <col style="width:70px;">
+                            <col style="width:92px;">
+                            <col style="width:96px;">
+                            <col style="width:38px;">
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th style="width:28%;">Descripción</th>
-                                <th class="td-center" style="width:8%;">Cant.</th>
-                                <th class="td-center" style="width:8%;">Unidad</th>
-                                <th class="td-right" style="width:12%;">Precio</th>
-                                <th class="td-center" style="width:8%;">Desc %</th>
-                                <th class="td-center" style="width:8%;">IVA</th>
-                                <th class="td-right" style="width:12%;">Subtotal</th>
-                                <th class="td-right" style="width:12%;">Total</th>
-                                <th style="width:4%;"></th>
+                                <th>Descripción</th>
+                                <th class="td-center">Cantidad</th>
+                                <th class="td-center">Unidad</th>
+                                <th class="td-right">Precio</th>
+                                <th class="td-center">Desc%</th>
+                                <th class="td-center">IVA</th>
+                                <th class="td-right">Subtotal</th>
+                                <th class="td-right">Total</th>
+                                <th class="td-right"></th>
                             </tr>
                         </thead>
                         <tbody id="productosBody">
@@ -198,58 +235,8 @@ $breadcrumbs = [
             </div>
         </div>
 
-    </div>
-
-
-    {{-- ========================= --}}
-    {{-- COLUMNA DERECHA --}}
-    {{-- ========================= --}}
-    <div>
-
-        {{-- Condiciones de Venta --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">💳 Condiciones</div>
-            </div>
-            <div class="card-body">
-
-                <div class="form-group">
-                    <label class="form-label">Tipo de Venta <span class="req">*</span></label>
-                    <select name="tipo_venta" id="tipoVenta"
-                            onchange="onTipoVentaChange()" class="form-control">
-                        <option value="contado" {{ ($isEdit && $cotizacion->tipo_venta === 'contado') ? 'selected' : '' }}>
-                            Contado
-                        </option>
-                        <option value="credito" {{ ($isEdit && $cotizacion->tipo_venta === 'credito') ? 'selected' : '' }}>
-                            Crédito
-                        </option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="diasCreditoGroup" style="display:none;">
-                    <label class="form-label">Días de Crédito</label>
-                    <input type="number"
-                        name="dias_credito"
-                        id="diasCredito"
-                        value="{{ $isEdit ? $cotizacion->dias_credito_aplicados : '' }}"
-                        min="1"
-                        class="form-control">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Forma de pago</label>
-                    <select name="forma_pago" id="formaPagoCotizacion" class="form-control">
-                        @foreach($formasPago ?? [] as $fp)
-                            <option value="{{ $fp->clave }}" {{ ($isEdit && ($cotizacion->forma_pago ?? '03') == $fp->clave) || (!$isEdit && old('forma_pago', '03') == $fp->clave) ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-            </div>
-        </div>
-
-
-        {{-- 📄 Condiciones y Observaciones --}}
+    {{-- Fila 3: Condiciones y Observaciones | Totales --}}
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📄 Condiciones y Observaciones</div>
@@ -273,8 +260,6 @@ $breadcrumbs = [
             </div>
         </div>
 
-
-        {{-- Totales --}}
         <div class="card">
             <div class="card-header">
                 <div class="card-title">💰 Totales</div>
@@ -304,6 +289,7 @@ $breadcrumbs = [
             </div>
         </div>
     </div>
+
 </div>
 
 {{-- Botones --}}
@@ -339,6 +325,21 @@ $breadcrumbs = [
         })->all();
     }
 @endphp
+
+@push('styles')
+<style>
+/* Descripción ancha, columnas numéricas proporción contable, compactas */
+.table-productos-cotizacion thead th:first-child { padding: 11px 16px; }
+.table-productos-cotizacion thead th:nth-child(n+2) { padding: 11px 4px; white-space: nowrap; }
+.table-productos-cotizacion tbody td:first-child { padding: 12px 16px; }
+.table-productos-cotizacion tbody td:nth-child(n+2) { padding: 8px 4px; }
+.table-productos-cotizacion tbody td:nth-child(8) { padding-right: 6px; }
+.table-productos-cotizacion tbody td:last-child { padding: 8px 6px 8px 2px; }
+/* Inputs numéricos: padding horizontal reducido */
+.table-productos-cotizacion .form-control-numeric { padding: 9px 6px; font-size: 13px; }
+.table-productos-cotizacion .form-control-numeric:focus { padding: 9px 6px; }
+</style>
+@endpush
 
 @push('scripts')
 <script>
@@ -656,23 +657,23 @@ function renderProductos() {
             </td>
             <td class="td-center">
                 <input type="number" name="productos[${i}][cantidad]" value="${p.cantidad}" min="0.01" step="0.01"
-                       onchange="upd(${i},'cantidad',+this.value)" class="form-control" style="text-align:center; width:80px;">
+                       onchange="upd(${i},'cantidad',+this.value)" class="form-control form-control-numeric" style="text-align:center; width:100%;">
             </td>
             <td class="td-center">
                 <input type="text" name="productos[${i}][unidad]" value="${(p.unidad || 'PZA').replace(/"/g, '&quot;')}" 
-                       onchange="upd(${i},'unidad',this.value)" class="form-control" style="text-align:center; width:70px;" placeholder="PZA" maxlength="10">
+                       onchange="upd(${i},'unidad',this.value)" class="form-control form-control-numeric" style="text-align:center; width:100%;" placeholder="PZA" maxlength="10">
             </td>
             <td class="td-center">
                 <input type="number" name="productos[${i}][precio_unitario]" value="${p.precio.toFixed(2)}" min="0" step="0.01"
-                       onchange="upd(${i},'precio',+this.value)" class="form-control" style="text-align:right; width:110px;">
+                       onchange="upd(${i},'precio',+this.value)" class="form-control form-control-numeric" style="text-align:right; width:100%;">
             </td>
             <td class="td-center">
                 <input type="number" name="productos[${i}][descuento_porcentaje]" value="${p.descuento}" min="0" max="100"
-                       onchange="upd(${i},'descuento',+this.value)" class="form-control" style="text-align:center; width:70px;">
+                       onchange="upd(${i},'descuento',+this.value)" class="form-control form-control-numeric" style="text-align:center; width:100%;">
             </td>
             <td class="td-center">
                 ${p.manual
-                    ? `<select name="productos[${i}][tasa_iva]" onchange="upd(${i},'tasa_iva',this.value===''?null:+this.value)" class="form-control" style="width:80px;">
+                    ? `<select name="productos[${i}][tasa_iva]" onchange="upd(${i},'tasa_iva',this.value===''?null:+this.value)" class="form-control form-control-numeric" style="width:100%;">
                            <option value="0.16" ${p.tasa_iva==0.16?'selected':''}>16%</option>
                            <option value="0"    ${p.tasa_iva==0?'selected':''}>0%</option>
                            <option value=""     ${p.tasa_iva==null?'selected':''}>Exento</option>
@@ -680,9 +681,9 @@ function renderProductos() {
                     : `<span class="fw-600" style="font-size:13px;">${p.tasa_iva == null ? 'Exento' : (p.tasa_iva*100)+'%'}</span>
                        <input type="hidden" name="productos[${i}][tasa_iva]" value="${p.tasa_iva!=null?p.tasa_iva:''}">`}
             </td>
-            <td class="td-right text-mono" style="font-size:13px;">$${sub.toFixed(2)}</td>
-            <td class="td-right text-mono fw-bold" style="color: var(--color-secondary); font-size:13.5px;">$${total.toFixed(2)}</td>
-            <td class="td-center">
+            <td class="td-right text-mono" style="font-size:13px;">$${fmtMonto(sub)}</td>
+            <td class="td-right text-mono fw-bold" style="color: var(--color-secondary); font-size:13.5px;">$${fmtMonto(total)}</td>
+            <td class="td-right">
                 <button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm">✕</button>
             </td>
         </tr>`;
@@ -771,6 +772,10 @@ function quitarProducto(i) {
     renderProductos();
 }
 
+    function fmtMonto(n) {
+        return (typeof n === 'number' ? n : parseFloat(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
 function calcTotales() {
     let sub = 0, desc = 0, iva = 0;
     productos.forEach(p => {
@@ -779,10 +784,10 @@ function calcTotales() {
         sub += s; desc += d;
         if (p.tasa_iva != null) iva += (s - d) * p.tasa_iva;
     });
-    document.getElementById('tSubtotal').textContent = '$' + sub.toFixed(2);
-    document.getElementById('tDescuento').textContent = '−$' + desc.toFixed(2);
-    document.getElementById('tIva').textContent = '$' + iva.toFixed(2);
-    document.getElementById('tTotal').textContent = '$' + ((sub - desc) + iva).toFixed(2);
+    document.getElementById('tSubtotal').textContent = '$' + fmtMonto(sub);
+    document.getElementById('tDescuento').textContent = '−$' + fmtMonto(desc);
+    document.getElementById('tIva').textContent = '$' + fmtMonto(iva);
+    document.getElementById('tTotal').textContent = '$' + fmtMonto((sub - desc) + iva);
     document.getElementById('rowDescuento').style.display = desc > 0 ? 'flex' : 'none';
 }
 

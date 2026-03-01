@@ -522,7 +522,10 @@ class FacturaController extends Controller
     public function cancelar(Request $request, Factura $factura)
     {
         if (!$factura->puedeCancelar()) {
-            return back()->with('error', 'Esta factura no puede ser cancelada');
+            $msg = $factura->tieneDocumentosRelacionados()
+                ? 'No se puede cancelar: esta factura tiene documentos relacionados (complementos de pago, notas de crédito o devoluciones). Use el flujo castada.'
+                : 'Esta factura no puede ser cancelada';
+            return back()->with('error', $msg);
         }
 
         $validated = $request->validate([

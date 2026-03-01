@@ -170,11 +170,50 @@ class Factura extends Model
     }
 
     /**
-     * Verificar si puede ser cancelada
+     * Verificar si puede ser cancelada (sin documentos relacionados).
+     * Se volverá a activar en flujo castada.
      */
     public function puedeCancelar(): bool
     {
-        return $this->estado === 'timbrada';
+        return $this->estado === 'timbrada' && !$this->tieneDocumentosRelacionados();
+    }
+
+    /**
+     * Verificar si la factura tiene documentos relacionados que impiden cancelarla.
+     * Incluye: complementos de pago, notas de crédito y devoluciones.
+     */
+    public function tieneDocumentosRelacionados(): bool
+    {
+        return $this->documentosRelacionadosPago()->exists()
+            || $this->notasCredito()->exists()
+            || $this->devoluciones()->exists();
+    }
+
+    /**
+     * Obtener detalle de documentos relacionados para mensajes informativos.
+     */
+    public function getDocumentosRelacionadosDetalle(): array
+    {
+        $detalle = [];
+        if ($this->documentosRelacionadosPago()->exists()) {
+            $count = $this->documentosRelacionadosPago()->count();
+            $detalle[] = $count === 1
+                ? '1 complemento de pago aplicado'
+                : "{$count} complementos de pago aplicados";
+        }
+        if ($this->notasCredito()->exists()) {
+            $count = $this->notasCredito()->count();
+            $detalle[] = $count === 1
+                ? '1 nota de crédito emitida'
+                : "{$count} notas de crédito emitidas";
+        }
+        if ($this->devoluciones()->exists()) {
+            $count = $this->devoluciones()->count();
+            $detalle[] = $count === 1
+                ? '1 devolución registrada'
+                : "{$count} devoluciones registradas";
+        }
+        return $detalle;
     }
 
     /**

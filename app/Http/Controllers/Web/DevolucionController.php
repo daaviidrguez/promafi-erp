@@ -38,7 +38,20 @@ class DevolucionController extends Controller
             return redirect()->route('facturas.show', $factura->id)->with('error', 'Solo se pueden registrar devoluciones de facturas timbradas.');
         }
 
-        return view('devoluciones.create', compact('factura'));
+        // Cantidades ya devueltas por factura_detalle_id (para límite y visibilidad)
+        $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
+            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+            ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
+            ->groupBy('factura_detalle_id')
+            ->pluck('total_devuelto', 'factura_detalle_id')
+            ->map(fn ($v) => (float) $v);
+
+        $devolucionesAnteriores = Devolucion::where('factura_id', $factura->id)
+            ->with('detalles.facturaDetalle')
+            ->orderBy('fecha_devolucion', 'desc')
+            ->get();
+
+        return view('devoluciones.create', compact('factura', 'cantidadesDevueltas', 'devolucionesAnteriores'));
     }
 
     public function store(Request $request)
@@ -50,7 +63,7 @@ class DevolucionController extends Controller
             'observaciones' => 'nullable|string',
             'lineas' => 'required|array|min:1',
             'lineas.*.factura_detalle_id' => 'required|exists:facturas_detalle,id',
-            'lineas.*.cantidad_devuelta' => 'required|numeric|min:0.01',
+            'lineas.*.cantidad_devuelta' => 'required|numeric|min:0',
             'lineas.*.motivo_linea' => 'nullable|string|max:255',
         ]);
 
@@ -58,6 +71,13 @@ class DevolucionController extends Controller
         if (!$factura->estaTimbrada()) {
             return back()->withInput()->with('error', 'La factura debe estar timbrada.');
         }
+
+        $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
+            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+            ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
+            ->groupBy('factura_detalle_id')
+            ->pluck('total_devuelto', 'factura_detalle_id')
+            ->map(fn ($v) => (float) $v);
 
         $empresa = Empresa::principal();
         $devolucion = Devolucion::create([
@@ -77,7 +97,12 @@ class DevolucionController extends Controller
                 continue;
             }
             $fd = $factura->detalles->firstWhere('id', $lin['factura_detalle_id']);
-            if (!$fd || $cant > (float) $fd->cantidad) {
+            if (!$fd) {
+                continue;
+            }
+            $yaDevuelto = $cantidadesDevueltas->get($fd->id, 0);
+            $cantPendiente = (float) $fd->cantidad - $yaDevuelto;
+            if ($cant > $cantPendiente) {
                 continue;
             }
             DevolucionDetalle::create([

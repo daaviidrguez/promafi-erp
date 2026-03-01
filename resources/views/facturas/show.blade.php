@@ -232,17 +232,28 @@ $breadcrumbs = [
                        class="btn btn-outline w-full">📑 Descargar PDF</a>
                     @endif
 
+                    @if($factura->puedeCancelar())
                     <button type="button"
                             onclick="document.getElementById('modalCancelar').classList.add('show')"
                             class="btn btn-danger w-full">✗ Cancelar Factura</button>
+                    @elseif($factura->estaTimbrada() && $factura->tieneDocumentosRelacionados())
+                    <div class="cancelar-factura-deshabilitado" style="display: flex; flex-direction: column; gap: 8px;">
+                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
+                        <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                            <strong>No se puede cancelar</strong> porque esta factura tiene documentos relacionados:
+                            <ul style="margin: 6px 0 0 14px; padding: 0;">
+                                @foreach($factura->getDocumentosRelacionadosDetalle() as $item)
+                                <li>{{ $item }}</li>
+                                @endforeach
+                            </ul>
+                            <span class="text-muted" style="font-size: 11px; display: block; margin-top: 8px;">La cancelación estará disponible en el flujo castada.</span>
+                        </div>
+                    </div>
+                    @endif
                 @endif
 
                 @if($factura->estaTimbrada())
                 <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
-                @endif
-
-                @if($factura->estaTimbrada())
-                <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Registrar devolución</a>
                 <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Emitir nota de crédito</a>
                 @endif
 
@@ -295,8 +306,8 @@ $breadcrumbs = [
     </div>
 </div>
 
-{{-- Modal Cancelar --}}
-@if($factura->estaTimbrada())
+{{-- Modal Cancelar (solo si no hay documentos relacionados) --}}
+@if($factura->estaTimbrada() && $factura->puedeCancelar())
 <div id="modalCancelar" class="modal">
     <div class="modal-box">
         <div class="modal-header">

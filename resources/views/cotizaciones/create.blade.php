@@ -236,7 +236,7 @@ $breadcrumbs = [
         </div>
 
     {{-- Fila 3: Condiciones y Observaciones | Totales --}}
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+    <div style="display:grid; grid-template-columns: 7fr 3fr; gap:20px;">
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📄 Condiciones y Observaciones</div>

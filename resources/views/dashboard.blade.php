@@ -176,7 +176,7 @@ $breadcrumbs = [
                     <td>{{ $cuenta->fecha_vencimiento->format('d/m/Y') }}</td>
                     <td class="td-center"><span class="badge badge-danger">{{ $cuenta->dias_vencido }} días</span></td>
                     <td class="td-right text-mono fw-600" style="color: var(--color-danger);">
-                        ${{ number_format($cuenta->monto_pendiente, 2, '.', ',') }}
+                        ${{ number_format($cuenta->saldo_pendiente_real, 2, '.', ',') }}
                     </td>
                 </tr>
                 @endforeach

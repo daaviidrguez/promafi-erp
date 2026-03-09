@@ -763,8 +763,8 @@ class FacturamaService
                 'TaxZipCode' => $cpReceptor,
             ],
             'Items' => $items,
-            'CfdiRelation' => [
-                'Type' => '01',
+            'Relations' => [
+                'Type' => $notaCredito->tipo_relacion ?? '01',
                 'Cfdis' => [['Uuid' => $uuidRef]],
             ],
         ];

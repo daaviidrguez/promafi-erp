@@ -367,6 +367,7 @@ class ComplementoPagoController extends Controller
         }
 
         $cuentas = CuentaPorCobrar::with('factura')
+            ->excluirFacturaBorrador()
             ->where('cliente_id', $clienteId)
             ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
             ->where('monto_pendiente', '>', 0)

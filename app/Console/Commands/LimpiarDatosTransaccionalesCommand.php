@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -89,8 +90,24 @@ class LimpiarDatosTransaccionalesCommand extends Command
             $this->line('  ✓ clientes.saldo_actual puesto a 0');
         }
 
+        // Limpiar PDFs y XMLs de documentos transaccionales en storage
+        $dirsStorage = [
+            'documentos',
+            'notas-credito',
+            'facturas',
+            'complementos',
+        ];
+        $baseDir = storage_path('app');
+        foreach ($dirsStorage as $dir) {
+            $path = $baseDir . '/' . $dir;
+            if (File::isDirectory($path)) {
+                File::cleanDirectory($path);
+                $this->line("  ✓ storage/app/{$dir}/ vaciado");
+            }
+        }
+
         $this->newLine();
-        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
+        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Documentos (PDF/XML) en storage limpiados. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
         return self::SUCCESS;
     }
 }

@@ -38,7 +38,9 @@ use App\Http\Controllers\Web\MetodoPagoController;
 use App\Http\Controllers\Web\MonedaController;
 use App\Http\Controllers\Web\UnidadMedidaSatController;
 use App\Http\Controllers\Web\ClaveProdServicioController;
+use App\Http\Controllers\Web\IsrResicoController;
 use App\Http\Controllers\Web\ListaPrecioController;
+use App\Http\Controllers\Web\ReporteController;
 
 /*
 |--------------------------------------------------------------------------
@@ -69,6 +71,13 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── DASHBOARD ─────
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/tablero', [TableroController::class, 'index'])->name('tablero.index');
+
+    // ───── REPORTES ─────
+    Route::redirect('/reportes', '/reportes/fiscal', 301)->name('reportes.index');
+    Route::get('/reportes/fiscal', [ReporteController::class, 'fiscal'])->name('reportes.fiscal');
+    Route::get('/reportes/ventas', [ReporteController::class, 'ventas'])->name('reportes.ventas');
+    Route::get('/reportes/compras', [ReporteController::class, 'compras'])->name('reportes.compras');
+    Route::get('/reportes/utilidad', [ReporteController::class, 'utilidad'])->name('reportes.utilidad');
 
     // ───── PERFIL ─────
     Route::get('/perfil', [PerfilController::class, 'edit'])->name('perfil.edit');
@@ -221,6 +230,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/catalogos-sat/claves-producto-servicio/plantilla', [ClaveProdServicioController::class, 'descargarPlantilla'])->name('catalogos-sat.claves-producto-servicio.plantilla');
     Route::post('/catalogos-sat/claves-producto-servicio/importar', [ClaveProdServicioController::class, 'importar'])->name('catalogos-sat.claves-producto-servicio.importar');
     Route::resource('catalogos-sat/claves-producto-servicio', ClaveProdServicioController::class)->parameters(['claves_producto_servicio' => 'claves_producto_servicio'])->names('catalogos-sat.claves-producto-servicio')->except(['show']);
+    Route::get('/catalogos-sat/isr-resico', [IsrResicoController::class, 'index'])->name('catalogos-sat.isr-resico.index');
+    Route::put('/catalogos-sat/isr-resico', [IsrResicoController::class, 'update'])->name('catalogos-sat.isr-resico.update');
     
     // ───── CUENTAS POR COBRAR ───── ✅
     Route::get('/cuentas-cobrar', [CuentaPorCobrarController::class, 'index'])->name('cuentas-cobrar.index');

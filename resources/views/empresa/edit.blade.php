@@ -12,6 +12,17 @@ $breadcrumbs = [
 
 @section('content')
 
+@if($errors->any())
+<div class="alert alert-danger" style="margin-bottom: 16px;">
+    <strong>Errores al guardar:</strong>
+    <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+        @foreach($errors->all() as $err)
+            <li>{{ $err }}</li>
+        @endforeach
+    </ul>
+</div>
+@endif
+
 <form method="POST" action="{{ route('empresa.update') }}" enctype="multipart/form-data">
     @csrf
     @method('PUT')
@@ -40,8 +51,18 @@ $breadcrumbs = [
                             @enderror
                         </div>
                         <div class="form-group">
+                            <label class="form-label">Tipo de persona <span class="req">*</span></label>
+                            <select name="tipo_persona" id="tipo_persona" class="form-control" required>
+                                <option value="moral" {{ old('tipo_persona', $empresa->tipo_persona ?? 'moral') == 'moral' ? 'selected' : '' }}>Persona moral</option>
+                                <option value="fisica" {{ old('tipo_persona', $empresa->tipo_persona ?? 'moral') == 'fisica' ? 'selected' : '' }}>Persona física</option>
+                            </select>
+                            <span class="form-hint">Persona moral: RFC 12 caracteres. Persona física: RFC 13 caracteres.</span>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
                             <label class="form-label">Régimen Fiscal <span class="req">*</span></label>
-                            <select name="regimen_fiscal" class="form-control" required>
+                            <select name="regimen_fiscal" id="regimen_fiscal" class="form-control" required>
                                 <option value="">Seleccionar...</option>
                                 @foreach($regimenes ?? [] as $r)
                                     <option value="{{ $r->clave }}"
@@ -50,12 +71,19 @@ $breadcrumbs = [
                                     </option>
                                 @endforeach
                             </select>
+                            @php $mostrarResico = (old('tipo_persona', $empresa->tipo_persona ?? 'moral') === 'fisica') && (old('regimen_fiscal', $empresa->regimen_fiscal ?? '') == '626'); @endphp
+                            <div id="resico-aviso" class="alert alert-info mt-2" style="padding: 8px 12px; font-size: 12px; {{ $mostrarResico ? '' : 'display:none;' }}">
+                                <strong>RESICO:</strong> Con persona física y régimen 626 (Régimen Simplificado de Confianza) aplica la tabla ISR RESICO. Ver <a href="{{ route('catalogos-sat.index') }}">Catálogos SAT → Tabla ISR RESICO</a>.
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Razón Social <span class="req">*</span></label>
-                        <input type="text" name="razon_social" class="form-control"
-                               value="{{ old('razon_social', $empresa->razon_social) }}" required>
+                        <div class="form-group">
+                            <label class="form-label">Razón Social <span class="req">*</span></label>
+                            <input type="text" name="razon_social" class="form-control"
+                                   value="{{ old('razon_social', $empresa->razon_social) }}" required>
+                            @error('razon_social')
+                                <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
+                            @enderror
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Nombre Comercial</label>
@@ -165,59 +193,7 @@ $breadcrumbs = [
                 </div>
             </div>
 
-        </div>
-
-        {{-- Columna derecha --}}
-        <div>
-            
-        {{-- Identidad Visual --}}
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">🖼 Identidad Visual</div>
-                </div>
-                <div class="card-body">
-
-                    @if($empresa->logo_path)
-                        <div style="margin-bottom:12px;">
-                            <img src="{{ asset('storage/'.$empresa->logo_path) }}"
-                                style="max-height:80px;">
-                        </div>
-                    @endif
-
-                    <div class="form-group">
-                        <label class="form-label">Logo</label>
-                        <input type="file" name="logo" class="form-control"
-                            accept="image/png,image/jpeg">
-                    </div>
-
-                </div>
-            </div>
-
-            {{-- QR identificación SAT --}}
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-title">📱 QR identificación SAT</div>
-                </div>
-                <div class="card-body">
-
-                    @if($empresa->qr_sat_path ?? null)
-                        <div style="margin-bottom:12px;">
-                            <img src="{{ asset('storage/'.$empresa->qr_sat_path) }}"
-                                style="max-height:80px;">
-                        </div>
-                    @endif
-
-                    <div class="form-group">
-                        <label class="form-label">Imagen QR SAT</label>
-                        <input type="file" name="qr_sat" class="form-control"
-                            accept="image/png,image/jpeg">
-                        <span class="form-hint">Se mostrará en el encabezado del PDF (cotizaciones, facturas).</span>
-                    </div>
-
-                </div>
-            </div>
-
-            {{-- Configuración de Facturación --}}
+            {{-- Configuración de Facturación (movido debajo de Contacto) --}}
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">🧾 Facturación</div>
@@ -346,6 +322,58 @@ $breadcrumbs = [
                 </div>
             </div>
 
+        </div>
+
+        {{-- Columna derecha --}}
+        <div>
+            
+        {{-- Identidad Visual --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🖼 Identidad Visual</div>
+                </div>
+                <div class="card-body">
+
+                    @if($empresa->logo_path)
+                        <div style="margin-bottom:12px;">
+                            <img src="{{ asset('storage/'.$empresa->logo_path) }}"
+                                style="max-height:80px;">
+                        </div>
+                    @endif
+
+                    <div class="form-group">
+                        <label class="form-label">Logo</label>
+                        <input type="file" name="logo" class="form-control"
+                            accept="image/png,image/jpeg">
+                    </div>
+
+                </div>
+            </div>
+
+            {{-- QR identificación SAT --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📱 QR identificación SAT</div>
+                </div>
+                <div class="card-body">
+
+                    @if($empresa->qr_sat_path ?? null)
+                        <div style="margin-bottom:12px;">
+                            <img src="{{ asset('storage/'.$empresa->qr_sat_path) }}"
+                                style="max-height:80px;">
+                        </div>
+                    @endif
+
+                    <div class="form-group">
+                        <label class="form-label">Imagen QR SAT</label>
+                        <input type="file" name="qr_sat" class="form-control"
+                            accept="image/png,image/jpeg">
+                        <span class="form-hint">Se mostrará en el encabezado del PDF (cotizaciones, facturas).</span>
+                    </div>
+
+                </div>
+            </div>
+
             {{-- Configuración PAC / Facturama --}}
             <div class="card">
                 <div class="card-header">
@@ -422,10 +450,9 @@ $breadcrumbs = [
                             @endif
                         </div>
                     </div>
-                    <form method="POST" action="{{ route('empresa.verificar-certificados') }}" style="margin-bottom: 16px;">
-                        @csrf
-                        <button type="submit" class="btn btn-info w-full">🔍 Verificar Certificados</button>
-                    </form>
+                    <div style="margin-bottom: 16px;">
+                        <button type="submit" form="verificar-certificados-form" class="btn btn-info w-full">🔍 Verificar Certificados</button>
+                    </div>
                     @endif
 
                     <div class="form-group">
@@ -459,8 +486,11 @@ $breadcrumbs = [
 
 </form>
 
-{{-- Form solo para probar conexión Facturama (fuera del form principal para que no envíe Guardar) --}}
+{{-- Forms fuera del form principal: evitan anidar forms (HTML inválido) que rompe el botón Guardar --}}
 <form id="probar-facturama-form" method="POST" action="{{ route('empresa.probar-pac') }}" style="display: none;">
+    @csrf
+</form>
+<form id="verificar-certificados-form" method="POST" action="{{ route('empresa.verificar-certificados') }}" style="display: none;">
     @csrf
 </form>
 
@@ -471,6 +501,14 @@ $breadcrumbs = [
     document.getElementById('rfc').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });
+    function toggleResicoAviso() {
+        var tipo = document.getElementById('tipo_persona')?.value;
+        var regimen = document.getElementById('regimen_fiscal')?.value;
+        var aviso = document.getElementById('resico-aviso');
+        if (aviso) aviso.style.display = (tipo === 'fisica' && regimen === '626') ? '' : 'none';
+    }
+    document.getElementById('tipo_persona')?.addEventListener('change', toggleResicoAviso);
+    document.getElementById('regimen_fiscal')?.addEventListener('change', toggleResicoAviso);
     document.getElementById('serie_factura').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });

@@ -11,7 +11,7 @@ class PDFService
     public function generarDocumentoPDF($modelo, string $tipo): string
     {
         if ($tipo === 'factura') {
-            $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'cliente', 'usuario', 'empresa']);
+            $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'cliente', 'cuentaPorCobrar', 'usuario', 'empresa']);
         } elseif ($tipo === 'nota_credito') {
             $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'factura', 'cliente', 'usuario', 'empresa']);
         } elseif ($tipo === 'complemento') {

@@ -20,7 +20,7 @@ class NotaCredito extends Model
         'rfc_receptor', 'nombre_receptor', 'uso_cfdi', 'regimen_fiscal_receptor', 'domicilio_fiscal_receptor',
         'lugar_expedicion', 'fecha_emision', 'forma_pago', 'metodo_pago', 'moneda', 'tipo_cambio',
         'subtotal', 'descuento', 'total', 'motivo_cfdi',
-        'uuid', 'pac_cfdi_id', 'uuid_referencia', 'fecha_timbrado', 'no_certificado_sat', 'sello_cfdi', 'sello_sat', 'cadena_original',
+        'uuid', 'pac_cfdi_id', 'uuid_referencia', 'tipo_relacion', 'fecha_timbrado', 'no_certificado_sat', 'sello_cfdi', 'sello_sat', 'cadena_original',
         'xml_content', 'xml_path', 'pdf_path',
         'motivo_cancelacion', 'fecha_cancelacion', 'acuse_cancelacion',
         'observaciones', 'usuario_id',

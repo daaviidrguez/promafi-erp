@@ -12,6 +12,7 @@ class EnsureUserHasRoutePermission
     protected array $routeToPermission = [
         'dashboard' => 'dashboard.ver',
         'tablero' => 'dashboard.ver',
+        'reportes' => 'dashboard.ver',
         'perfil' => null,
         'empresa' => 'configuracion.editar',
         'configuracion' => 'configuracion.editar',

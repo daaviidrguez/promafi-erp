@@ -47,19 +47,23 @@ class EmpresaController extends Controller
             'required',
             'string',
             'between:12,13',
-            function ($attribute, $value, $fail) {
+            'regex:/^[A-ZÑ&0-9]{12,13}$/i',
+            function ($attribute, $value, $fail) use ($request) {
                 $rfc = strtoupper(preg_replace('/\s/', '', $value));
                 $len = strlen($rfc);
-                $moral = $len === 12 && preg_match('/^[A-ZÑ&]{3}\d{6}[A-Z0-9]{3}$/', $rfc);
-                $fisica = $len === 13 && preg_match('/^[A-ZÑ&]{4}\d{6}[A-Z0-9]{3}$/', $rfc);
-                if (!$moral && !$fisica) {
-                    $fail('El RFC debe ser 12 caracteres (persona moral) o 13 (persona física). Ej: XA1901231ABC o GODE901231ABC.');
+                $tipo = $request->input('tipo_persona', 'moral');
+                if ($tipo === 'fisica' && $len !== 13) {
+                    $fail('Para persona física el RFC debe tener exactamente 13 caracteres (ej. GODE901231ABC).');
+                }
+                if ($tipo === 'moral' && $len !== 12) {
+                    $fail('Para persona moral el RFC debe tener exactamente 12 caracteres (ej. XA1901231ABC).');
                 }
             },
         ],
         'razon_social' => 'required|string|max:255',
         'nombre_comercial' => 'nullable|string|max:255',
         'regimen_fiscal' => 'required|string|exists:regimenes_fiscales,clave',
+        'tipo_persona' => 'required|in:fisica,moral',
 
         // ===============================
         // DOMICILIO
@@ -120,8 +124,8 @@ class EmpresaController extends Controller
         // ===============================
         // CERTIFICADOS
         // ===============================
-        'certificado_cer' => 'nullable|file|mimes:cer',
-        'certificado_key' => 'nullable|file|mimes:key',
+        'certificado_cer' => 'nullable|file|extensions:cer',
+        'certificado_key' => 'nullable|file|extensions:key',
         'certificado_password' => 'nullable|string|max:255',
     ]);
 
@@ -140,9 +144,12 @@ class EmpresaController extends Controller
     // ===============================
     $validated['pac_modo_prueba'] = $request->has('pac_modo_prueba');
     $validated['pac_provider'] = $validated['pac_provider'] ?? 'fake';
-    // No sobrescribir contraseña Facturama si viene vacía
+    // No sobrescribir contraseñas si vienen vacías
     if (empty($validated['pac_facturama_password'])) {
         unset($validated['pac_facturama_password']);
+    }
+    if (array_key_exists('certificado_password', $validated) && $validated['certificado_password'] === '') {
+        unset($validated['certificado_password']);
     }
 
     // Etiqueta del régimen fiscal (para PDF)
@@ -177,6 +184,17 @@ class EmpresaController extends Controller
                 ->store('certificados', 'local');
     }
 
+    // Extraer no_certificado y vigencia del .cer (si se subió uno nuevo)
+    if (!empty($validated['certificado_cer'])) {
+        $parsed = parseCertificadoCer($validated['certificado_cer']);
+        if ($parsed['no_certificado']) {
+            $validated['no_certificado'] = $parsed['no_certificado'];
+        }
+        if ($parsed['certificado_vigencia']) {
+            $validated['certificado_vigencia'] = $parsed['certificado_vigencia'];
+        }
+    }
+
     // ===============================
     // LOGO (público)
     // ===============================
@@ -204,10 +222,41 @@ class EmpresaController extends Controller
     }
 
     // ===============================
+    // COMPATIBILIDAD BD: domicilio NOT NULL
+    // Calle, numero_exterior, colonia, estado son NOT NULL en empresas
+    // ===============================
+    foreach (['calle', 'numero_exterior', 'colonia', 'estado'] as $campo) {
+        if (array_key_exists($campo, $validated) && $validated[$campo] === null) {
+            $validated[$campo] = '';
+        }
+    }
+
+    // ===============================
+    // EXCLUIR CLAVES NO PERSISTIBLES ANTES DE fill()
+    // logo, qr_sat son UploadedFile; las rutas van en logo_path, qr_sat_path
+    // ===============================
+    unset($validated['logo'], $validated['qr_sat']);
+    foreach (['certificado_cer', 'certificado_key'] as $k) {
+        if (isset($validated[$k]) && $validated[$k] instanceof \Illuminate\Http\UploadedFile) {
+            unset($validated[$k]);
+        }
+    }
+    $fillable = array_flip($empresa->getFillable());
+    $validated = array_intersect_key($validated, $fillable);
+
+    // ===============================
     // GUARDAR
     // ===============================
-    $empresa->fill($validated);
-    $empresa->save();
+    try {
+        $empresa->fill($validated);
+        $empresa->save();
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Empresa update error', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        return redirect()
+            ->route('empresa.edit')
+            ->withInput()
+            ->with('error', 'Error al guardar: ' . $e->getMessage());
+    }
 
     return redirect()
         ->route('empresa.edit')
@@ -277,22 +326,37 @@ class EmpresaController extends Controller
         $empresa = Empresa::principal();
 
         if (!$empresa || !$empresa->tieneCertificados()) {
-            return back()->with('error', 'No hay certificados cargados');
+            return back()->with('error', 'No hay certificados cargados. Sube el .cer, .key y la contraseña, luego guarda.');
         }
 
-        // Verificar que los archivos existan
-        $cerExists = Storage::disk('local')->exists($empresa->certificado_cer_path);
-        $keyExists = Storage::disk('local')->exists($empresa->certificado_key_path);
+        // Verificar que los archivos existan (rutas en certificado_cer y certificado_key)
+        $cerExists = Storage::disk('local')->exists($empresa->certificado_cer);
+        $keyExists = Storage::disk('local')->exists($empresa->certificado_key);
 
         if (!$cerExists || !$keyExists) {
-            return back()->with('error', 'Los archivos de certificados no se encontraron');
+            return back()->with('error', 'Los archivos de certificados no se encontraron en el almacenamiento.');
+        }
+
+        // Intentar actualizar vigencia si no está guardada (parsear .cer)
+        if (!$empresa->certificado_vigencia && $cerExists) {
+            $parsed = parseCertificadoCer($empresa->certificado_cer);
+            if ($parsed['certificado_vigencia']) {
+                $empresa->certificado_vigencia = $parsed['certificado_vigencia'];
+                if ($parsed['no_certificado']) {
+                    $empresa->no_certificado = $parsed['no_certificado'];
+                }
+                $empresa->saveQuietly();
+            }
         }
 
         // Verificar vigencia
         if ($empresa->certificadoVigente()) {
-            return back()->with('success', '✅ Certificados cargados y vigentes hasta: ' . $empresa->certificado_vigencia->format('d/m/Y'));
-        } else {
+            $fecha = $empresa->certificado_vigencia->format('d/m/Y');
+            return back()->with('success', '✅ Certificados cargados y vigentes hasta: ' . $fecha);
+        }
+        if ($empresa->certificado_vigencia) {
             return back()->with('error', '⚠️ Los certificados han expirado. Fecha de vencimiento: ' . $empresa->certificado_vigencia->format('d/m/Y'));
         }
+        return back()->with('success', '✅ Certificados cargados. No se pudo determinar la vigencia (revisa que el .cer sea válido).');
     }
 }

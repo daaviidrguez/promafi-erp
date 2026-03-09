@@ -293,14 +293,14 @@ $breadcrumbs = [
                 </div>
                 <div class="info-row">
                     <div class="info-label">Saldo Actual</div>
-                    <div class="info-value" style="color: {{ $cliente->saldo_actual > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}">
-                        ${{ number_format($cliente->saldo_actual, 2, '.', ',') }}
+                    <div class="info-value" style="color: {{ $cliente->saldo_actual_coherente > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}">
+                        ${{ number_format($cliente->saldo_actual_coherente, 2, '.', ',') }}
                     </div>
                 </div>
                 <div class="info-row">
                     <div class="info-label">Crédito Disponible</div>
                     <div class="info-value" style="color: var(--color-success);">
-                        ${{ number_format($cliente->limite_credito - $cliente->saldo_actual, 2, '.', ',') }}
+                        ${{ number_format($cliente->limite_credito - $cliente->saldo_actual_coherente, 2, '.', ',') }}
                     </div>
                 </div>
                 @endif

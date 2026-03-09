@@ -129,6 +129,35 @@ class CuentaPorCobrar extends Model
     }
 
     /**
+     * Estado para mostrar (considera saldo_pendiente_real).
+     * Coherente con factura show, complemento show, dashboard y tablero.
+     */
+    public function getEstadoDisplayAttribute(): string
+    {
+        if ($this->estado === 'cancelada') {
+            return 'cancelada';
+        }
+        if ($this->saldo_pendiente_real <= 0) {
+            return 'pagada';
+        }
+        if ($this->estaVencida()) {
+            return 'vencida';
+        }
+        if ((float) $this->monto_pagado > 0) {
+            return 'parcial';
+        }
+        return 'pendiente';
+    }
+
+    /**
+     * Excluir cuentas cuya factura está en borrador.
+     */
+    public function scopeExcluirFacturaBorrador($query)
+    {
+        return $query->whereHas('factura', fn ($q) => $q->where('estado', '!=', 'borrador'));
+    }
+
+    /**
      * Scope para cuentas vencidas
      */
     public function scopeVencidas($query)

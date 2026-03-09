@@ -97,7 +97,7 @@ $breadcrumbs = [
         </thead>
         <tbody>
             @foreach($cuentas as $cuenta)
-            <tr style="{{ $cuenta->estaVencida() ? 'background: rgba(239,68,68,0.04);' : '' }}">
+            <tr style="{{ $cuenta->estado_display === 'vencida' ? 'background: rgba(239,68,68,0.04);' : '' }}">
                 <td>
                     <a href="{{ route('facturas.show', $cuenta->factura->id) }}"
                        class="text-mono fw-600" style="color: var(--color-primary);">
@@ -123,17 +123,17 @@ $breadcrumbs = [
                     ${{ number_format($cuenta->monto_total, 2, '.', ',') }}
                 </td>
                 <td class="td-right text-mono fw-600"
-                    style="color: {{ $cuenta->monto_pendiente > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
-                    ${{ number_format($cuenta->monto_pendiente, 2, '.', ',') }}
+                    style="color: {{ $cuenta->saldo_pendiente_real > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
+                    ${{ number_format($cuenta->saldo_pendiente_real, 2, '.', ',') }}
                 </td>
                 <td class="td-center">
-                    @if($cuenta->estado === 'pagada')
+                    @if($cuenta->estado_display === 'pagada')
                         <span class="badge badge-success">✅ Pagada</span>
-                    @elseif($cuenta->estado === 'cancelada')
+                    @elseif($cuenta->estado_display === 'cancelada')
                         <span class="badge badge-gray">❌ Cancelada</span>
-                    @elseif($cuenta->estado === 'vencida')
+                    @elseif($cuenta->estado_display === 'vencida')
                         <span class="badge badge-danger">⚠️ Vencida</span>
-                    @elseif($cuenta->estado === 'parcial')
+                    @elseif($cuenta->estado_display === 'parcial')
                         <span class="badge badge-warning">📊 Parcial</span>
                     @else
                         <span class="badge badge-info">⏳ Pendiente</span>

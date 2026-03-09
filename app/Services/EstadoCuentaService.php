@@ -29,6 +29,7 @@ class EstadoCuentaService
         $facturaIdsConPendiente = collect();
         if ($soloReporteCobranza) {
             $facturaIdsConPendiente = CuentaPorCobrar::where('cliente_id', $cliente->id)
+                ->excluirFacturaBorrador()
                 ->where('monto_pendiente', '>', 0)
                 ->pluck('factura_id');
             if ($facturaIdsConPendiente->isEmpty()) {

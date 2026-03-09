@@ -164,11 +164,13 @@ $breadcrumbs = [
                 <div class="info-row">
                     <div class="info-label">Estado</div>
                     <div style="margin-top: 4px;">
-                        @if($cuentaPorCobrar->estado === 'pagada')
+                        @if($cuentaPorCobrar->estado_display === 'pagada')
                             <span class="badge badge-success">✅ Pagada</span>
-                        @elseif($cuentaPorCobrar->estado === 'vencida')
+                        @elseif($cuentaPorCobrar->estado_display === 'cancelada')
+                            <span class="badge badge-gray">❌ Cancelada</span>
+                        @elseif($cuentaPorCobrar->estado_display === 'vencida')
                             <span class="badge badge-danger">⚠️ Vencida</span>
-                        @elseif($cuentaPorCobrar->estado === 'parcial')
+                        @elseif($cuentaPorCobrar->estado_display === 'parcial')
                             <span class="badge badge-warning">📊 Parcial</span>
                         @else
                             <span class="badge badge-info">⏳ Pendiente</span>
@@ -223,7 +225,7 @@ $breadcrumbs = [
             </div>
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
-                @if(!$cuentaPorCobrar->estaPagada() && $cuentaPorCobrar->saldo_pendiente_real > 0)
+                @if($cuentaPorCobrar->estado_display !== 'pagada' && $cuentaPorCobrar->estado_display !== 'cancelada' && $cuentaPorCobrar->saldo_pendiente_real > 0)
                 <a href="{{ route('complementos.create', ['cuenta_id' => $cuentaPorCobrar->id]) }}"
                    class="btn btn-primary w-full">
                     💵 Crear Complemento de Pago

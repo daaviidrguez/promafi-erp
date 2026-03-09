@@ -17,6 +17,7 @@ class Empresa extends Model
         'razon_social',
         'nombre_comercial',
         'regimen_fiscal',
+        'tipo_persona',
         'regimen_fiscal_etiqueta',
         'calle',
         'numero_exterior',

@@ -41,8 +41,10 @@ class TableroController extends Controller
             $dataVentas[] = (float) ($ventasPorMes->get($m)?->total ?? 0);
         }
 
-        $cobranzaPendiente = (float) CuentaPorCobrar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->sum('monto_pendiente');
+        $cuentasCobranza = CuentaPorCobrar::excluirFacturaBorrador()
+            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+            ->get();
+        $cobranzaPendiente = (float) $cuentasCobranza->sum(fn ($c) => $c->saldo_pendiente_real);
         $cobranzaCobradoMes = (float) ComplementoPago::whereMonth('fecha_emision', $mesActual)
             ->whereYear('fecha_emision', $añoActual)
             ->sum('monto_total');
@@ -62,23 +64,18 @@ class TableroController extends Controller
             ->get();
         $clientesImportantes->each(fn ($c) => $c->total_ventas = (float) ($c->total_ventas ?? 0));
 
-        $antiguedadSaldos = CuentaPorCobrar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->selectRaw("
-                CASE
-                    WHEN dias_vencido <= 0 THEN 'Al corriente'
-                    WHEN dias_vencido BETWEEN 1 AND 30 THEN '1-30 días'
-                    WHEN dias_vencido BETWEEN 31 AND 60 THEN '31-60 días'
-                    WHEN dias_vencido BETWEEN 61 AND 90 THEN '61-90 días'
-                    ELSE 'Más de 90 días'
-                END as rango,
-                SUM(monto_pendiente) as monto
-            ")
-            ->groupBy('rango')
-            ->get();
+        $antiguedadSaldos = $cuentasCobranza->filter(fn ($c) => $c->saldo_pendiente_real > 0)
+            ->groupBy(function ($c) {
+                $d = $c->dias_vencido ?? 0;
+                if ($d <= 0) return 'Al corriente';
+                if ($d <= 30) return '1-30 días';
+                if ($d <= 60) return '31-60 días';
+                if ($d <= 90) return '61-90 días';
+                return 'Más de 90 días';
+            });
         $ordenRango = ['Al corriente', '1-30 días', '31-60 días', '61-90 días', 'Más de 90 días'];
-        $antiguedadMap = $antiguedadSaldos->keyBy('rango');
         $antiguedadLabels = $ordenRango;
-        $antiguedadData = array_map(fn ($r) => (float) ($antiguedadMap->get($r)?->monto ?? 0), $ordenRango);
+        $antiguedadData = array_map(fn ($r) => (float) ($antiguedadSaldos->get($r)?->sum(fn ($c) => $c->saldo_pendiente_real) ?? 0), $ordenRango);
 
         // ─── 3. PRODUCTOS (más vendidos, mayor costo, utilidad bruta) ───
         $masVendidos = FacturaDetalle::whereHas('factura', fn ($q) => $q->where('estado', 'timbrada'))

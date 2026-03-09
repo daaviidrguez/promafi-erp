@@ -49,15 +49,18 @@ class DashboardController extends Controller
         $remisionesMes = Remision::whereMonth('fecha', $mes)->whereYear('fecha', $año)->count();
         $notasCreditoMes = NotaCredito::whereMonth('fecha_emision', $mes)->whereYear('fecha_emision', $año)->count();
 
-        // ─── COBRANZA / FINANZAS ───
-        $porCobrar = (float) CuentaPorCobrar::whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->sum('monto_pendiente');
-        $cuentasVencidas = CuentaPorCobrar::where('estado', 'vencida')->count();
-        $cuentasVencidasList = CuentaPorCobrar::with(['cliente', 'factura'])
-            ->where('estado', 'vencida')
-            ->orderBy('dias_vencido', 'desc')
-            ->limit(5)
+        // ─── COBRANZA / FINANZAS (coherente con saldo_pendiente_real) ───
+        $cuentasCobranza = CuentaPorCobrar::with(['cliente', 'factura'])
+            ->excluirFacturaBorrador()
+            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
             ->get();
+        $porCobrar = (float) $cuentasCobranza->sum(fn ($c) => $c->saldo_pendiente_real);
+        $cuentasVencidasList = $cuentasCobranza
+            ->filter(fn ($c) => $c->estado_display === 'vencida')
+            ->sortByDesc('dias_vencido')
+            ->take(5)
+            ->values();
+        $cuentasVencidas = $cuentasCobranza->filter(fn ($c) => $c->estado_display === 'vencida')->count();
 
         $facturasRecientes = Factura::with('cliente')
             ->orderBy('created_at', 'desc')

@@ -48,6 +48,10 @@ $breadcrumbs = [
                 <strong>📦 Clave producto/servicio</strong>
                 <p class="text-muted small mb-0 mt-1">Catálogo SAT de productos y servicios (carga por Excel)</p>
             </a>
+            <a href="{{ route('catalogos-sat.isr-resico.index') }}" class="card" style="text-decoration: none; color: inherit; padding: 16px; border-left: 4px solid #0B3C5D;">
+                <strong>📊 Tabla ISR RESICO</strong>
+                <p class="text-muted small mb-0 mt-1">Aplica a régimen 626 - Régimen Simplificado de Confianza (persona física). Tasas aproximadas por ingreso mensual.</p>
+            </a>
         </div>
     </div>
 </div>

@@ -5,7 +5,7 @@
 <title>{{ $es_reporte_cobranza ? 'Reporte de Cobranza' : 'Estado de Cuenta' }} - {{ $cliente->nombre }}</title>
 <style>
 @page { margin: 15mm 20mm 15mm 20mm; size: letter; }
-body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #1F2937; }
+body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
 .header { border-bottom: 3px solid #0B3C5D; padding-bottom: 10px; margin-bottom: 15px; }
 .section-title { font-weight: bold; border-bottom: 2px solid #0B3C5D; margin-bottom: 6px; padding-bottom: 2px; }
 .info-box { border: 1px solid #E5E7EB; padding: 10px; margin-bottom: 12px; font-size: 8pt; }

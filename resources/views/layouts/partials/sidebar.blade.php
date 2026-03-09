@@ -43,6 +43,24 @@
         </div>
         @endcan
 
+        {{-- Reportes (dropdown) --}}
+        @can('dashboard.ver')
+        @php $repHasActive = request()->routeIs('reportes.*'); @endphp
+        <div class="sidebar-dropdown {{ $repHasActive ? 'open' : '' }}">
+            <button type="button" class="sidebar-dropdown-trigger {{ $repHasActive ? 'active' : '' }}" data-dropdown="reportes" title="Reportes">
+                <span class="sidebar-menu-icon">📊</span>
+                <span class="sidebar-menu-text">Reportes</span>
+                <span class="sidebar-dropdown-chevron">▼</span>
+            </button>
+            <ul class="sidebar-dropdown-menu">
+                <li><a href="{{ route('reportes.fiscal') }}" class="sidebar-menu-link {{ request()->routeIs('reportes.fiscal') ? 'active' : '' }}" title="Reporte fiscal"><span class="sidebar-menu-icon">📑</span><span class="sidebar-menu-text">Reporte fiscal</span></a></li>
+                <li><a href="{{ route('reportes.ventas') }}" class="sidebar-menu-link {{ request()->routeIs('reportes.ventas') ? 'active' : '' }}" title="Ventas mensuales"><span class="sidebar-menu-icon">💰</span><span class="sidebar-menu-text">Ventas mensuales</span></a></li>
+                <li><a href="{{ route('reportes.compras') }}" class="sidebar-menu-link {{ request()->routeIs('reportes.compras') ? 'active' : '' }}" title="Compras"><span class="sidebar-menu-icon">🛒</span><span class="sidebar-menu-text">Compras</span></a></li>
+                <li><a href="{{ route('reportes.utilidad') }}" class="sidebar-menu-link {{ request()->routeIs('reportes.utilidad') ? 'active' : '' }}" title="Utilidad"><span class="sidebar-menu-icon">📈</span><span class="sidebar-menu-text">Utilidad</span></a></li>
+            </ul>
+        </div>
+        @endcan
+
         {{-- Facturación (dropdown) --}}
         @php
             $factHasActive = request()->routeIs('catalogos-sat.*') || request()->routeIs('facturas.*') || request()->routeIs('cotizaciones.*') || request()->routeIs('listas-precios.*') || request()->routeIs('complementos.*') || request()->routeIs('remisiones.*') || request()->routeIs('devoluciones.*') || request()->routeIs('notas-credito.*');

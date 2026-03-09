@@ -156,6 +156,7 @@ class NotaCreditoController extends Controller
                 'total' => $total,
                 'motivo_cfdi' => $validated['motivo_cfdi'],
                 'uuid_referencia' => $factura->uuid,
+                'tipo_relacion' => '01',
                 'observaciones' => $validated['observaciones'] ?? null,
                 'usuario_id' => auth()->id(),
             ]);
@@ -263,6 +264,8 @@ class NotaCreditoController extends Controller
 
             $pdfPath = $this->pdfService->generarNotaCreditoPDF($notaCredito);
             $notaCredito->update(['pdf_path' => $pdfPath]);
+
+            $notaCredito->cliente->actualizarSaldo();
 
             DB::commit();
 

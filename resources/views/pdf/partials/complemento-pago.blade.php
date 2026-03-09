@@ -19,7 +19,7 @@
             <strong>Lugar de expedición:</strong> {{ $c->lugar_expedicion ?? '-' }}
             @if($c->uuid)
             <div style="margin-top:8px;"><strong>Folio fiscal (UUID):</strong><br>
-                <span class="timbrado-value" style="font-size:6pt; word-break:break-all;">{{ $c->uuid }}</span>
+                <span class="timbrado-value" style="font-size:6.5pt; word-break:break-all;">{{ $c->uuid }}</span>
             </div>
             @endif
         </div>
@@ -73,7 +73,7 @@
     <tr>
         <td>
             {{ $doc->serie ?? '' }} {{ $doc->folio }}<br>
-            <span style="font-size:6pt; color:#6B7280;">{{ $doc->factura_uuid ?? '' }}</span>
+            <span style="font-size:6.5pt; color:#6B7280;">{{ $doc->factura_uuid ?? '' }}</span>
         </td>
         <td class="center">{{ $doc->parcialidad }}</td>
         <td class="right">${{ number_format($saldoAnterior, 2) }}</td>

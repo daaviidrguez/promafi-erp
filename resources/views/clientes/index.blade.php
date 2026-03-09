@@ -85,8 +85,8 @@ $breadcrumbs = [
                 </td>
                 <td class="td-right text-mono">${{ number_format($cliente->limite_credito, 2, '.', ',') }}</td>
                 <td class="td-right text-mono fw-600"
-                    style="color: {{ $cliente->saldo_actual > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}">
-                    ${{ number_format($cliente->saldo_actual, 2, '.', ',') }}
+                    style="color: {{ $cliente->saldo_actual_coherente > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}">
+                    ${{ number_format($cliente->saldo_actual_coherente, 2, '.', ',') }}
                 </td>
                 <td class="td-center">
                     @if($cliente->activo)

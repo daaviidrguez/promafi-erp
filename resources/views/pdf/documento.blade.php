@@ -7,12 +7,14 @@
 /* =====================
    PÁGINA
 ===================== */
-@page { margin: 15mm 20mm 15mm 20mm; size: letter; }
+@page { margin: 8mm 12mm 8mm 12mm; size: letter; }
 
 body {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 9pt;
+    font-family: DejaVu Sans, Arial, sans-serif;
+    font-size: 7.5pt;
     color: #1F2937;
+    margin: 0;
+    padding: 0;
 }
 
 /* =====================
@@ -20,26 +22,27 @@ body {
 ===================== */
 .header {
     border-bottom: 3px solid #0B3C5D;
-    padding-bottom: 10px;
-    margin-bottom: 15px;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
 }
 
 /* =====================
    INFO CLIENTE
 ===================== */
 .section-title {
+    font-size: 8pt;
     font-weight: bold;
     border-bottom: 2px solid #0B3C5D;
-    margin-bottom: 6px;
-    padding-bottom: 2px;
+    margin-bottom: 2px;
+    padding-bottom: 1px;
 }
 
 .info-box {
     border: 1px solid #E5E7EB;
-    padding: 10px;
-    margin-bottom: 15px;
-    font-size: 8pt;
-    line-height: 1.35;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    font-size: 7.5pt;
+    line-height: 1.25;
     vertical-align: top;
 }
 
@@ -49,7 +52,7 @@ body {
 .productos-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin-top: 2px;
 }
 
 .productos-table thead {
@@ -59,8 +62,8 @@ body {
 
 .productos-table th,
 .productos-table td {
-    padding: 6px 10px;
-    font-size: 8pt;
+    padding: 3px 8px;
+    font-size: 7.5pt;
     border-bottom: 1px solid #E5E7EB;
 }
 
@@ -90,12 +93,13 @@ body {
 .totales-table {
     width: 40%;
     margin-left: auto;
-    margin-top: 15px;
+    margin-top: 4px;
     border-collapse: collapse;
 }
 
 .totales-table td {
-    padding: 6px 10px;
+    padding: 3px 8px;
+    font-size: 7.5pt;
 }
 
 .totales-table td:first-child {
@@ -117,47 +121,37 @@ body {
    FOOTER — fijo en todas las páginas
 ===================== */
 .footer {
-    margin-top: 20px;
-    padding-top: 10px;
+    margin-top: 6px;
+    padding-top: 4px;
     border-top: 3px solid #0B3C5D;
-    font-size: 8pt;
+    font-size: 7.5pt;
     page-break-inside: avoid;
 }
 
 /* Caja datos bancarios */
 .banco-box {
     border: 1px solid #93C5FD;
-    padding: 7px 10px;
-    margin-bottom: 6px;
+    padding: 4px 8px;
+    margin-bottom: 2px;
 }
 .banco-box-titulo {
     font-weight: bold;
     font-size: 8pt;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 /* Condiciones de pago */
 .condiciones-box {
-    margin-bottom: 6px;
-    font-size: 8pt;
+    margin-bottom: 3px;
+    font-size: 7.5pt;
 }
 
-/* Pie de agradecimiento */
-.footer-gracias {
-    text-align: center;
-    font-size: 8pt;
-}
-.footer-gracias strong {
-    font-size: 9pt;
-}
-
-/* =====================
-   TIMBRADO (factura)
-===================== */
-.timbrado-section { border: 1px solid #E5E7EB; padding: 8px; margin-bottom: 6px; }
-.timbrado-label   { font-weight: bold; font-size: 7pt; margin-bottom: 2px; }
-.timbrado-value   { font-size: 6pt; font-family: monospace; word-break: break-all; line-height: 1.3; }
+.timbrado-section { border: 1px solid #E5E7EB; padding: 4px 6px; margin-bottom: 2px; }
+.timbrado-label   { font-weight: bold; font-size: 7pt; margin-bottom: 1px; }
+.timbrado-value   { font-size: 6.5pt; font-family: DejaVu Sans Mono, monospace; word-break: break-all; line-height: 1.2; }
 .qr-placeholder   { width: 80px; height: 80px; border: 2px dashed #D1D5DB; }
+.pagare-box       { font-size: 6.5pt; line-height: 1.3; margin-bottom: 4px; }
+.sello-receptor-box { border: 2px solid #0B3C5D; padding: 8px; min-height: 70px; text-align: center; font-size: 6.5pt; color: #6B7280; }
 
 </style>
 </head>
@@ -201,8 +195,8 @@ body {
     {{-- COLUMNA IZQUIERDA (58%) --}}
     <td width="58%" valign="top" style="padding-right:12px;">
 
-        {{-- Nombre comercial --}}
-        <div style="font-size:12pt; font-weight:bold; color:#0B3C5D; margin-bottom:6px;">
+        {{-- Nombre comercial (Header empresa: 10-11pt) --}}
+        <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D; margin-bottom:3px;">
             {{ strtoupper($empresa->nombre_comercial ?? $empresa->razon_social) }}
         </div>
 
@@ -215,7 +209,7 @@ body {
             </div>
             @endif
 
-            <div style="display:table-cell; vertical-align:top; font-size:8pt; line-height:1.4;">
+            <div style="display:table-cell; vertical-align:top; font-size:7.5pt; line-height:1.4;">
                 <strong>RFC:</strong> {{ $empresa->rfc }}<br>
                 <strong>Regimen Fiscal:</strong> {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}<br>
                 {{ $empresa->calle ?? '' }} {{ $empresa->numero_exterior ?? '' }}{{ $empresa->numero_interior ? ' Int. ' . $empresa->numero_interior : '' }}<br>
@@ -234,48 +228,40 @@ body {
         <div style="display:block;">
 
             @if($tieneLogo)
-            <div style="margin-bottom:6px;">
+            <div style="margin-bottom:3px;">
                 <img src="{{ $logoDataUri }}" 
                     style="max-height:45px; display:block; margin:0 auto;">
             </div>
             @endif
 
             @if($esFactura)
-            <div style="font-size:9pt; color:#0B3C5D; margin-bottom:2px;">
+            <div style="font-size:8pt; color:#0B3C5D; margin-bottom:1px;">
                 Comprobante Fiscal Digital por Internet
             </div>
-            <div style="font-size:11pt; font-weight:bold;">CFDI 4.0 - Factura</div>
+            <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Factura</div>
             @elseif($esNotaCredito)
-            <div style="font-size:9pt; color:#0B3C5D; margin-bottom:2px;">
+            <div style="font-size:8pt; color:#0B3C5D; margin-bottom:1px;">
                 Comprobante Fiscal Digital por Internet
             </div>
-            <div style="font-size:11pt; font-weight:bold;">CFDI 4.0 - Nota de Crédito</div>
+            <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Nota de Crédito</div>
             @elseif($esComplemento)
-            <div style="font-size:9pt; color:#0B3C5D; margin-bottom:2px;">
+            <div style="font-size:8pt; color:#0B3C5D; margin-bottom:1px;">
                 Comprobante Fiscal Digital por Internet
             </div>
-            <div style="font-size:11pt; font-weight:bold;">CFDI 4.0 - Complemento de Pago</div>
+            <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Complemento de Pago</div>
             @else
-            <div style="font-size:12pt; font-weight:bold; color:#0B3C5D;">
+            <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
                 {{ strtoupper($tipo) }}
             </div>
             @endif
 
-            <div style="font-size:12pt; font-weight:bold; margin-top:2px;">
+            <div style="font-size:10.5pt; font-weight:bold; margin-top:2px;">
                 {{ $doc->serie ?? '' }} {{ $doc->folio }}
             </div>
 
-            @if(($esFactura || $esNotaCredito) && ($doc->uuid ?? null))
+            @if(($esFactura || $esNotaCredito) && ($doc->uuid ?? null) && ($doc->estado ?? '') === 'cancelada')
             <div style="font-weight:bold; margin-top:4px;">
-                @if(($doc->estado ?? '') === 'cancelada')
-                    <span style="color:#DC2626;">CANCELADA</span>
-                @else
-                    <span style="color:#10B981;">TIMBRADO</span>
-                @endif
-            </div>
-            @elseif($esComplemento && ($doc->uuid ?? null))
-            <div style="font-weight:bold; margin-top:4px;">
-                <span style="color:#10B981;">TIMBRADO</span>
+                <span style="color:#DC2626;">CANCELADA</span>
             </div>
             @endif
 
@@ -409,18 +395,23 @@ body {
 @endif
 <tr><td>IVA:</td><td>${{ number_format($doc->iva ?? 0, 2) }}</td></tr>
 <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($doc->total, 2) }} MXN</td></tr>
+<tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">Importe con letra: {{ importeEnLetra((float)($doc->total ?? 0)) }}</td></tr>
 </table>
 @endif
 
 
 {{-- =====================
      FOOTER FIJO
+     (omitido en notas de crédito y complemento de pago)
 ===================== --}}
 <div class="footer">
+@if(!$esNotaCredito && !$esComplemento)
 
-    {{-- Datos bancarios --}}
+@if($esCotizacion)
+{{-- FOOTER COTIZACIÓN: Datos bancarios ancho completo, sin PAGARÉ ni sello, cierre con Gracias por su preferencia --}}
+    {{-- Datos bancarios (ancho completo) --}}
     @if($empresa->banco ?? $empresa->numero_cuenta ?? $empresa->clabe ?? false)
-    <div class="banco-box">
+    <div class="banco-box" style="width: 100%;">
         <div class="banco-box-titulo">DATOS PARA TRANSFERENCIA BANCARIA</div>
         <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
@@ -433,7 +424,6 @@ body {
     @endif
 
     {{-- Condiciones de pago --}}
-    @if($esCotizacion)
     <div class="condiciones-box">
         <strong>CONDICIONES DE PAGO</strong><br>
         <strong>CONDICION:</strong>
@@ -452,28 +442,75 @@ body {
             {!! nl2br(e($doc->condiciones_pago)) !!}
         @endif
     </div>
-    @else
+
+    {{-- Cierre cotización: Gracias por su preferencia (datos de empresa) --}}
+    <div style="text-align: center; margin-top: 12px; padding-top: 8px; font-size: 8pt; line-height: 1.5;">
+        Gracias por su preferencia<br>
+        <strong>{{ $empresa->razon_social ?? '' }}</strong><br>
+        RFC: {{ $empresa->rfc ?? '' }} | {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}
+    </div>
+
+@else
+{{-- FOOTER FACTURA / REMISIÓN: layout original con PAGARÉ y sello --}}
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+    <td width="65%" valign="top" style="padding-right:12px;">
+
+        {{-- Datos bancarios --}}
+        @if($empresa->banco ?? $empresa->numero_cuenta ?? $empresa->clabe ?? false)
+        <div class="banco-box">
+            <div class="banco-box-titulo">DATOS PARA TRANSFERENCIA BANCARIA</div>
+            <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+                <td width="33%"><strong>BANCO:</strong> {{ $empresa->banco ?? '-' }}</td>
+                <td width="33%"><strong>CUENTA:</strong> {{ $empresa->numero_cuenta ?? '-' }}</td>
+                <td width="34%"><strong>CLABE:</strong> {{ $empresa->clabe ?? '-' }}</td>
+            </tr>
+            </table>
+        </div>
+        @endif
+
         @if($doc->condiciones_pago ?? false)
         <div class="condiciones-box">
             <strong>Condiciones:</strong><br>
             {!! nl2br(e($doc->condiciones_pago)) !!}
         </div>
         @endif
-    @endif
+
+        {{-- PAGARÉ (solo factura, NO cotización) --}}
+        @if($esFactura)
+        @php
+            $lugarPagare = trim(($empresa->municipio ?? $empresa->ciudad ?? 'Cárdenas') . ', ' . ($empresa->estado ?? 'Tabasco'));
+            $beneficiarioPagare = strtoupper($empresa->razon_social) . ' (' . ($empresa->rfc ?? '') . ')';
+            $montoPagare = formatMoney($doc->total ?? 0);
+        @endphp
+        <div class="pagare-box">
+            <strong>PAGARÉ:</strong><br>
+            Debo y pagaré incondicionalmente en {{ $lugarPagare }}, a la orden de {{ $beneficiarioPagare }}
+            la cantidad establecida en la presente factura, por un monto de: {{ $montoPagare }} en el plazo estipulado en la misma, que iniciará a partir de
+            esta fecha, por concepto de las mercancías que en este documento se detallan y que recibí a mi entera satisfacción, la firma en
+            cualquier lugar de esta factura. Se entiende que se acepta el presente pagaré por la totalidad que se expresa.
+        </div>
+        @endif
+
+    </td>
+
+    <td width="35%" valign="top">
+        <div class="sello-receptor-box">
+            <strong>Sello de la empresa<br>que recibe el material</strong>
+        </div>
+    </td>
+</tr>
+</table>
+@endif
+@endif
 
     {{-- Nota CFDI (leyenda completa ya está en el bloque CFDI 4.0 de factura) --}}
     @if($esFactura && !($doc->uuid ?? null))
-    <div style="margin-bottom:4px; font-size:7pt; color:#B45309; text-align:center;">
+    <div style="margin-top:4px; margin-bottom:4px; font-size:7pt; color:#B45309; text-align:center;">
         Documento en borrador — no válido como comprobante fiscal.
     </div>
     @endif
-
-    {{-- Agradecimiento --}}
-    <div class="footer-gracias">
-        <strong>Gracias por su preferencia</strong><br>
-        {{ $empresa->razon_social }}<br>
-        RFC: {{ $empresa->rfc }} | {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '-' }}
-    </div>
 
 </div>
 {{-- /FOOTER --}}

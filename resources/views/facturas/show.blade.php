@@ -253,8 +253,19 @@ $breadcrumbs = [
                 @endif
 
                 @if($factura->estaTimbrada())
-                <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
-                <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Emitir nota de crédito</a>
+                    @php $facturaPagada = $factura->cuentaPorCobrar && $factura->cuentaPorCobrar->saldo_pendiente_real <= 0; @endphp
+                    @if($facturaPagada)
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">↩️ Registrar devolución</button>
+                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">Emitir nota de crédito</button>
+                        <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                            No se puede registrar devolución ni emitir nota de crédito porque la factura ya fue pagada (saldo en cero).
+                        </div>
+                    </div>
+                    @else
+                    <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
+                    <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Emitir nota de crédito</a>
+                    @endif
                 @endif
 
                 <a href="{{ route('facturas.index') }}" class="btn btn-light w-full">← Volver</a>

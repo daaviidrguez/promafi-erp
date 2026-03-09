@@ -129,8 +129,20 @@ class Cliente extends Model
             return false;
         }
 
-        $disponible = $this->limite_credito - $this->saldo_actual;
+        $disponible = $this->limite_credito - $this->saldo_actual_coherente;
         return $disponible >= $monto;
+    }
+
+    /**
+     * Saldo actual coherente con Cuentas por Cobrar (excluye factura borrador, usa saldo_pendiente_real).
+     */
+    public function getSaldoActualCoherenteAttribute(): float
+    {
+        return $this->cuentasPorCobrar()
+            ->excluirFacturaBorrador()
+            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+            ->get()
+            ->sum(fn ($c) => $c->saldo_pendiente_real);
     }
 
     /**
@@ -138,10 +150,7 @@ class Cliente extends Model
      */
     public function actualizarSaldo(): void
     {
-        $this->saldo_actual = $this->cuentasPorCobrar()
-            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->sum('monto_pendiente');
-        
+        $this->saldo_actual = $this->saldo_actual_coherente;
         $this->save();
     }
 

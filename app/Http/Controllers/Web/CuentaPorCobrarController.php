@@ -20,7 +20,8 @@ class CuentaPorCobrarController extends Controller
         $estado = $request->get('estado');
         $cliente_id = $request->get('cliente_id');
         
-        $cuentas = CuentaPorCobrar::with(['cliente', 'factura'])
+        $baseQuery = CuentaPorCobrar::with(['cliente', 'factura'])
+            ->excluirFacturaBorrador()
             ->when($estado, function($query) use ($estado) {
                 if ($estado === 'vencidas') {
                     $query->vencidas();
@@ -30,15 +31,19 @@ class CuentaPorCobrarController extends Controller
             })
             ->when($cliente_id, function($query) use ($cliente_id) {
                 $query->where('cliente_id', $cliente_id);
-            })
-            ->orderBy('fecha_vencimiento', 'asc')
-            ->paginate(20);
+            });
 
-        // Calcular totales
+        $cuentas = (clone $baseQuery)->orderBy('fecha_vencimiento', 'asc')->paginate(20);
+
+        // Totales coherentes con saldo_pendiente_real (factura show, complemento, dashboard)
+        $cuentasParaTotales = CuentaPorCobrar::with(['cliente', 'factura'])
+            ->excluirFacturaBorrador()
+            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+            ->get();
         $totales = [
-            'pendiente' => CuentaPorCobrar::pendientes()->sum('monto_pendiente'),
-            'vencido' => CuentaPorCobrar::vencidas()->sum('monto_pendiente'),
-            'pagado' => CuentaPorCobrar::where('estado', 'pagada')->sum('monto_pagado'),
+            'pendiente' => $cuentasParaTotales->sum(fn ($c) => $c->saldo_pendiente_real),
+            'vencido' => $cuentasParaTotales->filter(fn ($c) => $c->estaVencida())->sum(fn ($c) => $c->saldo_pendiente_real),
+            'pagado' => CuentaPorCobrar::excluirFacturaBorrador()->where('estado', 'pagada')->sum('monto_pagado'),
         ];
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();

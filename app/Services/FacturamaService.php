@@ -28,6 +28,23 @@ class FacturamaService
     }
 
     /**
+     * Cliente HTTP con auth y opciones SSL (evita cURL error 60 en producción).
+     */
+    protected function http(): \Illuminate\Http\Client\PendingRequest
+    {
+        $verify = config('services.facturama.verify', true);
+        if (is_string($verify) && strtolower($verify) === 'false') {
+            $verify = false;
+        } elseif (is_string($verify) && $verify !== '' && file_exists($verify)) {
+            // Ruta a cacert.pem
+        } else {
+            $verify = true;
+        }
+        return Http::withBasicAuth($this->user, $this->password)
+            ->withOptions(['verify' => $verify]);
+    }
+
+    /**
      * Timbrar factura enviando el CFDI a Facturama.
      *
      * @return array ['success' => bool, 'uuid' => string, 'xml' => string, 'fecha_timbrado' => Carbon, 'no_certificado_sat' => string, 'sello_cfdi' => string, 'sello_sat' => string, 'cadena_original' => string, 'message' => string]
@@ -46,7 +63,7 @@ class FacturamaService
             ];
         }
 
-        $response = Http::withBasicAuth($this->user, $this->password)
+        $response = $this->http()
             ->acceptJson()
             ->timeout(30)
             ->post($this->baseUrl . '/3/cfdis', $body);
@@ -126,7 +143,7 @@ class FacturamaService
         $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
         $xml = null;
 
-        $xmlResponse = Http::withBasicAuth($this->user, $this->password)
+        $xmlResponse = $this->http()
             ->acceptJson()
             ->timeout(15)
             ->get($this->baseUrl . '/cfdi/xml/issued/' . $cfdiId);
@@ -256,7 +273,7 @@ class FacturamaService
             ],
         ];
 
-        $response = Http::withBasicAuth($this->user, $this->password)
+        $response = $this->http()
             ->acceptJson()
             ->timeout(30)
             ->post($this->baseUrl . '/3/cfdis', $body);
@@ -311,7 +328,7 @@ class FacturamaService
 
         $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
         $xml = null;
-        $xmlResponse = Http::withBasicAuth($this->user, $this->password)
+        $xmlResponse = $this->http()
             ->acceptJson()
             ->timeout(15)
             ->get($this->baseUrl . '/cfdi/xml/issued/' . $cfdiId);
@@ -439,7 +456,7 @@ class FacturamaService
 
         $url = $this->baseUrl . '/cfdi/' . $cfdiId . '?' . http_build_query($params);
 
-        $response = Http::withBasicAuth($this->user, $this->password)
+        $response = $this->http()
             ->acceptJson()
             ->timeout(30)
             ->delete($url);
@@ -522,7 +539,7 @@ class FacturamaService
     protected function obtenerCfdiIdPorUuid(string $uuid): ?string
     {
         $url = $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=active&invoiceType=issued&page=1';
-        $response = Http::withBasicAuth($this->user, $this->password)
+        $response = $this->http()
             ->acceptJson()
             ->timeout(15)
             ->get($url);
@@ -814,7 +831,7 @@ class FacturamaService
             $body['Observations'] = mb_substr(trim($notaCredito->observaciones), 0, 1000);
         }
 
-        $response = Http::withBasicAuth($this->user, $this->password)
+        $response = $this->http()
             ->acceptJson()
             ->timeout(30)
             ->post($this->baseUrl . '/3/cfdis', $body);
@@ -843,7 +860,7 @@ class FacturamaService
 
         $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
         $xml = null;
-        $xmlRes = Http::withBasicAuth($this->user, $this->password)
+        $xmlRes = $this->http()
             ->acceptJson()
             ->timeout(15)
             ->get($this->baseUrl . '/cfdi/xml/issued/' . $cfdiId);

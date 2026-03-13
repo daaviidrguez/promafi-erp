@@ -334,9 +334,16 @@ class EmpresaController extends Controller
             }
             try {
                 $baseUrl = rtrim($empresa->facturama_base_url, '/');
+                $verify = config('services.facturama.verify', true);
+                if (is_string($verify) && strtolower($verify) === 'false') {
+                    $verify = false;
+                } elseif (!is_string($verify) || $verify === '' || !file_exists($verify)) {
+                    $verify = true;
+                }
+                $http = \Illuminate\Support\Facades\Http::withBasicAuth($user, $pass)
+                    ->withOptions(['verify' => $verify]);
                 // API Web: GET /TaxEntity obtiene el perfil fiscal (doc: https://apisandbox.facturama.mx/docs/api/GET-TaxEntity)
-                $response = \Illuminate\Support\Facades\Http::withBasicAuth($user, $pass)
-                    ->acceptJson()
+                $response = $http->acceptJson()
                     ->timeout(15)
                     ->get($baseUrl . '/TaxEntity');
                 if ($response->successful()) {

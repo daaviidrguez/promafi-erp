@@ -39,16 +39,18 @@ return [
     |--------------------------------------------------------------------------
     | Facturama / cURL SSL
     |--------------------------------------------------------------------------
-    | Error 60 "unable to get local issuer certificate" ocurre cuando el
-    | servidor no tiene el bundle de CA para verificar SSL.
+    | Error 60 "unable to get local issuer certificate" ocurre cuando PHP no
+    | encuentra el bundle de CA para verificar certificados SSL.
     |
-    | Opciones:
-    | - CURL_CA_BUNDLE vacío: usa el default del sistema
-    | - CURL_CA_BUNDLE=/ruta/cacert.pem: usa ese archivo (descarga de curl.se/ca/cacert.pem)
-    | - CURL_CA_BUNDLE=false: desactiva verificación SSL (solo si no hay otra opción)
+    | Opciones para CURL_CA_BUNDLE:
+    | - No definido: prueba automáticamente rutas del sistema (RHEL, Debian, etc.)
+    | - /etc/pki/tls/certs/ca-bundle.crt: RHEL/CentOS/Fedora (recomendado)
+    | - /etc/ssl/certs/ca-certificates.crt: Debian/Ubuntu
+    | - /ruta/cacert.pem: archivo descargado de curl.se/ca/cacert.pem
+    | - false: desactiva verificación SSL (solo si no hay otra opción)
     */
     'facturama' => [
-        'verify' => env('CURL_CA_BUNDLE', true),
+        'verify' => env('CURL_CA_BUNDLE'),
     ],
 
 ];

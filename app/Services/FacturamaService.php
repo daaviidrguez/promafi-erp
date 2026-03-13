@@ -29,17 +29,36 @@ class FacturamaService
 
     /**
      * Cliente HTTP con auth y opciones SSL (evita cURL error 60 en producción).
+     * Usa CURL_CA_BUNDLE del .env o detecta automáticamente el bundle del sistema.
      */
     protected function http(): \Illuminate\Http\Client\PendingRequest
     {
-        $verify = config('services.facturama.verify', true);
+        $verify = config('services.facturama.verify');
+
         if (is_string($verify) && strtolower($verify) === 'false') {
             $verify = false;
         } elseif (is_string($verify) && $verify !== '' && file_exists($verify)) {
-            // Ruta a cacert.pem
+            // Ruta explícita en .env (ej. /etc/pki/tls/certs/ca-bundle.crt)
+        } elseif ($verify === null || $verify === '') {
+            // Detección automática: rutas comunes del CA bundle del sistema
+            $paths = [
+                '/etc/pki/tls/certs/ca-bundle.crt',      // RHEL/CentOS/Fedora
+                '/etc/ssl/certs/ca-certificates.crt',    // Debian/Ubuntu
+                '/etc/ssl/cert.pem',                     // macOS
+            ];
+            foreach ($paths as $p) {
+                if (file_exists($p)) {
+                    $verify = $p;
+                    break;
+                }
+            }
+            if ($verify === null || $verify === '') {
+                $verify = true; // Default de cURL
+            }
         } else {
             $verify = true;
         }
+
         return Http::withBasicAuth($this->user, $this->password)
             ->withOptions(['verify' => $verify]);
     }

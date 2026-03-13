@@ -1,6 +1,15 @@
-{{-- Complemento de Pago: receptor, pagos recibidos, documentos relacionados (facturas pagadas) --}}
+{{-- Complemento de Pago: receptor, pagos recibidos, documentos relacionados (facturas pagadas) - SAT 2026 --}}
 @php
     $c = $doc;
+    $e = $empresa ?? null;
+    $fechaEmision = $c->fecha_emision ? \Carbon\Carbon::parse($c->fecha_emision) : null;
+    $fechaTimbrado = $c->fecha_timbrado ? \Carbon\Carbon::parse($c->fecha_timbrado) : null;
+    $primerPago = ($c->pagosRecibidos ?? collect())->first();
+    $formaPagoEtiqueta = $primerPago ? (\App\Models\FormaPago::where('clave', $primerPago->forma_pago)->first()?->etiqueta ?? $primerPago->forma_pago) : '-';
+    $regimenReceptorEtiqueta = '-';
+    if ($c->cliente && $c->cliente->regimen_fiscal) {
+        $regimenReceptorEtiqueta = \App\Models\RegimenFiscal::where('clave', $c->cliente->regimen_fiscal)->first()?->etiqueta ?? $c->cliente->regimen_fiscal;
+    }
 @endphp
 
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
@@ -9,18 +18,31 @@
         <div class="info-box">
             <div class="section-title">RECEPTOR</div>
             <strong>RFC:</strong> {{ $c->rfc_receptor }}<br>
-            <strong>Nombre:</strong> {{ $c->nombre_receptor }}
+            <strong>Nombre:</strong> {{ $c->nombre_receptor }}<br>
+            <strong>Uso CFDI:</strong> CP01 - Pagos<br>
+            <strong>Régimen fiscal:</strong> {{ $regimenReceptorEtiqueta }}<br>
+            <strong>Domicilio fiscal:</strong> C.P. {{ optional($c->cliente)->codigo_postal ?? '-' }}
         </div>
     </td>
     <td width="50%" valign="top">
         <div class="info-box">
             <div class="section-title">DATOS DEL COMPROBANTE</div>
-            <strong>Fecha de pago (emisión):</strong> {{ $c->fecha_emision ? \Carbon\Carbon::parse($c->fecha_emision)->format('d/m/Y H:i') : '-' }}<br>
-            <strong>Lugar de expedición:</strong> {{ $c->lugar_expedicion ?? '-' }}
+            <strong>Serie / Folio:</strong> {{ $c->serie ?? '' }} {{ $c->folio }}<br>
+            <strong>Fecha y hora de expedición:</strong> {{ $fechaEmision ? $fechaEmision->format('d/m/Y H:i:s') : '-' }}<br>
+            <strong>Lugar de expedición:</strong> {{ $c->lugar_expedicion ?? ($e->codigo_postal ?? '-') }}<br>
+            <strong>Forma de pago:</strong> {{ $formaPagoEtiqueta }}<br>
+            <strong>Moneda:</strong> XXX<br>
+            <strong>Tipo de comprobante:</strong> Pago (P)<br>
+            <strong>Versión:</strong> CFDI 4.0 / Complemento de pago 2.0<br>
             @if($c->uuid)
-            <div style="margin-top:8px;"><strong>Folio fiscal (UUID):</strong><br>
-                <span class="timbrado-value" style="font-size:6.5pt; word-break:break-all;">{{ $c->uuid }}</span>
-            </div>
+            <strong>Folio fiscal (UUID):</strong><br>
+            <span class="timbrado-value" style="font-size:6.5pt; word-break:break-all;">{{ $c->uuid }}</span><br>
+            @endif
+            @if($e && ($e->no_certificado ?? null))
+            <strong>No. de serie del certificado del emisor:</strong> {{ $e->no_certificado }}<br>
+            @endif
+            @if($fechaTimbrado)
+            <strong>Fecha y hora de certificación:</strong> {{ $fechaTimbrado->format('d/m/Y H:i:s') }}<br>
             @endif
         </div>
     </td>
@@ -39,10 +61,13 @@
 </thead>
 <tbody>
 @foreach($c->pagosRecibidos ?? [] as $pago)
+@php
+    $formaEtiqueta = \App\Models\FormaPago::where('clave', $pago->forma_pago)->first()?->etiqueta ?? $pago->forma_pago;
+@endphp
 <tr>
     <td>{{ $pago->fecha_pago ? \Carbon\Carbon::parse($pago->fecha_pago)->format('d/m/Y') : '-' }}</td>
-    <td>{{ $pago->forma_pago }}</td>
-    <td class="center">{{ $pago->moneda ?? 'MXN' }}</td>
+    <td>{{ $formaEtiqueta }}</td>
+    <td class="center">{{ $pago->moneda ?? 'MXN' }}{{ ($pago->moneda ?? 'MXN') !== 'MXN' && $pago->tipo_cambio ? ' (T.C. ' . number_format((float)$pago->tipo_cambio, 4, '.', ',') . ')' : '' }}</td>
     <td class="right">${{ number_format($pago->monto, 2) }}</td>
 </tr>
 @endforeach
@@ -59,16 +84,43 @@
     <th class="right">Saldo anterior</th>
     <th class="right">Monto pagado</th>
     <th class="right">Saldo insoluto</th>
+    <th class="right">Impuestos</th>
 </tr>
 </thead>
 <tbody>
 @foreach($c->pagosRecibidos ?? [] as $pago)
     @foreach($pago->documentosRelacionados ?? [] as $doc)
     @php
-        $cuenta = $doc->factura->cuentaPorCobrar ?? null;
+        $facturaDoc = $doc->factura ?? null;
+        $cuenta = $facturaDoc ? $facturaDoc->cuentaPorCobrar : null;
         $saldoActual = $cuenta ? (float) $cuenta->saldo_pendiente_real : 0;
         $saldoAnterior = $saldoActual + (float) $doc->monto_pagado;
         $saldoInsoluto = $saldoActual;
+
+        $impuestosTraslados = 0;
+        $impuestosRetenciones = 0;
+        if ($facturaDoc) {
+            foreach ($facturaDoc->detalles ?? [] as $d) {
+                foreach ($d->impuestos ?? [] as $imp) {
+                    if (($imp->tipo ?? 'traslado') === 'retencion') {
+                        $impuestosRetenciones += (float) ($imp->importe ?? 0);
+                    } else {
+                        $impuestosTraslados += (float) ($imp->importe ?? 0);
+                    }
+                }
+            }
+        }
+        $impuestosTexto = '-';
+        if ($impuestosTraslados > 0 || $impuestosRetenciones > 0) {
+            $partes = [];
+            if ($impuestosTraslados > 0) {
+                $partes[] = '$' . number_format($impuestosTraslados, 2);
+            }
+            if ($impuestosRetenciones > 0) {
+                $partes[] = '<span style="font-size:6.5pt; color:#6B7280;">Ret: -$' . number_format($impuestosRetenciones, 2) . '</span>';
+            }
+            $impuestosTexto = implode('<br>', $partes);
+        }
     @endphp
     <tr>
         <td>
@@ -79,6 +131,7 @@
         <td class="right">${{ number_format($saldoAnterior, 2) }}</td>
         <td class="right">${{ number_format($doc->monto_pagado, 2) }}</td>
         <td class="right">${{ number_format($saldoInsoluto, 2) }}</td>
+        <td class="right">{!! $impuestosTexto !!}</td>
     </tr>
     @endforeach
 @endforeach

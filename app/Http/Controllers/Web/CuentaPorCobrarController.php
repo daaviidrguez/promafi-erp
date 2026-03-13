@@ -62,6 +62,7 @@ class CuentaPorCobrarController extends Controller
             'factura.documentosRelacionadosPago.pagoRecibido.complementoPago',
         ]);
         $formasPago = FormaPago::activos()->get();
-        return view('cuentas-cobrar.show', compact('cuentaPorCobrar', 'formasPago'));
+        $complementoBorrador = \App\Models\ComplementoPago::where('cliente_id', $cuentaPorCobrar->cliente_id)->where('estado', 'borrador')->first();
+        return view('cuentas-cobrar.show', compact('cuentaPorCobrar', 'formasPago', 'complementoBorrador'));
     }
 }

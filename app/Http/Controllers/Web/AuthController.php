@@ -20,7 +20,7 @@ class AuthController extends Controller
     public function showLogin()
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return $this->redirectAfterLogin();
         }
 
         $empresa = Empresa::principal();
@@ -39,7 +39,8 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
-            return redirect()->intended(route('dashboard'));
+            $defaultUrl = Auth::user()->isVendedor() ? route('cotizaciones.index') : route('dashboard');
+            return redirect()->intended($defaultUrl);
         }
 
         return back()->withErrors([
@@ -57,5 +58,17 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
         
         return redirect()->route('login');
+    }
+
+    /**
+     * Redirección según rol. Vendedor va a Facturación (cotizaciones), resto al dashboard.
+     */
+    protected function redirectAfterLogin()
+    {
+        $user = Auth::user();
+        if ($user && $user->isVendedor()) {
+            return redirect()->route('cotizaciones.index');
+        }
+        return redirect()->route('dashboard');
     }
 }

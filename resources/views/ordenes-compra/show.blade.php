@@ -78,15 +78,29 @@ $breadcrumbs = [
                 @elseif($ordenCompra->estado === 'aceptada')
                 <span class="badge badge-info" style="font-size:14px;">Aceptada</span>
                 <p style="margin-top:12px;font-size:13px;">Recibe la mercancía para registrar la entrada de inventario.</p>
-                @else
+                @elseif($ordenCompra->estado === 'recibida')
                 <span class="badge badge-success" style="font-size:14px;">Recibida</span>
                 <p style="margin-top:12px;font-size:13px;">Entrada de inventario registrada.</p>
+                @elseif($ordenCompra->estado === 'cancelada')
+                <span class="badge badge-danger" style="font-size:14px;">Cancelada</span>
+                <p style="margin-top:12px;font-size:13px;">Orden cancelada. La cuenta por pagar asociada también fue cancelada.</p>
                 @endif
             </div>
         </div>
         <div class="card">
-            <div class="card-header"><div class="card-title">Acciones</div></div>
+            <div class="card-header"><div class="card-title">⚡ Acciones</div></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+
+                <a href="{{ route('ordenes-compra.ver-pdf', $ordenCompra->id) }}"
+                   target="_blank" class="btn btn-outline w-full">👁️ Ver PDF</a>
+
+                <a href="{{ route('ordenes-compra.descargar-pdf', $ordenCompra->id) }}"
+                   class="btn btn-outline w-full">📄 Descargar PDF</a>
+
+                @if($ordenCompra->puedeEditarse())
+                <a href="{{ route('ordenes-compra.edit', $ordenCompra->id) }}" class="btn btn-primary w-full">✏️ Editar</a>
+                @endif
+
                 @if($ordenCompra->puedeAceptarse())
                 <form method="POST" action="{{ route('ordenes-compra.aceptar', $ordenCompra->id) }}" style="margin:0;">
                     @csrf
@@ -99,9 +113,18 @@ $breadcrumbs = [
                     <button type="submit" class="btn btn-primary w-full">📥 Recibir mercancía (entrada inventario)</button>
                 </form>
                 @endif
-                @if($ordenCompra->cuentaPorPagar)
+                @if($ordenCompra->cuentaPorPagar && $ordenCompra->estado !== 'cancelada')
                 <a href="{{ route('cuentas-por-pagar.show', $ordenCompra->cuentaPorPagar->id) }}" class="btn btn-outline w-full">💳 Ver cuenta por pagar</a>
                 @endif
+
+                @if($ordenCompra->puedeCancelarse())
+                <form method="POST" action="{{ route('ordenes-compra.destroy', $ordenCompra->id) }}" style="margin:0;" onsubmit="return confirm('¿Cancelar esta orden de compra? Se cancelará la orden y la cuenta por pagar asociada.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger w-full">🗑️ Cancelar</button>
+                </form>
+                @endif
+
                 <a href="{{ route('ordenes-compra.index') }}" class="btn btn-light w-full">← Volver</a>
             </div>
         </div>

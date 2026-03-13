@@ -23,11 +23,17 @@ class InventarioController extends Controller
         return view('inventario.index', compact('productos', 'search', 'bajoStock'));
     }
 
+    public function showMovimiento(InventarioMovimiento $movimiento)
+    {
+        $movimiento->load(['producto', 'usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra']);
+        return view('inventario.show-movimiento', compact('movimiento'));
+    }
+
     public function movimientos(Request $request)
     {
         $productoId = $request->get('producto_id');
         $tipo = $request->get('tipo');
-        $query = InventarioMovimiento::with(['producto', 'usuario', 'factura', 'remision', 'ordenCompra'])
+        $query = InventarioMovimiento::with(['producto', 'usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])
             ->when($productoId, fn ($q) => $q->where('producto_id', $productoId))
             ->when($tipo, fn ($q) => $q->where('tipo', $tipo))
             ->orderByDesc('created_at');
@@ -64,6 +70,7 @@ class InventarioController extends Controller
                 null,
                 null,
                 null,
+                null,
                 $validated['observaciones'] ?? null
             );
             $mensaje = $validated['tipo'] === 'entrada_manual' ? 'Entrada de inventario registrada' : 'Salida de inventario registrada';
@@ -79,7 +86,7 @@ class InventarioController extends Controller
             return redirect()->route('inventario.index')->with('error', 'El producto no controla inventario');
         }
         $producto->load('categoria');
-        $movimientos = $producto->movimientos()->with(['usuario', 'factura', 'remision', 'ordenCompra'])->paginate(20);
+        $movimientos = $producto->movimientos()->with(['usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])->paginate(20);
         return view('inventario.show-producto', compact('producto', 'movimientos'));
     }
 }

@@ -3,9 +3,11 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Elimina datos transaccionales de la BD.
@@ -19,11 +21,17 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
     protected $description = 'Elimina facturas, cotizaciones, complementos, cuentas por cobrar/pagar, órdenes de compra, etc. Mantiene configuración, clientes, productos, proveedores, usuarios y roles.';
 
-    /** Tablas a vaciar, en orden para respetar FKs (hijos antes que padres). */
+    /**
+     * Tablas a vaciar, en orden para respetar FKs (hijos antes que padres).
+     * Mantiene: empresas, clientes, cliente_contactos, productos, categorias_productos,
+     * proveedores, users, roles, permissions, permission_role, catálogos SAT, isr_resico_tasas.
+     */
     private array $tablasALimpiar = [
+        // Complementos de pago
         'documentos_relacionados_pago',
         'pagos_recibidos',
         'complementos_pago',
+        // Cuentas y facturación
         'cuentas_por_cobrar',
         'notas_credito_impuestos',
         'notas_credito_detalle',
@@ -33,10 +41,12 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'facturas_impuestos',
         'facturas_detalle',
         'facturas',
+        // Listas de precios y cotizaciones
         'listas_precios_detalle',
         'listas_precios',
         'cotizaciones_detalle',
         'cotizaciones',
+        // Remisiones y compras
         'remisiones_detalle',
         'remisiones',
         'ordenes_compra_detalle',
@@ -44,8 +54,14 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'cuentas_por_pagar',
         'cotizaciones_compra_detalle',
         'cotizaciones_compra',
+        // Inventario y sugerencias
         'inventario_movimientos',
+        // Facturas de compra (módulo Compras)
+        'facturas_compra_impuestos',
+        'facturas_compra_detalle',
+        'facturas_compra',
         'sugerencias',
+        // Sistema (sessions, cache, jobs)
         'sessions',
         'cache',
         'cache_locks',
@@ -58,7 +74,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
     public function handle(): int
     {
-        if (!$this->option('force') && !$this->confirm('¿Eliminar todos los datos transaccionales? Se mantendrán: configuración (empresa), clientes, productos, proveedores, usuarios y roles.')) {
+        if (!$this->option('force') && !$this->confirm('¿Eliminar todos los datos transaccionales, credenciales Facturama y certificados? Se mantendrán: datos fiscales empresa, clientes, productos, proveedores, usuarios y roles.')) {
             $this->info('Operación cancelada.');
             return self::SUCCESS;
         }
@@ -90,12 +106,59 @@ class LimpiarDatosTransaccionalesCommand extends Command
             $this->line('  ✓ clientes.saldo_actual puesto a 0');
         }
 
+        // Resetear folios, credenciales Facturama y certificados en empresas
+        if (Schema::hasTable('empresas')) {
+            $folios = ['folio_factura', 'folio_factura_credito', 'folio_nota_credito', 'folio_nota_debito', 'folio_complemento', 'folio_cotizacion', 'folio_remision'];
+            $cols = array_filter($folios, fn ($c) => Schema::hasColumn('empresas', $c));
+            $update = !empty($cols) ? array_fill_keys($cols, 1) : [];
+
+            // Eliminar archivos de certificados del storage antes de limpiar la BD
+            $empresas = DB::table('empresas')->get();
+            foreach ($empresas as $e) {
+                foreach (['certificado_cer', 'certificado_key'] as $campo) {
+                    $path = $e->{$campo} ?? null;
+                    if ($path && Storage::disk('local')->exists($path)) {
+                        Storage::disk('local')->delete($path);
+                    }
+                }
+            }
+
+            // Vaciar directorio certificados (por si quedó algo)
+            $certDir = 'certificados';
+            if (Storage::disk('local')->exists($certDir)) {
+                $files = Storage::disk('local')->files($certDir);
+                foreach ($files as $f) {
+                    Storage::disk('local')->delete($f);
+                }
+            }
+
+            // Resetear credenciales Facturama y certificados en BD
+            $colsResetear = [
+                'pac_facturama_user', 'pac_facturama_password',
+                'pac_facturama_user_sandbox', 'pac_facturama_password_sandbox',
+                'pac_facturama_user_production', 'pac_facturama_password_production',
+                'certificado_cer', 'certificado_key', 'certificado_password',
+                'no_certificado', 'certificado_vigencia',
+            ];
+            foreach ($colsResetear as $col) {
+                if (Schema::hasColumn('empresas', $col)) {
+                    $update[$col] = null;
+                }
+            }
+
+            if (!empty($update)) {
+                DB::table('empresas')->update($update);
+                $this->line('  ✓ empresas: folios reseteados, credenciales Facturama y certificados limpiados');
+            }
+        }
+
         // Limpiar PDFs y XMLs de documentos transaccionales en storage
         $dirsStorage = [
             'documentos',
             'notas-credito',
             'facturas',
             'complementos',
+            'cuentas-por-pagar',
         ];
         $baseDir = storage_path('app');
         foreach ($dirsStorage as $dir) {
@@ -106,8 +169,18 @@ class LimpiarDatosTransaccionalesCommand extends Command
             }
         }
 
+        // Limpiar caché de aplicación (evita credenciales/config obsoletos en memoria)
+        Artisan::call('cache:clear');
+        $this->line('  ✓ cache:clear');
+        Artisan::call('config:clear');
+        $this->line('  ✓ config:clear');
+        Artisan::call('view:clear');
+        $this->line('  ✓ view:clear');
+        Artisan::call('route:clear');
+        $this->line('  ✓ route:clear');
+
         $this->newLine();
-        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Documentos (PDF/XML) en storage limpiados. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
+        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Folios de empresa reseteados. Documentos (PDF/XML) en storage limpiados. Caché, config, vistas y rutas limpiadas. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
         return self::SUCCESS;
     }
 }

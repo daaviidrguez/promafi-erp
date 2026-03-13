@@ -44,7 +44,7 @@
         @endcan
 
         {{-- Reportes (dropdown) --}}
-        @can('dashboard.ver')
+        @can('reportes.ver')
         @php $repHasActive = request()->routeIs('reportes.*'); @endphp
         <div class="sidebar-dropdown {{ $repHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $repHasActive ? 'active' : '' }}" data-dropdown="reportes" title="Reportes">
@@ -122,7 +122,7 @@
 
         {{-- Compras (dropdown) --}}
         @php
-            $compHasActive = request()->routeIs('ordenes-compra.*') || request()->routeIs('cotizaciones-compra.*') || request()->routeIs('proveedores.*') || request()->routeIs('cuentas-por-pagar.*');
+            $compHasActive = request()->routeIs('ordenes-compra.*') || request()->routeIs('compras.*') || request()->routeIs('cotizaciones-compra.*') || request()->routeIs('proveedores.*') || request()->routeIs('cuentas-por-pagar.*');
         @endphp
         @if(auth()->user()->can('ordenes_compra.ver') || auth()->user()->can('cotizaciones_compra.ver') || auth()->user()->can('proveedores.ver') || auth()->user()->can('cuentas_por_pagar.ver'))
         <div class="sidebar-dropdown {{ $compHasActive ? 'open' : '' }}">
@@ -133,6 +133,7 @@
             </button>
             <ul class="sidebar-dropdown-menu">
                 @can('ordenes_compra.ver')<li><a href="{{ route('ordenes-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('ordenes-compra.*') ? 'active' : '' }}" title="Órdenes de Compra"><span class="sidebar-menu-icon">📦</span><span class="sidebar-menu-text">Órdenes de Compra</span></a></li>@endcan
+                @can('ordenes_compra.ver')<li><a href="{{ route('compras.index') }}" class="sidebar-menu-link {{ request()->routeIs('compras.*') ? 'active' : '' }}" title="Compras (facturas)"><span class="sidebar-menu-icon">🛒</span><span class="sidebar-menu-text">Compras</span></a></li>@endcan
                 @can('cotizaciones_compra.ver')<li><a href="{{ route('cotizaciones-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('cotizaciones-compra.*') ? 'active' : '' }}" title="Cotizaciones de Compra"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Cotizaciones de Compra</span></a></li>@endcan
                 @can('proveedores.ver')<li><a href="{{ route('proveedores.index') }}" class="sidebar-menu-link {{ request()->routeIs('proveedores.*') ? 'active' : '' }}" title="Proveedores"><span class="sidebar-menu-icon">🏭</span><span class="sidebar-menu-text">Proveedores</span></a></li>@endcan
                 @can('cuentas_por_pagar.ver')<li><a href="{{ route('cuentas-por-pagar.index') }}" class="sidebar-menu-link {{ request()->routeIs('cuentas-por-pagar.*') ? 'active' : '' }}" title="Cuentas por Pagar"><span class="sidebar-menu-icon">💳</span><span class="sidebar-menu-text">Cuentas por Pagar</span></a></li>@endcan

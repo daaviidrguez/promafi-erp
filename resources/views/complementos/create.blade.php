@@ -199,7 +199,12 @@ async function cargarFacturasPendientes() {
 
     try {
         const response = await fetch(`/complementos/facturas-pendientes?cliente_id=${clienteId}`);
-        facturasPendientes = await response.json();
+        const data = await response.json();
+        if (data.complemento_borrador_id) {
+            window.location = `/complementos/${data.complemento_borrador_id}`;
+            return;
+        }
+        facturasPendientes = data.facturas || data;
 
         if (!facturasPendientes.length) {
             placeholder.innerHTML = `

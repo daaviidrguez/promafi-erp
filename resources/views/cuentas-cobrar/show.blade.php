@@ -226,10 +226,16 @@ $breadcrumbs = [
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
                 @if($cuentaPorCobrar->estado_display !== 'pagada' && $cuentaPorCobrar->estado_display !== 'cancelada' && $cuentaPorCobrar->saldo_pendiente_real > 0)
+                @if(isset($complementoBorrador) && $complementoBorrador)
+                <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="btn btn-primary w-full">
+                    📄 Ver complemento en borrador
+                </a>
+                @else
                 <a href="{{ route('complementos.create', ['cuenta_id' => $cuentaPorCobrar->id]) }}"
                    class="btn btn-primary w-full">
                     💵 Crear Complemento de Pago
                 </a>
+                @endif
                 <span class="form-hint" style="text-align: center; font-size: 12px;">
                     Crea el CFDI de pago, timbralo y el pago se aplicará a esta cuenta.
                 </span>

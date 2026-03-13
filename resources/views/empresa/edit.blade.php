@@ -73,7 +73,8 @@ $breadcrumbs = [
                             </select>
                             @php $mostrarResico = (old('tipo_persona', $empresa->tipo_persona ?? 'moral') === 'fisica') && (old('regimen_fiscal', $empresa->regimen_fiscal ?? '') == '626'); @endphp
                             <div id="resico-aviso" class="alert alert-info mt-2" style="padding: 8px 12px; font-size: 12px; {{ $mostrarResico ? '' : 'display:none;' }}">
-                                <strong>RESICO:</strong> Con persona física y régimen 626 (Régimen Simplificado de Confianza) aplica la tabla ISR RESICO. Ver <a href="{{ route('catalogos-sat.index') }}">Catálogos SAT → Tabla ISR RESICO</a>.
+                                <strong>RESICO:</strong> Con persona física y régimen 626 aplica la tabla ISR RESICO. Ver <a href="{{ route('catalogos-sat.index') }}">Catálogos SAT → Tabla ISR RESICO</a>.<br>
+                                <strong>Retención ISR:</strong> Cuando factures a clientes <em>persona moral</em>, se aplicará retención del 1.25% sobre el subtotal (SAT 2026, LISR Art. 152). No aplica en complementos de pago.
                             </div>
                         </div>
                         <div class="form-group">
@@ -381,16 +382,15 @@ $breadcrumbs = [
                 </div>
                 <div class="card-body">
                     @php
-                        $pacProvider = old('pac_provider', $empresa->pac_provider ?? 'fake');
+                        $pacProvider = old('pac_provider', $empresa->pac_provider ?? 'facturama_sandbox');
                     @endphp
                     <div class="form-group">
-                        <label class="form-label">Modo de timbrado</label>
+                        <label class="form-label">Ambiente de timbrado</label>
                         <select name="pac_provider" id="pac_provider" class="form-control" required>
-                            <option value="fake" {{ $pacProvider === 'fake' ? 'selected' : '' }}>Modo Prueba (UUID fake)</option>
-                            <option value="facturama_sandbox" {{ $pacProvider === 'facturama_sandbox' ? 'selected' : '' }}>Modo Prueba Facturama (sandbox)</option>
-                            <option value="facturama_production" {{ $pacProvider === 'facturama_production' ? 'selected' : '' }}>Producción Facturama</option>
+                            <option value="facturama_sandbox" {{ $pacProvider === 'facturama_sandbox' ? 'selected' : '' }}>Pruebas (sandbox)</option>
+                            <option value="facturama_production" {{ $pacProvider === 'facturama_production' ? 'selected' : '' }}>Producción</option>
                         </select>
-                        <span class="form-hint">UUID fake: sin PAC; Facturama: timbrado real en sandbox o producción</span>
+                        <span class="form-hint">Sandbox: ambiente de pruebas. Producción: timbrado real ante el SAT.</span>
                     </div>
                     <div id="facturama_url_box" class="form-group" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
                         <label class="form-label">URL de petición</label>
@@ -399,22 +399,43 @@ $breadcrumbs = [
                                id="facturama_url_display">
                         <span class="form-hint">Sandbox: <code>https://apisandbox.facturama.mx/</code> · Producción: <code>https://api.facturama.mx/</code></span>
                     </div>
-                    <div id="facturama_creds_box" class="form-group" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
-                        <label class="form-label">Usuario Facturama</label>
-                        <input type="text" name="pac_facturama_user" class="form-control"
-                               value="{{ old('pac_facturama_user', $empresa->pac_facturama_user) }}"
-                               placeholder="Usuario de tu cuenta Facturama">
+                    {{-- Credenciales por entorno: sandbox y producción usan cuentas distintas en Facturama --}}
+                    <div id="facturama_creds_box" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
+                        <div class="form-section-title" style="margin: 12px 0 8px 0; color: var(--color-primary);">🧪 Sandbox</div>
+                        <div class="form-group">
+                            <label class="form-label">Usuario (sandbox)</label>
+                            <input type="text" name="pac_facturama_user_sandbox" class="form-control"
+                                   value="{{ old('pac_facturama_user_sandbox', $empresa->pac_facturama_user_sandbox ?? $empresa->pac_facturama_user) }}"
+                                   placeholder="Usuario de app.facturama.mx">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contraseña (sandbox)</label>
+                            <input type="password" name="pac_facturama_password_sandbox" class="form-control"
+                                   placeholder="••••••••">
+                            <span class="form-hint">Dejar en blanco para no cambiar la actual</span>
+                        </div>
+                        <div class="form-section-title" style="margin: 16px 0 8px 0; color: var(--color-primary);">🚀 Producción</div>
+                        <div class="form-group">
+                            <label class="form-label">Usuario (producción)</label>
+                            <input type="text" name="pac_facturama_user_production" class="form-control"
+                                   value="{{ old('pac_facturama_user_production', $empresa->pac_facturama_user_production) }}"
+                                   placeholder="Usuario de api.facturama.mx">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contraseña (producción)</label>
+                            <input type="password" name="pac_facturama_password_production" class="form-control"
+                                   placeholder="••••••••">
+                            <span class="form-hint">Obligatoria la primera vez. Dejar en blanco solo si ya guardaste una antes y no quieres cambiarla. Debes hacer clic en "Guardar Configuración" para que se guarden las credenciales.</span>
+                        </div>
+                        <div class="alert alert-info" style="margin-top: 12px; padding: 10px 12px; font-size: 12px;">
+                            <strong>Importante:</strong> Sandbox y producción son cuentas distintas en Facturama. Si usas producción, debes ingresar el usuario y contraseña de tu cuenta de producción (api.facturama.mx). Haz clic en <strong>Guardar Configuración</strong> antes de facturar.
+                        </div>
                     </div>
-                    <div id="facturama_pass_box" class="form-group" style="{{ in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) ? '' : 'display:none;' }}">
-                        <label class="form-label">Contraseña Facturama</label>
-                        <input type="password" name="pac_facturama_password" class="form-control"
-                               placeholder="••••••••">
-                        <span class="form-hint">Dejar en blanco para no cambiar la actual</span>
-                    </div>
-                    {{-- Compatibilidad: mantener checkbox para lógica legacy (cuando provider=fake) --}}
-                    <input type="hidden" name="pac_modo_prueba" value="1">
-
-                    @if(in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) && $empresa->pac_facturama_user)
+                    @php
+                        [$fUser, $fPass] = $empresa->getFacturamaCredentials();
+                        $tieneCreds = !empty($fUser) && !empty($fPass);
+                    @endphp
+                    @if(in_array($pacProvider, ['facturama_sandbox', 'facturama_production']) && $tieneCreds)
                     <div style="margin-top: 12px;">
                         <button type="submit" form="probar-facturama-form" class="btn btn-success w-full">🔍 Probar conexión Facturama</button>
                     </div>
@@ -427,7 +448,7 @@ $breadcrumbs = [
                 var isFacturama = (v === 'facturama_sandbox' || v === 'facturama_production');
                 document.getElementById('facturama_url_box').style.display = isFacturama ? '' : 'none';
                 document.getElementById('facturama_creds_box').style.display = isFacturama ? '' : 'none';
-                document.getElementById('facturama_pass_box').style.display = isFacturama ? '' : 'none';
+                if (document.getElementById('facturama_pass_box')) document.getElementById('facturama_pass_box').style.display = isFacturama ? '' : 'none';
                 document.getElementById('facturama_url_display').value = v === 'facturama_sandbox' ? 'https://apisandbox.facturama.mx/' : (v === 'facturama_production' ? 'https://api.facturama.mx/' : '');
             });
             </script>

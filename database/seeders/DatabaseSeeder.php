@@ -35,7 +35,7 @@ class DatabaseSeeder extends Seeder
         echo "⚙️  CONFIGURACIÓN:\n";
         echo "   1. Accede a Dashboard → Configuración\n";
         echo "   2. Actualiza los datos fiscales de tu empresa\n";
-        echo "   3. Configura el PAC o deja modo prueba activo\n";
+        echo "   3. Configura credenciales de Facturama (sandbox o producción)\n";
         echo "\n";
         echo "📦 DATOS DE EJEMPLO:\n";
         echo "   • 3 usuarios creados\n";

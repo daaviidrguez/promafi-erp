@@ -15,9 +15,11 @@ class InventarioMovimiento extends Model
         'cantidad',
         'stock_anterior',
         'stock_resultante',
+        'folio',
         'factura_id',
         'remision_id',
         'orden_compra_id',
+        'factura_compra_id',
         'usuario_id',
         'observaciones',
     ];
@@ -65,6 +67,11 @@ class InventarioMovimiento extends Model
         return $this->belongsTo(OrdenCompra::class);
     }
 
+    public function facturaCompra(): BelongsTo
+    {
+        return $this->belongsTo(FacturaCompra::class);
+    }
+
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -84,6 +91,29 @@ class InventarioMovimiento extends Model
     }
 
     /**
+     * Genera el siguiente folio para movimientos manuales: IM-YYYY-0001, IM-YYYY-0002, etc.
+     */
+    public static function generarFolioManual(): string
+    {
+        $year = date('Y');
+        $ultimo = self::whereIn('tipo', [self::TIPO_ENTRADA_MANUAL, self::TIPO_SALIDA_MANUAL])
+            ->whereNotNull('folio')
+            ->where('folio', 'like', "IM-{$year}-%")
+            ->orderBy('id', 'desc')
+            ->first();
+        $numero = $ultimo && preg_match('/IM-' . $year . '-(\d{4})/', $ultimo->folio, $m) ? (int) $m[1] + 1 : 1;
+        return 'IM-' . $year . '-' . str_pad($numero, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Referencia para mostrar en columnas (folio o etiqueta tipo).
+     */
+    public function getFolioReferenciaAttribute(): string
+    {
+        return $this->folio ?? $this->etiqueta_tipo;
+    }
+
+    /**
      * Registrar movimiento y actualizar stock del producto.
      */
     public static function registrar(
@@ -94,6 +124,7 @@ class InventarioMovimiento extends Model
         ?int $facturaId = null,
         ?int $remisionId = null,
         ?int $ordenCompraId = null,
+        ?int $facturaCompraId = null,
         ?string $observaciones = null
     ): self {
         if (!$producto->controla_inventario) {
@@ -108,7 +139,8 @@ class InventarioMovimiento extends Model
             throw new \InvalidArgumentException("Stock insuficiente para el producto {$producto->nombre}. Disponible: {$stockAnterior}");
         }
         $producto->update(['stock' => $stockResultante]);
-        $mov = self::create([
+
+        $data = [
             'producto_id' => $producto->id,
             'tipo' => $tipo,
             'cantidad' => $cantidad,
@@ -117,9 +149,16 @@ class InventarioMovimiento extends Model
             'factura_id' => $facturaId,
             'remision_id' => $remisionId,
             'orden_compra_id' => $ordenCompraId,
+            'factura_compra_id' => $facturaCompraId,
             'usuario_id' => $usuarioId ?? auth()->id(),
             'observaciones' => $observaciones,
-        ]);
+        ];
+
+        if (in_array($tipo, [self::TIPO_ENTRADA_MANUAL, self::TIPO_SALIDA_MANUAL])) {
+            $data['folio'] = self::generarFolioManual();
+        }
+
+        $mov = self::create($data);
         return $mov;
     }
 }

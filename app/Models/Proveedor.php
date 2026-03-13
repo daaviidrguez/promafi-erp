@@ -62,6 +62,11 @@ class Proveedor extends Model
         return $this->hasMany(OrdenCompra::class);
     }
 
+    public function facturasCompra(): HasMany
+    {
+        return $this->hasMany(FacturaCompra::class);
+    }
+
     public function cuentasPorPagar(): HasMany
     {
         return $this->hasMany(CuentaPorPagar::class);

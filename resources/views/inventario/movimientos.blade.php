@@ -74,6 +74,10 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
                         <a href="{{ route('remisiones.show', $m->remision_id) }}">Remisión {{ $m->remision->folio ?? $m->remision_id }}</a>
                     @elseif($m->orden_compra_id)
                         <a href="{{ route('ordenes-compra.show', $m->orden_compra_id) }}">OC #{{ $m->orden_compra_id }}</a>
+                    @elseif($m->factura_compra_id)
+                        <a href="{{ route('compras.show', $m->factura_compra_id) }}">Compra {{ optional($m->facturaCompra)->folio_completo ?? '#' . $m->factura_compra_id }}</a>
+                    @elseif(in_array($m->tipo, ['entrada_manual', 'salida_manual']))
+                        <a href="{{ route('inventario.movimiento.show', $m->id) }}">{{ $m->folio ?? $m->etiqueta_tipo }}{{ $m->observaciones ? ' — ' . Str::limit($m->observaciones, 30) : '' }}</a>
                     @else
                         {{ $m->observaciones ? Str::limit($m->observaciones, 30) : '—' }}
                     @endif

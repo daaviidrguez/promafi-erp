@@ -15,7 +15,11 @@ class PDFService
         } elseif ($tipo === 'nota_credito') {
             $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'factura', 'cliente', 'usuario', 'empresa']);
         } elseif ($tipo === 'complemento') {
-            $modelo->loadMissing(['pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar', 'cliente', 'usuario', 'empresa']);
+            $modelo->loadMissing(['pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar', 'pagosRecibidos.documentosRelacionados.factura.detalles.impuestos', 'cliente', 'usuario', 'empresa']);
+        } elseif ($tipo === 'orden_compra') {
+            $modelo->loadMissing(['detalles.producto', 'proveedor', 'usuario', 'empresa']);
+        } elseif ($tipo === 'factura_compra') {
+            $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'proveedor', 'usuario', 'empresa']);
         } else {
             $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario']);
         }
@@ -39,6 +43,8 @@ class PDFService
             'esCotizacion' => $tipo === 'cotizacion',
             'esRemision' => $tipo === 'remision',
             'esComplemento' => $tipo === 'complemento',
+            'esOrdenCompra' => $tipo === 'orden_compra',
+            'esFacturaCompra' => $tipo === 'factura_compra',
         ])->render();
 
         $options = new Options();
@@ -74,6 +80,16 @@ class PDFService
     public function generarNotaCreditoPDF($notaCredito): string
     {
         return $this->generarDocumentoPDF($notaCredito, 'nota_credito');
+    }
+
+    public function generarOrdenCompraPDF($ordenCompra): string
+    {
+        return $this->generarDocumentoPDF($ordenCompra, 'orden_compra');
+    }
+
+    public function generarFacturaCompraPDF($facturaCompra): string
+    {
+        return $this->generarDocumentoPDF($facturaCompra, 'factura_compra');
     }
 
     public function descargarPDF(string $relativePath, string $filename)

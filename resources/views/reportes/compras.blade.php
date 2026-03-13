@@ -2,7 +2,7 @@
 
 @section('title', 'Reporte compras')
 @section('page-title', '🛒 Compras')
-@section('page-subtitle', 'Órdenes de compra')
+@section('page-subtitle', 'Órdenes y facturas de compra')
 
 @php
 $breadcrumbs = [
@@ -40,8 +40,12 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
                 <td class="text-end">${{ number_format($ivaCompras ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td>Órdenes</td>
+                <td>Órdenes de compra</td>
                 <td class="text-end">{{ $ordenes->count() ?? 0 }}</td>
+            </tr>
+            <tr>
+                <td>Facturas de compra</td>
+                <td class="text-end">{{ $facturasCompra->count() ?? 0 }}</td>
             </tr>
         </table>
     </div>
@@ -51,6 +55,7 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
     <table class="table">
         <thead>
             <tr>
+                <th>Tipo</th>
                 <th>Folio</th>
                 <th>Fecha</th>
                 <th>Proveedor</th>
@@ -58,15 +63,22 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
             </tr>
         </thead>
         <tbody>
-            @forelse($ordenes ?? [] as $o)
+            @forelse($comprasMerge ?? [] as $item)
             <tr>
-                <td>{{ $o->folio }}</td>
-                <td>{{ \Carbon\Carbon::parse($o->fecha)->format('d/m/Y') }}</td>
-                <td>{{ $o->proveedor->nombre ?? $o->proveedor_nombre ?? '-' }}</td>
-                <td class="text-end">${{ number_format($o->total, 2, '.', ',') }}</td>
+                <td><span class="badge badge-{{ $item->tipo === 'factura' ? 'success' : 'info' }}">{{ $item->tipo === 'factura' ? 'Factura' : 'Orden' }}</span></td>
+                <td>
+                    @if($item->route)
+                    <a href="{{ route($item->route, $item->id) }}">{{ $item->folio }}</a>
+                    @else
+                    {{ $item->folio }}
+                    @endif
+                </td>
+                <td>{{ $item->fecha ? \Carbon\Carbon::parse($item->fecha)->format('d/m/Y') : '-' }}</td>
+                <td>{{ $item->proveedor }}</td>
+                <td class="text-end">${{ number_format($item->total, 2, '.', ',') }}</td>
             </tr>
             @empty
-            <tr><td colspan="4" class="text-center text-muted">No hay compras en este período.</td></tr>
+            <tr><td colspan="5" class="text-center text-muted">No hay compras en este período.</td></tr>
             @endforelse
         </tbody>
     </table>

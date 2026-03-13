@@ -27,7 +27,7 @@ class EmpresaController extends Controller
                 'folio_factura' => 1,
                 'serie_factura_credito' => 'FB',
                 'folio_factura_credito' => 1,
-                'pac_modo_prueba' => true,
+                'pac_provider' => 'facturama_sandbox',
             ]);
         }
 
@@ -113,13 +113,16 @@ class EmpresaController extends Controller
         // ===============================
         // PAC / Facturama
         // ===============================
-        'pac_modo_prueba' => 'boolean',
         'pac_nombre' => 'nullable|string|max:50',
         'pac_usuario' => 'nullable|string|max:255',
         'pac_password' => 'nullable|string|max:255',
-        'pac_provider' => 'nullable|string|in:fake,facturama_sandbox,facturama_production',
+        'pac_provider' => 'nullable|string|in:facturama_sandbox,facturama_production',
         'pac_facturama_user' => 'nullable|string|max:255',
         'pac_facturama_password' => 'nullable|string|max:255',
+        'pac_facturama_user_sandbox' => 'nullable|string|max:255',
+        'pac_facturama_password_sandbox' => 'nullable|string|max:255',
+        'pac_facturama_user_production' => 'nullable|string|max:255',
+        'pac_facturama_password_production' => 'nullable|string|max:255',
 
         // ===============================
         // CERTIFICADOS
@@ -140,13 +143,34 @@ class EmpresaController extends Controller
     }
 
     // ===============================
-    // CONVERTIR CHECKBOX BOOLEAN
+    // PAC PROVIDER (sandbox o producción)
     // ===============================
-    $validated['pac_modo_prueba'] = $request->has('pac_modo_prueba');
-    $validated['pac_provider'] = $validated['pac_provider'] ?? 'fake';
-    // No sobrescribir contraseñas si vienen vacías
-    if (empty($validated['pac_facturama_password'])) {
-        unset($validated['pac_facturama_password']);
+    $validated['pac_provider'] = $validated['pac_provider'] ?? 'facturama_sandbox';
+
+    // Validar credenciales de producción cuando ese modo esté activo (evita guardar sin contraseña)
+    $provider = $validated['pac_provider'];
+    if ($provider === 'facturama_production') {
+        $userProd = trim($validated['pac_facturama_user_production'] ?? '');
+        $passProd = $request->input('pac_facturama_password_production', '');
+        $yaTieneUser = !empty(trim($empresa->pac_facturama_user_production ?? ''));
+        $yaTienePass = $empresa->exists && !empty(trim((string) ($empresa->getRawOriginal('pac_facturama_password_production') ?? '')));
+        if (empty($userProd) && !$yaTieneUser) {
+            return redirect()->route('empresa.edit')->withInput()->withErrors([
+                'pac_facturama_user_production' => 'El usuario de producción es obligatorio cuando usas Producción Facturama.',
+            ]);
+        }
+        if ($passProd === '' && !$yaTienePass) {
+            return redirect()->route('empresa.edit')->withInput()->withErrors([
+                'pac_facturama_password_production' => 'La contraseña de producción es obligatoria. Si es la primera vez que configuras producción, debes ingresarla (no puede dejarse en blanco).',
+            ]);
+        }
+    }
+
+    // No sobrescribir contraseñas ni usuarios vacíos (cada entorno tiene sus propias credenciales)
+    foreach (['pac_facturama_user', 'pac_facturama_password', 'pac_facturama_user_sandbox', 'pac_facturama_password_sandbox', 'pac_facturama_user_production', 'pac_facturama_password_production'] as $campo) {
+        if (array_key_exists($campo, $validated) && trim((string) ($validated[$campo] ?? '')) === '') {
+            unset($validated[$campo]);
+        }
     }
     if (array_key_exists('certificado_password', $validated) && $validated['certificado_password'] === '') {
         unset($validated['certificado_password']);
@@ -187,6 +211,15 @@ class EmpresaController extends Controller
     // Extraer no_certificado y vigencia del .cer (si se subió uno nuevo)
     if (!empty($validated['certificado_cer'])) {
         $parsed = parseCertificadoCer($validated['certificado_cer']);
+        if ($parsed['no_certificado']) {
+            $validated['no_certificado'] = $parsed['no_certificado'];
+        }
+        if ($parsed['certificado_vigencia']) {
+            $validated['certificado_vigencia'] = $parsed['certificado_vigencia'];
+        }
+    } elseif (!empty($empresa->certificado_cer) && !$empresa->certificado_vigencia && Storage::disk('local')->exists($empresa->certificado_cer)) {
+        // Si ya hay .cer guardado pero no vigencia, extraerla al guardar
+        $parsed = parseCertificadoCer($empresa->certificado_cer);
         if ($parsed['no_certificado']) {
             $validated['no_certificado'] = $parsed['no_certificado'];
         }
@@ -240,6 +273,24 @@ class EmpresaController extends Controller
         if (isset($validated[$k]) && $validated[$k] instanceof \Illuminate\Http\UploadedFile) {
             unset($validated[$k]);
         }
+        // Si NO se subió archivo nuevo, quitar del validated para NUNCA sobrescribir (evita perder certs al cambiar modo timbrado)
+        if (!$request->hasFile($k)) {
+            unset($validated[$k]);
+        }
+    }
+    // Proteger certificados: NUNCA sobrescribir con null/vacío cuando no se subieron archivos nuevos.
+    // Evita perder certificados al cambiar modo timbrado u otros campos.
+    foreach (['certificado_cer', 'certificado_key', 'certificado_password', 'no_certificado', 'certificado_vigencia'] as $campo) {
+        if (array_key_exists($campo, $validated)) {
+            $val = $validated[$campo];
+            $esRutaValida = in_array($campo, ['certificado_cer', 'certificado_key']) && is_string($val) && $val !== '';
+            $esPasswordValido = $campo === 'certificado_password' && is_string($val) && $val !== '';
+            $esVigenciaValida = $campo === 'certificado_vigencia' && $val !== null;
+            $esNoCertValido = $campo === 'no_certificado' && !empty(trim((string) $val));
+            if (!$esRutaValida && !$esPasswordValido && !$esVigenciaValida && !$esNoCertValido) {
+                unset($validated[$campo]);
+            }
+        }
     }
     $fillable = array_flip($empresa->getFillable());
     $validated = array_intersect_key($validated, $fillable);
@@ -274,19 +325,17 @@ class EmpresaController extends Controller
             return back()->with('error', 'Configura los datos de la empresa primero');
         }
 
-        $provider = $empresa->pac_provider ?? 'fake';
-        if ($provider === 'fake') {
-            return back()->with('success', '✅ Modo prueba activo. El timbrado generará UUIDs fake para desarrollo.');
-        }
-
+        $empresa->refresh();
+        $provider = $empresa->pac_provider ?? 'facturama_sandbox';
         if (in_array($provider, ['facturama_sandbox', 'facturama_production'])) {
-            if (empty($empresa->pac_facturama_user) || empty($empresa->pac_facturama_password)) {
-                return back()->with('error', 'Configura Usuario y Contraseña de Facturama (guarda los cambios antes de probar).');
+            [$user, $pass] = $empresa->getFacturamaCredentials();
+            if (empty($user) || empty($pass)) {
+                return back()->with('error', 'Configura Usuario y Contraseña de Facturama para ' . ($provider === 'facturama_sandbox' ? 'sandbox' : 'producción') . ' (guarda los cambios antes de probar).');
             }
             try {
                 $baseUrl = rtrim($empresa->facturama_base_url, '/');
                 // API Web: GET /TaxEntity obtiene el perfil fiscal (doc: https://apisandbox.facturama.mx/docs/api/GET-TaxEntity)
-                $response = \Illuminate\Support\Facades\Http::withBasicAuth($empresa->pac_facturama_user, $empresa->pac_facturama_password)
+                $response = \Illuminate\Support\Facades\Http::withBasicAuth($user, $pass)
                     ->acceptJson()
                     ->timeout(15)
                     ->get($baseUrl . '/TaxEntity');
@@ -311,11 +360,7 @@ class EmpresaController extends Controller
             }
         }
 
-        if (!$empresa->tienePACConfigurado()) {
-            return back()->with('error', 'Configura las credenciales del PAC primero');
-        }
-
-        return back()->with('success', '✅ Conexión con PAC configurada correctamente');
+        return back()->with('error', 'Configura Facturama (sandbox o producción) en Configuración de empresa.');
     }
 
     /**

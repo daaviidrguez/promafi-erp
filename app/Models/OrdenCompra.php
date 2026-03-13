@@ -106,4 +106,13 @@ class OrdenCompra extends Model
     {
         return $this->estado === 'recibida';
     }
+
+    /**
+     * Se puede cancelar después de aceptar (orden aceptada con cuenta por pagar).
+     * En borrador se edita o elimina; la cancelación aplica cuando ya está aceptada.
+     */
+    public function puedeCancelarse(): bool
+    {
+        return $this->estado === 'aceptada' && $this->cuentaPorPagar;
+    }
 }

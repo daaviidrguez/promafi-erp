@@ -264,7 +264,11 @@ $breadcrumbs = [
                     </div>
                     @else
                     <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
+                    @if(isset($ncBorrador) && $ncBorrador)
+                    <a href="{{ route('notas-credito.show', $ncBorrador->id) }}" class="btn btn-outline w-full">📄 Ver nota de crédito en borrador</a>
+                    @else
                     <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Emitir nota de crédito</a>
+                    @endif
                     @endif
                 @endif
 
@@ -306,8 +310,12 @@ $breadcrumbs = [
                     <a href="{{ route('cuentas-cobrar.show', $factura->cuentaPorCobrar->id) }}"
                        class="btn btn-primary w-full">Ver Detalles</a>
                     @if($factura->cuentaPorCobrar->saldo_pendiente_real > 0)
+                    @if(isset($complementoBorrador) && $complementoBorrador)
+                    <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="btn btn-outline w-full">📄 Ver complemento en borrador</a>
+                    @else
                     <a href="{{ route('complementos.create', ['cuenta_id' => $factura->cuentaPorCobrar->id]) }}"
                        class="btn btn-outline w-full">💵 Crear Complemento de Pago</a>
+                    @endif
                     @endif
                 </div>
             </div>

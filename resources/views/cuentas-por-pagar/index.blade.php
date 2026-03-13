@@ -45,7 +45,7 @@
     <table>
         <thead>
             <tr>
-                <th>Orden de Compra</th>
+                <th>Referencia</th>
                 <th>Proveedor</th>
                 <th>Emisión</th>
                 <th>Vencimiento</th>
@@ -58,7 +58,7 @@
         <tbody>
             @foreach($cuentas as $c)
             <tr>
-                <td class="text-mono fw-600">{{ $c->ordenCompra->folio ?? '—' }}</td>
+                <td class="text-mono fw-600">{{ $c->facturaCompra?->folio_completo ?? $c->ordenCompra?->folio ?? '—' }}</td>
                 <td>{{ $c->proveedor->nombre ?? '—' }}</td>
                 <td>{{ $c->fecha_emision->format('d/m/Y') }}</td>
                 <td>{{ $c->fecha_vencimiento->format('d/m/Y') }}</td>
@@ -80,7 +80,7 @@
     <div class="empty-state">
         <div class="empty-state-icon">💳</div>
         <div class="empty-state-title">No hay cuentas por pagar</div>
-        <div class="empty-state-text">Se generan al aceptar una orden de compra</div>
+        <div class="empty-state-text">Se generan al aceptar una orden de compra o al registrar compras con PPD</div>
     </div>
     @endif
 </div>

@@ -12,7 +12,7 @@ class EnsureUserHasRoutePermission
     protected array $routeToPermission = [
         'dashboard' => 'dashboard.ver',
         'tablero' => 'dashboard.ver',
-        'reportes' => 'dashboard.ver',
+        'reportes' => 'reportes.ver',
         'perfil' => null,
         'empresa' => 'configuracion.editar',
         'configuracion' => 'configuracion.editar',
@@ -30,6 +30,7 @@ class EnsureUserHasRoutePermission
         'categorias' => 'categorias.ver',
         'sugerencias' => 'sugerencias.ver',
         'ordenes-compra' => 'ordenes_compra.ver',
+        'compras' => 'compras.ver',
         'cotizaciones-compra' => 'cotizaciones_compra.ver',
         'proveedores' => 'proveedores.ver',
         'cuentas-por-pagar' => 'cuentas_por_pagar.ver',
@@ -66,6 +67,10 @@ class EnsureUserHasRoutePermission
         }
 
         if (!$user->hasPermission($permission)) {
+            // Vendedor sin dashboard/reportes: redirigir a Facturación (cotizaciones)
+            if ($user->isVendedor() && in_array($permission, ['dashboard.ver', 'reportes.ver'], true)) {
+                return redirect()->route('cotizaciones.index');
+            }
             abort(403, 'No tienes permiso para acceder a esta sección.');
         }
 

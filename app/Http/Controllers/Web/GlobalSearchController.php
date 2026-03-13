@@ -37,7 +37,8 @@ class GlobalSearchController extends Controller
                     ];
                 });
 
-            $cotizaciones = Cotizacion::with('usuario')
+            $cotizaciones = Cotizacion::paraUsuarioActual()
+                ->with('usuario')
                 ->buscar($query)
                 ->orderBy('fecha', 'desc')
                 ->limit(8)

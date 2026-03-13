@@ -342,9 +342,20 @@ class Cotizacion extends Model
     }
 
     /**
+     * Scope: vendedor solo ve las suyas, admin/otros ven todas.
+     */
+    public function scopeParaUsuarioActual($query)
+    {
+        $user = auth()->user();
+        if ($user && $user->isVendedor()) {
+            $query->where('usuario_id', $user->id);
+        }
+        return $query;
+    }
+
+    /**
      * Scope para búsqueda
      */
-
     public function scopeBuscar($query, $term)
     {
         return $query->where(function ($q) use ($term) {

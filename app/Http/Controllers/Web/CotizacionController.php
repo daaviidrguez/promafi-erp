@@ -19,6 +19,7 @@ use App\Models\CuentaPorCobrar;
 use App\Models\FormaPago;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\CotizacionEnviada;
@@ -26,11 +27,29 @@ use App\Mail\CotizacionEnviada;
 class CotizacionController extends Controller
 {
     /**
+     * Query base de cotizaciones: vendedor solo ve las suyas, admin ve todas.
+     */
+    private function queryCotizaciones()
+    {
+        return Cotizacion::paraUsuarioActual();
+    }
+
+    /**
+     * Autorizar acceso a una cotización: vendedor solo puede acceder a las suyas.
+     */
+    private function authorizeCotizacion(Cotizacion $cotizacion): void
+    {
+        if (Auth::user()->isVendedor() && (int) $cotizacion->usuario_id !== (int) Auth::id()) {
+            abort(403, 'No tienes permiso para acceder a esta cotización.');
+        }
+    }
+
+    /**
      * Listado de cotizaciones
      */
     public function index(Request $request)
     {
-        $query = Cotizacion::with(['cliente', 'usuario']);
+        $query = $this->queryCotizaciones()->with(['cliente', 'usuario']);
 
         // Filtros
         if ($request->filled('estado')) {
@@ -65,12 +84,13 @@ class CotizacionController extends Controller
 
         $cotizaciones = $query->orderBy('created_at', 'desc')->paginate(20);
 
-        // Estadísticas
+        // Estadísticas (vendedor solo cuenta las suyas)
+        $statsQuery = $this->queryCotizaciones();
         $estadisticas = [
-            'borradores' => Cotizacion::estado('borrador')->count(),
-            'enviadas' => Cotizacion::estado('enviada')->count(),
-            'aceptadas' => Cotizacion::estado('aceptada')->count(),
-            'por_vencer' => Cotizacion::porVencer()->count(),
+            'borradores' => (clone $statsQuery)->estado('borrador')->count(),
+            'enviadas' => (clone $statsQuery)->estado('enviada')->count(),
+            'aceptadas' => (clone $statsQuery)->estado('aceptada')->count(),
+            'por_vencer' => (clone $statsQuery)->porVencer()->count(),
         ];
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();
@@ -97,6 +117,7 @@ class CotizacionController extends Controller
         if ($request->has('id')) {
             $cotizacion = Cotizacion::with(['detalles' => fn ($q) => $q->orderBy('orden'), 'detalles.producto'])
                 ->findOrFail($request->id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeEditarse()) {
                 return redirect()->route('cotizaciones.show', $cotizacion->id)
@@ -290,6 +311,7 @@ class CotizacionController extends Controller
             'detalles.producto',
             'usuario'
         ])->findOrFail($id);
+        $this->authorizeCotizacion($cotizacion);
 
         return view('cotizaciones.show', compact('cotizacion'));
     }
@@ -303,6 +325,7 @@ class CotizacionController extends Controller
     {
         try {
             $cotizacion = Cotizacion::findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeAceptarse()) {
                 return back()->with('error', 'Esta cotización no puede aceptarse');
@@ -325,6 +348,7 @@ class CotizacionController extends Controller
     {
         try {
             $cotizacion = Cotizacion::with('cliente', 'detalles')->findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeEnviarse()) {
                 return back()->with('error', 'Solo se pueden enviar cotizaciones aceptadas');
@@ -363,6 +387,7 @@ class CotizacionController extends Controller
     {
         try {
             $cotizacion = Cotizacion::with('detalles')->findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             $pdfPath = app(PDFService::class)->generarCotizacionPDF($cotizacion);
 
@@ -385,6 +410,7 @@ class CotizacionController extends Controller
     public function descargarPDF($id)
     {
         $cotizacion = Cotizacion::findOrFail($id);
+        $this->authorizeCotizacion($cotizacion);
 
         if (!$cotizacion->pdf_path || !file_exists(storage_path('app/' . $cotizacion->pdf_path))) {
             return $this->generarPDF($id);
@@ -403,6 +429,7 @@ class CotizacionController extends Controller
     {
         try {
             $cotizacion = Cotizacion::with('detalles')->findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->pdf_path || !file_exists(storage_path('app/' . $cotizacion->pdf_path))) {
                 $pdfPath = app(PDFService::class)->generarCotizacionPDF($cotizacion);
@@ -426,6 +453,7 @@ class CotizacionController extends Controller
         DB::beginTransaction();
         try {
             $cotizacion = Cotizacion::with('detalles')->findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeFacturarse()) {
                 return back()->with('error', 'La cotización debe estar aceptada o enviada.');
@@ -490,6 +518,7 @@ class CotizacionController extends Controller
         DB::beginTransaction();
         try {
             $cotizacion = Cotizacion::with(['detalles.producto', 'cliente', 'empresa'])->findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeFacturarse()) {
                 throw new \Exception('Esta cotización no puede facturarse.');
@@ -638,6 +667,7 @@ class CotizacionController extends Controller
     {
         try {
             $cotizacion = Cotizacion::findOrFail($id);
+            $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeEliminarse()) {
                 return back()->with('error', 'Esta cotización no puede eliminarse');
@@ -787,12 +817,13 @@ class CotizacionController extends Controller
      */
     public function estadisticas()
     {
+        $q = $this->queryCotizaciones();
         return response()->json([
-            'borradores' => Cotizacion::estado('borrador')->count(),
-            'enviadas' => Cotizacion::estado('enviada')->count(),
-            'aceptadas' => Cotizacion::estado('aceptada')->count(),
-            'por_vencer' => Cotizacion::porVencer()->count(),
-            'vencidas' => Cotizacion::estado('vencida')->count(),
+            'borradores' => (clone $q)->estado('borrador')->count(),
+            'enviadas' => (clone $q)->estado('enviada')->count(),
+            'aceptadas' => (clone $q)->estado('aceptada')->count(),
+            'por_vencer' => (clone $q)->porVencer()->count(),
+            'vencidas' => (clone $q)->estado('vencida')->count(),
         ]);
     }
 }

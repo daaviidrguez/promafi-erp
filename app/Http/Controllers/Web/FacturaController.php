@@ -19,6 +19,7 @@ use App\Models\MetodoPago;
 use App\Models\UsoCfdi;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
+use App\Helpers\IsrResicoHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -136,7 +137,12 @@ class FacturaController extends Controller
                 }
             }
 
-            $total = $subtotal - $descuentoTotal + $ivaTotal;
+            // Retención ISR: cuando emisor es PF RESICO y receptor es persona moral (SAT 2026)
+            $retencionISR = 0.0;
+            if (IsrResicoHelper::aplicaRetencionIsrPm($empresa, $cliente)) {
+                $retencionISR = IsrResicoHelper::calcularRetencionIsrPm($subtotal, $descuentoTotal);
+            }
+            $total = $subtotal - $descuentoTotal + $ivaTotal - $retencionISR;
 
             // Serie y folio según método de pago: PPD = crédito (FB), PUE = contado (FA)
             $esCredito = ($validated['metodo_pago'] ?? '') === 'PPD';
@@ -177,6 +183,9 @@ class FacturaController extends Controller
                 'usuario_id' => auth()->id(),
             ]);
 
+            // Base gravable total para prorratear retención ISR
+            $baseGravableTotal = max(0.01, $subtotal - $descuentoTotal);
+
             // Crear detalles e impuestos por línea (datos fiscales del producto)
             foreach ($validated['productos'] as $index => $prod) {
                 $producto = isset($prod['producto_id']) ? Producto::find($prod['producto_id']) : null;
@@ -214,7 +223,22 @@ class FacturaController extends Controller
                         'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
                     ]);
                 }
-                // El descuento de inventario se hace al timbrar la factura, no en borrador
+
+                // Retención ISR: emisor PF RESICO + receptor PM (SAT 2026, LISR Art. 152)
+                if ($retencionISR > 0 && $baseImpuesto > 0) {
+                    $retencionLinea = round($retencionISR * ($baseImpuesto / $baseGravableTotal), 2);
+                    if ($retencionLinea > 0) {
+                        FacturaImpuesto::create([
+                            'factura_detalle_id' => $detalle->id,
+                            'tipo' => 'retencion',
+                            'impuesto' => '001',
+                            'tipo_factor' => 'Tasa',
+                            'tasa_o_cuota' => config('isr_resico.tasa_retencion_pm_a_resico', 0.0125),
+                            'base' => $baseImpuesto,
+                            'importe' => $retencionLinea,
+                        ]);
+                    }
+                }
             }
 
             // Incrementar folio según tipo (contado o crédito)
@@ -261,7 +285,9 @@ class FacturaController extends Controller
     public function show(Factura $factura)
     {
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario']);
-        return view('facturas.show', compact('factura'));
+        $ncBorrador = \App\Models\NotaCredito::where('factura_id', $factura->id)->where('estado', 'borrador')->first();
+        $complementoBorrador = $factura->cliente_id ? \App\Models\ComplementoPago::where('cliente_id', $factura->cliente_id)->where('estado', 'borrador')->first() : null;
+        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador'));
     }
 
     /**
@@ -343,7 +369,15 @@ class FacturaController extends Controller
                 }
             }
 
-            $total = $subtotal - $descuentoTotal + $ivaTotal;
+            // Retención ISR: cuando emisor es PF RESICO y receptor es persona moral (SAT 2026)
+            $retencionISR = 0.0;
+            if (IsrResicoHelper::aplicaRetencionIsrPm($empresa, $cliente)) {
+                $retencionISR = IsrResicoHelper::calcularRetencionIsrPm($subtotal, $descuentoTotal);
+            }
+            $total = $subtotal - $descuentoTotal + $ivaTotal - $retencionISR;
+
+            // Base gravable total para prorratear retención ISR
+            $baseGravableTotal = max(0.01, $subtotal - $descuentoTotal);
 
             // Actualizar factura
             $factura->update([
@@ -403,6 +437,22 @@ class FacturaController extends Controller
                         'base' => $baseImpuesto,
                         'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
                     ]);
+                }
+
+                // Retención ISR: emisor PF RESICO + receptor PM (SAT 2026)
+                if ($retencionISR > 0 && $baseImpuesto > 0) {
+                    $retencionLinea = round($retencionISR * ($baseImpuesto / $baseGravableTotal), 2);
+                    if ($retencionLinea > 0) {
+                        FacturaImpuesto::create([
+                            'factura_detalle_id' => $detalle->id,
+                            'tipo' => 'retencion',
+                            'impuesto' => '001',
+                            'tipo_factor' => 'Tasa',
+                            'tasa_o_cuota' => config('isr_resico.tasa_retencion_pm_a_resico', 0.0125),
+                            'base' => $baseImpuesto,
+                            'importe' => $retencionLinea,
+                        ]);
+                    }
                 }
             }
 

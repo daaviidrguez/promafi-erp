@@ -48,8 +48,8 @@ class EmpresaSeeder extends Seeder
             'serie_factura_credito' => 'FB',
             'folio_factura_credito' => 1,
             
-            // PAC (modo prueba por defecto)
-            'pac_modo_prueba' => true,
+            // PAC Facturama (sandbox por defecto)
+            'pac_provider' => 'facturama_sandbox',
         ]);
 
         echo "✅ Empresa de ejemplo creada\n";
@@ -59,7 +59,7 @@ class EmpresaSeeder extends Seeder
         echo "\n";
         echo "📋 RFC: XAXX010101000 (genérico - cámbialo)\n";
         echo "🧾 Facturas Contado: FA | Facturas Crédito: FB | Folio inicial: 1\n";
-        echo "🔐 Modo prueba: ACTIVADO (timbrado genera UUID fake)\n";
+        echo "🔐 Timbrado: Configura credenciales de Facturama (sandbox o producción)\n";
         echo "\n";
     }
 }

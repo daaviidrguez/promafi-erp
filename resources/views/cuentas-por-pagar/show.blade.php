@@ -1,12 +1,16 @@
 @extends('layouts.app')
+@php
+$esFacturaCompra = $cuentaPorPagar->factura_compra_id !== null;
+$referencia = $esFacturaCompra ? ($cuentaPorPagar->facturaCompra->folio_completo ?? 'Factura') : ($cuentaPorPagar->ordenCompra->folio ?? 'Orden');
+@endphp
 @section('title', 'Cuenta por Pagar')
 @section('page-title', '💳 Cuenta por Pagar')
-@section('page-subtitle', 'Orden ' . ($cuentaPorPagar->ordenCompra->folio ?? ''))
+@section('page-subtitle', ($esFacturaCompra ? 'Factura ' : 'Orden ') . $referencia)
 
 @php
 $breadcrumbs = [
     ['title' => 'Cuentas por Pagar', 'url' => route('cuentas-por-pagar.index')],
-    ['title' => $cuentaPorPagar->ordenCompra->folio ?? 'Detalle'],
+    ['title' => $referencia],
 ];
 @endphp
 
@@ -29,8 +33,12 @@ $breadcrumbs = [
 
         <div class="card">
             <div class="card-header">
-                <div class="card-title">📦 Orden de Compra</div>
+                <div class="card-title">{{ $esFacturaCompra ? '📄 Factura de Compra' : '📦 Orden de Compra' }}</div>
+                @if($esFacturaCompra && $cuentaPorPagar->facturaCompra)
+                <a href="{{ route('compras.show', $cuentaPorPagar->factura_compra_id) }}" class="btn btn-light btn-sm">Ver compra</a>
+                @elseif($cuentaPorPagar->ordenCompra)
                 <a href="{{ route('ordenes-compra.show', $cuentaPorPagar->orden_compra_id) }}" class="btn btn-light btn-sm">Ver orden</a>
+                @endif
             </div>
             <div class="table-container" style="border:none;margin-bottom:0;">
                 <table>
@@ -38,6 +46,17 @@ $breadcrumbs = [
                         <tr><th>Descripción</th><th class="td-center">Cant.</th><th class="td-right">P. Unit.</th><th class="td-right">Total</th></tr>
                     </thead>
                     <tbody>
+                        @if($esFacturaCompra && $cuentaPorPagar->facturaCompra)
+                        @foreach($cuentaPorPagar->facturaCompra->detalles ?? [] as $d)
+                        @php $totalLinea = ($d->importe ?? 0) - ($d->descuento ?? 0) + ($d->impuestos->sum('importe') ?? 0); @endphp
+                        <tr>
+                            <td>{{ $d->descripcion }}</td>
+                            <td class="td-center">{{ number_format($d->cantidad, 2) }}</td>
+                            <td class="td-right text-mono">${{ number_format($d->valor_unitario ?? 0, 2) }}</td>
+                            <td class="td-right text-mono fw-600">${{ number_format($totalLinea, 2) }}</td>
+                        </tr>
+                        @endforeach
+                        @elseif($cuentaPorPagar->ordenCompra)
                         @foreach($cuentaPorPagar->ordenCompra->detalles as $d)
                         <tr>
                             <td>{{ $d->descripcion }}</td>
@@ -46,12 +65,13 @@ $breadcrumbs = [
                             <td class="td-right text-mono fw-600">${{ number_format($d->total, 2) }}</td>
                         </tr>
                         @endforeach
+                        @endif
                     </tbody>
                 </table>
             </div>
             <div class="card-body" style="display:flex;justify-content:flex-end;">
                 <div class="totales-panel" style="min-width:240px;">
-                    <div class="totales-row grand"><span>Total orden</span><span class="monto">${{ number_format($cuentaPorPagar->monto_total, 2) }}</span></div>
+                    <div class="totales-row grand"><span>Total</span><span class="monto">${{ number_format($cuentaPorPagar->monto_total, 2) }}</span></div>
                 </div>
             </div>
         </div>
@@ -70,11 +90,20 @@ $breadcrumbs = [
                 </div>
             </div>
         </div>
+        @if($cuentaPorPagar->comprobante_pago_path)
+        <div class="card">
+            <div class="card-header"><div class="card-title">📎 Comprobante de pago</div></div>
+            <div class="card-body">
+                <a href="{{ route('cuentas-por-pagar.ver-comprobante', $cuentaPorPagar->id) }}" target="_blank" class="btn btn-primary w-full">👁️ Ver comprobante de pago</a>
+                <a href="{{ route('cuentas-por-pagar.descargar-comprobante', $cuentaPorPagar->id) }}" class="btn btn-outline w-full" style="margin-top:8px;">📄 Descargar comprobante</a>
+            </div>
+        </div>
+        @endif
         @if($cuentaPorPagar->monto_pendiente > 0)
         <div class="card">
             <div class="card-header"><div class="card-title">Registrar pago</div></div>
             <div class="card-body">
-                <form method="POST" action="{{ route('cuentas-por-pagar.registrar-pago', $cuentaPorPagar->id) }}">
+                <form method="POST" action="{{ route('cuentas-por-pagar.registrar-pago', $cuentaPorPagar->id) }}" enctype="multipart/form-data">
                     @csrf
                     <div class="form-group">
                         <label class="form-label">Monto <span class="req">*</span></label>
@@ -87,6 +116,11 @@ $breadcrumbs = [
                     <div class="form-group">
                         <label class="form-label">Referencia</label>
                         <input type="text" name="referencia" class="form-control" placeholder="Opcional">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Comprobante de pago</label>
+                        <input type="file" name="comprobante_pago" accept=".pdf,.jpg,.jpeg,.png" class="form-control">
+                        <span class="form-hint">PDF, JPG o PNG. Máx. 5 MB</span>
                     </div>
                     <button type="submit" class="btn btn-primary w-full">Registrar pago</button>
                 </form>

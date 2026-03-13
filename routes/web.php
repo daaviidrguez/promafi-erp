@@ -23,6 +23,7 @@ use App\Http\Controllers\Web\NotaCreditoController;
 use App\Http\Controllers\Web\EmpresaController;
 use App\Http\Controllers\Web\CotizacionCompraController;
 use App\Http\Controllers\Web\OrdenCompraController;
+use App\Http\Controllers\Web\CompraController;
 use App\Http\Controllers\Web\ProveedorController;
 use App\Http\Controllers\Web\CuentaPorPagarController;
 use App\Http\Controllers\Web\RemisionController;
@@ -140,8 +141,27 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/ordenes-compra', [OrdenCompraController::class, 'index'])->name('ordenes-compra.index');
     Route::post('/ordenes-compra', [OrdenCompraController::class, 'store'])->name('ordenes-compra.store');
     Route::get('/ordenes-compra/{ordenCompra}', [OrdenCompraController::class, 'show'])->name('ordenes-compra.show');
+    Route::get('/ordenes-compra/{ordenCompra}/edit', [OrdenCompraController::class, 'edit'])->name('ordenes-compra.edit');
+    Route::put('/ordenes-compra/{ordenCompra}', [OrdenCompraController::class, 'update'])->name('ordenes-compra.update');
+    Route::delete('/ordenes-compra/{ordenCompra}', [OrdenCompraController::class, 'destroy'])->name('ordenes-compra.destroy');
+    Route::get('/ordenes-compra/{ordenCompra}/ver-pdf', [OrdenCompraController::class, 'verPDF'])->name('ordenes-compra.ver-pdf');
+    Route::get('/ordenes-compra/{ordenCompra}/descargar-pdf', [OrdenCompraController::class, 'descargarPDF'])->name('ordenes-compra.descargar-pdf');
     Route::post('/ordenes-compra/{ordenCompra}/aceptar', [OrdenCompraController::class, 'aceptar'])->name('ordenes-compra.aceptar');
     Route::post('/ordenes-compra/{ordenCompra}/recibir', [OrdenCompraController::class, 'recibir'])->name('ordenes-compra.recibir');
+
+    // ========================================
+    // COMPRAS (facturas de compra directas / CFDI)
+    // ========================================
+    Route::get('/compras/crear', [CompraController::class, 'create'])->name('compras.create');
+    Route::match(['get', 'post'], '/compras/subir-cfdi', [CompraController::class, 'uploadCfdi'])->name('compras.upload-cfdi');
+    Route::get('/compras/buscar-proveedores', [CompraController::class, 'buscarProveedores'])->name('compras.buscar-proveedores');
+    Route::get('/compras/buscar-productos', [CompraController::class, 'buscarProductos'])->name('compras.buscar-productos');
+    Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
+    Route::post('/compras', [CompraController::class, 'store'])->name('compras.store');
+    Route::get('/compras/{compra}', [CompraController::class, 'show'])->name('compras.show');
+    Route::get('/compras/{compra}/ver-pdf', [CompraController::class, 'verPDF'])->name('compras.ver-pdf');
+    Route::get('/compras/{compra}/descargar-pdf', [CompraController::class, 'descargarPDF'])->name('compras.descargar-pdf');
+    Route::post('/compras/{compra}/recibir', [CompraController::class, 'recibir'])->name('compras.recibir');
 
     // ========================================
     // PROVEEDORES
@@ -154,6 +174,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/cuentas-por-pagar', [CuentaPorPagarController::class, 'index'])->name('cuentas-por-pagar.index');
     Route::get('/cuentas-por-pagar/{cuentaPorPagar}', [CuentaPorPagarController::class, 'show'])->name('cuentas-por-pagar.show');
     Route::post('/cuentas-por-pagar/{cuentaPorPagar}/pagar', [CuentaPorPagarController::class, 'registrarPago'])->name('cuentas-por-pagar.registrar-pago');
+    Route::get('/cuentas-por-pagar/{cuentaPorPagar}/comprobante', [CuentaPorPagarController::class, 'verComprobante'])->name('cuentas-por-pagar.ver-comprobante');
+    Route::get('/cuentas-por-pagar/{cuentaPorPagar}/comprobante/descargar', [CuentaPorPagarController::class, 'descargarComprobante'])->name('cuentas-por-pagar.descargar-comprobante');
 
     // ========================================
     // REMISIONES
@@ -187,6 +209,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/inventario/movimientos', [InventarioController::class, 'movimientos'])->name('inventario.movimientos');
     Route::get('/inventario/movimientos/crear', [InventarioController::class, 'createMovimiento'])->name('inventario.create-movimiento');
     Route::post('/inventario/movimientos', [InventarioController::class, 'storeMovimiento'])->name('inventario.store-movimiento');
+    Route::get('/inventario/movimientos/{movimiento}', [InventarioController::class, 'showMovimiento'])->name('inventario.movimiento.show');
     Route::get('/inventario/producto/{producto}', [InventarioController::class, 'showProducto'])->name('inventario.show-producto');
 
     // ───── SUGERENCIAS (partidas para cotizar manual) ─────
@@ -249,6 +272,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/complementos', [ComplementoPagoController::class, 'index'])->name('complementos.index');
     Route::post('/complementos', [ComplementoPagoController::class, 'store'])->name('complementos.store');
     Route::get('/complementos/{complemento}', [ComplementoPagoController::class, 'show'])->name('complementos.show');
+    Route::get('/complementos/{complemento}/editar', [ComplementoPagoController::class, 'edit'])->name('complementos.edit');
+    Route::put('/complementos/{complemento}', [ComplementoPagoController::class, 'update'])->name('complementos.update');
+    Route::delete('/complementos/{complemento}', [ComplementoPagoController::class, 'destroy'])->name('complementos.destroy');
     Route::post('/complementos/{complemento}/timbrar', [ComplementoPagoController::class, 'timbrar'])->name('complementos.timbrar');
     Route::get('/complementos/{complemento}/ver-pdf', [ComplementoPagoController::class, 'verPDF'])->name('complementos.ver-pdf');
     Route::get('/complementos/{complemento}/descargar-pdf', [ComplementoPagoController::class, 'descargarPDF'])->name('complementos.descargar-pdf');
@@ -266,6 +292,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/notas-credito/crear', [NotaCreditoController::class, 'create'])->name('notas-credito.create');
     Route::post('/notas-credito', [NotaCreditoController::class, 'store'])->name('notas-credito.store');
     Route::get('/notas-credito/{notaCredito}', [NotaCreditoController::class, 'show'])->name('notas-credito.show');
+    Route::get('/notas-credito/{notaCredito}/editar', [NotaCreditoController::class, 'edit'])->name('notas-credito.edit');
+    Route::put('/notas-credito/{notaCredito}', [NotaCreditoController::class, 'update'])->name('notas-credito.update');
+    Route::delete('/notas-credito/{notaCredito}', [NotaCreditoController::class, 'destroy'])->name('notas-credito.destroy');
     Route::post('/notas-credito/{notaCredito}/timbrar', [NotaCreditoController::class, 'timbrar'])->name('notas-credito.timbrar');
     Route::get('/notas-credito/{notaCredito}/ver-pdf', [NotaCreditoController::class, 'verPDF'])->name('notas-credito.ver-pdf');
     Route::get('/notas-credito/{notaCredito}/descargar-pdf', [NotaCreditoController::class, 'descargarPDF'])->name('notas-credito.descargar-pdf');

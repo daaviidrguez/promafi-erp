@@ -27,7 +27,7 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
     <div class="card-body">
         <table class="table" style="max-width: 400px;">
             <tr>
-                <td><strong>Ingresos cobrados</strong></td>
+                <td><strong>Ingresos cobrados</strong> <span class="text-muted small">(sin IVA)</span></td>
                 <td class="text-end">${{ number_format($ingresosCobrados ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
@@ -48,7 +48,7 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
                 <td class="text-end">${{ number_format($isrEstimado ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td colspan="2" class="text-muted small">Calculado sobre ingresos cobrados del mes según tabla ISR RESICO.</td>
+                <td colspan="2" class="text-muted small">Calculado sobre ingresos cobrados (base gravable sin IVA) del mes según tabla ISR RESICO. El IVA no forma parte de la base del ISR por ser impuesto trasladado al cliente.</td>
             </tr>
             @else
             <tr>
@@ -64,7 +64,7 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
         <div class="card-title">Detalle</div>
     </div>
     <div class="card-body">
-        <p class="text-muted small mb-2"><strong>Ingresos cobrados:</strong> PUE: total de facturas contado timbradas en el mes. PPD: montos de complementos de pago timbrados en el mes.</p>
+        <p class="text-muted small mb-2"><strong>Ingresos cobrados (sin IVA):</strong> Base gravable (subtotal − descuento). PUE: base de facturas contado timbradas en el mes. PPD: base proporcional conforme se reciben pagos en complementos. El IVA no se incluye por ser impuesto trasladado al cliente.</p>
         <p class="text-muted small mb-2"><strong>IVA trasladado:</strong> PUE: IVA total de facturas contado timbradas en el mes. PPD: IVA proporcional conforme se reciben pagos en complementos.</p>
         <p class="text-muted small mb-2"><strong>IVA acreditable:</strong> IVA de órdenes de compra (compras) del mes.</p>
     </div>

@@ -249,6 +249,14 @@ body {
                 Comprobante Fiscal Digital por Internet
             </div>
             <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Complemento de Pago</div>
+            @elseif($esOrdenCompra ?? false)
+            <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
+                ORDEN DE COMPRA
+            </div>
+            @elseif($esFacturaCompra ?? false)
+            <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
+                FACTURA DE COMPRA
+            </div>
             @else
             <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
                 {{ strtoupper($tipo) }}
@@ -256,7 +264,7 @@ body {
             @endif
 
             <div style="font-size:10.5pt; font-weight:bold; margin-top:2px;">
-                {{ $doc->serie ?? '' }} {{ $doc->folio }}
+                {{ $doc->serie ?? '' }}{{ ($doc->serie ?? '') ? ' ' : '' }}{{ $doc->folio }}
             </div>
 
             @if(($esFactura || $esNotaCredito) && ($doc->uuid ?? null) && ($doc->estado ?? '') === 'cancelada')
@@ -283,6 +291,10 @@ body {
     @include('pdf.partials.factura-cfdi')
 @elseif($esComplemento)
     @include('pdf.partials.complemento-pago')
+@elseif($esOrdenCompra ?? false)
+    @include('pdf.partials.orden-compra')
+@elseif($esFacturaCompra ?? false)
+    @include('pdf.partials.factura-compra')
 @else
 {{-- CLIENTE / INFO (cotización, remisión, etc.) --}}
 <table width="100%" cellpadding="0" cellspacing="0">
@@ -407,7 +419,13 @@ body {
 <div class="footer">
 @if(!$esNotaCredito && !$esComplemento)
 
-@if($esCotizacion)
+@if(($esOrdenCompra ?? false) || ($esFacturaCompra ?? false))
+{{-- FOOTER ORDEN DE COMPRA / FACTURA COMPRA --}}
+    <div style="text-align: center; margin-top: 8px; padding-top: 8px; font-size: 8pt; line-height: 1.5;">
+        Documento generado por {{ $empresa->razon_social ?? '' }}<br>
+        RFC: {{ $empresa->rfc ?? '' }}
+    </div>
+@elseif($esCotizacion)
 {{-- FOOTER COTIZACIÓN: Datos bancarios ancho completo, sin PAGARÉ ni sello, cierre con Gracias por su preferencia --}}
     {{-- Datos bancarios (ancho completo) --}}
     @if($empresa->banco ?? $empresa->numero_cuenta ?? $empresa->clabe ?? false)

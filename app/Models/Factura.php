@@ -66,6 +66,20 @@ class Factura extends Model
     ];
 
     /**
+     * Saldo acreditable máximo para una nota de crédito directa (sin devolución).
+     * PPD: saldo_pendiente_real de la cuenta por cobrar.
+     * PUE: total factura menos total de NCs timbradas.
+     */
+    public function getSaldoAcreditableAttribute(): float
+    {
+        if ($this->cuentaPorCobrar) {
+            return max(0, (float) $this->cuentaPorCobrar->saldo_pendiente_real);
+        }
+        $ncTotal = (float) NotaCredito::where('factura_id', $this->id)->where('estado', 'timbrada')->sum('total');
+        return max(0, (float) $this->total - $ncTotal);
+    }
+
+    /**
      * Relación con Cliente
      */
     public function cliente()

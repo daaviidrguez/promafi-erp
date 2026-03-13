@@ -61,6 +61,10 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">Acciones</div></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+                @if($notaCredito->estado === 'borrador')
+                <a href="{{ route('notas-credito.edit', $notaCredito->id) }}" class="btn btn-outline w-full">✏️ Editar</a>
+                <form method="POST" action="{{ route('notas-credito.destroy', $notaCredito->id) }}" onsubmit="return confirm('¿Eliminar esta nota de crédito en borrador? Se redirigirá a la factura.');">@csrf @method('DELETE')<button type="submit" class="btn btn-outline w-full" style="color:var(--color-danger);">🗑️ Eliminar</button></form>
+                @endif
                 <a href="{{ route('notas-credito.ver-pdf', $notaCredito->id) }}" target="_blank" class="btn btn-outline w-full">Ver PDF</a>
                 @if($notaCredito->estado === 'borrador')
                 <form method="POST" action="{{ route('notas-credito.timbrar', $notaCredito->id) }}">@csrf<button type="submit" class="btn btn-primary w-full">Emitir (timbrar) nota de crédito</button></form>

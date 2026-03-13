@@ -12,6 +12,7 @@ class NotaCreditoDetalle extends Model
 
     protected $fillable = [
         'nota_credito_id',
+        'factura_detalle_id',
         'producto_id',
         'clave_prod_serv',
         'clave_unidad',
@@ -38,6 +39,11 @@ class NotaCreditoDetalle extends Model
     public function notaCredito(): BelongsTo
     {
         return $this->belongsTo(NotaCredito::class);
+    }
+
+    public function facturaDetalle(): BelongsTo
+    {
+        return $this->belongsTo(FacturaDetalle::class);
     }
 
     public function producto(): BelongsTo

@@ -89,7 +89,7 @@ class NotaCredito extends Model
     public function calcularIVA(): float
     {
         $iva = $this->detalles->sum(function ($d) {
-            return $d->impuestos->sum(fn ($i) => $i->importe ?? 0);
+            return $d->impuestos->sum(fn ($i) => ($i->tipo ?? 'traslado') === 'retencion' ? 0 : ((float) ($i->importe ?? 0)));
         });
         if ($iva > 0 || $this->detalles->count() === 0) {
             return (float) $iva;

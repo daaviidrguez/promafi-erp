@@ -58,16 +58,18 @@ class Empresa extends Model
         'pac_nombre',
         'pac_api_key',
         'pac_endpoint',
-        'pac_modo_prueba',
         'pac_provider',
         'pac_facturama_user',
         'pac_facturama_password',
+        'pac_facturama_user_sandbox',
+        'pac_facturama_password_sandbox',
+        'pac_facturama_user_production',
+        'pac_facturama_password_production',
         'activo',
     ];
 
     protected $casts = [
         'certificado_vigencia' => 'date',
-        'pac_modo_prueba' => 'boolean',
         'activo' => 'boolean',
         'folio_factura' => 'integer',
         'folio_factura_credito' => 'integer',
@@ -82,6 +84,8 @@ class Empresa extends Model
         'certificado_password',
         'pac_api_key',
         'pac_facturama_password',
+        'pac_facturama_password_sandbox',
+        'pac_facturama_password_production',
     ];
 
     /**
@@ -191,10 +195,34 @@ class Empresa extends Model
      */
     public function tienePACConfigurado(): bool
     {
-        if (in_array($this->pac_provider ?? 'fake', ['facturama_sandbox', 'facturama_production'], true)) {
-            return !empty($this->pac_facturama_user) && !empty($this->pac_facturama_password);
+        if (in_array($this->pac_provider ?? 'facturama_sandbox', ['facturama_sandbox', 'facturama_production'], true)) {
+            [$user, $pass] = $this->getFacturamaCredentials();
+            return !empty($user) && !empty($pass);
         }
         return !empty($this->pac_nombre) && !empty($this->pac_api_key) && !empty($this->pac_endpoint);
+    }
+
+    /**
+     * Obtener credenciales de Facturama según el proveedor activo (sandbox o producción).
+     * Sandbox y producción son cuentas distintas — cada entorno usa solo sus propias credenciales.
+     * Usa getRawOriginal para contraseñas (están en $hidden) y evitar cualquier pérdida de valor.
+     */
+    public function getFacturamaCredentials(): array
+    {
+        $provider = $this->pac_provider ?? 'facturama_sandbox';
+        if ($provider === 'facturama_sandbox') {
+            $user = trim((string) ($this->pac_facturama_user_sandbox ?? $this->pac_facturama_user ?? ''));
+            $pass = trim((string) ($this->getRawOriginal('pac_facturama_password_sandbox') ?? $this->getRawOriginal('pac_facturama_password') ?? ''));
+            return [$user, $pass];
+        }
+        if ($provider === 'facturama_production') {
+            $user = trim((string) ($this->pac_facturama_user_production ?? $this->pac_facturama_user ?? ''));
+            $pass = trim((string) ($this->getRawOriginal('pac_facturama_password_production') ?? $this->getRawOriginal('pac_facturama_password') ?? ''));
+            return [$user, $pass];
+        }
+        $user = trim((string) ($this->pac_facturama_user ?? ''));
+        $pass = trim((string) ($this->getRawOriginal('pac_facturama_password') ?? ''));
+        return [$user, $pass];
     }
 
     /**
@@ -202,7 +230,7 @@ class Empresa extends Model
      */
     public function getFacturamaBaseUrlAttribute(): ?string
     {
-        $provider = $this->pac_provider ?? 'fake';
+        $provider = $this->pac_provider ?? 'facturama_sandbox';
         return match ($provider) {
             'facturama_sandbox' => 'https://apisandbox.facturama.mx',
             'facturama_production' => 'https://api.facturama.mx',

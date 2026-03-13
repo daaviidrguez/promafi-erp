@@ -163,7 +163,7 @@
 <tr><td>IVA (traslados):</td><td>{{ formatMoney($totalIva) }}</td></tr>
 @endif
 @if($totalRetenciones != 0)
-<tr><td>Retenciones:</td><td>-{{ formatMoney($totalRetenciones) }}</td></tr>
+<tr><td>ISR Retenido:</td><td>-{{ formatMoney($totalRetenciones) }}</td></tr>
 @endif
 <tr class="total-final">
     <td>Total:</td>

@@ -15,6 +15,7 @@ class CuentaPorPagar extends Model
 
     protected $fillable = [
         'orden_compra_id',
+        'factura_compra_id',
         'proveedor_id',
         'monto_total',
         'monto_pagado',
@@ -24,6 +25,7 @@ class CuentaPorPagar extends Model
         'dias_vencido',
         'estado',
         'notas',
+        'comprobante_pago_path',
     ];
 
     protected $casts = [
@@ -38,6 +40,11 @@ class CuentaPorPagar extends Model
     public function ordenCompra(): BelongsTo
     {
         return $this->belongsTo(OrdenCompra::class);
+    }
+
+    public function facturaCompra(): BelongsTo
+    {
+        return $this->belongsTo(FacturaCompra::class);
     }
 
     public function proveedor(): BelongsTo

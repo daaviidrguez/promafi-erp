@@ -24,8 +24,7 @@ class FacturamaService
     public function __construct(Empresa $empresa)
     {
         $this->baseUrl = rtrim($empresa->facturama_base_url ?? 'https://apisandbox.facturama.mx', '/');
-        $this->user = $empresa->pac_facturama_user ?? '';
-        $this->password = $empresa->pac_facturama_password ?? '';
+        [$this->user, $this->password] = $empresa->getFacturamaCredentials();
     }
 
     /**
@@ -99,7 +98,9 @@ class FacturamaService
             }
             if (stripos($mensajeFinal, 'Serie') !== false && (stripos($mensajeFinal, 'sucursal') !== false || stripos($mensajeFinal, 'existir') !== false)) {
                 $serie = $body['Serie'] ?? $body['serie'] ?? 'A';
-                $mensajeFinal = 'La serie "' . $serie . '" debe existir en tu sucursal de Facturama. Entra a Facturama → Perfil fiscal → Lugares de expedición → elige la sucursal (ej. CP ' . ($body['ExpeditionPlace'] ?? '') . ') → Series y crea una serie con el nombre "' . $serie . '" (o cambia en Configuración de la empresa la serie de facturas a una que ya tengas en Facturama). ' . $mensajeFinal;
+                $esProduccion = str_contains($this->baseUrl, 'api.facturama.mx') && !str_contains($this->baseUrl, 'sandbox');
+                $entorno = $esProduccion ? 'producción (api.facturama.mx)' : 'sandbox (apisandbox.facturama.mx)';
+                $mensajeFinal = 'La serie "' . $serie . '" debe existir en tu sucursal de Facturama. Estás usando ' . $entorno . '. Entra a Facturama en ese entorno → Perfil fiscal → Lugares de expedición → elige la sucursal (ej. CP ' . ($body['ExpeditionPlace'] ?? '') . ') → Series y crea una serie con el nombre "' . $serie . '". Si configuraste la serie en producción, asegúrate de tener "Producción Facturama" seleccionado en Configuración de empresa (no Sandbox). ' . $mensajeFinal;
             }
             if (stripos($mensajeFinal, 'Nombre del receptor') !== false && stripos($mensajeFinal, 'RFC') !== false) {
                 $rfc = $body['Receiver']['Rfc'] ?? '';
@@ -182,23 +183,39 @@ class FacturamaService
             $cpReceptor = '01000';
         }
 
+        // Validar que todas las facturas tengan UUID válido antes de enviar
+        foreach ($complemento->pagosRecibidos as $pago) {
+            foreach ($pago->documentosRelacionados as $doc) {
+                $uuid = trim((string) ($doc->factura_uuid ?? ''));
+                if ($uuid === '' || !preg_match('/^[a-f0-9\-]{36}$/i', $uuid)) {
+                    return [
+                        'success' => false,
+                        'message' => 'La factura ' . ($doc->serie ?? '') . '-' . $doc->folio . ' no tiene UUID válido. Solo se pueden incluir facturas timbradas.',
+                    ];
+                }
+            }
+        }
+
         $payments = [];
         foreach ($complemento->pagosRecibidos as $pago) {
             $relatedDocs = [];
             foreach ($pago->documentosRelacionados as $doc) {
                 $factura = $doc->factura;
-                $taxObject = '02';
                 $taxesForDoc = $this->impuestosParaDoctoRelacionado($factura, (float) $doc->monto_pagado);
+                $taxObject = !empty($taxesForDoc) ? '02' : '01';
+                $prevBalance = round((float) $doc->saldo_anterior, 2);
+                $amountPaid = round((float) $doc->monto_pagado, 2);
+                $saldoInsoluto = round($prevBalance - $amountPaid, 2);
                 $relatedDoc = [
                     'TaxObject' => $taxObject,
-                    'Uuid' => $doc->factura_uuid,
-                    'Serie' => $doc->serie ?? '',
+                    'Uuid' => trim((string) $doc->factura_uuid),
+                    'Serie' => trim((string) ($doc->serie ?? '')) !== '' ? trim($doc->serie) : 'NA',
                     'Folio' => (string) $doc->folio,
                     'PaymentMethod' => $factura ? ($factura->metodo_pago ?? 'PUE') : 'PUE',
                     'PartialityNumber' => (string) $doc->parcialidad,
-                    'PreviousBalanceAmount' => round((float) $doc->saldo_anterior, 2),
-                    'AmountPaid' => round((float) $doc->monto_pagado, 2),
-                    'ImpSaldoInsoluto' => round((float) $doc->saldo_insoluto, 2),
+                    'PreviousBalanceAmount' => $prevBalance,
+                    'AmountPaid' => $amountPaid,
+                    'ImpSaldoInsoluto' => $saldoInsoluto,
                     'Currency' => $doc->moneda ?? 'MXN',
                 ];
                 if ($taxObject === '02' && !empty($taxesForDoc)) {
@@ -247,14 +264,35 @@ class FacturamaService
         if (!$response->successful()) {
             $bodyErr = $response->json();
             $rawBody = $response->body();
-            $message = is_array($bodyErr) ? ($bodyErr['Message'] ?? $bodyErr['message'] ?? $rawBody) : $rawBody;
+            $message = null;
+            $modelStateLines = [];
+            if (is_array($bodyErr)) {
+                $message = $bodyErr['Message'] ?? $bodyErr['message'] ?? null;
+                if (!empty($bodyErr['ModelState']) && is_array($bodyErr['ModelState'])) {
+                    foreach ($bodyErr['ModelState'] as $campo => $errores) {
+                        $lista = is_array($errores) ? $errores : [$errores];
+                        foreach ($lista as $e) {
+                            $modelStateLines[] = is_string($e) ? $e : (string) json_encode($e);
+                        }
+                    }
+                    if (!empty($modelStateLines)) {
+                        $message = implode(' ', $modelStateLines);
+                    }
+                }
+            }
+            if ($message === null || $message === '') {
+                $message = preg_replace('/\s+/', ' ', strip_tags($rawBody));
+                if (strlen($message) > 500) {
+                    $message = substr($message, 0, 500) . '…';
+                }
+            }
             if (is_array($message)) {
                 $message = json_encode($message);
             }
-            Log::warning('Facturama complemento de pago fallido', [
+            Log::error('Facturama complemento de pago fallido', [
                 'status' => $response->status(),
-                'response' => $rawBody,
-                'body' => $body,
+                'response_body' => $rawBody,
+                'request_body' => $body,
             ]);
             return [
                 'success' => false,
@@ -336,17 +374,9 @@ class FacturamaService
                 $impuestosAgrupados[$key]['importe'] += (float) $imp->importe;
             }
         }
+        // Si la factura no tiene impuestos (objeto 01), no inventar; el DoctoRelacionado usará TaxObject 01 sin Taxes
         if (empty($impuestosAgrupados)) {
-            $baseIva = (float) $factura->subtotal - (float) ($factura->descuento ?? 0);
-            $ivaEstimado = $factura->calcularIVA();
-            $impuestosAgrupados['traslado-002'] = [
-                'tipo' => 'traslado',
-                'impuesto' => '002',
-                'base' => $baseIva >= 0.01 ? $baseIva : (float) $factura->total,
-                'importe' => $ivaEstimado >= 0.01 ? $ivaEstimado : 0.0,
-                'tasa_o_cuota' => 0.16,
-                'tipo_factor' => 'Tasa',
-            ];
+            return [];
         }
         $taxes = [];
         foreach ($impuestosAgrupados as $row) {
@@ -360,10 +390,9 @@ class FacturamaService
             $total = $esCuota
                 ? round($row['importe'] * $proporcion, 2)
                 : round($base * $rate, 2);
-            $name = $row['impuesto'] === '002' ? 'IVA' : ($row['impuesto'] === '001' ? 'ISR' : 'IEPS');
-            if ($row['tipo'] === 'retencion') {
-                $name .= ' RET';
-            }
+            $impuesto = $row['impuesto'] ?? '002';
+            $tipo = $row['tipo'] ?? 'traslado';
+            $name = \App\Models\FacturaImpuesto::nombreParaFacturama($impuesto, $tipo, $row['tipo_factor'] ?? null);
             $taxes[] = [
                 'Name' => $name,
                 'Base' => $base,
@@ -581,9 +610,15 @@ class FacturamaService
             $impuestosTotal = 0;
             $tieneImpuestos = $d->impuestos && $d->impuestos->isNotEmpty();
             foreach ($d->impuestos ?? [] as $imp) {
-                $impuestosTotal += (float) $imp->importe;
+                $monto = (float) $imp->importe;
+                $impuestosTotal += ($imp->tipo ?? 'traslado') === 'retencion' ? -$monto : $monto;
+                $nombre = \App\Models\FacturaImpuesto::nombreParaFacturama(
+                    $imp->impuesto ?? '002',
+                    $imp->tipo ?? 'traslado',
+                    $imp->tipo_factor ?? null
+                );
                 $taxes[] = [
-                    'Name' => $imp->impuesto === '002' ? 'IVA' : ($imp->impuesto === '001' ? 'ISR' : 'IEPS'),
+                    'Name' => $nombre,
                     'Base' => round((float) $imp->base, 2),
                     'Rate' => round((float) $imp->tasa_o_cuota, 6),
                     'Total' => round((float) $imp->importe, 2),
@@ -691,9 +726,15 @@ class FacturamaService
             $taxes = [];
             $impuestosTotal = 0;
             foreach ($d->impuestos ?? [] as $imp) {
-                $impuestosTotal += (float) $imp->importe;
+                $monto = (float) $imp->importe;
+                $impuestosTotal += ($imp->tipo ?? 'traslado') === 'retencion' ? -$monto : $monto;
+                $nombre = \App\Models\FacturaImpuesto::nombreParaFacturama(
+                    $imp->impuesto ?? '002',
+                    $imp->tipo ?? 'traslado',
+                    $imp->tipo_factor ?? null
+                );
                 $taxes[] = [
-                    'Name' => $imp->impuesto === '002' ? 'IVA' : ($imp->impuesto === '001' ? 'ISR' : 'IEPS'),
+                    'Name' => $nombre,
                     'Base' => round((float) $imp->base, 2),
                     'Rate' => round((float) $imp->tasa_o_cuota, 6),
                     'Total' => round((float) $imp->importe, 2),
@@ -836,10 +877,14 @@ class FacturamaService
 
     protected function extraerUuidDelXml(string $xml): ?string
     {
-        if (preg_match('/UUID="([a-f0-9\-]{36})"/i', $xml, $m)) {
+        // Priorizar TimbreFiscalDigital: es el UUID de este CFDI (no el de CfdiRelacionado)
+        if (preg_match('/<tfd:TimbreFiscalDigital[^>]+UUID="([a-f0-9\-]{36})"/i', $xml, $m)) {
             return $m[1];
         }
-        if (preg_match('/<tfd:TimbreFiscalDigital[^>]+UUID="([a-f0-9\-]{36})"/i', $xml, $m)) {
+        if (preg_match('/TimbreFiscalDigital[^>]+UUID="([a-f0-9\-]{36})"/i', $xml, $m)) {
+            return $m[1];
+        }
+        if (preg_match('/UUID="([a-f0-9\-]{36})"/i', $xml, $m)) {
             return $m[1];
         }
         return null;

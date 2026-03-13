@@ -23,6 +23,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // CA bundle del proyecto para SSL (evita error 60 en laptops/servidores sin bundle del sistema)
+        $cacert = base_path('certs/cacert.pem');
+        if (file_exists($cacert) && !getenv('CURL_CA_BUNDLE') && !getenv('SSL_CERT_FILE')) {
+            putenv('CURL_CA_BUNDLE=' . $cacert);
+            putenv('SSL_CERT_FILE=' . $cacert);
+        }
+
         Route::bind('usuario', fn ($value) => User::findOrFail($value));
 
         // Admin tiene todos los permisos

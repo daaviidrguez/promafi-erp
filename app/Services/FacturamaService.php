@@ -161,19 +161,36 @@ class FacturamaService
         // UUID puede venir en la respuesta o en el XML timbrado
         $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
         $xml = null;
+        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now();
 
         $xmlResponse = $this->http()
             ->acceptJson()
             ->timeout(15)
             ->get($this->baseUrl . '/cfdi/xml/issued/' . $cfdiId);
 
+        $selloCfdi = null;
+        $selloSat = null;
+        $cadenaOriginal = null;
+
         if ($xmlResponse->successful()) {
             $fileData = $xmlResponse->json();
             $content = $fileData['Content'] ?? null;
             if ($content) {
                 $xml = base64_decode($content, true);
-                if ($xml && !$uuid) {
-                    $uuid = $this->extraerUuidDelXml($xml);
+                if ($xml) {
+                    if (!$uuid) {
+                        $uuid = $this->extraerUuidDelXml($xml);
+                    }
+                    $timbre = $this->extraerTimbreDelXml($xml);
+                    $selloCfdi = $timbre['sello_cfdi'] ?? null;
+                    $selloSat = $timbre['sello_sat'] ?? null;
+                    $cadenaOriginal = $timbre['cadena_original'] ?? null;
+                    if (!empty($timbre['fecha_timbrado'])) {
+                        $fechaTimbrado = \Carbon\Carbon::parse($timbre['fecha_timbrado']);
+                    }
+                    if (empty($data['CertNumber']) && !empty($timbre['no_certificado_sat'])) {
+                        $data['CertNumber'] = $timbre['no_certificado_sat'];
+                    }
                 }
             }
         }
@@ -182,8 +199,6 @@ class FacturamaService
             $uuid = $data['Folio'] ?? $cfdiId;
         }
 
-        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now();
-
         return [
             'success' => true,
             'uuid' => (string) $uuid,
@@ -191,9 +206,9 @@ class FacturamaService
             'xml' => $xml ?: '',
             'fecha_timbrado' => $fechaTimbrado,
             'no_certificado_sat' => $data['CertNumber'] ?? $data['NoCertificado'] ?? null,
-            'sello_cfdi' => '',
-            'sello_sat' => '',
-            'cadena_original' => '',
+            'sello_cfdi' => $selloCfdi ?? '',
+            'sello_sat' => $selloSat ?? '',
+            'cadena_original' => $cadenaOriginal ?? '',
             'message' => 'Factura timbrada con Facturama correctamente',
         ];
     }
@@ -744,44 +759,7 @@ class FacturamaService
             $body['Observations'] = mb_substr(trim($factura->observaciones), 0, 1000);
         }
 
-        // CFDI 4.0: cuando el receptor es público en general (RFC genérico), el SAT exige el nodo GlobalInformation
-        if ($this->esReceptorPublicoEnGeneral($body['Receiver']['Rfc'] ?? '', $body['Receiver']['Name'] ?? '')) {
-            $body['GlobalInformation'] = $this->buildGlobalInformation($factura->fecha_emision);
-        }
-
         return $body;
-    }
-
-    /**
-     * Indica si el receptor es "Público en general" (RFC genérico XAXX010101000).
-     * En ese caso el SAT exige el nodo GlobalInformation en el CFDI 4.0.
-     */
-    protected function esReceptorPublicoEnGeneral(string $rfc, string $nombre): bool
-    {
-        $rfc = strtoupper(trim($rfc));
-        $nombre = strtoupper(trim($nombre));
-        return $rfc === 'XAXX010101000' && $nombre === 'PUBLICO EN GENERAL';
-    }
-
-    /**
-     * Construye el nodo GlobalInformation requerido para factura al público en general (CFDI 4.0).
-     * Periodicidad: 01=Diario, 02=Semanal, 03=Quincenal, 04=Mensual, 05=Bimestral.
-     *
-     * @param \Carbon\Carbon|\DateTimeInterface $fechaEmision
-     * @return array{Periodicity: string, Months: string, Year: int}
-     */
-    protected function buildGlobalInformation($fechaEmision): array
-    {
-        $fecha = $fechaEmision instanceof \Carbon\Carbon
-            ? $fechaEmision
-            : \Carbon\Carbon::parse($fechaEmision);
-        $mes = $fecha->format('m'); // 01-12
-        $anio = (int) $fecha->format('Y');
-        return [
-            'Periodicity' => '04', // Mensual (común para factura global)
-            'Months' => $mes,
-            'Year' => $anio,
-        ];
     }
 
     /**
@@ -961,5 +939,48 @@ class FacturamaService
             return $m[1];
         }
         return null;
+    }
+
+    /**
+     * Extrae del XML timbrado los datos del complemento TimbreFiscalDigital para sellos, fecha y cadena original.
+     * Orden cadena SAT: Version|UUID|FechaTimbrado|SelloCFDI|NoCertificadoSAT
+     *
+     * @return array{sello_cfdi: ?string, sello_sat: ?string, fecha_timbrado: ?string, no_certificado_sat: ?string, cadena_original: ?string}
+     */
+    protected function extraerTimbreDelXml(string $xml): array
+    {
+        $out = ['sello_cfdi' => null, 'sello_sat' => null, 'fecha_timbrado' => null, 'no_certificado_sat' => null, 'cadena_original' => null];
+        // Atributos pueden venir con namespace o sin; nombres en mayúscula o mixto según PAC
+        if (!preg_match('/<(?:\w+:)?TimbreFiscalDigital\s+([^>]+)>/i', $xml, $tag)) {
+            return $out;
+        }
+        $attrs = $tag[1];
+        $get = function (string $name) use ($attrs): ?string {
+            if (preg_match('/\s' . preg_quote($name, '/') . '="([^"]*)"/i', $attrs, $m)) {
+                return $m[1] !== '' ? $m[1] : null;
+            }
+            $alt = str_replace(['CFDI', 'SAT'], ['Cfdi', 'Sat'], $name);
+            if (preg_match('/\s' . preg_quote($alt, '/') . '="([^"]*)"/i', $attrs, $m)) {
+                return $m[1] !== '' ? $m[1] : null;
+            }
+            return null;
+        };
+        $version = $get('Version') ?? $get('version') ?? '1.1';
+        $uuid = $get('UUID') ?? $get('Uuid') ?? '';
+        $fechaTimbrado = $get('FechaTimbrado') ?? $get('FechaTimbrado');
+        $selloCfdi = $get('SelloCFDI') ?? $get('SelloCFD') ?? $get('SelloCfdi');
+        $noCertSat = $get('NoCertificadoSAT') ?? $get('NoCertificadoSat');
+        $selloSat = $get('SelloSAT') ?? $get('SelloSat');
+
+        $out['sello_cfdi'] = $selloCfdi;
+        $out['sello_sat'] = $selloSat;
+        $out['fecha_timbrado'] = $fechaTimbrado;
+        $out['no_certificado_sat'] = $noCertSat;
+
+        if ($version && $uuid && $fechaTimbrado && $selloCfdi && $noCertSat) {
+            $out['cadena_original'] = implode('|', [$version, $uuid, $fechaTimbrado, $selloCfdi, $noCertSat]);
+        }
+
+        return $out;
     }
 }

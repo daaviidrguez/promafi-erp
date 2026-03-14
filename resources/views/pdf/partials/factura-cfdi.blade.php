@@ -24,6 +24,19 @@
     }
     $fechaEmision = $f->fecha_emision ? \Carbon\Carbon::parse($f->fecha_emision) : null;
     $fechaTimbrado = $f->fecha_timbrado ? \Carbon\Carbon::parse($f->fecha_timbrado) : null;
+    // Si la hora está en ceros, usar hora real (created_at / updated_at) para no mostrar 00:00:00
+    $fechaExpedicionMostrar = $fechaEmision;
+    if ($fechaEmision && $fechaEmision->format('H:i:s') === '00:00:00' && $f->created_at) {
+        $fechaExpedicionMostrar = $fechaEmision->copy()->setTime(
+            (int) $f->created_at->format('H'),
+            (int) $f->created_at->format('i'),
+            (int) $f->created_at->format('s')
+        );
+    }
+    $fechaCertificacionMostrar = $fechaTimbrado;
+    if ($fechaTimbrado && $fechaTimbrado->format('H:i:s') === '00:00:00' && $f->updated_at) {
+        $fechaCertificacionMostrar = $f->updated_at;
+    }
 
     $usoCfdiEtiqueta = \App\Models\UsoCfdi::where('clave', $f->uso_cfdi)->first()?->etiqueta ?? $f->uso_cfdi;
     $formaPagoEtiqueta = \App\Models\FormaPago::where('clave', $f->forma_pago)->first()?->etiqueta ?? $f->forma_pago;
@@ -33,8 +46,8 @@
         : '-';
 
     $qrVerificacionDataUri = null;
-    if ($f->uuid && $f->rfc_emisor && $f->rfc_receptor && $f->sello_cfdi) {
-        $urlVerificacion = urlVerificacionSat($f->uuid, $f->rfc_emisor, $f->rfc_receptor, (float) $f->total, $f->sello_cfdi);
+    if ($f->uuid && $f->rfc_emisor && $f->rfc_receptor) {
+        $urlVerificacion = urlVerificacionSat($f->uuid, $f->rfc_emisor, $f->rfc_receptor, (float) $f->total, $f->sello_cfdi ?? null);
         $qrVerificacionDataUri = qrCodeDataUri($urlVerificacion, 80);
     }
 @endphp
@@ -69,7 +82,7 @@
         <div class="info-box">
             <div class="section-title">DATOS DEL COMPROBANTE</div>
             <strong>Serie / Folio:</strong> {{ $f->serie ?? '' }} {{ $f->folio }}<br>
-            <strong>Fecha y hora de expedición:</strong> {{ $fechaEmision ? $fechaEmision->format('d/m/Y H:i:s') : '-' }}<br>
+            <strong>Fecha y hora de expedición:</strong> {{ $fechaExpedicionMostrar ? $fechaExpedicionMostrar->format('d/m/Y H:i:s') : '-' }}<br>
             <strong>Lugar de expedición:</strong> {{ $f->lugar_expedicion ?? $e->codigo_postal ?? '-' }}<br>
             <strong>Forma de pago:</strong> {{ $formaPagoEtiqueta }}<br>
             <strong>Método de pago:</strong> {{ $metodoPagoEtiqueta }}<br>
@@ -82,8 +95,8 @@
             @if($e->no_certificado ?? null)
             <strong>No. de serie del certificado del emisor:</strong> {{ $e->no_certificado }}<br>
             @endif
-            @if($fechaTimbrado)
-            <strong>Fecha y hora de certificación:</strong> {{ $fechaTimbrado->format('d/m/Y H:i:s') }}<br>
+            @if($fechaCertificacionMostrar)
+            <strong>Fecha y hora de certificación:</strong> {{ $fechaCertificacionMostrar->format('d/m/Y H:i:s') }}<br>
             @endif
             @if($f->no_certificado_sat)
             <strong>No. de serie del certificado del SAT:</strong> {{ $f->no_certificado_sat }}<br>
@@ -184,7 +197,7 @@
 </div>
 @endif
 
-{{-- Sellos y cadena original (reemplaza TIMBRE FISCAL DIGITAL) --}}
+{{-- Sellos, cadena original y QR (siempre visibles cuando hay UUID) --}}
 <div class="timbrado-section" style="margin-top:4px;">
     @if($f->uuid)
         <table width="100%" cellpadding="0" cellspacing="0">
@@ -196,18 +209,12 @@
             </td>
             @endif
             <td valign="top" style="flex:1;">
-        @if($f->sello_cfdi)
         <div class="timbrado-label">Sello digital del CFDI:</div>
-        <div class="timbrado-value">{{ \Illuminate\Support\Str::limit($f->sello_cfdi, 80) }}</div>
-        @endif
-        @if($f->sello_sat)
+        <div class="timbrado-value">{{ $f->sello_cfdi ? \Illuminate\Support\Str::limit($f->sello_cfdi, 120) : '—' }}</div>
         <div class="timbrado-label" style="margin-top:2px;">Sello del SAT:</div>
-        <div class="timbrado-value">{{ \Illuminate\Support\Str::limit($f->sello_sat, 80) }}</div>
-        @endif
-        @if($f->cadena_original)
+        <div class="timbrado-value">{{ $f->sello_sat ? \Illuminate\Support\Str::limit($f->sello_sat, 120) : '—' }}</div>
         <div class="timbrado-label" style="margin-top:2px;">Cadena original del complemento de certificación digital del SAT:</div>
-        <div class="timbrado-value">{{ \Illuminate\Support\Str::limit($f->cadena_original, 120) }}</div>
-        @endif
+        <div class="timbrado-value">{{ $f->cadena_original ? \Illuminate\Support\Str::limit($f->cadena_original, 150) : '—' }}</div>
             </td>
         </tr>
         </table>

@@ -48,7 +48,7 @@
     $qrVerificacionDataUri = null;
     if ($f->uuid && $f->rfc_emisor && $f->rfc_receptor) {
         $urlVerificacion = urlVerificacionSat($f->uuid, $f->rfc_emisor, $f->rfc_receptor, (float) $f->total, $f->sello_cfdi ?? null);
-        $qrVerificacionDataUri = qrCodeDataUri($urlVerificacion, 80);
+        $qrVerificacionDataUri = qrCodeDataUri($urlVerificacion, 110);
     }
 @endphp
 
@@ -197,24 +197,46 @@
 </div>
 @endif
 
-{{-- Sellos, cadena original y QR (70% textos completos, 30% QR) --}}
+{{-- Sellos, cadena original y QR (85% textos, 15% QR) --}}
 <div class="timbrado-section" style="margin-top:4px;">
     @if($f->uuid)
-        <table width="100%" cellpadding="0" cellspacing="0">
+        @php
+            // Fix: fallback a $e->rfc si $f->rfc_emisor está vacío
+            $rfcEmisorQr = $f->rfc_emisor ?: ($e->rfc ?? null);
+            if (!$qrVerificacionDataUri && $f->uuid && $rfcEmisorQr && $f->rfc_receptor) {
+                $urlVerificacion = urlVerificacionSat($f->uuid, $rfcEmisorQr, $f->rfc_receptor, (float) $f->total, $f->sello_cfdi ?? null);
+                $qrVerificacionDataUri = qrCodeDataUri($urlVerificacion, 110);
+            }
+        @endphp
+        {{-- table-layout:fixed es CLAVE para que DomPDF respete los anchos y no desborde --}}
+        <table width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
         <tr>
             @if($qrVerificacionDataUri)
-            <td width="30%" valign="top" style="padding-right:10px; text-align:center;">
-                <img src="{{ $qrVerificacionDataUri }}" style="width:80px; height:80px; display:block; margin:0 auto;" alt="QR Verificación SAT">
-                <div style="font-size:6.5pt; text-align:center; margin-top:2px;">Verificar en SAT</div>
+            <td width="15%" valign="top" style="padding-right:8px; text-align:center;">
+                <img src="{{ $qrVerificacionDataUri }}"
+                    style="width:110px; height:110px; display:block; margin:0 auto;"
+                    alt="QR Verificación SAT">
             </td>
             @endif
-            <td width="{{ $qrVerificacionDataUri ? '70%' : '100%' }}" valign="top">
-        <div class="timbrado-label">Sello digital del CFDI:</div>
-        <div class="timbrado-value" style="word-break:break-all;">{{ $f->sello_cfdi ?: '—' }}</div>
-        <div class="timbrado-label" style="margin-top:2px;">Sello del SAT:</div>
-        <div class="timbrado-value" style="word-break:break-all;">{{ $f->sello_sat ?: '—' }}</div>
-        <div class="timbrado-label" style="margin-top:2px;">Cadena original del complemento de certificación digital del SAT:</div>
-        <div class="timbrado-value" style="word-break:break-all;">{{ $f->cadena_original ?: '—' }}</div>
+            <td width="{{ $qrVerificacionDataUri ? '85%' : '100%' }}" valign="top"
+                style="overflow:hidden; word-break:break-all; overflow-wrap:break-word;">
+                <div class="timbrado-label">Sello digital del CFDI:</div>
+                <div class="timbrado-value"
+                     style="font-size:5pt; word-break:break-all; overflow-wrap:break-word; white-space:normal;">
+                    {{ $f->sello_cfdi ?: '—' }}
+                </div>
+                <div class="timbrado-label" style="margin-top:2px;">Sello del SAT:</div>
+                <div class="timbrado-value"
+                     style="font-size:5pt; word-break:break-all; overflow-wrap:break-word; white-space:normal;">
+                    {{ $f->sello_sat ?: '—' }}
+                </div>
+                <div class="timbrado-label" style="margin-top:2px;">
+                    Cadena original del complemento de certificación digital del SAT:
+                </div>
+                <div class="timbrado-value"
+                     style="font-size:5pt; word-break:break-all; overflow-wrap:break-word; white-space:normal;">
+                    {{ $f->cadena_original ?: '—' }}
+                </div>
             </td>
         </tr>
         </table>

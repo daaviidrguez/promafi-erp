@@ -146,11 +146,15 @@ if (!function_exists('qrCodeDataUri')) {
     function qrCodeDataUri(string $data, int $size = 80): ?string
     {
         try {
-            $qr = \Endroid\QrCode\QrCode::create($data);
-            $writer = new \Endroid\QrCode\Writer\PngWriter();
-            $result = $writer->write($qr);
+            $builder = new \Endroid\QrCode\Builder\Builder(
+                data: $data,
+                size: $size,
+                margin: 2,
+            );
+            $result = $builder->build();
             return $result->getDataUri();
         } catch (\Throwable $e) {
+            \Log::error('qrCodeDataUri error: ' . $e->getMessage());
             return null;
         }
     }

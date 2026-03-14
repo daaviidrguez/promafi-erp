@@ -53,11 +53,11 @@
 @endphp
 
 {{-- RECEPTOR (izq) y DATOS DEL COMPROBANTE (der). Emisor ya va en el header. --}}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:2px;">
 <tr>
-    <td width="50%" valign="top" style="padding-right:8px;">
-        <div class="info-box">
-            <div class="section-title">RECEPTOR</div>
+    <td width="50%" valign="top" style="padding-right:6px;">
+        <div class="info-box" style="font-size:6.5pt; line-height:1.2; padding:2px 6px; margin-bottom:2px;">
+            <div class="section-title" style="font-size:7pt; margin-bottom:1px; padding-bottom:1px;">RECEPTOR</div>
             <strong>RFC:</strong> {{ $f->rfc_receptor }}<br>
             <strong>Nombre:</strong> {{ $f->nombre_receptor }}<br>
             <strong>Uso CFDI:</strong> {{ $usoCfdiEtiqueta }}<br>
@@ -79,8 +79,8 @@
         </div>
     </td>
     <td width="50%" valign="top">
-        <div class="info-box">
-            <div class="section-title">DATOS DEL COMPROBANTE</div>
+        <div class="info-box" style="font-size:6.5pt; line-height:1.2; padding:2px 6px; margin-bottom:2px;">
+            <div class="section-title" style="font-size:7pt; margin-bottom:1px; padding-bottom:1px;">DATOS DEL COMPROBANTE</div>
             <strong>Serie / Folio:</strong> {{ $f->serie ?? '' }} {{ $f->folio }}<br>
             <strong>Fecha y hora de expedición:</strong> {{ $fechaExpedicionMostrar ? $fechaExpedicionMostrar->format('d/m/Y H:i:s') : '-' }}<br>
             <strong>Lugar de expedición:</strong> {{ $f->lugar_expedicion ?? $e->codigo_postal ?? '-' }}<br>
@@ -183,7 +183,7 @@
     <td>{{ formatMoney($f->total) }} {{ $f->moneda ?? 'MXN' }}</td>
 </tr>
 <tr>
-    <td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">Importe con letra: {{ importeEnLetra((float)($f->total ?? 0)) }}</td>
+    <td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float)($f->total ?? 0)) }}</td>
 </tr>
 </table>
 

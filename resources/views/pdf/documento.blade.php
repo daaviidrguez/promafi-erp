@@ -209,13 +209,12 @@ body {
             </div>
             @endif
 
-            <div style="display:table-cell; vertical-align:top; font-size:7.5pt; line-height:1.4;">
+            <div style="display:table-cell; vertical-align:top; font-size:6.5pt; line-height:1.2;">
                 <strong>RFC:</strong> {{ $empresa->rfc }}<br>
                 <strong>Regimen Fiscal:</strong> {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}<br>
                 {{ $empresa->calle ?? '' }} {{ $empresa->numero_exterior ?? '' }}{{ $empresa->numero_interior ? ' Int. ' . $empresa->numero_interior : '' }}<br>
                 {{ $empresa->colonia ?? '' }}{{ ($empresa->municipio ?? $empresa->ciudad ?? '') ? ', ' . ($empresa->municipio ?? $empresa->ciudad) : '' }}{{ ($empresa->estado ?? '') ? ', ' . $empresa->estado : '' }}{{ ($empresa->codigo_postal ?? '') ? ', C.P. ' . $empresa->codigo_postal : '' }}<br>
-                Tel: {{ $empresa->telefono ?? '' }} 
-                | Email: {{ $empresa->email ?? '' }}
+                Tel: {{ $empresa->telefono ?? '' }} | Email: {{ $empresa->email ?? '' }}
             </div>
 
         </div>
@@ -235,19 +234,10 @@ body {
             @endif
 
             @if($esFactura)
-            <div style="font-size:8pt; color:#0B3C5D; margin-bottom:1px;">
-                Comprobante Fiscal Digital por Internet
-            </div>
             <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Factura</div>
             @elseif($esNotaCredito)
-            <div style="font-size:8pt; color:#0B3C5D; margin-bottom:1px;">
-                Comprobante Fiscal Digital por Internet
-            </div>
             <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Nota de Crédito</div>
             @elseif($esComplemento)
-            <div style="font-size:8pt; color:#0B3C5D; margin-bottom:1px;">
-                Comprobante Fiscal Digital por Internet
-            </div>
             <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Complemento de Pago</div>
             @elseif($esOrdenCompra ?? false)
             <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
@@ -407,7 +397,7 @@ body {
 @endif
 <tr><td>IVA:</td><td>${{ number_format($doc->iva ?? 0, 2) }}</td></tr>
 <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($doc->total, 2) }} MXN</td></tr>
-<tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">Importe con letra: {{ importeEnLetra((float)($doc->total ?? 0)) }}</td></tr>
+<tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float)($doc->total ?? 0)) }}</td></tr>
 </table>
 @endif
 

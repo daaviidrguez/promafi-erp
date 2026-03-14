@@ -639,7 +639,7 @@ class FacturaController extends Controller
             $pdfPath = $this->pdfService->generarFacturaPDF($factura);
             $factura->update(['pdf_path' => $pdfPath]);
 
-            // Devolver productos al inventario (trazabilidad: devolucion_factura)
+            // Devolver productos al inventario (trazabilidad: devolucion_factura; razón en observaciones para auditoría)
             foreach ($factura->detalles as $detalle) {
                 if ($detalle->producto && $detalle->producto->controla_inventario) {
                     InventarioMovimiento::registrar(
@@ -648,6 +648,7 @@ class FacturaController extends Controller
                         (float) $detalle->cantidad,
                         auth()->id(),
                         $factura->id,
+                        null,
                         null,
                         null,
                         'Factura cancelada'

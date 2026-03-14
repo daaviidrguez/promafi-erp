@@ -197,24 +197,24 @@
 </div>
 @endif
 
-{{-- Sellos, cadena original y QR (siempre visibles cuando hay UUID) --}}
+{{-- Sellos, cadena original y QR (70% textos completos, 30% QR) --}}
 <div class="timbrado-section" style="margin-top:4px;">
     @if($f->uuid)
         <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
             @if($qrVerificacionDataUri)
-            <td width="90px" valign="top" style="padding-right:12px;">
-                <img src="{{ $qrVerificacionDataUri }}" style="width:80px; height:80px; display:block;" alt="QR Verificación SAT">
+            <td width="30%" valign="top" style="padding-right:10px; text-align:center;">
+                <img src="{{ $qrVerificacionDataUri }}" style="width:80px; height:80px; display:block; margin:0 auto;" alt="QR Verificación SAT">
                 <div style="font-size:6.5pt; text-align:center; margin-top:2px;">Verificar en SAT</div>
             </td>
             @endif
-            <td valign="top" style="flex:1;">
+            <td width="{{ $qrVerificacionDataUri ? '70%' : '100%' }}" valign="top">
         <div class="timbrado-label">Sello digital del CFDI:</div>
-        <div class="timbrado-value">{{ $f->sello_cfdi ? \Illuminate\Support\Str::limit($f->sello_cfdi, 120) : '—' }}</div>
+        <div class="timbrado-value" style="word-break:break-all;">{{ $f->sello_cfdi ?: '—' }}</div>
         <div class="timbrado-label" style="margin-top:2px;">Sello del SAT:</div>
-        <div class="timbrado-value">{{ $f->sello_sat ? \Illuminate\Support\Str::limit($f->sello_sat, 120) : '—' }}</div>
+        <div class="timbrado-value" style="word-break:break-all;">{{ $f->sello_sat ?: '—' }}</div>
         <div class="timbrado-label" style="margin-top:2px;">Cadena original del complemento de certificación digital del SAT:</div>
-        <div class="timbrado-value">{{ $f->cadena_original ? \Illuminate\Support\Str::limit($f->cadena_original, 150) : '—' }}</div>
+        <div class="timbrado-value" style="word-break:break-all;">{{ $f->cadena_original ?: '—' }}</div>
             </td>
         </tr>
         </table>

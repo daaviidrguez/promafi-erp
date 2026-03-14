@@ -60,7 +60,7 @@ $breadcrumbs = [
     </div>
     <div class="card-body">
         <form method="GET" action="{{ route('cotizaciones.index') }}">
-            <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr auto;">
+            <div class="form-grid responsive-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr auto;">
                 <div class="form-group">
                     <label class="form-label">Buscar</label>
                     <input type="text"

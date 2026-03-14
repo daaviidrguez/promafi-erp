@@ -33,7 +33,7 @@ $breadcrumbs = [
 <form method="POST" action="{{ route('complementos.store') }}" id="formComplemento">
     @csrf
 
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+    <div class="responsive-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
 
         {{-- Columna izquierda --}}
         <div>

@@ -14,7 +14,7 @@ $breadcrumbs = [
 
 @section('content')
 
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+<div class="responsive-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
 
     {{-- Columna izquierda --}}
     <div>

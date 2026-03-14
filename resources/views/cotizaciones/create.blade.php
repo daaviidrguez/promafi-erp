@@ -31,7 +31,7 @@ $breadcrumbs = [
 <div style="display:flex; flex-direction:column; gap:20px;">
 
     {{-- Fila 1: Cliente | Condiciones | Información General --}}
-    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
+    <div class="responsive-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
         <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">👤 Cliente</div>
@@ -122,7 +122,7 @@ $breadcrumbs = [
                            class="form-control text-mono fw-bold"
                            style="background: var(--color-gray-100);">
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-row responsive-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                     <div class="form-group">
                         <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
                         <input type="date"
@@ -236,7 +236,7 @@ $breadcrumbs = [
         </div>
 
     {{-- Fila 3: Condiciones y Observaciones | Totales --}}
-    <div style="display:grid; grid-template-columns: 7fr 3fr; gap:20px;">
+    <div class="responsive-grid" style="display:grid; grid-template-columns: 7fr 3fr; gap:20px;">
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📄 Condiciones y Observaciones</div>

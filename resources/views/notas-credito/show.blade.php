@@ -9,7 +9,7 @@ $breadcrumbs = [
 ];
 @endphp
 @section('content')
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+<div class="responsive-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
     <div>
         <div class="card">
             <div class="card-header"><div class="card-title">Receptor</div></div>

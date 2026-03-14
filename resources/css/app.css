@@ -807,8 +807,10 @@ body.sidebar-collapsed .main-content {
         display: flex;
     }
 
-    /* Grids 2fr 1fr / dos columnas → una columna en tablet/móvil */
-    .content-wrapper > div[style*="grid-template-columns"] {
+    /* Grids 2fr 1fr / dos columnas → una columna en tablet/móvil (incl. formularios facturación) */
+    .content-wrapper > div[style*="grid-template-columns"],
+    .content-wrapper > form > div[style*="grid-template-columns"],
+    .responsive-grid {
         grid-template-columns: 1fr !important;
     }
 
@@ -877,14 +879,19 @@ body.sidebar-collapsed .main-content {
         grid-template-columns: 1fr !important;
     }
 
-    .card-body form[style*="flex-wrap: wrap"] .form-control,
-    .card-body form[style*="flex-wrap: wrap"] select,
-    .card-body form[style*="flex-wrap: wrap"] input {
+    .card-body form[style*="flex-wrap"] .form-control,
+    .card-body form[style*="flex-wrap"] select,
+    .card-body form[style*="flex-wrap"] input {
         min-width: 100% !important;
+    }
+    .card-body form[style*="flex-wrap"] > a.btn,
+    .card-body form[style*="flex-wrap"] > .btn {
+        width: 100%;
+        margin-top: 8px;
     }
 
     .totales-panel {
-        min-width: 100%;
+        min-width: 100% !important;
     }
 
     /* Tablas: menos padding en móvil para aprovechar el ancho al hacer scroll */

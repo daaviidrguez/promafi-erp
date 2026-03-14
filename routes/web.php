@@ -218,6 +218,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     
     // ───── FACTURAS ───── ✅
+    Route::get('/facturas-para-relacion/listar', [FacturaController::class, 'listarParaRelacion'])->name('facturas.listar-para-relacion');
     Route::resource('facturas', FacturaController::class);
     Route::post('/facturas/{factura}/timbrar', [FacturaController::class, 'timbrar'])->name('facturas.timbrar');
     Route::post('/facturas/{factura}/generar-pdf', [FacturaController::class, 'generarPDF'])->name('facturas.generar-pdf');

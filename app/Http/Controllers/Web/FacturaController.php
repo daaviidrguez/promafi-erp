@@ -52,6 +52,48 @@ class FacturaController extends Controller
     }
 
     /**
+     * Listado de facturas timbradas para selección en modal (UUID sustituto en cancelación motivo 01,
+     * o CFDI a sustituir al crear factura con relación).
+     */
+    public function listarParaRelacion(Request $request)
+    {
+        $query = Factura::with('cliente:id,nombre')
+            ->where('estado', 'timbrada')
+            ->whereNotNull('uuid')
+            ->orderBy('fecha_emision', 'desc')
+            ->limit(200);
+
+        if ($request->filled('excluir_id')) {
+            $query->where('id', '!=', (int) $request->excluir_id);
+        }
+        if ($request->filled('cliente_id')) {
+            $query->where('cliente_id', (int) $request->cliente_id);
+        }
+        if ($request->filled('keyword')) {
+            $keyword = trim($request->keyword);
+            $query->where(function ($q) use ($keyword) {
+                $q->where('uuid', 'like', '%' . $keyword . '%')
+                    ->orWhere('folio', 'like', '%' . $keyword . '%')
+                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', '%' . $keyword . '%'));
+            });
+        }
+
+        $facturas = $query->get(['id', 'uuid', 'serie', 'folio', 'cliente_id', 'fecha_emision', 'total']);
+
+        return response()->json([
+            'facturas' => $facturas->map(fn ($f) => [
+                'id' => $f->id,
+                'uuid' => $f->uuid,
+                'serie' => $f->serie,
+                'folio' => $f->folio,
+                'cliente_nombre' => $f->cliente?->nombre,
+                'fecha_emision' => $f->fecha_emision?->format('d/m/Y'),
+                'total' => (float) $f->total,
+            ]),
+        ]);
+    }
+
+    /**
      * Formulario crear factura
      */
     public function create(Request $request)
@@ -92,6 +134,8 @@ class FacturaController extends Controller
             'metodo_pago' => 'required|string|exists:metodos_pago,clave',
             'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
             'observaciones' => 'nullable|string',
+            'uuid_referencia' => 'nullable|string|size:36',
+            'tipo_relacion' => 'nullable|string|in:01,02,03,04',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
             'productos.*.descripcion' => 'required|string',
@@ -180,6 +224,8 @@ class FacturaController extends Controller
                 'descuento' => $descuentoTotal,
                 'total' => $total,
                 'observaciones' => $validated['observaciones'],
+                'uuid_referencia' => !empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null,
+                'tipo_relacion' => !empty($validated['uuid_referencia']) ? ($validated['tipo_relacion'] ?? '04') : null,
                 'usuario_id' => auth()->id(),
             ]);
 
@@ -610,16 +656,25 @@ class FacturaController extends Controller
             return back()->with('error', $msg);
         }
 
-        $validated = $request->validate([
-            'motivo_cancelacion' => 'required|string|max:2',
-        ]);
+        $rules = [
+            'motivo_cancelacion' => 'required|string|in:01,02,03,04',
+        ];
+        if ($request->input('motivo_cancelacion') === '01') {
+            $rules['uuid_sustituto'] = 'required|string|size:36';
+        }
+        $validated = $request->validate($rules);
+
+        $uuidSustituto = ($validated['motivo_cancelacion'] ?? '') === '01'
+            ? trim($validated['uuid_sustituto'] ?? '')
+            : null;
 
         DB::beginTransaction();
         try {
-            // Llamar al servicio de cancelación
+            // Llamar al servicio de cancelación (motivo 01 exige UUID del CFDI que sustituye - SAT/Facturama)
             $resultado = $this->pacService->cancelarFactura(
                 $factura->uuid,
-                $validated['motivo_cancelacion']
+                $validated['motivo_cancelacion'],
+                $uuidSustituto
             );
 
             if (!$resultado['success']) {

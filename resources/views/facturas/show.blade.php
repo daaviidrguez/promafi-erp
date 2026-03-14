@@ -339,7 +339,7 @@ $breadcrumbs = [
             <button class="modal-close"
                     onclick="document.getElementById('modalCancelar').classList.remove('show')">✕</button>
         </div>
-        <form method="POST" action="{{ route('facturas.cancelar', $factura->id) }}">
+        <form method="POST" action="{{ route('facturas.cancelar', $factura->id) }}" id="formCancelarFactura">
             @csrf
             @method('DELETE')
             <div class="modal-body">
@@ -348,12 +348,23 @@ $breadcrumbs = [
                 </p>
                 <div class="form-group">
                     <label class="form-label">Motivo de Cancelación <span class="req">*</span></label>
-                    <select name="motivo_cancelacion" class="form-control" required>
+                    <select name="motivo_cancelacion" id="cancelMotivo" class="form-control" required>
                         <option value="01">01 - Comprobante emitido con errores con relación</option>
                         <option value="02">02 - Comprobante emitido con errores sin relación</option>
                         <option value="03">03 - No se llevó a cabo la operación</option>
                         <option value="04">04 - Operación nominativa relacionada en factura global</option>
                     </select>
+                </div>
+                <div id="bloqueUuidSustituto" class="form-group" style="display: none;">
+                    <label class="form-label">UUID Sustituto <span class="req">*</span></label>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="inputUuidSustitutoDisplay" class="form-control" readonly placeholder="Seleccione la factura que sustituye a esta" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                        <input type="hidden" name="uuid_sustituto" id="inputUuidSustituto" value="">
+                        <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarSustituto()">
+                            Seleccionar factura que sustituye
+                        </button>
+                    </div>
+                    <span class="form-hint">Obligatorio cuando el motivo es 01 (SAT): UUID del CFDI que reemplaza a esta factura.</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -366,6 +377,96 @@ $breadcrumbs = [
         </form>
     </div>
 </div>
+
+{{-- Modal seleccionar factura sustituta (para motivo 01) --}}
+<div id="modalSeleccionarSustituto" class="modal">
+    <div class="modal-box" style="max-width: 640px;">
+        <div class="modal-header">
+            <div class="modal-title">Seleccionar factura que sustituye</div>
+            <button class="modal-close" onclick="cerrarModalSeleccionarSustituto()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 12px;">Elija la factura timbrada que reemplaza a la que se va a cancelar (UUID sustituto).</p>
+            <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Serie / Folio</th>
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaFacturasSustituto"></tbody>
+                </table>
+            </div>
+            <div id="cargandoSustituto" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando facturas...</div>
+            <div id="sinFacturasSustituto" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas timbradas para seleccionar.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var facturaIdExcluir = {{ $factura->id }};
+    var listarUrl = '{{ route("facturas.listar-para-relacion") }}?excluir_id=' + facturaIdExcluir;
+
+    window.toggleUuidSustituto = function() {
+        var motivo = document.getElementById('cancelMotivo').value;
+        var bloque = document.getElementById('bloqueUuidSustituto');
+        var input = document.getElementById('inputUuidSustituto');
+        if (motivo === '01') {
+            bloque.style.display = 'block';
+            input.setAttribute('required', 'required');
+        } else {
+            bloque.style.display = 'none';
+            input.removeAttribute('required');
+            input.value = '';
+            document.getElementById('inputUuidSustitutoDisplay').value = '';
+        }
+    };
+    document.getElementById('cancelMotivo').addEventListener('change', window.toggleUuidSustituto);
+    window.toggleUuidSustituto();
+
+    window.abrirModalSeleccionarSustituto = function() {
+        document.getElementById('modalSeleccionarSustituto').classList.add('show');
+        document.getElementById('cargandoSustituto').style.display = 'block';
+        document.getElementById('sinFacturasSustituto').style.display = 'none';
+        document.getElementById('listaFacturasSustituto').innerHTML = '';
+        fetch(listarUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('cargandoSustituto').style.display = 'none';
+                var list = data.facturas || [];
+                if (list.length === 0) {
+                    document.getElementById('sinFacturasSustituto').style.display = 'block';
+                    return;
+                }
+                var tbody = document.getElementById('listaFacturasSustituto');
+                list.forEach(function(f) {
+                    var tr = document.createElement('tr');
+                    var uuid = (f.uuid || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                    tr.innerHTML = '<td>' + (f.serie || '') + ' ' + (f.folio || '') + '</td><td>' + (f.cliente_nombre || '') + '</td><td>' + (f.fecha_emision || '') + '</td><td>' + (f.total || 0) + '</td><td><button type="button" class="btn btn-primary btn-sm" data-uuid="' + uuid + '">Seleccionar</button></td>';
+                    tr.querySelector('button').addEventListener('click', function() {
+                        document.getElementById('inputUuidSustituto').value = this.getAttribute('data-uuid');
+                        document.getElementById('inputUuidSustitutoDisplay').value = this.getAttribute('data-uuid');
+                        window.cerrarModalSeleccionarSustituto();
+                    });
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(function() {
+                document.getElementById('cargandoSustituto').style.display = 'none';
+                document.getElementById('sinFacturasSustituto').style.display = 'block';
+                document.getElementById('sinFacturasSustituto').textContent = 'Error al cargar facturas.';
+            });
+    };
+    window.cerrarModalSeleccionarSustituto = function() {
+        document.getElementById('modalSeleccionarSustituto').classList.remove('show');
+    };
+})();
+</script>
 @endif
 
 {{-- Modal Borrar Factura (solo borrador) --}}

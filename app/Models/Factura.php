@@ -52,6 +52,8 @@ class Factura extends Model
         'codigo_estatus_cancelacion',
         'cotizacion_id',
         'observaciones',
+        'uuid_referencia',
+        'tipo_relacion',
         'usuario_id',
     ];
 

@@ -219,6 +219,11 @@ $breadcrumbs = [
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>
                 </form>
+                @can('facturas.crear')
+                <button type="button"
+                        onclick="document.getElementById('modalBorrarFactura').classList.add('show')"
+                        class="btn btn-danger w-full">🗑️ Borrar Factura</button>
+                @endcan
                 @endif
 
                 @if($factura->estaTimbrada())
@@ -357,6 +362,35 @@ $breadcrumbs = [
                     Cerrar
                 </button>
                 <button type="submit" class="btn btn-danger">Confirmar Cancelación</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
+{{-- Modal Borrar Factura (solo borrador) --}}
+@if($factura->esBorrador())
+<div id="modalBorrarFactura" class="modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title" style="color: var(--color-danger);">🗑️ Borrar Factura</div>
+            <button class="modal-close"
+                    onclick="document.getElementById('modalBorrarFactura').classList.remove('show')">✕</button>
+        </div>
+        <form method="POST" action="{{ route('facturas.destroy', $factura->id) }}">
+            @csrf
+            @method('DELETE')
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom: 0;">
+                    ¿Estás seguro de borrar esta factura en borrador? Esta acción no se puede deshacer.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light"
+                        onclick="document.getElementById('modalBorrarFactura').classList.remove('show')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-danger">Borrar Factura</button>
             </div>
         </form>
     </div>

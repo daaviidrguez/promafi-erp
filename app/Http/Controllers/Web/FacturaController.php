@@ -312,6 +312,38 @@ class FacturaController extends Controller
     }
 
     /**
+     * Borrar factura (solo borrador).
+     */
+    public function destroy(Factura $factura)
+    {
+        if (!$factura->esBorrador()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'Solo se pueden borrar facturas en borrador.');
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($factura->cuentaPorCobrar) {
+                $factura->cuentaPorCobrar->delete();
+            }
+            foreach ($factura->detalles as $detalle) {
+                $detalle->impuestos()->delete();
+            }
+            $factura->detalles()->delete();
+            $factura->forceDelete();
+
+            DB::commit();
+
+            return redirect()->route('facturas.index')
+                ->with('success', 'Factura en borrador eliminada correctamente.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'No se pudo eliminar la factura: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Actualizar factura (solo borrador)
      */
     public function update(Request $request, Factura $factura)

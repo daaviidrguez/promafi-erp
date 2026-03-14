@@ -759,7 +759,44 @@ class FacturamaService
             $body['Observations'] = mb_substr(trim($factura->observaciones), 0, 1000);
         }
 
+        // CFDI 4.0: cuando el receptor es público en general (RFC genérico), el SAT exige el nodo GlobalInformation
+        if ($this->esReceptorPublicoEnGeneral($body['Receiver']['Rfc'] ?? '', $body['Receiver']['Name'] ?? '')) {
+            $body['GlobalInformation'] = $this->buildGlobalInformation($factura->fecha_emision);
+        }
+
         return $body;
+    }
+
+    /**
+     * Indica si el receptor es "Público en general" (RFC genérico XAXX010101000).
+     * En ese caso el SAT exige el nodo GlobalInformation en el CFDI 4.0.
+     */
+    protected function esReceptorPublicoEnGeneral(string $rfc, string $nombre): bool
+    {
+        $rfc = strtoupper(trim($rfc));
+        $nombre = strtoupper(trim($nombre));
+        return $rfc === 'XAXX010101000' && $nombre === 'PUBLICO EN GENERAL';
+    }
+
+    /**
+     * Construye el nodo GlobalInformation requerido para factura al público en general (CFDI 4.0).
+     * Periodicidad: 01=Diario, 02=Semanal, 03=Quincenal, 04=Mensual, 05=Bimestral.
+     *
+     * @param \Carbon\Carbon|\DateTimeInterface $fechaEmision
+     * @return array{Periodicity: string, Months: string, Year: int}
+     */
+    protected function buildGlobalInformation($fechaEmision): array
+    {
+        $fecha = $fechaEmision instanceof \Carbon\Carbon
+            ? $fechaEmision
+            : \Carbon\Carbon::parse($fechaEmision);
+        $mes = $fecha->format('m'); // 01-12
+        $anio = (int) $fecha->format('Y');
+        return [
+            'Periodicity' => '04', // Mensual (común para factura global)
+            'Months' => $mes,
+            'Year' => $anio,
+        ];
     }
 
     /**

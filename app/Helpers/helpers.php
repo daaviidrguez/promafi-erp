@@ -127,15 +127,19 @@ if (!function_exists('urlVerificacionSat')) {
      */
     function urlVerificacionSat(string $uuid, string $rfcEmisor, string $rfcReceptor, float $total, ?string $selloCfdi = null): string
     {
-        $tt = number_format($total, 2, '.', '');
+        // SAT requiere exactamente 6 decimales
+        $tt = number_format($total, 6, '.', '');
+
+        // Últimos 8 chars del sello en base64, los = NO deben ir url-encodeados
         $fe = $selloCfdi ? substr($selloCfdi, -8) : '';
-        return 'https://verificacfdi.facturacion.sat.gob.mx/default.aspx?' . http_build_query([
-            'id' => $uuid,
-            're' => $rfcEmisor,
-            'rr' => $rfcReceptor,
-            'tt' => $tt,
-            'fe' => $fe,
-        ]);
+
+        // Construir manualmente para evitar que http_build_query encodee los = del base64
+        return 'https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx'
+            . '?id='  . urlencode($uuid)
+            . '&re=' . urlencode($rfcEmisor)
+            . '&rr=' . urlencode($rfcReceptor)
+            . '&tt=' . $tt
+            . '&fe=' . $fe;
     }
 }
 

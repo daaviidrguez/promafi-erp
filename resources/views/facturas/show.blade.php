@@ -237,11 +237,6 @@ $breadcrumbs = [
                        class="btn btn-outline w-full">📑 Descargar PDF</a>
                     @endif
 
-                    @if($factura->estado === 'cancelada' && $factura->acuse_cancelacion)
-                    <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">📄 XML cancelado</a>
-                    @endif
-
                     @if($factura->puedeCancelar())
                     <button type="button"
                             onclick="document.getElementById('modalCancelar').classList.add('show')"
@@ -259,6 +254,17 @@ $breadcrumbs = [
                             <span class="text-muted" style="font-size: 11px; display: block; margin-top: 8px;">La cancelación estará disponible en el flujo castada.</span>
                         </div>
                     </div>
+                    @endif
+                @endif
+
+                {{-- XML de cancelación: visible cuando la factura está cancelada (no depende de estaTimbrada) --}}
+                @if($factura->estado === 'cancelada')
+                    @if(!empty($factura->acuse_cancelacion))
+                    <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
+                       class="btn btn-outline w-full">📄 XML cancelado</a>
+                    @else
+                    <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}"
+                       class="btn btn-outline w-full">📄 Obtener XML cancelado</a>
                     @endif
                 @endif
 

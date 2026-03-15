@@ -532,7 +532,20 @@ class FacturamaService
         }
 
         $data = $response->json();
-        $acuse = $data['AcuseXmlBase64'] ?? null;
+        // Facturama puede devolver el acuse en distintas claves (sandbox vs producción)
+        $acuse = $data['AcuseXmlBase64'] ?? $data['acuseXmlBase64'] ?? $data['AcuseXml'] ?? $data['acuseXml'] ?? null;
+        if ($acuse === null && is_array($data)) {
+            foreach (array_keys($data) as $key) {
+                if (stripos($key, 'acuse') !== false && (stripos($key, 'xml') !== false || stripos($key, 'base64') !== false)) {
+                    $acuse = $data[$key];
+                    break;
+                }
+            }
+        }
+        // Si el DELETE no devolvió acuse, intentar obtenerlo con GET (documentación Facturama)
+        if (empty($acuse) && $cfdiId) {
+            $acuse = $this->obtenerAcuseCancelacion($cfdiId);
+        }
         $codigoEstatus = $acuse ? self::extraerCodigoEstatusDelAcuse($acuse) : '201';
 
         return [
@@ -541,6 +554,44 @@ class FacturamaService
             'acuse' => $acuse,
             'codigo_estatus' => $codigoEstatus,
         ];
+    }
+
+    /**
+     * Obtener acuse de cancelación por factura (para facturas ya canceladas sin acuse guardado).
+     * Usa pac_cfdi_id de la factura o busca por UUID.
+     */
+    public function obtenerAcuseCancelacionPorFactura(Factura $factura): ?string
+    {
+        $cfdiId = $factura->pac_cfdi_id ?? null;
+        if (empty($cfdiId) && !empty($factura->uuid)) {
+            $cfdiId = $this->obtenerCfdiIdPorUuid($factura->uuid);
+        }
+        return $cfdiId ? $this->obtenerAcuseCancelacion($cfdiId) : null;
+    }
+
+    /**
+     * Obtener acuse de cancelación vía GET (cuando el DELETE no lo devuelve).
+     * GET /Acuse/{format}/{type}/{id} - format puede ser xml, pdf, html según API.
+     * Solo devuelve contenido que parezca XML del acuse (para no guardar PDF/HTML por error).
+     */
+    protected function obtenerAcuseCancelacion(string $cfdiId): ?string
+    {
+        $formats = ['xml', 'Xml', 'XML'];
+        foreach ($formats as $format) {
+            $url = $this->baseUrl . '/Acuse/' . $format . '/issued/' . $cfdiId;
+            $res = $this->http()->acceptJson()->timeout(15)->get($url);
+            if ($res->successful()) {
+                $body = $res->json();
+                $content = $body['Content'] ?? null;
+                if (!empty($content)) {
+                    $decoded = base64_decode($content, true);
+                    if ($decoded !== false && (stripos($decoded, '<?xml') === 0 || stripos(trim($decoded), '<') === 0) && (stripos($decoded, 'Cancelacion') !== false || stripos($decoded, 'cancelacion') !== false || stripos($decoded, 'Acuse') !== false)) {
+                        return $content;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

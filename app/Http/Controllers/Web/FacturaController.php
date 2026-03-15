@@ -17,6 +17,7 @@ use App\Models\InventarioMovimiento;
 use App\Models\FormaPago;
 use App\Models\MetodoPago;
 use App\Models\UsoCfdi;
+use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
 use App\Helpers\IsrResicoHelper;
@@ -786,6 +787,35 @@ class FacturaController extends Controller
         }
 
         return response()->download($filepath, $factura->folio_completo . '.xml');
+    }
+
+    /**
+     * Obtener y guardar el acuse de cancelación desde Facturama (para facturas ya canceladas sin acuse).
+     * Útil cuando la cancelación en producción no devolvió el XML en la respuesta.
+     */
+    public function obtenerAcuseCancelacion(Factura $factura)
+    {
+        if ($factura->estado !== 'cancelada') {
+            return back()->with('error', 'Solo aplica a facturas canceladas.');
+        }
+        if (!empty($factura->acuse_cancelacion)) {
+            return back()->with('info', 'La factura ya tiene el acuse de cancelación guardado.');
+        }
+        $empresa = $factura->empresa ?? Empresa::principal();
+        if (!$empresa) {
+            return back()->with('error', 'No hay empresa configurada.');
+        }
+        try {
+            $facturama = new FacturamaService($empresa);
+            $acuse = $facturama->obtenerAcuseCancelacionPorFactura($factura);
+            if (empty($acuse)) {
+                return back()->with('error', 'No se pudo obtener el acuse de cancelación desde Facturama. Verifica que el CFDI esté cancelado en el PAC.');
+            }
+            $factura->update(['acuse_cancelacion' => $acuse]);
+            return back()->with('success', 'Acuse de cancelación guardado. Ya puedes descargar el XML cancelado.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error al obtener acuse: ' . $e->getMessage());
+        }
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\RemisionDetalle;
 use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\Empresa;
+use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -211,6 +212,27 @@ class RemisionController extends Controller
         }
         $remision->update(['estado' => 'cancelada']);
         return back()->with('success', 'Remisión cancelada');
+    }
+
+    /**
+     * Ver PDF de la remisión en el navegador.
+     */
+    public function verPDF(Remision $remision)
+    {
+        $remision->loadMissing(['detalles.producto', 'cliente', 'empresa']);
+        $pdfPath = app(PDFService::class)->generarRemisionPDF($remision);
+        return response()->file(storage_path('app/' . $pdfPath));
+    }
+
+    /**
+     * Descargar PDF de la remisión.
+     */
+    public function descargarPDF(Remision $remision)
+    {
+        $remision->loadMissing(['detalles.producto', 'cliente', 'empresa']);
+        $pdfPath = app(PDFService::class)->generarRemisionPDF($remision);
+        $filename = 'Remision_' . $remision->folio . '.pdf';
+        return response()->download(storage_path('app/' . $pdfPath), $filename);
     }
 
     public function buscarClientes(Request $request)

@@ -192,6 +192,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/remisiones/{remision}/enviar', [RemisionController::class, 'enviar'])->name('remisiones.enviar');
     Route::post('/remisiones/{remision}/entregar', [RemisionController::class, 'entregar'])->name('remisiones.entregar');
     Route::post('/remisiones/{remision}/cancelar', [RemisionController::class, 'cancelar'])->name('remisiones.cancelar');
+    Route::get('/remisiones/{remision}/ver-pdf', [RemisionController::class, 'verPDF'])->name('remisiones.ver-pdf');
+    Route::get('/remisiones/{remision}/descargar-pdf', [RemisionController::class, 'descargarPDF'])->name('remisiones.descargar-pdf');
 
     // ───── CLIENTES ───── ✅
     Route::resource('clientes', ClienteController::class);

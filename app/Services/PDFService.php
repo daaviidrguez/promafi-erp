@@ -20,6 +20,8 @@ class PDFService
             $modelo->loadMissing(['detalles.producto', 'proveedor', 'usuario', 'empresa']);
         } elseif ($tipo === 'factura_compra') {
             $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'proveedor', 'usuario', 'empresa']);
+        } elseif ($tipo === 'remision') {
+            $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario', 'empresa']);
         } else {
             $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario']);
         }
@@ -90,6 +92,11 @@ class PDFService
     public function generarFacturaCompraPDF($facturaCompra): string
     {
         return $this->generarDocumentoPDF($facturaCompra, 'factura_compra');
+    }
+
+    public function generarRemisionPDF($remision): string
+    {
+        return $this->generarDocumentoPDF($remision, 'remision');
     }
 
     public function descargarPDF(string $relativePath, string $filename)

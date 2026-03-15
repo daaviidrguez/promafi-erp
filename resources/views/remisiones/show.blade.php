@@ -82,6 +82,8 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">Acciones</div></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+                <a href="{{ route('remisiones.ver-pdf', $remision->id) }}" target="_blank" class="btn btn-outline w-full">📄 Ver PDF</a>
+                <a href="{{ route('remisiones.descargar-pdf', $remision->id) }}" class="btn btn-outline w-full">⬇️ Descargar PDF</a>
                 @if($remision->puedeEditarse())
                 <a href="{{ route('remisiones.edit', $remision->id) }}" class="btn btn-primary w-full">✏️ Editar</a>
                 <form method="POST" action="{{ route('remisiones.enviar', $remision->id) }}" style="margin:0;">

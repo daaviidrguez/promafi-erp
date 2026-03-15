@@ -106,11 +106,29 @@ class LimpiarDatosTransaccionalesCommand extends Command
             $this->line('  ✓ clientes.saldo_actual puesto a 0');
         }
 
-        // Resetear folios, credenciales Facturama y certificados en empresas
+        // Resetear folios, series por defecto, credenciales Facturama y certificados en empresas
         if (Schema::hasTable('empresas')) {
             $folios = ['folio_factura', 'folio_factura_credito', 'folio_nota_credito', 'folio_nota_debito', 'folio_complemento', 'folio_cotizacion', 'folio_remision'];
-            $cols = array_filter($folios, fn ($c) => Schema::hasColumn('empresas', $c));
-            $update = !empty($cols) ? array_fill_keys($cols, 1) : [];
+            $update = [];
+            foreach ($folios as $col) {
+                if (Schema::hasColumn('empresas', $col)) {
+                    $update[$col] = 1;
+                }
+            }
+            $seriesDefaults = [
+                'serie_factura' => 'A',
+                'serie_factura_credito' => 'FB',
+                'serie_nota_credito' => 'NC',
+                'serie_nota_debito' => 'ND',
+                'serie_complemento' => 'CP',
+                'serie_cotizacion' => 'COT',
+                'serie_remision' => 'REM',
+            ];
+            foreach ($seriesDefaults as $col => $default) {
+                if (Schema::hasColumn('empresas', $col)) {
+                    $update[$col] = $default;
+                }
+            }
 
             // Eliminar archivos de certificados del storage antes de limpiar la BD
             $empresas = DB::table('empresas')->get();
@@ -148,7 +166,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
             if (!empty($update)) {
                 DB::table('empresas')->update($update);
-                $this->line('  ✓ empresas: folios reseteados, credenciales Facturama y certificados limpiados');
+                $this->line('  ✓ empresas: folios y series reseteados, credenciales Facturama y certificados limpiados');
             }
         }
 
@@ -180,7 +198,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
         $this->line('  ✓ route:clear');
 
         $this->newLine();
-        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Folios de empresa reseteados. Documentos (PDF/XML) en storage limpiados. Caché, config, vistas y rutas limpiadas. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
+        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Folios y series de empresa reseteados. Documentos (PDF/XML) en storage limpiados. Caché, config, vistas y rutas limpiadas. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
         return self::SUCCESS;
     }
 }

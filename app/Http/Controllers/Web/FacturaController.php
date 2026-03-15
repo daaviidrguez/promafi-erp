@@ -789,6 +789,37 @@ class FacturaController extends Controller
     }
 
     /**
+     * Descargar XML del acuse de cancelación (SAT / Facturama).
+     * Solo disponible cuando la factura está cancelada y se guardó el acuse.
+     *
+     * @see https://apisandbox.facturama.mx/Docs - Obtener acuse de cancelación
+     */
+    public function descargarXmlCancelacion(Factura $factura)
+    {
+        if ($factura->estado !== 'cancelada') {
+            return back()->with('error', 'Solo se puede descargar el XML de cancelación de facturas canceladas.');
+        }
+
+        $acuseBase64 = $factura->acuse_cancelacion;
+        if (empty($acuseBase64)) {
+            return back()->with('error', 'No se tiene guardado el acuse de cancelación para esta factura.');
+        }
+
+        $xml = base64_decode($acuseBase64, true);
+        if ($xml === false || trim($xml) === '') {
+            return back()->with('error', 'El acuse de cancelación guardado no es válido.');
+        }
+
+        $filename = 'AcuseCancelacion_' . ($factura->uuid ?? $factura->folio_completo) . '.xml';
+        $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+
+        return response($xml, 200, [
+            'Content-Type'        => 'application/xml',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
      * Ver PDF en el navegador (como en cotizaciones)
      */
     public function verPDF(Factura $factura)

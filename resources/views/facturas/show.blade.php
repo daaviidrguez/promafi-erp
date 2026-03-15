@@ -237,6 +237,11 @@ $breadcrumbs = [
                        class="btn btn-outline w-full">📑 Descargar PDF</a>
                     @endif
 
+                    @if($factura->estado === 'cancelada' && $factura->acuse_cancelacion)
+                    <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
+                       class="btn btn-outline w-full">📄 XML cancelado</a>
+                    @endif
+
                     @if($factura->puedeCancelar())
                     <button type="button"
                             onclick="document.getElementById('modalCancelar').classList.add('show')"

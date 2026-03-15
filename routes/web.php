@@ -226,6 +226,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/facturas/{factura}/generar-pdf', [FacturaController::class, 'generarPDF'])->name('facturas.generar-pdf');
     Route::delete('/facturas/{factura}/cancelar', [FacturaController::class, 'cancelar'])->name('facturas.cancelar');
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');
+    Route::get('/facturas/{factura}/descargar-xml-cancelacion', [FacturaController::class, 'descargarXmlCancelacion'])->name('facturas.descargar-xml-cancelacion');
     Route::get('/facturas/{factura}/ver-pdf', [FacturaController::class, 'verPDF'])->name('facturas.ver-pdf');
     Route::get('/facturas/{factura}/descargar-pdf', [FacturaController::class, 'descargarPDF'])->name('facturas.descargar-pdf');
 

@@ -362,6 +362,12 @@ class FacturamaService
 
         $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
         $xml = null;
+        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now();
+        $noCertificadoSat = null;
+        $selloCfdi = null;
+        $selloSat = null;
+        $cadenaOriginal = null;
+
         $xmlResponse = $this->http()
             ->acceptJson()
             ->timeout(15)
@@ -371,21 +377,34 @@ class FacturamaService
             $content = $fileData['Content'] ?? null;
             if ($content) {
                 $xml = base64_decode($content, true);
-                if ($xml && !$uuid) {
-                    $uuid = $this->extraerUuidDelXml($xml);
+                if ($xml) {
+                    if (!$uuid) {
+                        $uuid = $this->extraerUuidDelXml($xml);
+                    }
+                    $timbre = $this->extraerTimbreDelXml($xml);
+                    $selloCfdi = $timbre['sello_cfdi'] ?? null;
+                    $selloSat = $timbre['sello_sat'] ?? null;
+                    $cadenaOriginal = $timbre['cadena_original'] ?? null;
+                    if (!empty($timbre['fecha_timbrado'])) {
+                        $fechaTimbrado = \Carbon\Carbon::parse($timbre['fecha_timbrado']);
+                    }
+                    $noCertificadoSat = $timbre['no_certificado_sat'] ?? null;
                 }
             }
         }
         if (!$uuid) {
             $uuid = $data['Folio'] ?? $cfdiId;
         }
-        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now();
 
         return [
             'success' => true,
             'uuid' => (string) $uuid,
             'xml' => $xml ?: '',
             'fecha_timbrado' => $fechaTimbrado,
+            'no_certificado_sat' => $noCertificadoSat,
+            'sello_cfdi' => $selloCfdi ?? '',
+            'sello_sat' => $selloSat ?? '',
+            'cadena_original' => $cadenaOriginal ?? '',
             'message' => 'Complemento de pago timbrado con Facturama correctamente',
         ];
     }
@@ -941,6 +960,12 @@ class FacturamaService
 
         $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
         $xml = null;
+        $selloCfdi = $data['SelloCFDI'] ?? null;
+        $selloSat = $data['SelloSat'] ?? null;
+        $cadenaOriginal = $data['CadenaOriginal'] ?? null;
+        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now();
+        $noCertificadoSat = $data['NoCertificadoSat'] ?? $data['CertNumber'] ?? null;
+
         $xmlRes = $this->http()
             ->acceptJson()
             ->timeout(15)
@@ -950,8 +975,20 @@ class FacturamaService
             $content = $fileData['Content'] ?? null;
             if ($content) {
                 $xml = base64_decode($content, true);
-                if ($xml && !$uuid) {
-                    $uuid = $this->extraerUuidDelXml($xml);
+                if ($xml) {
+                    if (!$uuid) {
+                        $uuid = $this->extraerUuidDelXml($xml);
+                    }
+                    $timbre = $this->extraerTimbreDelXml($xml);
+                    $selloCfdi = $timbre['sello_cfdi'] ?? $selloCfdi;
+                    $selloSat = $timbre['sello_sat'] ?? $selloSat;
+                    $cadenaOriginal = $timbre['cadena_original'] ?? $cadenaOriginal;
+                    if (!empty($timbre['fecha_timbrado'])) {
+                        $fechaTimbrado = \Carbon\Carbon::parse($timbre['fecha_timbrado']);
+                    }
+                    if (empty($noCertificadoSat) && !empty($timbre['no_certificado_sat'])) {
+                        $noCertificadoSat = $timbre['no_certificado_sat'];
+                    }
                 }
             }
         }
@@ -964,11 +1001,11 @@ class FacturamaService
             'uuid' => (string) $uuid,
             'pac_cfdi_id' => (string) $cfdiId,
             'xml' => $xml ?: '',
-            'fecha_timbrado' => isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now(),
-            'no_certificado_sat' => $data['NoCertificadoSat'] ?? null,
-            'sello_cfdi' => $data['SelloCFDI'] ?? null,
-            'sello_sat' => $data['SelloSat'] ?? null,
-            'cadena_original' => $data['CadenaOriginal'] ?? null,
+            'fecha_timbrado' => $fechaTimbrado,
+            'no_certificado_sat' => $noCertificadoSat,
+            'sello_cfdi' => $selloCfdi ?? '',
+            'sello_sat' => $selloSat ?? '',
+            'cadena_original' => $cadenaOriginal ?? '',
             'message' => 'Nota de crédito timbrada con Facturama correctamente',
         ];
     }

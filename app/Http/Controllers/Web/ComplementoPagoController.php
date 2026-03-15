@@ -469,11 +469,15 @@ class ComplementoPagoController extends Controller
                 throw new \Exception($resultado['message']);
             }
 
-            // Actualizar complemento
+            // Actualizar complemento (incluye sellos y cadena para el PDF)
             $complemento->update([
                 'estado' => 'timbrado',
                 'uuid' => $resultado['uuid'],
                 'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
+                'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
+                'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
+                'sello_sat' => $resultado['sello_sat'] ?? null,
+                'cadena_original' => $resultado['cadena_original'] ?? null,
                 'xml_content' => $resultado['xml'] ?? null,
             ]);
 

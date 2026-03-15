@@ -43,6 +43,10 @@ class ComplementoPago extends Model
         // Timbrado
         'uuid',
         'fecha_timbrado',
+        'no_certificado_sat',
+        'sello_cfdi',
+        'sello_sat',
+        'cadena_original',
         'xml_content',
         'xml_path',
         'pdf_path',

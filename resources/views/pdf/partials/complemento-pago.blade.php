@@ -10,6 +10,12 @@
     if ($c->cliente && $c->cliente->regimen_fiscal) {
         $regimenReceptorEtiqueta = \App\Models\RegimenFiscal::where('clave', $c->cliente->regimen_fiscal)->first()?->etiqueta ?? $c->cliente->regimen_fiscal;
     }
+    $qrVerificacionDataUri = null;
+    if ($c->uuid && $c->rfc_emisor && $c->rfc_receptor) {
+        $totalComplemento = (float) ($c->monto_total ?? 0);
+        $urlVerificacion = urlVerificacionSat($c->uuid, $c->rfc_emisor, $c->rfc_receptor, $totalComplemento, $c->sello_cfdi ?? null);
+        $qrVerificacionDataUri = qrCodeDataUri($urlVerificacion, 110);
+    }
 @endphp
 
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
@@ -31,7 +37,7 @@
             <strong>Fecha y hora de expedición:</strong> {{ $fechaEmision ? $fechaEmision->format('d/m/Y H:i:s') : '-' }}<br>
             <strong>Lugar de expedición:</strong> {{ $c->lugar_expedicion ?? ($e->codigo_postal ?? '-') }}<br>
             <strong>Forma de pago:</strong> {{ $formaPagoEtiqueta }}<br>
-            <strong>Moneda:</strong> XXX<br>
+            <strong>Moneda:</strong> MXN<br>
             <strong>Tipo de comprobante:</strong> Pago (P)<br>
             <strong>Versión:</strong> CFDI 4.0 / Complemento de pago 2.0<br>
             @if($c->uuid)
@@ -40,6 +46,9 @@
             @endif
             @if($e && ($e->no_certificado ?? null))
             <strong>No. de serie del certificado del emisor:</strong> {{ $e->no_certificado }}<br>
+            @endif
+            @if($c->no_certificado_sat ?? null)
+            <strong>No. de serie del certificado del SAT:</strong> {{ $c->no_certificado_sat }}<br>
             @endif
             @if($fechaTimbrado)
             <strong>Fecha y hora de certificación:</strong> {{ $fechaTimbrado->format('d/m/Y H:i:s') }}<br>
@@ -145,6 +154,45 @@
     <td>${{ number_format($c->monto_total, 2) }} MXN</td>
 </tr>
 </table>
+
+{{-- Sellos, cadena original y QR (mismo diseño que factura: 85% textos, 15% QR) --}}
+<div class="timbrado-section" style="margin-top:4px;">
+    @if($c->uuid)
+        <table width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">
+        <tr>
+            @if($qrVerificacionDataUri)
+            <td width="15%" valign="top" style="padding-right:8px; text-align:center;">
+                <img src="{{ $qrVerificacionDataUri }}"
+                    style="width:110px; height:110px; display:block; margin:0 auto;"
+                    alt="QR Verificación SAT">
+            </td>
+            @endif
+            <td width="{{ $qrVerificacionDataUri ? '85%' : '100%' }}" valign="top"
+                style="overflow:hidden; word-break:break-all; overflow-wrap:break-word;">
+                <div class="timbrado-label">Sello digital del CFDI:</div>
+                <div class="timbrado-value"
+                     style="font-size:5pt; word-break:break-all; overflow-wrap:break-word; white-space:normal;">
+                    {{ $c->sello_cfdi ?: '—' }}
+                </div>
+                <div class="timbrado-label" style="margin-top:2px;">Sello del SAT:</div>
+                <div class="timbrado-value"
+                     style="font-size:5pt; word-break:break-all; overflow-wrap:break-word; white-space:normal;">
+                    {{ $c->sello_sat ?: '—' }}
+                </div>
+                <div class="timbrado-label" style="margin-top:2px;">
+                    Cadena original del complemento de certificación digital del SAT:
+                </div>
+                <div class="timbrado-value"
+                     style="font-size:5pt; word-break:break-all; overflow-wrap:break-word; white-space:normal;">
+                    {{ $c->cadena_original ?: '—' }}
+                </div>
+            </td>
+        </tr>
+        </table>
+    @else
+        <div style="color:#B45309; font-weight:bold;">DOCUMENTO EN BORRADOR</div>
+    @endif
+</div>
 
 <div style="margin-top:10px; font-size:8pt; text-align:center; color:#374151;">
     <strong>Este documento es una representación impresa de un Comprobante Fiscal Digital por Internet (Complemento de Pago).</strong>

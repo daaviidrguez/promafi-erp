@@ -14,6 +14,7 @@ use App\Models\Cliente;
 use App\Models\Empresa;
 use App\Models\FormaPago;
 use App\Models\NotaCredito;
+use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
@@ -98,6 +99,8 @@ class ComplementoPagoController extends Controller
             'facturas' => 'required|array|min:1',
             'facturas.*.factura_id' => 'required|exists:facturas,id',
             'facturas.*.monto_pagado' => 'required|numeric|min:0',
+            'uuid_referencia' => 'nullable|string|size:36',
+            'tipo_relacion' => 'nullable|string|in:01,02,03,04',
         ], [
             'facturas.required' => 'Debes aplicar el pago al menos a una factura.',
             'facturas.min' => 'Debes aplicar el pago al menos a una factura.',
@@ -154,6 +157,10 @@ class ComplementoPagoController extends Controller
             // Obtener siguiente folio
             $folio = $empresa->folio_complemento ?? 1;
 
+            // Relación de CFDI (SAT 2026): sustitución de complemento emitido con errores
+            $uuidReferencia = !empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null;
+            $tipoRelacion = $uuidReferencia ? ($validated['tipo_relacion'] ?? '04') : null;
+
             // Crear complemento CON TODOS LOS CAMPOS REQUERIDOS
             $complemento = ComplementoPago::create([
                 // Identificación
@@ -177,6 +184,8 @@ class ComplementoPagoController extends Controller
                 'fecha_emision' => now(),
                 'lugar_expedicion' => $empresa->codigo_postal,
                 'monto_total' => $validated['monto_total'],
+                'uuid_referencia' => $uuidReferencia,
+                'tipo_relacion' => $tipoRelacion,
                 
                 // Control
                 'usuario_id' => auth()->id(),
@@ -476,10 +485,11 @@ class ComplementoPagoController extends Controller
                 throw new \Exception($resultado['message']);
             }
 
-            // Actualizar complemento (incluye sellos y cadena para el PDF)
+            // Actualizar complemento (incluye sellos, cadena y pac_cfdi_id para cancelación)
             $complemento->update([
                 'estado' => 'timbrado',
                 'uuid' => $resultado['uuid'],
+                'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
                 'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
                 'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
                 'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
@@ -571,6 +581,159 @@ class ComplementoPagoController extends Controller
             storage_path('app/' . $complemento->pdf_path),
             $complemento->folio_completo . '.pdf'
         );
+    }
+
+    /**
+     * Cancelar complemento de pago (SAT 2026 / Facturama).
+     */
+    public function cancelar(Request $request, ComplementoPago $complemento)
+    {
+        if (!$complemento->puedeCancelar()) {
+            return back()->with('error', 'Solo se pueden cancelar complementos timbrados.');
+        }
+
+        $rules = ['motivo_cancelacion' => 'required|string|in:01,02,03,04'];
+        if ($request->input('motivo_cancelacion') === '01') {
+            $rules['uuid_sustituto'] = 'required|string|size:36';
+        }
+        $validated = $request->validate($rules);
+
+        $uuidSustituto = ($validated['motivo_cancelacion'] ?? '') === '01'
+            ? trim($validated['uuid_sustituto'] ?? '')
+            : null;
+
+        DB::beginTransaction();
+        try {
+            $resultado = $this->pacService->cancelarComplementoPago(
+                $complemento,
+                $validated['motivo_cancelacion'],
+                $uuidSustituto
+            );
+
+            if (!$resultado['success']) {
+                throw new \Exception($resultado['message']);
+            }
+
+            $complemento->update([
+                'estado' => 'cancelado',
+                'motivo_cancelacion' => $validated['motivo_cancelacion'],
+                'fecha_cancelacion' => now(),
+                'acuse_cancelacion' => $resultado['acuse'] ?? null,
+                'codigo_estatus_cancelacion' => $resultado['codigo_estatus'] ?? '201',
+            ]);
+
+            // Revertir aplicación de pagos en cuentas por cobrar
+            $complemento->load('pagosRecibidos.documentosRelacionados.factura');
+            foreach ($complemento->pagosRecibidos as $pagoRecibido) {
+                foreach ($pagoRecibido->documentosRelacionados as $doc) {
+                    $cuenta = $doc->factura->cuentaPorCobrar;
+                    if ($cuenta) {
+                        $cuenta->revertirPago((float) $doc->monto_pagado);
+                    }
+                }
+            }
+
+            DB::commit();
+            return redirect()->route('complementos.show', $complemento->id)
+                ->with('success', 'Complemento cancelado en el SAT correctamente.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error al cancelar: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Listar complementos para modal Relación de CFDI (sustitución).
+     * Incluye: timbrados y cancelados con motivo 02 (errores sin relación).
+     */
+    public function listarParaRelacion(Request $request)
+    {
+        $query = ComplementoPago::whereNotNull('uuid')
+            ->with('cliente:id,nombre')
+            ->where(function ($q) {
+                $q->where('estado', 'timbrado')
+                    ->orWhere(function ($q2) {
+                        $q2->where('estado', 'cancelado')->where('motivo_cancelacion', '02');
+                    });
+            })
+            ->orderByRaw("CASE WHEN estado = 'timbrado' THEN 0 ELSE 1 END ASC, COALESCE(fecha_timbrado, fecha_emision) DESC")
+            ->limit(200);
+        $excluirId = $request->get('excluir_id');
+        if ($excluirId) {
+            $query->where('id', '!=', $excluirId);
+        }
+        $lista = $query->get(['id', 'serie', 'folio', 'uuid', 'fecha_emision', 'fecha_timbrado', 'estado', 'motivo_cancelacion', 'cliente_id', 'monto_total']);
+
+        return response()->json($lista->map(function ($c) {
+            return [
+                'id' => $c->id,
+                'folio_completo' => $c->folio_completo,
+                'uuid' => $c->uuid,
+                'fecha' => $c->fecha_timbrado ? $c->fecha_timbrado->format('d/m/Y H:i') : $c->fecha_emision->format('d/m/Y'),
+                'cliente' => $c->cliente ? $c->cliente->nombre : '',
+                'monto_total' => (float) $c->monto_total,
+                'estado' => $c->estado,
+                'motivo_cancelacion' => $c->motivo_cancelacion,
+            ];
+        }));
+    }
+
+    /**
+     * Descargar XML de acuse de cancelación del complemento.
+     */
+    public function descargarXmlCancelacion(ComplementoPago $complemento)
+    {
+        if ($complemento->estado !== 'cancelado' || empty($complemento->acuse_cancelacion)) {
+            return back()->with('error', 'XML de cancelación no disponible.');
+        }
+        $decoded = base64_decode($complemento->acuse_cancelacion, true);
+        if ($decoded === false) {
+            return back()->with('error', 'Contenido del acuse no válido.');
+        }
+        return response($decoded, 200, [
+            'Content-Type' => 'application/xml',
+            'Content-Disposition' => 'attachment; filename="AcuseCancelacion_' . $complemento->folio_completo . '.xml"',
+        ]);
+    }
+
+    /**
+     * Obtener y guardar acuse de cancelación desde Facturama (complementos ya cancelados sin acuse).
+     */
+    public function obtenerAcuseCancelacion(ComplementoPago $complemento)
+    {
+        if ($complemento->estado !== 'cancelado') {
+            return back()->with('error', 'Solo aplica a complementos cancelados.');
+        }
+        if (!empty($complemento->acuse_cancelacion)) {
+            return back()->with('info', 'El acuse ya está guardado.');
+        }
+        $acuse = $this->pacService->obtenerAcuseCancelacionPorComplemento($complemento);
+        if ($acuse) {
+            $complemento->update(['acuse_cancelacion' => $acuse]);
+            return back()->with('success', 'Acuse de cancelación guardado.');
+        }
+        return back()->with('error', 'No se pudo obtener el acuse desde Facturama.');
+    }
+
+    /**
+     * Actualizar estatus de cancelación desde el SAT/PAC (solo complementos cancelados).
+     * Obtiene el acuse actualizado y el código de estatus para reflejar la respuesta final del SAT.
+     */
+    public function actualizarEstatusCancelacion(ComplementoPago $complemento)
+    {
+        if ($complemento->estado !== 'cancelado') {
+            return back()->with('error', 'Solo se puede actualizar el estatus de complementos cancelados.');
+        }
+        $acuse = $this->pacService->obtenerAcuseCancelacionPorComplemento($complemento);
+        if (empty($acuse)) {
+            return back()->with('error', 'No se pudo obtener la respuesta del SAT. Intente más tarde o verifique el complemento en Facturama.');
+        }
+        $codigoEstatus = FacturamaService::extraerCodigoEstatusDelAcuse($acuse);
+        $complemento->update([
+            'acuse_cancelacion' => $acuse,
+            'codigo_estatus_cancelacion' => $codigoEstatus,
+        ]);
+        return back()->with('success', 'Estatus actualizado: ' . ComplementoPago::descripcionCodigoCancelacion($codigoEstatus) . ' (código ' . $codigoEstatus . ').');
     }
 
     /**

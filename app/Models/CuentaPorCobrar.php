@@ -75,6 +75,27 @@ class CuentaPorCobrar extends Model
     }
 
     /**
+     * Revertir un pago (p. ej. al cancelar un complemento de pago).
+     */
+    public function revertirPago(float $monto): void
+    {
+        $this->monto_pagado = max(0, (float) $this->monto_pagado - $monto);
+        $this->monto_pendiente = min((float) $this->monto_total, (float) $this->monto_pendiente + $monto);
+
+        if ($this->monto_pendiente >= (float) $this->monto_total) {
+            $this->estado = 'pendiente';
+            $this->monto_pendiente = (float) $this->monto_total;
+        } elseif ($this->monto_pagado > 0) {
+            $this->estado = 'parcial';
+        } else {
+            $this->estado = 'pendiente';
+        }
+
+        $this->save();
+        $this->cliente->actualizarSaldo();
+    }
+
+    /**
      * Calcular días de vencimiento
      */
     public function calcularDiasVencido(): void

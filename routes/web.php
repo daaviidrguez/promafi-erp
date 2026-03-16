@@ -235,6 +235,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');
     Route::get('/facturas/{factura}/descargar-xml-cancelacion', [FacturaController::class, 'descargarXmlCancelacion'])->name('facturas.descargar-xml-cancelacion');
     Route::get('/facturas/{factura}/obtener-acuse-cancelacion', [FacturaController::class, 'obtenerAcuseCancelacion'])->name('facturas.obtener-acuse-cancelacion');
+    Route::post('/facturas/{factura}/actualizar-estatus-cancelacion', [FacturaController::class, 'actualizarEstatusCancelacion'])->name('facturas.actualizar-estatus-cancelacion');
     Route::get('/facturas/{factura}/ver-pdf', [FacturaController::class, 'verPDF'])->name('facturas.ver-pdf');
     Route::get('/facturas/{factura}/descargar-pdf', [FacturaController::class, 'descargarPDF'])->name('facturas.descargar-pdf');
 
@@ -281,6 +282,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // IMPORTANTE: Rutas específicas ANTES de rutas con parámetros
     Route::get('/complementos/crear', [ComplementoPagoController::class, 'create'])->name('complementos.create');
     Route::get('/complementos/facturas-pendientes', [ComplementoPagoController::class, 'facturasPendientes'])->name('complementos.facturas-pendientes');
+    Route::get('/complementos-para-relacion/listar', [ComplementoPagoController::class, 'listarParaRelacion'])->name('complementos.listar-para-relacion');
     Route::get('/complementos', [ComplementoPagoController::class, 'index'])->name('complementos.index');
     Route::post('/complementos', [ComplementoPagoController::class, 'store'])->name('complementos.store');
     Route::get('/complementos/{complemento}', [ComplementoPagoController::class, 'show'])->name('complementos.show');
@@ -291,6 +293,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/complementos/{complemento}/ver-pdf', [ComplementoPagoController::class, 'verPDF'])->name('complementos.ver-pdf');
     Route::get('/complementos/{complemento}/descargar-pdf', [ComplementoPagoController::class, 'descargarPDF'])->name('complementos.descargar-pdf');
     Route::get('/complementos/{complemento}/descargar-xml', [ComplementoPagoController::class, 'descargarXML'])->name('complementos.descargar-xml');
+    Route::post('/complementos/{complemento}/cancelar', [ComplementoPagoController::class, 'cancelar'])->name('complementos.cancelar');
+    Route::get('/complementos/{complemento}/descargar-xml-cancelacion', [ComplementoPagoController::class, 'descargarXmlCancelacion'])->name('complementos.descargar-xml-cancelacion');
+    Route::get('/complementos/{complemento}/obtener-acuse-cancelacion', [ComplementoPagoController::class, 'obtenerAcuseCancelacion'])->name('complementos.obtener-acuse-cancelacion');
+    Route::post('/complementos/{complemento}/actualizar-estatus-cancelacion', [ComplementoPagoController::class, 'actualizarEstatusCancelacion'])->name('complementos.actualizar-estatus-cancelacion');
 
     // ───── DEVOLUCIONES ─────
     Route::get('/devoluciones', [DevolucionController::class, 'index'])->name('devoluciones.index');

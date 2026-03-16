@@ -182,6 +182,65 @@ class PACService implements PACServiceInterface
         }
     }
 
+    public function cancelarComplementoPago(ComplementoPago $complemento, string $motivo, ?string $uuidSustitucion = null): array
+    {
+        try {
+            $empresa = $this->getEmpresa();
+            if (!$empresa) {
+                return ['success' => false, 'message' => 'No hay empresa configurada.'];
+            }
+
+            $provider = $empresa->pac_provider ?? 'facturama_sandbox';
+
+            if (in_array($provider, ['facturama_sandbox', 'facturama_production'], true)) {
+                [$user, $pass] = $empresa->getFacturamaCredentials();
+                if (!empty($user) && !empty($pass)) {
+                    $facturama = new FacturamaService($empresa);
+                    return $facturama->cancelarComplementoPago($complemento, $motivo, $uuidSustitucion);
+                }
+                $entorno = $provider === 'facturama_production' ? 'producción' : 'sandbox';
+                return [
+                    'success' => false,
+                    'message' => "Configura usuario y contraseña de Facturama para {$entorno} en Configuración de empresa.",
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => 'Configura Facturama (sandbox o producción) en Configuración de empresa.',
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error al cancelar complemento: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public function obtenerAcuseCancelacionPorComplemento(ComplementoPago $complemento): ?string
+    {
+        try {
+            $empresa = $this->getEmpresa();
+            if (!$empresa) {
+                return null;
+            }
+
+            $provider = $empresa->pac_provider ?? 'facturama_sandbox';
+
+            if (in_array($provider, ['facturama_sandbox', 'facturama_production'], true)) {
+                [$user, $pass] = $empresa->getFacturamaCredentials();
+                if (!empty($user) && !empty($pass)) {
+                    $facturama = new FacturamaService($empresa);
+                    return $facturama->obtenerAcuseCancelacionPorComplemento($complemento);
+                }
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public function verificarEstado(string $uuid): array
     {
         // TODO: Implementación real con servicio del SAT

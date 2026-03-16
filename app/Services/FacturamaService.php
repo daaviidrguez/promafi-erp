@@ -316,6 +316,22 @@ class FacturamaService
             ],
         ];
 
+        // Relación de CFDI (SAT 2026): cuando este complemento sustituye uno emitido con errores.
+        // Facturama espera Relations.Type (TipoRelacion) y Relations.Cfdis[] con Uuid → XML: CfdiRelacionados TipoRelacion="04" / CfdiRelacionado UUID="..."
+        $uuidRef = trim((string) ($complemento->uuid_referencia ?? ''));
+        $tipoRelacion = trim((string) ($complemento->tipo_relacion ?? '04'));
+        if ($uuidRef !== '' && preg_match('/^[a-f0-9\-]{36}$/i', $uuidRef)) {
+            if (!preg_match('/^0[1-7]$/', $tipoRelacion)) {
+                $tipoRelacion = '04'; // 04 = Sustitución de los CFDI previos (SAT)
+            }
+            $body['Relations'] = [
+                'Type' => $tipoRelacion,
+                'Cfdis' => [
+                    ['Uuid' => $uuidRef],
+                ],
+            ];
+        }
+
         $response = $this->http()
             ->acceptJson()
             ->timeout(30)
@@ -361,17 +377,18 @@ class FacturamaService
         }
 
         $data = $response->json();
-        $cfdiId = $data['Id'] ?? $data['id'] ?? null;
+        $cfdiId = $data['Id'] ?? $data['id'] ?? $data['Data']['Id'] ?? $data['Data']['id'] ?? $data['Model']['Id'] ?? $data['Model']['id'] ?? null;
         if (!$cfdiId) {
+            Log::warning('Facturama complemento: respuesta sin Id', ['response_keys' => array_keys(is_array($data) ? $data : [])]);
             return [
                 'success' => false,
                 'message' => 'Facturama no devolvió el Id del CFDI',
             ];
         }
 
-        $uuid = $data['Uuid'] ?? $data['uuid'] ?? null;
+        $uuid = $data['Uuid'] ?? $data['uuid'] ?? ($data['Data']['Uuid'] ?? $data['Data']['uuid'] ?? null);
         $xml = null;
-        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : now();
+        $fechaTimbrado = isset($data['Date']) ? \Carbon\Carbon::parse($data['Date']) : (isset($data['Data']['Date']) ? \Carbon\Carbon::parse($data['Data']['Date']) : now());
         $noCertificadoSat = null;
         $selloCfdi = null;
         $selloSat = null;
@@ -408,6 +425,7 @@ class FacturamaService
         return [
             'success' => true,
             'uuid' => (string) $uuid,
+            'pac_cfdi_id' => $cfdiId,
             'xml' => $xml ?: '',
             'fecha_timbrado' => $fechaTimbrado,
             'no_certificado_sat' => $noCertificadoSat,
@@ -416,6 +434,21 @@ class FacturamaService
             'cadena_original' => $cadenaOriginal ?? '',
             'message' => 'Complemento de pago timbrado con Facturama correctamente',
         ];
+    }
+
+    /**
+     * Cancelar complemento de pago en Facturama (misma API que cancelar factura: DELETE cfdi por Id/UUID).
+     *
+     * @return array ['success' => bool, 'message' => string, 'acuse' => string|null, 'codigo_estatus' => string]
+     */
+    public function cancelarComplementoPago(ComplementoPago $complemento, string $motivo, ?string $uuidSustitucion = null): array
+    {
+        return $this->cancelarFactura(
+            $complemento->uuid,
+            $motivo,
+            $uuidSustitucion,
+            $complemento->pac_cfdi_id
+        );
     }
 
     /**
@@ -502,7 +535,7 @@ class FacturamaService
             if ($cfdiId === null) {
                 return [
                     'success' => false,
-                    'message' => 'No se encontró el CFDI en Facturama para el UUID indicado. Solo se puede cancelar facturas timbradas con Facturama.',
+                    'message' => 'No se encontró el CFDI en Facturama para el UUID indicado. Solo se pueden cancelar CFDI timbrados con Facturama (verifique que el complemento se timbró en este ambiente).',
                 ];
             }
         }
@@ -574,6 +607,18 @@ class FacturamaService
         $cfdiId = $factura->pac_cfdi_id ?? null;
         if (empty($cfdiId) && !empty($factura->uuid)) {
             $cfdiId = $this->obtenerCfdiIdPorUuid($factura->uuid);
+        }
+        return $cfdiId ? $this->obtenerAcuseCancelacion($cfdiId) : null;
+    }
+
+    /**
+     * Obtener acuse de cancelación por complemento de pago (para complementos ya cancelados sin acuse guardado).
+     */
+    public function obtenerAcuseCancelacionPorComplemento(ComplementoPago $complemento): ?string
+    {
+        $cfdiId = $complemento->pac_cfdi_id ?? null;
+        if (empty($cfdiId) && !empty($complemento->uuid)) {
+            $cfdiId = $this->obtenerCfdiIdPorUuid($complemento->uuid);
         }
         return $cfdiId ? $this->obtenerAcuseCancelacion($cfdiId) : null;
     }
@@ -651,7 +696,25 @@ class FacturamaService
      */
     protected function obtenerCfdiIdPorUuid(string $uuid): ?string
     {
-        $url = $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=active&invoiceType=issued&page=1';
+        // Primero con invoiceType=issued; si no hay resultados, intentar sin invoiceType (incluye complementos tipo P)
+        $urls = [
+            $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=active&invoiceType=issued&page=1',
+            $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=active&page=1',
+        ];
+        foreach ($urls as $url) {
+            $id = $this->buscarCfdiIdEnListaPorUuid($url, $uuid);
+            if ($id !== null) {
+                return $id;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Obtener Id desde la respuesta de listado por keyword.
+     */
+    protected function buscarCfdiIdEnListaPorUuid(string $url, string $uuid): ?string
+    {
         $response = $this->http()
             ->acceptJson()
             ->timeout(15)
@@ -661,15 +724,23 @@ class FacturamaService
             return null;
         }
 
-        $list = $response->json();
-        if (!is_array($list)) {
-            return null;
+        $body = $response->json();
+        $list = is_array($body) ? $body : [];
+        if (isset($body['List']) && is_array($body['List'])) {
+            $list = $body['List'];
+        }
+        if (isset($body['list']) && is_array($body['list'])) {
+            $list = $body['list'];
         }
 
         foreach ($list as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
             $itemUuid = $item['Uuid'] ?? $item['uuid'] ?? null;
             if ($itemUuid !== null && strcasecmp((string) $itemUuid, $uuid) === 0) {
-                return (string) ($item['Id'] ?? $item['id'] ?? null);
+                $id = $item['Id'] ?? $item['id'] ?? null;
+                return $id !== null ? (string) $id : null;
             }
         }
         return null;

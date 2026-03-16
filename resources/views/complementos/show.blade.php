@@ -208,6 +208,20 @@ $breadcrumbs = [
                     <a href="{{ route('complementos.descargar-xml', $complemento->id) }}"
                        class="btn btn-success w-full">Descargar XML</a>
                     @endif
+                    @if($complemento->puedeCancelar())
+                    <button type="button" onclick="document.getElementById('modalCancelarComplemento').classList.add('show')"
+                            class="btn btn-danger w-full">✗ Cancelar complemento</button>
+                    @endif
+                @endif
+
+                @if($complemento->estado === 'cancelado')
+                    @if(!empty($complemento->acuse_cancelacion))
+                    <a href="{{ route('complementos.descargar-xml-cancelacion', $complemento->id) }}"
+                       class="btn btn-outline w-full">📄 XML cancelado</a>
+                    @else
+                    <a href="{{ route('complementos.obtener-acuse-cancelacion', $complemento->id) }}"
+                       class="btn btn-outline w-full">📄 Obtener XML cancelado</a>
+                    @endif
                 @endif
 
                 <a href="{{ route('complementos.index') }}" class="btn btn-light w-full">← Volver</a>
@@ -216,5 +230,142 @@ $breadcrumbs = [
 
     </div>
 </div>
+
+{{-- Modal Cancelar complemento --}}
+@if($complemento->puedeCancelar())
+<div id="modalCancelarComplemento" class="modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title" style="color: var(--color-danger);">⚠️ Cancelar complemento de pago</div>
+            <button class="modal-close" onclick="document.getElementById('modalCancelarComplemento').classList.remove('show')">✕</button>
+        </div>
+        <form method="POST" action="{{ route('complementos.cancelar', $complemento->id) }}" id="formCancelarComplemento">
+            @csrf
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom: 20px;">
+                    ¿Está seguro de cancelar este complemento? Se revertirán los pagos aplicados en las cuentas por cobrar. Esta acción es irreversible.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Motivo de cancelación <span class="req">*</span></label>
+                    <select name="motivo_cancelacion" id="cancelComplementoMotivo" class="form-control" required>
+                        <option value="03" selected>03 - No se llevó a cabo la operación</option>
+                        <option value="01">01 - Comprobante emitido con errores con relación</option>
+                        <option value="02">02 - Comprobante emitido con errores sin relación</option>
+                        <option value="04">04 - Operación nominativa relacionada en factura global</option>
+                    </select>
+                </div>
+                <div id="bloqueComplementoUuidSustituto" class="form-group" style="display: none;">
+                    <label class="form-label">UUID Sustituto <span class="req">*</span></label>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="inputComplementoUuidSustitutoDisplay" class="form-control" readonly placeholder="Seleccione el complemento que sustituye" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                        <input type="hidden" name="uuid_sustituto" id="inputComplementoUuidSustituto" value="">
+                        <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarComplementoSustituto()">Seleccionar complemento que sustituye</button>
+                    </div>
+                    <span class="form-hint">Obligatorio cuando el motivo es 01 (SAT): UUID del CFDI que reemplaza a este complemento.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="document.getElementById('modalCancelarComplemento').classList.remove('show')">Cerrar</button>
+                <button type="submit" class="btn btn-danger">Confirmar cancelación</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal seleccionar complemento sustituto (motivo 01) --}}
+<div id="modalSeleccionarComplementoSustituto" class="modal">
+    <div class="modal-box" style="max-width: 640px;">
+        <div class="modal-header">
+            <div class="modal-title">Seleccionar complemento que sustituye</div>
+            <button class="modal-close" onclick="cerrarModalComplementoSustituto()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 12px;">Elija el complemento de pago timbrado que reemplaza a este (UUID sustituto).</p>
+            <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Folio</th>
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th>Monto</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaComplementosSustituto"></tbody>
+                </table>
+            </div>
+            <div id="cargandoComplementoSustituto" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando complementos...</div>
+            <div id="sinComplementosSustituto" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay complementos timbrados para seleccionar.</div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function() {
+    var complementoIdExcluir = {{ $complemento->id }};
+    var listarComplementosUrl = '{{ route("complementos.listar-para-relacion") }}?excluir_id=' + complementoIdExcluir;
+
+    window.toggleComplementoUuidSustituto = function() {
+        var motivo = document.getElementById('cancelComplementoMotivo').value;
+        var bloque = document.getElementById('bloqueComplementoUuidSustituto');
+        var input = document.getElementById('inputComplementoUuidSustituto');
+        if (motivo === '01') {
+            bloque.style.display = 'block';
+            input.setAttribute('required', 'required');
+        } else {
+            bloque.style.display = 'none';
+            input.removeAttribute('required');
+            input.value = '';
+            document.getElementById('inputComplementoUuidSustitutoDisplay').value = '';
+        }
+    };
+
+    document.getElementById('cancelComplementoMotivo').addEventListener('change', toggleComplementoUuidSustituto);
+
+    window.abrirModalSeleccionarComplementoSustituto = function() {
+        document.getElementById('modalSeleccionarComplementoSustituto').classList.add('show');
+        document.getElementById('listaComplementosSustituto').innerHTML = '';
+        document.getElementById('cargandoComplementoSustituto').style.display = 'block';
+        document.getElementById('sinComplementosSustituto').style.display = 'none';
+        fetch(listarComplementosUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('cargandoComplementoSustituto').style.display = 'none';
+                var tbody = document.getElementById('listaComplementosSustituto');
+                if (!data || data.length === 0) {
+                    document.getElementById('sinComplementosSustituto').style.display = 'block';
+                    return;
+                }
+                data.forEach(function(c) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td class="text-mono">' + (c.folio_completo || '') + '</td>' +
+                        '<td>' + (c.cliente || '') + '</td>' +
+                        '<td>' + (c.fecha || '') + '</td>' +
+                        '<td class="text-right">$' + (typeof c.monto_total === 'number' ? c.monto_total.toFixed(2) : c.monto_total) + '</td>' +
+                        '<td><button type="button" class="btn btn-primary btn-sm" onclick="elegirComplementoSustituto(\'' + (c.uuid || '') + '\', \'' + (c.folio_completo || '').replace(/'/g, "\\'") + '\')">Seleccionar</button></td>';
+                    tbody.appendChild(tr);
+                });
+            })
+            .catch(function() {
+                document.getElementById('cargandoComplementoSustituto').style.display = 'none';
+                document.getElementById('sinComplementosSustituto').style.display = 'block';
+            });
+    };
+
+    window.cerrarModalComplementoSustituto = function() {
+        document.getElementById('modalSeleccionarComplementoSustituto').classList.remove('show');
+    };
+
+    window.elegirComplementoSustituto = function(uuid, folio) {
+        document.getElementById('inputComplementoUuidSustituto').value = uuid;
+        document.getElementById('inputComplementoUuidSustitutoDisplay').value = folio ? folio + ' — ' + uuid : uuid;
+        cerrarModalComplementoSustituto();
+    };
+})();
+</script>
+@endpush
+@endif
 
 @endsection

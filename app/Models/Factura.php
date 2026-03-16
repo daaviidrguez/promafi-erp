@@ -310,6 +310,21 @@ class Factura extends Model
     }
 
     /**
+     * Estatus de la solicitud de cancelación (paso a paso) — descripción SAT del código.
+     */
+    public function getEstatusSolicitudLabelAttribute(): ?string
+    {
+        if ($this->estado !== 'cancelada') {
+            return null;
+        }
+        $cod = $this->codigo_estatus_cancelacion;
+        if ($cod === null || $cod === '') {
+            return null;
+        }
+        return self::descripcionCodigoCancelacion($cod);
+    }
+
+    /**
      * Descripción del código de estatus de cancelación SAT.
      * Documentación: https://apisandbox.facturama.mx/docs
      */

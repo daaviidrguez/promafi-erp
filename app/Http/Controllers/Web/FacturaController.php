@@ -827,6 +827,36 @@ class FacturaController extends Controller
     }
 
     /**
+     * Actualizar estatus de cancelación desde el SAT/PAC (solo facturas canceladas).
+     * Obtiene el acuse actualizado y el código de estatus para reflejar la respuesta final del SAT.
+     */
+    public function actualizarEstatusCancelacion(Factura $factura)
+    {
+        if ($factura->estado !== 'cancelada') {
+            return back()->with('error', 'Solo se puede actualizar el estatus de facturas canceladas.');
+        }
+        $empresa = $factura->empresa ?? Empresa::principal();
+        if (!$empresa) {
+            return back()->with('error', 'No hay empresa configurada.');
+        }
+        try {
+            $facturama = new FacturamaService($empresa);
+            $acuse = $facturama->obtenerAcuseCancelacionPorFactura($factura);
+            if (empty($acuse)) {
+                return back()->with('error', 'No se pudo obtener la respuesta del SAT. Intente más tarde o verifique la factura en Facturama.');
+            }
+            $codigoEstatus = FacturamaService::extraerCodigoEstatusDelAcuse($acuse);
+            $factura->update([
+                'acuse_cancelacion' => $acuse,
+                'codigo_estatus_cancelacion' => $codigoEstatus,
+            ]);
+            return back()->with('success', 'Estatus actualizado: ' . Factura::descripcionCodigoCancelacion($codigoEstatus) . ' (código ' . $codigoEstatus . ').');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error al actualizar estatus: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Descargar XML del acuse de cancelación (SAT / Facturama).
      * Solo disponible cuando la factura está cancelada y se guardó el acuse.
      *

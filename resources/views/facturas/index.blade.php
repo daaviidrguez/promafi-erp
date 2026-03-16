@@ -12,6 +12,16 @@ $breadcrumbs = [
 
 @section('content')
 
+@if(session('success'))
+    <div class="alert alert-success"><span>✓</span> {{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="alert alert-danger"><span>✗</span> {{ session('error') }}</div>
+@endif
+@if(session('info'))
+    <div class="alert alert-info"><span>ℹ</span> {{ session('info') }}</div>
+@endif
+
 {{-- Filtros + Acción --}}
 <div class="card">
     <div class="card-body">
@@ -83,21 +93,30 @@ $breadcrumbs = [
                 <td class="td-right text-mono fw-600" style="font-size: 15px;">
                     ${{ number_format($factura->total, 2, '.', ',') }}
                 </td>
-                <td class="td-center" style="max-width:220px;">
+                <td class="td-center" style="min-width: 200px;">
                     @if($factura->estado === 'timbrada')
-                        @if($factura->codigo_estatus_cancelacion && (str_starts_with($factura->codigo_estatus_cancelacion, 'R') || str_starts_with($factura->codigo_estatus_cancelacion, 'Rechazada')))
-                            <span class="badge badge-warning" title="{{ \App\Models\Factura::descripcionCodigoCancelacion($factura->codigo_estatus_cancelacion) }}">⚠️ {{ $factura->estado_etiqueta }}</span>
-                        @else
-                            <span class="badge badge-success">✓ Timbrada</span>
-                        @endif
+                        <span class="badge badge-success">✓ Timbrada</span>
                     @elseif($factura->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        <span class="badge badge-danger" title="{{ $factura->fecha_cancelacion ? $factura->fecha_cancelacion->format('d/m/Y H:i') : '' }}">✗ {{ $factura->estado_etiqueta }}</span>
+                        <span class="badge badge-danger" title="{{ $factura->fecha_cancelacion ? $factura->fecha_cancelacion->format('d/m/Y H:i') : '' }}">✗ Cancelada</span>
+                        @if($factura->codigo_estatus_cancelacion)
+                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);" title="Estatus de la solicitud (paso a paso)">
+                                {{ $factura->codigo_estatus_cancelacion }} — {{ $factura->estatus_solicitud_label }}
+                            </div>
+                        @else
+                            <div style="font-size: 10px; margin-top: 4px; color: var(--color-gray-500);">Sin respuesta SAT aún</div>
+                        @endif
                     @endif
                 </td>
                 <td class="td-actions">
-                    <div style="display: flex; gap: 8px; justify-content: center;">
+                    <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                        @if($factura->estado === 'cancelada')
+                            <form method="POST" action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}" style="display: inline;" onsubmit="return confirm('¿Consultar respuesta actual del SAT para esta factura cancelada?');">
+                                @csrf
+                                <button type="submit" class="btn btn-outline-primary btn-sm btn-icon" title="Actualizar estatus">🔄</button>
+                            </form>
+                        @endif
                         <a href="{{ route('facturas.show', $factura->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
                         @if($factura->esBorrador() && auth()->user()->can('facturas.crear'))

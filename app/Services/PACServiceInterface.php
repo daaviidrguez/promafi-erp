@@ -45,6 +45,24 @@ interface PACServiceInterface
     public function cancelarFactura(string $uuid, string $motivo, ?string $uuidSustitucion = null): array;
 
     /**
+     * Cancelar un complemento de pago
+     *
+     * @param ComplementoPago $complemento
+     * @param string $motivo 01, 02, 03, 04
+     * @param string|null $uuidSustitucion UUID del CFDI que sustituye (motivo 01)
+     * @return array ['success' => bool, 'message' => string, 'acuse' => string|null, 'codigo_estatus' => string]
+     */
+    public function cancelarComplementoPago(ComplementoPago $complemento, string $motivo, ?string $uuidSustitucion = null): array;
+
+    /**
+     * Obtener acuse de cancelación de un complemento (para complementos ya cancelados sin acuse guardado).
+     *
+     * @param ComplementoPago $complemento
+     * @return string|null Acuse XML en base64 o null
+     */
+    public function obtenerAcuseCancelacionPorComplemento(ComplementoPago $complemento): ?string;
+
+    /**
      * Verificar el estado de una factura en el SAT
      * 
      * @param string $uuid

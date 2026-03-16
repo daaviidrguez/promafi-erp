@@ -42,6 +42,7 @@ class ComplementoPago extends Model
         
         // Timbrado
         'uuid',
+        'pac_cfdi_id',
         'fecha_timbrado',
         'no_certificado_sat',
         'sello_cfdi',
@@ -50,6 +51,12 @@ class ComplementoPago extends Model
         'xml_content',
         'xml_path',
         'pdf_path',
+        'fecha_cancelacion',
+        'acuse_cancelacion',
+        'codigo_estatus_cancelacion',
+        'motivo_cancelacion',
+        'uuid_referencia',
+        'tipo_relacion',
         
         // Control
         'usuario_id',
@@ -58,6 +65,7 @@ class ComplementoPago extends Model
     protected $casts = [
         'fecha_emision' => 'datetime',
         'fecha_timbrado' => 'datetime',
+        'fecha_cancelacion' => 'datetime',
         'monto_total' => 'decimal:2',
     ];
 
@@ -123,5 +131,85 @@ class ComplementoPago extends Model
     public function puedeTimbrar(): bool
     {
         return $this->estado === 'borrador' && !empty($this->uuid) === false;
+    }
+
+    /**
+     * Verificar si está cancelado
+     */
+    public function estaCancelado(): bool
+    {
+        return $this->estado === 'cancelado';
+    }
+
+    /**
+     * Verificar si puede cancelarse (timbrado y no cancelado)
+     */
+    public function puedeCancelar(): bool
+    {
+        return $this->estado === 'timbrado';
+    }
+
+    /**
+     * Etiqueta del estado para listados (incluye código SAT de cancelación cuando aplica).
+     */
+    public function getEstadoEtiquetaAttribute(): string
+    {
+        if ($this->estado === 'borrador') {
+            return 'Borrador';
+        }
+        if ($this->estado === 'timbrado') {
+            return 'Timbrado';
+        }
+        if ($this->estado === 'cancelado') {
+            $cod = $this->codigo_estatus_cancelacion;
+            if ($cod) {
+                return 'Cancelado (' . $cod . ')';
+            }
+            return 'Cancelado';
+        }
+        return $this->estado ?? '—';
+    }
+
+    /**
+     * Estatus de la solicitud de cancelación (paso a paso) — descripción SAT del código.
+     */
+    public function getEstatusSolicitudLabelAttribute(): ?string
+    {
+        if ($this->estado !== 'cancelado') {
+            return null;
+        }
+        $cod = $this->codigo_estatus_cancelacion;
+        if ($cod === null || $cod === '') {
+            return 'Sin respuesta SAT aún';
+        }
+        return self::descripcionCodigoCancelacion($cod);
+    }
+
+    /**
+     * Descripción del código de estatus de cancelación SAT (catálogo c_EstatusCancelacion).
+     */
+    public static function descripcionCodigoCancelacion(?string $codigo): string
+    {
+        $map = [
+            '201' => 'Solicitud procesada',
+            '202' => 'UUID previamente enviado',
+            '203' => 'UUID no corresponde al emisor',
+            '204' => 'UUID no aplicable',
+            '205' => 'UUID no existe',
+            '206' => 'En proceso (pendiente aceptación)',
+            '301' => 'Sello inválido',
+            '302' => 'Certificado revocado/caduco',
+            '401' => 'Fecha fuera de rango',
+            '601' => 'No cancelable',
+        ];
+        $cod = (string) $codigo;
+        if (str_starts_with($cod, 'R-')) {
+            $num = substr($cod, 2);
+            return ($map[$num] ?? $num) . ' (Rechazada)';
+        }
+        if (str_starts_with($cod, 'R') || str_starts_with($cod, 'Rechazada')) {
+            return 'Rechazada';
+        }
+        return $map[$cod] ?? $codigo ?? '—';
     }
 }

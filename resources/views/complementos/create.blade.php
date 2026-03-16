@@ -98,6 +98,34 @@ $breadcrumbs = [
                 </div>
             </div>
 
+            {{-- Relación de CFDI (SAT 2026) --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔗 Relación de CFDI</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label">¿Sustituir un complemento emitido con errores?</label>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="checkbox" id="checkSustituirComplementoCfdi" name="sustituir_cfdi" value="1" {{ old('sustituir_cfdi') ? 'checked' : '' }}>
+                                <span>Sí, este complemento sustituye un CFDI previo (complemento con errores)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="bloqueComplementoCfdiSustituir" class="form-group" style="display: none;">
+                        <label class="form-label">CFDI a sustituir (UUID del complemento)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="inputComplementoUuidReferenciaDisplay" class="form-control" readonly placeholder="Seleccione el complemento emitido con errores" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                            <input type="hidden" name="uuid_referencia" id="inputComplementoUuidReferencia" value="{{ old('uuid_referencia') }}">
+                            <input type="hidden" name="tipo_relacion" id="inputComplementoTipoRelacion" value="04">
+                            <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarComplementoCfdiSustituir()">Seleccionar complemento a sustituir</button>
+                            <button type="button" class="btn btn-light btn-sm" onclick="limpiarComplementoCfdiSustituir()">Quitar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {{-- Facturas a Aplicar --}}
             <div class="card">
                 <div class="card-header">
@@ -174,11 +202,106 @@ $breadcrumbs = [
 
 </form>
 
+{{-- Modal seleccionar complemento a sustituir (Relación CFDI) --}}
+<div id="modalSeleccionarComplementoCfdiSustituir" class="modal">
+    <div class="modal-box" style="max-width: 640px;">
+        <div class="modal-header">
+            <div class="modal-title">Seleccionar complemento a sustituir</div>
+            <button type="button" class="modal-close" onclick="cerrarModalComplementoCfdiSustituir()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 12px;">Elija el complemento de pago timbrado que fue emitido con errores y que este nuevo complemento sustituye.</p>
+            <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Folio</th>
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th>Monto</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaComplementosCfdiSustituir"></tbody>
+                </table>
+            </div>
+            <div id="cargandoComplementoCfdiSustituir" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando complementos...</div>
+            <div id="sinComplementosCfdiSustituir" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay complementos timbrados para seleccionar.</div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
 <script>
 let facturasPendientes = [];
+const listarComplementosParaRelacionUrl = '{{ route("complementos.listar-para-relacion") }}';
+const facturasPendientesUrl = '{{ route("complementos.facturas-pendientes") }}';
+
+(function() {
+    var check = document.getElementById('checkSustituirComplementoCfdi');
+    var bloque = document.getElementById('bloqueComplementoCfdiSustituir');
+    if (check) {
+        check.addEventListener('change', function() {
+            bloque.style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) limpiarComplementoCfdiSustituir();
+        });
+        if (check.checked) bloque.style.display = 'block';
+    }
+})();
+
+function abrirModalSeleccionarComplementoCfdiSustituir() {
+    document.getElementById('modalSeleccionarComplementoCfdiSustituir').classList.add('show');
+    document.getElementById('listaComplementosCfdiSustituir').innerHTML = '';
+    document.getElementById('cargandoComplementoCfdiSustituir').style.display = 'block';
+    document.getElementById('sinComplementosCfdiSustituir').style.display = 'none';
+    fetch(listarComplementosParaRelacionUrl)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            document.getElementById('cargandoComplementoCfdiSustituir').style.display = 'none';
+            var tbody = document.getElementById('listaComplementosCfdiSustituir');
+            var lista = Array.isArray(data) ? data : (data && (data.data || data.list) ? (data.data || data.list) : []);
+            if (!lista.length) {
+                document.getElementById('sinComplementosCfdiSustituir').style.display = 'block';
+                return;
+            }
+            lista.forEach(function(c) {
+                var folioTexto = c.folio_completo || '';
+                if (c.estado === 'cancelado' && c.motivo_cancelacion === '02') {
+                    folioTexto = folioTexto + ' <span class="badge badge-warning" style="font-size: 10px; margin-left: 6px;">Cancelado (02)</span>';
+                }
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td class="text-mono">' + folioTexto + '</td>' +
+                    '<td>' + (c.cliente || '') + '</td>' +
+                    '<td>' + (c.fecha || '') + '</td>' +
+                    '<td class="text-right">$' + (typeof c.monto_total === 'number' ? c.monto_total.toFixed(2) : c.monto_total) + '</td>' +
+                    '<td><button type="button" class="btn btn-primary btn-sm" onclick="elegirComplementoCfdiSustituir(\'' + (c.uuid || '').replace(/'/g, "\\'") + '\', \'' + (c.folio_completo || '').replace(/'/g, "\\'") + '\')">Seleccionar</button></td>';
+                tbody.appendChild(tr);
+            });
+        })
+        .catch(function() {
+            document.getElementById('cargandoComplementoCfdiSustituir').style.display = 'none';
+            document.getElementById('sinComplementosCfdiSustituir').style.display = 'block';
+        });
+}
+
+function cerrarModalComplementoCfdiSustituir() {
+    document.getElementById('modalSeleccionarComplementoCfdiSustituir').classList.remove('show');
+}
+
+function elegirComplementoCfdiSustituir(uuid, folio) {
+    document.getElementById('inputComplementoUuidReferencia').value = uuid;
+    document.getElementById('inputComplementoTipoRelacion').value = '04';
+    document.getElementById('inputComplementoUuidReferenciaDisplay').value = folio ? folio + ' — ' + uuid : uuid;
+    cerrarModalComplementoCfdiSustituir();
+}
+
+function limpiarComplementoCfdiSustituir() {
+    document.getElementById('inputComplementoUuidReferencia').value = '';
+    document.getElementById('inputComplementoUuidReferenciaDisplay').value = '';
+    document.getElementById('inputComplementoTipoRelacion').value = '04';
+}
 
 async function cargarFacturasPendientes() {
     const clienteId = document.getElementById('cliente_id').value;
@@ -198,13 +321,13 @@ async function cargarFacturasPendientes() {
         </div>`;
 
     try {
-        const response = await fetch(`/complementos/facturas-pendientes?cliente_id=${clienteId}`);
+        const response = await fetch(facturasPendientesUrl + '?cliente_id=' + encodeURIComponent(clienteId));
         const data = await response.json();
         if (data.complemento_borrador_id) {
-            window.location = `/complementos/${data.complemento_borrador_id}`;
+            window.location.href = '{{ url("complementos") }}/' + data.complemento_borrador_id;
             return;
         }
-        facturasPendientes = data.facturas || data;
+        facturasPendientes = Array.isArray(data.facturas) ? data.facturas : (data.facturas ? [].concat(data.facturas) : []);
 
         if (!facturasPendientes.length) {
             placeholder.innerHTML = `
@@ -225,7 +348,7 @@ async function cargarFacturasPendientes() {
                 <td>
                     <input type="hidden" name="facturas[${i}][factura_id]" value="${f.id}">
                     <div class="text-mono fw-600">${f.folio}</div>
-                    <div class="text-mono text-muted" style="font-size: 11px;">${f.uuid.substring(0, 20)}...</div>
+                    <div class="text-mono text-muted" style="font-size: 11px;">${(f.uuid || '').substring(0, 20)}${(f.uuid || '').length > 20 ? '...' : ''}</div>
                 </td>
                 <td>${f.fecha}</td>
                 <td class="td-right text-mono">$${parseFloat(f.pendiente).toFixed(2).replace(/\d(?=(\d{3})+\.)/g,'$&,')}</td>

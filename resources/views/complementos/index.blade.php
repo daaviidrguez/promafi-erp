@@ -12,6 +12,16 @@ $breadcrumbs = [
 
 @section('content')
 
+@if(session('success'))
+    <div class="alert alert-success"><span>✓</span> {{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="alert alert-danger"><span>✗</span> {{ session('error') }}</div>
+@endif
+@if(session('info'))
+    <div class="alert alert-info"><span>ℹ</span> {{ session('info') }}</div>
+@endif
+
 {{-- Filtros + Acción --}}
 <div class="card">
     <div class="card-body">
@@ -55,7 +65,7 @@ $breadcrumbs = [
                 <th>Fecha</th>
                 <th class="td-right">Monto</th>
                 <th class="td-center">Facturas</th>
-                <th class="td-center">Estado</th>
+                <th class="td-center" style="min-width: 200px;">Estado</th>
                 <th class="td-actions">Acciones</th>
             </tr>
         </thead>
@@ -98,11 +108,24 @@ $breadcrumbs = [
                     @elseif($complemento->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        <span class="badge badge-danger">✗ Cancelado</span>
+                        <span class="badge badge-danger" title="{{ $complemento->fecha_cancelacion ? $complemento->fecha_cancelacion->format('d/m/Y H:i') : '' }}">✗ Cancelado</span>
+                        @if($complemento->codigo_estatus_cancelacion)
+                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);" title="Estatus de la solicitud (paso a paso)">
+                                {{ $complemento->codigo_estatus_cancelacion }} — {{ $complemento->estatus_solicitud_label }}
+                            </div>
+                        @else
+                            <div style="font-size: 10px; margin-top: 4px; color: var(--color-gray-500);">Sin respuesta SAT aún</div>
+                        @endif
                     @endif
                 </td>
                 <td class="td-actions">
-                    <div style="display: flex; gap: 8px; justify-content: center;">
+                    <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                        @if($complemento->estado === 'cancelado')
+                            <form method="POST" action="{{ route('complementos.actualizar-estatus-cancelacion', $complemento->id) }}" style="display: inline;" onsubmit="return confirm('¿Consultar respuesta actual del SAT para este complemento cancelado?');">
+                                @csrf
+                                <button type="submit" class="btn btn-outline-primary btn-sm btn-icon" title="Actualizar estatus">🔄</button>
+                            </form>
+                        @endif
                         <a href="{{ route('complementos.show', $complemento->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
                         @if($complemento->xml_path)

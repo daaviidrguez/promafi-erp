@@ -218,6 +218,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/inventario/movimientos', [InventarioController::class, 'storeMovimiento'])->name('inventario.store-movimiento');
     Route::get('/inventario/movimientos/{movimiento}', [InventarioController::class, 'showMovimiento'])->name('inventario.movimiento.show');
     Route::get('/inventario/producto/{producto}', [InventarioController::class, 'showProducto'])->name('inventario.show-producto');
+    Route::get('/inventario/kardex', [InventarioController::class, 'kardex'])->name('inventario.kardex');
+    Route::get('/inventario/kardex/pdf', [InventarioController::class, 'descargarKardexPdf'])->name('inventario.kardex.pdf');
 
     // ───── SUGERENCIAS (partidas para cotizar manual) ─────
     Route::get('/sugerencias/buscar', [SugerenciaController::class, 'buscar'])->name('sugerencias.buscar');

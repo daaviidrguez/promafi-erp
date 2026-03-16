@@ -5,6 +5,7 @@ namespace App\Services;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use App\Models\Empresa;
+use App\Models\InventarioMovimiento;
 
 class PDFService
 {
@@ -110,4 +111,45 @@ class PDFService
         return response()->download($fullPath, $filename);
     }
 
+    /**
+     * Genera PDF del kardex de un producto en un rango de fechas.
+     *
+     * @param \App\Models\Producto $producto
+     * @param \Illuminate\Support\Collection<int, InventarioMovimiento> $movimientos
+     * @param \Carbon\Carbon $fechaDesde
+     * @param \Carbon\Carbon $fechaHasta
+     * @param float $saldoInicial
+     * @return string Ruta relativa del archivo guardado
+     */
+    public function generarKardexPDF($producto, $movimientos, $fechaDesde, $fechaHasta, float $saldoInicial): string
+    {
+        $empresa = Empresa::principal();
+        $directory = storage_path('app/documentos/kardex/' . now()->format('Y/m'));
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
+        }
+        $filename = 'Kardex_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $producto->codigo ?? 'prod') . '_' . $fechaDesde->format('Y-m-d') . '.pdf';
+        $filepath = $directory . '/' . $filename;
+
+        $html = view('pdf.kardex', [
+            'empresa' => $empresa,
+            'producto' => $producto,
+            'movimientos' => $movimientos,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'saldoInicial' => $saldoInicial,
+        ])->render();
+
+        $options = new Options();
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isPhpEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'landscape');
+        $dompdf->render();
+        file_put_contents($filepath, $dompdf->output());
+
+        return 'documentos/kardex/' . now()->format('Y/m') . '/' . $filename;
+    }
 }

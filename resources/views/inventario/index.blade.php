@@ -5,6 +5,7 @@
 @section('page-actions')
     <a href="{{ route('inventario.create-movimiento') }}" class="btn btn-primary">➕ Entrada / Salida manual</a>
     <a href="{{ route('inventario.movimientos') }}" class="btn btn-outline">📋 Movimientos</a>
+    <a href="{{ route('inventario.kardex') }}" class="btn btn-outline">📒 Kardex</a>
 @endsection
 
 @php

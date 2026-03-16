@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\InventarioMovimiento;
 use App\Models\Producto;
+use App\Services\PDFService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class InventarioController extends Controller
@@ -88,5 +90,79 @@ class InventarioController extends Controller
         $producto->load('categoria');
         $movimientos = $producto->movimientos()->with(['usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])->paginate(20);
         return view('inventario.show-producto', compact('producto', 'movimientos'));
+    }
+
+    /**
+     * Kardex: formulario de búsqueda por producto y rango de fechas; opcionalmente muestra resultados.
+     */
+    public function kardex(Request $request)
+    {
+        $productos = Producto::where('controla_inventario', true)->orderBy('nombre')->get(['id', 'nombre', 'codigo']);
+        $productoId = $request->get('producto_id');
+        $fechaDesde = $request->get('fecha_desde');
+        $fechaHasta = $request->get('fecha_hasta');
+
+        $producto = null;
+        $movimientos = collect();
+        $saldoInicial = 0.0;
+
+        if ($productoId && $fechaDesde && $fechaHasta) {
+            $producto = Producto::where('controla_inventario', true)->find($productoId);
+            if (!$producto) {
+                return redirect()->route('inventario.kardex')->with('error', 'Producto no encontrado o no controla inventario');
+            }
+            $desde = Carbon::parse($fechaDesde)->startOfDay();
+            $hasta = Carbon::parse($fechaHasta)->endOfDay();
+            $movimientos = InventarioMovimiento::where('producto_id', $producto->id)
+                ->whereBetween('created_at', [$desde, $hasta])
+                ->with(['usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])
+                ->orderBy('created_at')
+                ->get();
+            if ($movimientos->isNotEmpty()) {
+                $saldoInicial = (float) $movimientos->first()->stock_anterior;
+            } else {
+                $ultimoAntes = InventarioMovimiento::where('producto_id', $producto->id)
+                    ->where('created_at', '<', $desde)
+                    ->orderByDesc('created_at')
+                    ->first();
+                $saldoInicial = $ultimoAntes ? (float) $ultimoAntes->stock_resultante : (float) 0;
+            }
+        }
+
+        return view('inventario.kardex', compact('productos', 'producto', 'movimientos', 'saldoInicial', 'fechaDesde', 'fechaHasta', 'productoId'));
+    }
+
+    /**
+     * Descargar Kardex en PDF.
+     */
+    public function descargarKardexPdf(Request $request)
+    {
+        $request->validate([
+            'producto_id' => 'required|exists:productos,id',
+            'fecha_desde' => 'required|date',
+            'fecha_hasta' => 'required|date|after_or_equal:fecha_desde',
+        ]);
+        $producto = Producto::where('controla_inventario', true)->findOrFail($request->producto_id);
+        $fechaDesde = Carbon::parse($request->fecha_desde)->startOfDay();
+        $fechaHasta = Carbon::parse($request->fecha_hasta)->endOfDay();
+        $movimientos = InventarioMovimiento::where('producto_id', $producto->id)
+            ->whereBetween('created_at', [$fechaDesde, $fechaHasta])
+            ->with(['usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])
+            ->orderBy('created_at')
+            ->get();
+        $saldoInicial = 0.0;
+        if ($movimientos->isNotEmpty()) {
+            $saldoInicial = (float) $movimientos->first()->stock_anterior;
+        } else {
+            $ultimoAntes = InventarioMovimiento::where('producto_id', $producto->id)
+                ->where('created_at', '<', $fechaDesde)
+                ->orderByDesc('created_at')
+                ->first();
+            $saldoInicial = $ultimoAntes ? (float) $ultimoAntes->stock_resultante : 0;
+        }
+
+        $pdfPath = app(PDFService::class)->generarKardexPDF($producto, $movimientos, $fechaDesde, $fechaHasta, $saldoInicial);
+        $filename = 'Kardex_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $producto->codigo) . '_' . $fechaDesde->format('Y-m-d') . '_' . $fechaHasta->format('Y-m-d') . '.pdf';
+        return response()->download(storage_path('app/' . $pdfPath), $filename);
     }
 }

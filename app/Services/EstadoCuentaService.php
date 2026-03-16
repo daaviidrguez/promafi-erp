@@ -57,7 +57,11 @@ class EstadoCuentaService
         if ($fechaHasta) {
             $queryFacturas->whereDate('fecha_emision', '<=', $fechaHasta);
         }
-        foreach ($queryFacturas->orderBy('fecha_emision')->orderBy('id')->get() as $f) {
+        $facturas = $queryFacturas->orderBy('fecha_emision')->orderBy('id')->get();
+        $facturaIds = $facturas->pluck('id')->toArray();
+        $cxcPorFactura = CuentaPorCobrar::whereIn('factura_id', $facturaIds)->get()->keyBy('factura_id');
+        foreach ($facturas as $f) {
+            $cxc = $cxcPorFactura->get($f->id);
             $movimientos[] = [
                 'fecha' => Carbon::parse($f->fecha_emision),
                 'orden' => 1,
@@ -68,6 +72,7 @@ class EstadoCuentaService
                 'abono' => 0,
                 'factura_id' => $f->id,
                 'documento_id' => $f->id,
+                'fecha_vencimiento' => $cxc && $cxc->fecha_vencimiento ? Carbon::parse($cxc->fecha_vencimiento) : null,
             ];
         }
 
@@ -93,6 +98,7 @@ class EstadoCuentaService
                 'abono' => (float) $nc->total,
                 'factura_id' => $nc->factura_id,
                 'documento_id' => $nc->id,
+                'fecha_vencimiento' => null,
             ];
         }
 
@@ -125,6 +131,7 @@ class EstadoCuentaService
                 'abono' => (float) $doc->monto_pagado,
                 'factura_id' => $doc->factura_id,
                 'documento_id' => $doc->id,
+                'fecha_vencimiento' => null,
             ];
         }
 

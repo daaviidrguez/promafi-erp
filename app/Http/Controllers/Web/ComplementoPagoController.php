@@ -182,10 +182,14 @@ class ComplementoPagoController extends Controller
                 'usuario_id' => auth()->id(),
             ]);
 
+            // Fecha de pago: mismo día → hora actual; días anteriores → 12:00:00
+            $fechaPago = \Carbon\Carbon::parse($validated['fecha_pago'])->startOfDay();
+            $fechaPago = $fechaPago->isToday() ? now() : $fechaPago->setTime(12, 0, 0);
+
             // Crear pago recibido
             $pago = PagoRecibido::create([
                 'complemento_pago_id' => $complemento->id,
-                'fecha_pago' => $validated['fecha_pago'],
+                'fecha_pago' => $fechaPago,
                 'forma_pago' => $validated['forma_pago'],
                 'moneda' => $validated['moneda'],
                 'monto' => $validated['monto_total'],
@@ -377,8 +381,11 @@ class ComplementoPagoController extends Controller
 
             DocumentoRelacionadoPago::where('pago_recibido_id', $pago->id)->delete();
 
+            $fechaPago = \Carbon\Carbon::parse($validated['fecha_pago'])->startOfDay();
+            $fechaPago = $fechaPago->isToday() ? now() : $fechaPago->setTime(12, 0, 0);
+
             $pago->update([
-                'fecha_pago' => $validated['fecha_pago'],
+                'fecha_pago' => $fechaPago,
                 'forma_pago' => $validated['forma_pago'],
                 'moneda' => $validated['moneda'],
                 'monto' => $validated['monto_total'],

@@ -274,8 +274,17 @@ class FacturamaService
                 }
                 $relatedDocs[] = $relatedDoc;
             }
+            $fechaPagoFormato = null;
+            if ($pago->fecha_pago) {
+                $fp = \Carbon\Carbon::parse($pago->fecha_pago);
+                $fpStart = $fp->copy()->startOfDay();
+                $fechaPagoFormato = $fpStart->isToday() ? now() : $fpStart->setTime(12, 0, 0);
+                $fechaPagoFormato = $fechaPagoFormato->format('Y-m-d\TH:i:s');
+            } else {
+                $fechaPagoFormato = now()->format('Y-m-d\TH:i:s');
+            }
             $payment = [
-                'Date' => $pago->fecha_pago ? \Carbon\Carbon::parse($pago->fecha_pago)->format('Y-m-d\TH:i:s') : now()->format('Y-m-d\TH:i:s'),
+                'Date' => $fechaPagoFormato,
                 'PaymentForm' => $pago->forma_pago ?? '03',
                 'Amount' => round((float) $pago->monto, 2),
                 'RelatedDocuments' => $relatedDocs,

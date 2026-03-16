@@ -62,7 +62,7 @@
 <table class="productos-table">
 <thead>
 <tr>
-    <th>Fecha</th>
+    <th>Fecha de aplicación</th>
     <th>Forma de pago</th>
     <th class="center">Moneda</th>
     <th class="right">Monto</th>
@@ -74,7 +74,7 @@
     $formaEtiqueta = \App\Models\FormaPago::where('clave', $pago->forma_pago)->first()?->etiqueta ?? $pago->forma_pago;
 @endphp
 <tr>
-    <td>{{ $pago->fecha_pago ? \Carbon\Carbon::parse($pago->fecha_pago)->format('d/m/Y') : '-' }}</td>
+    <td>{{ $pago->fecha_pago ? \Carbon\Carbon::parse($pago->fecha_pago)->format('d/m/Y H:i') : '-' }}</td>
     <td>{{ $formaEtiqueta }}</td>
     <td class="center">{{ $pago->moneda ?? 'MXN' }}{{ ($pago->moneda ?? 'MXN') !== 'MXN' && $pago->tipo_cambio ? ' (T.C. ' . number_format((float)$pago->tipo_cambio, 4, '.', ',') . ')' : '' }}</td>
     <td class="right">${{ number_format($pago->monto, 2) }}</td>

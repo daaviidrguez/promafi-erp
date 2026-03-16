@@ -776,17 +776,25 @@ class FacturaController extends Controller
      */
     public function descargarXML(Factura $factura)
     {
-        if (!$factura->xml_path) {
+        if (!$factura->xml_path && empty($factura->xml_content)) {
             return back()->with('error', 'XML no disponible');
         }
 
         $filepath = storage_path('app/' . $factura->xml_path);
-        
-        if (!file_exists($filepath)) {
-            return back()->with('error', 'Archivo XML no encontrado');
+        if ($factura->xml_path && file_exists($filepath)) {
+            return response()->download($filepath, $factura->folio_completo . '.xml');
         }
-
-        return response()->download($filepath, $factura->folio_completo . '.xml');
+        $filepathPrivate = storage_path('app/private/' . $factura->xml_path);
+        if ($factura->xml_path && file_exists($filepathPrivate)) {
+            return response()->download($filepathPrivate, $factura->folio_completo . '.xml');
+        }
+        if (!empty($factura->xml_content)) {
+            return response($factura->xml_content, 200, [
+                'Content-Type' => 'application/xml',
+                'Content-Disposition' => 'attachment; filename="' . $factura->folio_completo . '.xml"',
+            ]);
+        }
+        return back()->with('error', 'Archivo XML no encontrado');
     }
 
     /**

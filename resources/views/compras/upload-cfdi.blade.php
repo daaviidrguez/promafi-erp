@@ -18,8 +18,8 @@ $breadcrumbs = [
     </div>
     <div class="card-body">
         <p class="text-muted mb-3">
-            Sube el archivo XML del CFDI de la factura de compra emitida por tu proveedor. 
-            El sistema extraerá la información (emisor, receptor, conceptos, impuestos) y creará el registro de compra.
+            Sube el archivo XML del CFDI de la factura de compra emitida por tu proveedor.
+            El sistema leerá los datos y abrirá un formulario para que vincule cada línea del detalle a un producto (lupa en Código). Al guardar, podrá usar <strong>Recibir mercancía</strong> para registrar la entrada en inventario.
         </p>
         <form method="POST" action="{{ route('compras.upload-cfdi') }}" enctype="multipart/form-data">
             @csrf

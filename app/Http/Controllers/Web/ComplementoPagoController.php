@@ -518,17 +518,25 @@ class ComplementoPagoController extends Controller
      */
     public function descargarXML(ComplementoPago $complemento)
     {
-        if (!$complemento->xml_path) {
+        if (!$complemento->xml_path && empty($complemento->xml_content)) {
             return back()->with('error', 'XML no disponible');
         }
 
         $filepath = storage_path('app/' . $complemento->xml_path);
-        
-        if (!file_exists($filepath)) {
-            return back()->with('error', 'Archivo XML no encontrado');
+        if ($complemento->xml_path && file_exists($filepath)) {
+            return response()->download($filepath, $complemento->folio_completo . '.xml');
         }
-
-        return response()->download($filepath, $complemento->folio_completo . '.xml');
+        $filepathPrivate = storage_path('app/private/' . $complemento->xml_path);
+        if ($complemento->xml_path && file_exists($filepathPrivate)) {
+            return response()->download($filepathPrivate, $complemento->folio_completo . '.xml');
+        }
+        if (!empty($complemento->xml_content)) {
+            return response($complemento->xml_content, 200, [
+                'Content-Type' => 'application/xml',
+                'Content-Disposition' => 'attachment; filename="' . $complemento->folio_completo . '.xml"',
+            ]);
+        }
+        return back()->with('error', 'Archivo XML no encontrado');
     }
 
     /**

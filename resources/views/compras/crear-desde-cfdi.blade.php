@@ -1,0 +1,256 @@
+@extends('layouts.app')
+@section('title', 'Guardar compra desde CFDI')
+@section('page-title', '📄 Compra desde CFDI')
+@section('page-subtitle', 'Vincule cada línea a un producto (lupa en Código) para que "Recibir mercancía" registre la entrada en inventario')
+
+@php
+$breadcrumbs = [
+    ['title' => 'Compras', 'url' => route('compras.index')],
+    ['title' => 'Leer CFDI', 'url' => route('compras.upload-cfdi')],
+    ['title' => 'Guardar compra'],
+];
+$conceptos = $datos['conceptos'] ?? [];
+$fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['fecha_emision'])->format('Y-m-d') : date('Y-m-d');
+@endphp
+
+@section('content')
+
+<form action="{{ route('compras.store-desde-cfdi') }}" method="POST" id="formCfdiCompra">
+@csrf
+
+<div class="responsive-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+    <div>
+        <div class="card">
+            <div class="card-header"><div class="card-title">📋 Datos del CFDI</div></div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="form-group">
+                        <label class="form-label">Fecha <span class="req">*</span></label>
+                        <input type="date" name="fecha_emision" value="{{ old('fecha_emision', $fechaEmision) }}" required class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Forma de pago</label>
+                        <input type="text" class="form-control" value="{{ $datos['forma_pago'] ?? '—' }}" readonly style="background:var(--color-gray-50);">
+                        <input type="hidden" name="forma_pago" value="{{ $datos['forma_pago'] ?? '01' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Método de pago</label>
+                        <select name="metodo_pago" class="form-control">
+                            <option value="PUE" {{ ($datos['metodo_pago'] ?? 'PUE') === 'PUE' ? 'selected' : '' }}>PUE - Una exhibición</option>
+                            <option value="PPD" {{ ($datos['metodo_pago'] ?? '') === 'PPD' ? 'selected' : '' }}>PPD - Pago diferido</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><div class="card-title">🏭 Proveedor</div></div>
+            <div class="card-body">
+                <div class="form-group search-box">
+                    <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control" value="{{ $proveedor ? $proveedor->nombre : ($datos['nombre_emisor'] ?? '') }}">
+                    <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $proveedor?->id ?? '' }}" required>
+                    <div id="proveedorResults" class="autocomplete-results"></div>
+                </div>
+                <p class="text-muted small mt-2 mb-0">Emisor CFDI: {{ $datos['nombre_emisor'] ?? '—' }} (RFC: {{ $datos['rfc_emisor'] ?? '—' }})</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><div class="card-title">📦 Detalle</div></div>
+            <div class="card-body" style="padding:0;">
+                <p class="text-muted small" style="padding:0 16px 12px;">Use la lupa en <strong>Código</strong> para vincular cada línea a un producto; así "Recibir mercancía" registrará la entrada en inventario.</p>
+                <div class="table-container" style="border:none;margin:0;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th class="td-center">Cant.</th>
+                                <th class="td-right">Costo unit.</th>
+                                <th class="td-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($conceptos as $i => $c)
+                            @php
+                                $importeLinea = ($c['importe'] ?? 0) - ($c['descuento'] ?? 0);
+                                $ivaLinea = collect($c['impuestos'] ?? [])->sum('importe');
+                            @endphp
+                            <tr data-row="{{ $i }}">
+                                <td>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button" class="btn btn-outline btn-sm btn-icon" title="Seleccionar producto" onclick="abrirModalProducto({{ $i }})">🔍</button>
+                                        <input type="hidden" name="productos[{{ $i }}][concepto_index]" value="{{ $i }}">
+                                        <input type="hidden" name="productos[{{ $i }}][producto_id]" id="producto_id_{{ $i }}" value="">
+                                        <span id="codigo_display_{{ $i }}" class="text-mono" style="font-size:13px;">—</span>
+                                    </div>
+                                </td>
+                                <td>{{ $c['descripcion'] ?? '—' }}</td>
+                                <td class="td-center text-mono">{{ number_format($c['cantidad'] ?? 0, 2) }}</td>
+                                <td class="td-right text-mono">${{ number_format($c['valor_unitario'] ?? 0, 2) }}</td>
+                                <td class="td-right text-mono fw-600">${{ number_format($importeLinea + $ivaLinea, 2) }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-body" style="display:flex;justify-content:flex-end;">
+                <div class="totales-panel" style="min-width:260px;">
+                    <div class="totales-row"><span>Subtotal</span><span class="monto text-mono">${{ number_format($datos['subtotal'] ?? 0, 2) }}</span></div>
+                    @if(($datos['descuento'] ?? 0) > 0)<div class="totales-row descuento"><span>Descuento</span><span class="monto">−${{ number_format($datos['descuento'] ?? 0, 2) }}</span></div>@endif
+                    <div class="totales-row grand"><span>TOTAL</span><span class="monto">${{ number_format($datos['total'] ?? 0, 2) }} MXN</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div>
+        <div class="card">
+            <div class="card-header"><div class="card-title">Resumen</div></div>
+            <div class="card-body">
+                <p class="text-muted small">Serie/Folio: {{ $datos['serie'] ?? '' }}-{{ $datos['folio'] ?? '—' }}</p>
+                @if(!empty($datos['uuid']))<p class="text-muted small text-mono">UUID: {{ $datos['uuid'] }}</p>@endif
+                <p class="small mt-2">Al guardar, la compra quedará en estado <strong>Registrada</strong>. En la ficha de la compra use <strong>Recibir mercancía</strong> para dar de alta la entrada en inventario (solo en líneas con producto vinculado).</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body" style="display:flex;gap:12px;justify-content:flex-end;">
+        <a href="{{ route('compras.upload-cfdi') }}" class="btn btn-light">Cancelar</a>
+        <button type="submit" class="btn btn-primary">✓ Guardar compra</button>
+    </div>
+</div>
+
+</form>
+
+{{-- Modal seleccionar producto --}}
+<div id="modalProducto" class="modal">
+    <div class="modal-box" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-title">Seleccionar producto</div>
+            <button type="button" class="modal-close" onclick="cerrarModalProducto()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="modalBuscarProducto" placeholder="Buscar por código o nombre..." class="form-control" autocomplete="off">
+            </div>
+            <div id="modalProductoLista" class="table-container" style="max-height:280px;overflow-y:auto;">
+                <p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function() {
+    const listarUrl = '{{ route("compras.buscar-productos") }}';
+    let filaActual = null;
+    let timerModal = null;
+
+    window.abrirModalProducto = function(rowIndex) {
+        filaActual = rowIndex;
+        document.getElementById('modalProducto').classList.add('show');
+        document.getElementById('modalBuscarProducto').value = '';
+        document.getElementById('modalBuscarProducto').focus();
+        document.getElementById('modalProductoLista').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+    };
+
+    window.cerrarModalProducto = function() {
+        document.getElementById('modalProducto').classList.remove('show');
+        filaActual = null;
+    };
+
+    document.getElementById('modalBuscarProducto').addEventListener('input', function() {
+        clearTimeout(timerModal);
+        const q = this.value.trim();
+        if (q.length < 2) {
+            document.getElementById('modalProductoLista').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+            return;
+        }
+        timerModal = setTimeout(function() {
+            fetch(listarUrl + '?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(list) {
+                    const div = document.getElementById('modalProductoLista');
+                    if (!list.length) {
+                        div.innerHTML = '<p class="text-muted text-center py-3">Sin resultados.</p>';
+                        return;
+                    }
+                    div.innerHTML = '<table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead><tbody>' +
+                        list.map(function(p) {
+                            const codigo = (p.codigo || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            const nombre = (p.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            return '<tr><td class="text-mono">' + codigo + '</td><td>' + nombre + '</td><td><button type="button" class="btn btn-primary btn-sm" data-id="' + p.id + '" data-codigo="' + codigo + '">Seleccionar</button></td></tr>';
+                        }).join('') + '</tbody></table>';
+                    div.querySelectorAll('button[data-id]').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            const id = this.getAttribute('data-id');
+                            const codigo = this.getAttribute('data-codigo');
+                            if (filaActual !== null) {
+                                document.getElementById('producto_id_' + filaActual).value = id;
+                                document.getElementById('codigo_display_' + filaActual).textContent = codigo || id;
+                            }
+                            cerrarModalProducto();
+                        });
+                    });
+                })
+                .catch(function() {
+                    document.getElementById('modalProductoLista').innerHTML = '<p class="text-danger text-center py-3">Error al buscar.</p>';
+                });
+        }, 280);
+    });
+
+    document.getElementById('formCfdiCompra').addEventListener('submit', function(e) {
+        if (!document.getElementById('proveedor_id').value) {
+            e.preventDefault();
+            alert('Seleccione un proveedor.');
+            return;
+        }
+    });
+
+    @if($proveedor)
+    document.getElementById('proveedor_id').value = '{{ $proveedor->id }}';
+    document.getElementById('buscarProveedor').value = {!! json_encode($proveedor->nombre) !!};
+    @endif
+})();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var buscarProveedor = document.getElementById('buscarProveedor');
+    var proveedorResults = document.getElementById('proveedorResults');
+    var proveedorId = document.getElementById('proveedor_id');
+    var timerP = null;
+    buscarProveedor.addEventListener('input', function() {
+        clearTimeout(timerP);
+        var q = this.value.trim();
+        if (q.length < 2) { proveedorResults.classList.remove('show'); proveedorResults.innerHTML = ''; return; }
+        timerP = setTimeout(function() {
+            fetch('{{ route("compras.buscar-proveedores") }}?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    proveedorResults.innerHTML = data.length ? data.map(function(c) {
+                        return '<div class="autocomplete-item" data-id="' + c.id + '" data-nombre="' + (c.nombre || '').replace(/"/g, '&quot;') + '"><div class="autocomplete-item-name">' + (c.nombre || '').replace(/</g, '&lt;') + '</div><div class="autocomplete-item-sub">' + (c.rfc || '') + '</div></div>';
+                    }).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+                    proveedorResults.classList.add('show');
+                    proveedorResults.querySelectorAll('.autocomplete-item[data-id]').forEach(function(el) {
+                        el.addEventListener('click', function() {
+                            proveedorId.value = this.getAttribute('data-id');
+                            buscarProveedor.value = this.getAttribute('data-nombre');
+                            proveedorResults.classList.remove('show');
+                        });
+                    });
+                });
+        }, 280);
+    });
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.search-box')) proveedorResults.classList.remove('show');
+    });
+});
+</script>
+@endpush
+
+@endsection

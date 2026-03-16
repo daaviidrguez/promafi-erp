@@ -21,6 +21,37 @@ class FacturaCompraCfdiService
     protected string $tfdNs = 'http://www.sat.gob.mx/TimbreFiscalDigital';
 
     /**
+     * Solo parsea el XML y devuelve los datos (sin guardar). Para precargar formulario "Leer CFDI".
+     *
+     * @return array ['success' => bool, 'datos' => array|null, 'message' => string]
+     */
+    public function parsear(string $xmlContent): array
+    {
+        $xml = $this->normalizarXml($xmlContent);
+        $datos = $this->extraerDatos($xml);
+        if (isset($datos['error'])) {
+            return ['success' => false, 'datos' => null, 'message' => $datos['error']];
+        }
+        $tipoComprobante = $datos['tipo_comprobante'] ?? 'E';
+        if (!in_array($tipoComprobante, ['E', 'I', 'P', 'N'])) {
+            return ['success' => false, 'datos' => null, 'message' => 'Tipo de comprobante no soportado: ' . $tipoComprobante];
+        }
+        if (!empty($datos['uuid']) && FacturaCompra::where('uuid', $datos['uuid'])->exists()) {
+            return ['success' => false, 'datos' => null, 'message' => 'Ya existe una factura de compra con UUID ' . $datos['uuid']];
+        }
+        $empresa = Empresa::principal();
+        if (!$empresa) {
+            return ['success' => false, 'datos' => null, 'message' => 'Configure la empresa principal'];
+        }
+        $rfcReceptor = $datos['rfc_receptor'] ?? '';
+        if (strtoupper($rfcReceptor) !== strtoupper($empresa->rfc ?? '')) {
+            return ['success' => false, 'datos' => null, 'message' => 'El RFC receptor del CFDI no coincide con el RFC de la empresa.'];
+        }
+        $datos['xml_content'] = $xmlContent;
+        return ['success' => true, 'datos' => $datos, 'message' => 'CFDI leído correctamente'];
+    }
+
+    /**
      * Parsea XML y crea FacturaCompra con detalles e impuestos.
      *
      * @return array ['success' => bool, 'factura_compra' => FacturaCompra|null, 'message' => string]
@@ -150,9 +181,26 @@ class FacturaCompraCfdiService
 
     protected function normalizarXml(string $xml): string
     {
+        // Quitar BOM UTF-8 (muchos proveedores exportan con BOM)
+        $bom = "\xEF\xBB\xBF";
+        if (str_starts_with($xml, $bom)) {
+            $xml = substr($xml, strlen($bom));
+        }
         $xml = trim($xml);
+
+        // Intentar asegurar UTF-8 (archivos en ISO-8859-1 o Windows-1252 suelen fallar loadXML)
+        if (!mb_check_encoding($xml, 'UTF-8')) {
+            $encoded = @mb_convert_encoding($xml, 'UTF-8', 'ISO-8859-1, Windows-1252, ASCII');
+            if ($encoded !== false) {
+                $xml = $encoded;
+            }
+        }
+
+        // Quitar caracteres de control que invalidan el XML (excepto tab, LF, CR)
+        $xml = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $xml);
+
         if (stripos($xml, '<?xml') !== 0) {
-            $xml = '<?xml version="1.0" encoding="UTF-8"?>' . $xml;
+            $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . $xml;
         }
         return $xml;
     }
@@ -163,10 +211,21 @@ class FacturaCompraCfdiService
     protected function extraerDatos(string $xml): array
     {
         libxml_use_internal_errors(true);
-        $dom = new \DOMDocument();
-        if (!@$dom->loadXML($xml)) {
-            return ['error' => 'XML inválido'];
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $opciones = LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NOCDATA;
+        $loaded = @$dom->loadXML($xml, $opciones);
+
+        if (!$loaded) {
+            $errors = libxml_get_errors();
+            libxml_clear_errors();
+            $msg = 'XML inválido.';
+            if (!empty($errors)) {
+                $first = $errors[0];
+                $msg .= ' Línea ' . $first->line . ': ' . trim($first->message);
+            }
+            return ['error' => $msg];
         }
+        libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
         $xpath->registerNamespace('cfdi', $this->cfdiNs);

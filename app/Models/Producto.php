@@ -154,22 +154,42 @@ class Producto extends Model
     }
 
     /**
-     * Costo promedio calculado desde compras recibidas (promedio ponderado por cantidad).
-     * Si no hay compras, devuelve null; la vista puede mostrar costo base o "—".
+     * Costo promedio calculado desde compras recibidas (órdenes y facturas de compra).
+     * Promedio ponderado: suma(total) / suma(cantidad). Solo se usa como fallback si costo_promedio no está almacenado.
      */
     public function getCostoPromedioCalculadoAttribute(): ?float
     {
-        $d = \Illuminate\Support\Facades\DB::table('ordenes_compra_detalle as d')
+        $sumTotal = 0.0;
+        $sumCantidad = 0.0;
+
+        $ordenes = \Illuminate\Support\Facades\DB::table('ordenes_compra_detalle as d')
             ->join('ordenes_compra as o', 'o.id', '=', 'd.orden_compra_id')
             ->where('d.producto_id', $this->id)
             ->where('o.estado', 'recibida')
             ->whereNull('o.deleted_at')
             ->selectRaw('COALESCE(SUM(d.total), 0) as sum_total, COALESCE(SUM(d.cantidad), 0) as sum_cantidad')
             ->first();
-        if (!$d || (float) $d->sum_cantidad <= 0) {
+        if ($ordenes && (float) $ordenes->sum_cantidad > 0) {
+            $sumTotal += (float) $ordenes->sum_total;
+            $sumCantidad += (float) $ordenes->sum_cantidad;
+        }
+
+        $facturas = \Illuminate\Support\Facades\DB::table('facturas_compra_detalle as d')
+            ->join('facturas_compra as f', 'f.id', '=', 'd.factura_compra_id')
+            ->where('d.producto_id', $this->id)
+            ->where('f.estado', 'recibida')
+            ->whereNull('f.deleted_at')
+            ->selectRaw('COALESCE(SUM(d.importe), 0) as sum_total, COALESCE(SUM(d.cantidad), 0) as sum_cantidad')
+            ->first();
+        if ($facturas && (float) $facturas->sum_cantidad > 0) {
+            $sumTotal += (float) $facturas->sum_total;
+            $sumCantidad += (float) $facturas->sum_cantidad;
+        }
+
+        if ($sumCantidad <= 0) {
             return null;
         }
-        return round((float) $d->sum_total / (float) $d->sum_cantidad, 2);
+        return round($sumTotal / $sumCantidad, 2);
     }
 
     /**

@@ -42,6 +42,7 @@ use App\Http\Controllers\Web\ClaveProdServicioController;
 use App\Http\Controllers\Web\IsrResicoController;
 use App\Http\Controllers\Web\ListaPrecioController;
 use App\Http\Controllers\Web\ReporteController;
+use App\Http\Controllers\Web\ImportadorCfdiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -154,6 +155,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ========================================
     Route::get('/compras/crear', [CompraController::class, 'create'])->name('compras.create');
     Route::match(['get', 'post'], '/compras/subir-cfdi', [CompraController::class, 'uploadCfdi'])->name('compras.upload-cfdi');
+    Route::get('/compras/crear-desde-cfdi', [CompraController::class, 'crearDesdeCfdi'])->name('compras.crear-desde-cfdi');
+    Route::post('/compras/guardar-desde-cfdi', [CompraController::class, 'storeDesdeCfdi'])->name('compras.store-desde-cfdi');
     Route::get('/compras/buscar-proveedores', [CompraController::class, 'buscarProveedores'])->name('compras.buscar-proveedores');
     Route::get('/compras/buscar-productos', [CompraController::class, 'buscarProductos'])->name('compras.buscar-productos');
     Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
@@ -308,7 +311,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── BUSCADOR GLOBAL ─────
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');
 
-    // ───── SISTEMA: Usuarios y Roles ─────
+    // ───── SISTEMA: Usuarios, Roles, Importador CFDI ─────
+    Route::get('/importador-cfdi', [ImportadorCfdiController::class, 'index'])->name('importador-cfdi.index');
+    Route::post('/importador-cfdi', [ImportadorCfdiController::class, 'store'])->name('importador-cfdi.store');
     Route::resource('usuarios', UsuarioController::class)->parameters(['usuarios' => 'usuario']);
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');

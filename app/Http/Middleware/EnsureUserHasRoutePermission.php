@@ -38,6 +38,7 @@ class EnsureUserHasRoutePermission
         'cuentas-cobrar' => 'cuentas_cobrar.ver',
         'usuarios' => 'usuarios.ver',
         'roles' => 'roles.ver',
+        'importador-cfdi' => 'importador_cfdi.ver',
     ];
 
     public function handle(Request $request, Closure $next): Response

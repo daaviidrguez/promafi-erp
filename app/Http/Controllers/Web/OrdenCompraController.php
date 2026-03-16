@@ -188,23 +188,34 @@ class OrdenCompraController extends Controller
         DB::beginTransaction();
         try {
             foreach ($ordenCompra->detalles as $detalle) {
-                if ($detalle->producto_id && $detalle->producto && $detalle->producto->controla_inventario) {
-                    InventarioMovimiento::registrar(
-                        $detalle->producto,
-                        InventarioMovimiento::TIPO_ENTRADA_COMPRA,
-                        (float) $detalle->cantidad,
-                        auth()->id(),
-                        null,
-                        null,
-                        $ordenCompra->id,
-                        null,
-                        null
-                    );
+                if (!$detalle->producto_id || !$detalle->producto || !$detalle->producto->controla_inventario) {
+                    continue;
                 }
+                $producto = $detalle->producto;
+                $cantidad = (float) $detalle->cantidad;
+                $costoUnitario = (float) $detalle->precio_unitario;
+                $stockAnterior = (float) $producto->stock;
+                $costoActual = (float) ($producto->costo_promedio ?? $producto->costo ?? 0);
+                $denominador = $stockAnterior + $cantidad;
+                if ($denominador > 0) {
+                    $nuevoCostoPromedio = round(($stockAnterior * $costoActual + $cantidad * $costoUnitario) / $denominador, 2);
+                    $producto->update(['costo_promedio' => $nuevoCostoPromedio]);
+                }
+                InventarioMovimiento::registrar(
+                    $producto,
+                    InventarioMovimiento::TIPO_ENTRADA_COMPRA,
+                    $cantidad,
+                    auth()->id(),
+                    null,
+                    null,
+                    $ordenCompra->id,
+                    null,
+                    null
+                );
             }
             $ordenCompra->update(['estado' => 'recibida', 'fecha_recepcion' => now()]);
             DB::commit();
-            return back()->with('success', 'Mercancía recibida. Se registró la entrada de inventario.');
+            return back()->with('success', 'Mercancía recibida. Se registró la entrada de inventario y el costo promedio por producto.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', $e->getMessage());

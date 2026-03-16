@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\TableroController;
+use App\Http\Controllers\Web\TableroAnualController;
 use App\Http\Controllers\Web\GlobalSearchController;
 use App\Http\Controllers\Web\PerfilController;
 use App\Http\Controllers\Web\CotizacionController;
@@ -73,6 +74,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── DASHBOARD ─────
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/tablero', [TableroController::class, 'index'])->name('tablero.index');
+    Route::get('/tablero-anual', [TableroAnualController::class, 'index'])->name('tablero-anual.index');
 
     // ───── REPORTES ─────
     Route::redirect('/reportes', '/reportes/fiscal', 301)->name('reportes.index');

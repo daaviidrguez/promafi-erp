@@ -269,7 +269,8 @@ $breadcrumbs = [
             </div>
         </div>
 
-        {{-- Estadísticas --}}
+        {{-- Estadísticas (visible solo con permiso Ver saldos) --}}
+        @can('clientes.ver_saldos')
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📊 Estadísticas</div>
@@ -317,6 +318,7 @@ $breadcrumbs = [
                 </div>
             </div>
         </div>
+        @endcan
 
         {{-- Acciones --}}
         <div class="card">

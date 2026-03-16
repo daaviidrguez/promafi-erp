@@ -33,10 +33,18 @@
                 </li>
                 <li class="sidebar-menu-item">
                     <a href="{{ route('tablero.index') }}"
-                       class="sidebar-menu-link {{ request()->routeIs('tablero.*') ? 'active' : '' }}"
+                       class="sidebar-menu-link {{ request()->routeIs('tablero.index') ? 'active' : '' }}"
                        title="Tablero">
                         <span class="sidebar-menu-icon">📈</span>
                         <span class="sidebar-menu-text">Tablero</span>
+                    </a>
+                </li>
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('tablero-anual.index') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('tablero-anual.*') ? 'active' : '' }}"
+                       title="Tablero anual">
+                        <span class="sidebar-menu-icon">📅</span>
+                        <span class="sidebar-menu-text">Tablero anual</span>
                     </a>
                 </li>
             </ul>

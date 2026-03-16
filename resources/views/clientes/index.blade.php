@@ -53,7 +53,9 @@ $breadcrumbs = [
                 <th>Contacto</th>
                 <th class="td-center">Tipo</th>
                 <th class="td-right">Límite Crédito</th>
+                @can('clientes.ver_saldos')
                 <th class="td-right">Saldo</th>
+                @endcan
                 <th class="td-center">Estado</th>
                 <th class="td-actions">Acciones</th>
             </tr>
@@ -84,10 +86,12 @@ $breadcrumbs = [
                     @endif
                 </td>
                 <td class="td-right text-mono">${{ number_format($cliente->limite_credito, 2, '.', ',') }}</td>
+                @can('clientes.ver_saldos')
                 <td class="td-right text-mono fw-600"
                     style="color: {{ $cliente->saldo_actual_coherente > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}">
                     ${{ number_format($cliente->saldo_actual_coherente, 2, '.', ',') }}
                 </td>
+                @endcan
                 <td class="td-center">
                     @if($cliente->activo)
                         <span class="badge badge-success">✓ Activo</span>

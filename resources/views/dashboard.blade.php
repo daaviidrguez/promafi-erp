@@ -174,7 +174,12 @@ $breadcrumbs = [
                         </a>
                     </td>
                     <td>{{ $cuenta->fecha_vencimiento->format('d/m/Y') }}</td>
-                    <td class="td-center"><span class="badge badge-danger">{{ $cuenta->dias_vencido }} días</span></td>
+                    @php
+                        // Cálculo en tiempo real por fecha_vencimiento; se detiene cuando está pagada (accessor devuelve null)
+                        $diff = $cuenta->dias_contra_vencimiento_realtime;
+                        $diasVencido = ($diff !== null && $diff < 0) ? abs($diff) : (int) ($cuenta->dias_vencido ?? 0);
+                    @endphp
+                    <td class="td-center"><span class="badge badge-danger">{{ $diasVencido }} días</span></td>
                     <td class="td-right text-mono fw-600" style="color: var(--color-danger);">
                         ${{ number_format($cuenta->saldo_pendiente_real, 2, '.', ',') }}
                     </td>

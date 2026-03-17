@@ -2,7 +2,7 @@
 
 @section('title', 'Tablero anual')
 @section('page-title', '📅 Tablero anual')
-@section('page-subtitle', 'Ventas, ingresos cobrados, IVA, ISR RESICO y Utilidad por mes')
+@section('page-subtitle', 'Tablero anual para RESICO (626): ingresos cobrados, IVA, ISR estimado y utilidad por mes')
 
 @php
 $breadcrumbs = [
@@ -44,7 +44,7 @@ $breadcrumbs = [
                     <td class="text-end">${{ number_format($datos['subtotal'], 2, '.', ',') }}</td>
                 </tr>
                 <tr>
-                    <td class="text-muted small">Ingresos cobrados</td>
+                    <td class="text-muted small">Ingresos cobrados @if($aplicaResico)<span class="text-muted" style="font-size: 0.85em;">(base ISR)</span>@endif</td>
                     <td class="text-end">${{ number_format($datos['ventas_sin_iva'], 2, '.', ',') }}</td>
                 </tr>
                 <tr>
@@ -78,9 +78,13 @@ $breadcrumbs = [
 </div>
 
 @if($aplicaResico)
-<p class="text-muted small mt-3">ISR estimado RESICO se calcula sobre las ventas sin IVA del mes según la tabla de tasas RESICO. Solo aplica si la empresa está en régimen 626.</p>
+<p class="text-muted small mt-3">
+    <strong>RESICO (626):</strong> El ISR estimado se calcula sobre los <strong>ingresos cobrados</strong> del mes (base sin IVA) según la tabla de tasas por rangos de ingreso mensual. En RESICO el impuesto se paga sobre ingresos, no sobre utilidad; la Utilidad mostrada es solo informativa para el negocio.
+</p>
 @else
-<p class="text-muted small mt-3">Para ver ISR estimado RESICO, configura la empresa como persona física con régimen 626 en Configuración → Datos fiscales.</p>
+<p class="text-muted small mt-3">
+    Este tablero está diseñado para contribuyentes en régimen 626 (Régimen Simplificado de Confianza – RESICO). Para ver el ISR estimado RESICO, configura la empresa como <strong>persona física</strong> con <strong>régimen 626</strong> en Configuración → Datos fiscales.
+</p>
 @endif
 
 <style>

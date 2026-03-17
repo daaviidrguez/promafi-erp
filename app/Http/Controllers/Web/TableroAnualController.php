@@ -16,7 +16,9 @@ use Illuminate\Http\Request;
 class TableroAnualController extends Controller
 {
     /**
-     * Tablero anual: 12 tarjetas (una por mes) con total ventas, subtotal, ingresos cobrados, IVA, ISR RESICO y utilidad.
+     * Tablero anual diseñado para RESICO (626): 12 tarjetas por mes con total ventas, subtotal,
+     * ingresos cobrados (base para ISR RESICO), IVA, ISR estimado por tabla de tasas y utilidad.
+     * Ingresos = PUE por fecha de emisión; PPD por complementos cobrados en el mes (criterio RESICO).
      */
     public function index(Request $request)
     {
@@ -35,10 +37,11 @@ class TableroAnualController extends Controller
             $inicio = Carbon::create($año, $mes, 1)->startOfDay();
             $fin = $inicio->copy()->endOfMonth();
 
+            // Ingresos del mes (base sin IVA): en RESICO es la base para ISR
             $ventasSinIva = 0.0;
             $ivaTraslado = 0.0;
 
-            // PUE: base e IVA por fecha de emisión
+            // PUE: ingresos e IVA por fecha de emisión (cobro en una exhibición)
             $facturasPue = Factura::where('estado', 'timbrada')
                 ->where('metodo_pago', 'PUE')
                 ->whereBetween('fecha_emision', [$inicio, $fin])
@@ -49,7 +52,7 @@ class TableroAnualController extends Controller
                 $ivaTraslado += $this->ivaTrasladadoFactura($f);
             }
 
-            // PPD: proporción por complementos del mes
+            // PPD: ingresos e IVA se reconocen al cobrar (complementos con fecha_emision en el mes)
             $complementos = ComplementoPago::where('estado', 'timbrado')
                 ->whereBetween('fecha_emision', [$inicio, $fin])
                 ->with(['pagosRecibidos.documentosRelacionados.factura.detalles.impuestos'])
@@ -87,6 +90,7 @@ class TableroAnualController extends Controller
             }
             $ivaPagar = max(0, $ivaTraslado - $ivaAcreditable);
 
+            // ISR RESICO: tabla por rangos de ingreso mensual (sobre ingresos cobrados, no sobre utilidad)
             $isrEstimado = 0.0;
             if ($aplicaResico) {
                 $isrEstimado = IsrResicoHelper::calcularIsr($ventasSinIva);

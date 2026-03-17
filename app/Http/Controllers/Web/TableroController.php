@@ -64,18 +64,52 @@ class TableroController extends Controller
             ->get();
         $clientesImportantes->each(fn ($c) => $c->total_ventas = (float) ($c->total_ventas ?? 0));
 
-        // Días de crédito: 7. Al corriente = dentro de esos 7 días (no vencido o vencido hasta 7 días).
+        // Días de crédito: 7. "Al corriente" = cuentas cuya fecha_vencimiento está a 0‑7 días de hoy (no vencidas aún).
+        // El resto de rangos se calculan también a partir de fecha_vencimiento, igual que en Cuentas por Cobrar.
         $diasCredito = 7;
+        $hoy = Carbon::today();
         $antiguedadSaldos = $cuentasCobranza->filter(fn ($c) => $c->saldo_pendiente_real > 0)
-            ->groupBy(function ($c) use ($diasCredito) {
-                $d = $c->dias_vencido ?? 0;
-                if ($d <= $diasCredito) return 'Al corriente (0-' . $diasCredito . ' días)';
-                if ($d <= 30) return '8-30 días';
-                if ($d <= 60) return '31-60 días';
-                if ($d <= 90) return '61-90 días';
-                return 'Más de 90 días';
+            ->groupBy(function ($c) use ($diasCredito, $hoy) {
+                if (empty($c->fecha_vencimiento)) {
+                    return 'Sin fecha de vencimiento';
+                }
+
+                $vencimiento = Carbon::parse($c->fecha_vencimiento);
+                // Diferencia en días (positiva = falta para vencer, negativa = ya venció)
+                $diff = $hoy->diffInDays($vencimiento, false);
+
+                // Al corriente: vence hoy o dentro de los próximos N días
+                if ($diff >= 0 && $diff <= $diasCredito) {
+                    return 'Al corriente (0-' . $diasCredito . ' días)';
+                }
+
+                // Por vencer más adelante de los días de crédito
+                if ($diff > $diasCredito) {
+                    return 'Por vencer (> ' . $diasCredito . ' días)';
+                }
+
+                // Ya vencidas: agrupar por días de atraso
+                $diasVencido = abs($diff);
+                if ($diasVencido <= 30) {
+                    return '1-30 días vencido';
+                }
+                if ($diasVencido <= 60) {
+                    return '31-60 días vencido';
+                }
+                if ($diasVencido <= 90) {
+                    return '61-90 días vencido';
+                }
+                return 'Más de 90 días vencido';
             });
-        $ordenRango = ['Al corriente (0-' . $diasCredito . ' días)', '8-30 días', '31-60 días', '61-90 días', 'Más de 90 días'];
+        $ordenRango = [
+            'Al corriente (0-' . $diasCredito . ' días)',
+            'Por vencer (> ' . $diasCredito . ' días)',
+            '1-30 días vencido',
+            '31-60 días vencido',
+            '61-90 días vencido',
+            'Más de 90 días vencido',
+            'Sin fecha de vencimiento',
+        ];
         $antiguedadLabels = $ordenRango;
         $antiguedadData = array_map(fn ($r) => (float) ($antiguedadSaldos->get($r)?->sum(fn ($c) => $c->saldo_pendiente_real) ?? 0), $ordenRango);
 

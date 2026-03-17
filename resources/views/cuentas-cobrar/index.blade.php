@@ -113,9 +113,10 @@ $breadcrumbs = [
                 <td>{{ $cuenta->fecha_emision->format('d/m/Y') }}</td>
                 <td>
                     <div>{{ $cuenta->fecha_vencimiento->format('d/m/Y') }}</div>
-                    @if($cuenta->estaVencida())
+                    @php $diff = $cuenta->dias_contra_vencimiento_realtime; @endphp
+                    @if($diff !== null && $diff < 0)
                         <div style="font-size: 11px; font-weight: 600; color: var(--color-danger);">
-                            ⚠️ {{ $cuenta->dias_vencido }} días
+                            ⚠️ {{ $diff }} días
                         </div>
                     @endif
                 </td>

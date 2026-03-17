@@ -208,9 +208,10 @@ $breadcrumbs = [
                     <div class="info-row">
                         <div class="info-label">Fecha de Vencimiento</div>
                         <div class="info-value-sm">{{ $cuentaPorCobrar->fecha_vencimiento->format('d/m/Y') }}</div>
-                        @if($cuentaPorCobrar->estaVencida())
+                        @php $diff = $cuentaPorCobrar->dias_contra_vencimiento_realtime; @endphp
+                        @if($diff !== null && $diff < 0)
                             <div style="font-size: 12px; font-weight: 600; color: var(--color-danger); margin-top: 4px;">
-                                ⚠️ Vencida hace {{ $cuentaPorCobrar->dias_vencido }} días
+                                ⚠️ {{ $diff }} días
                             </div>
                         @endif
                     </div>

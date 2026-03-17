@@ -121,6 +121,24 @@ class CuentaPorCobrar extends Model
     }
 
     /**
+     * Días contra vencimiento en tiempo real.
+     * Positivo/0: días para vencer. Negativo: días vencidos.
+     * Cuando está pagada, se devuelve null para evitar que siga “actualizándose”.
+     */
+    public function getDiasContraVencimientoRealtimeAttribute(): ?int
+    {
+        if ($this->estaPagada()) {
+            return null;
+        }
+        if (!$this->fecha_vencimiento) {
+            return null;
+        }
+        $hoy = Carbon::today();
+        $vencimiento = Carbon::parse($this->fecha_vencimiento);
+        return (int) $hoy->diffInDays($vencimiento, false);
+    }
+
+    /**
      * Verificar si está vencida
      */
     public function estaVencida(): bool

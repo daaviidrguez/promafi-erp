@@ -161,6 +161,47 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
                 </div>
             </div>
 
+            @if($factura->estado === 'borrador')
+            {{-- Relación de CFDI (sustitución de CFDI con errores - SAT 2026) --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔗 Relación de CFDI</div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
+                        Si esta factura sustituye un CFDI emitido con errores, indique el UUID del comprobante que se reemplaza (tipo de relación 04 - Sustitución).
+                    </p>
+                    <div class="form-group">
+                        <label class="form-label">¿Sustituir un CFDI con errores?</label>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="checkbox" id="checkSustituirCfdi" name="sustituir_cfdi" value="1"
+                                       {{ old('sustituir_cfdi', $factura->uuid_referencia ? 1 : 0) ? 'checked' : '' }}>
+                                <span>Sí, esta factura sustituye un CFDI previo</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="bloqueCfdiSustituir" class="form-group" style="display: none;">
+                        <label class="form-label">CFDI a sustituir (UUID)</label>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="inputUuidReferenciaDisplay" class="form-control" readonly
+                                   placeholder="Seleccione el CFDI emitido con errores"
+                                   value="{{ old('uuid_referencia', $factura->uuid_referencia) }}"
+                                   style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                            <input type="hidden" name="uuid_referencia" id="inputUuidReferencia"
+                                   value="{{ old('uuid_referencia', $factura->uuid_referencia) }}">
+                            <input type="hidden" name="tipo_relacion" id="inputTipoRelacion"
+                                   value="{{ old('tipo_relacion', $factura->tipo_relacion ?? '04') }}">
+                            <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarCfdiSustituir()">
+                                Seleccionar CFDI a sustituir
+                            </button>
+                            <button type="button" class="btn btn-light btn-sm" onclick="limpiarCfdiSustituir()">Quitar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             {{-- Totales --}}
             <div class="card">
                 <div class="card-header">
@@ -337,6 +378,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (detallesIniciales && detallesIniciales.length > 0) {
         detallesIniciales.forEach(d => agregarProducto(d));
     }
+    @if($factura->estado === 'borrador')
+    // Inicializar bloque Relación CFDI según si ya hay uuid_referencia
+    if (document.getElementById('checkSustituirCfdi')) {
+        const check = document.getElementById('checkSustituirCfdi');
+        const bloque = document.getElementById('bloqueCfdiSustituir');
+        function toggleBloqueCfdiSustituir() {
+            const checked = check.checked;
+            bloque.style.display = checked ? 'block' : 'none';
+            if (!checked) limpiarCfdiSustituir();
+        }
+        check.addEventListener('change', toggleBloqueCfdiSustituir);
+        if (check.checked || document.getElementById('inputUuidReferencia').value) {
+            bloque.style.display = 'block';
+        }
+    }
+    @endif
 });
 
 document.getElementById('formFactura').addEventListener('submit', function(e) {
@@ -350,5 +407,82 @@ document.getElementById('formFactura').addEventListener('submit', function(e) {
         alert('⚠️ Agrega al menos un concepto a la factura.');
     }
 });
+@if($factura->estado === 'borrador')
+// Relación de CFDI (sustitución)
+const listarParaRelacionUrl = '{{ route("facturas.listar-para-relacion") }}';
+function abrirModalSeleccionarCfdiSustituir() {
+    document.getElementById('modalSeleccionarCfdiSustituir').classList.add('show');
+    document.getElementById('cargandoCfdiSustituir').style.display = 'block';
+    document.getElementById('sinFacturasCfdiSustituir').style.display = 'none';
+    document.getElementById('listaFacturasSustituir').innerHTML = '';
+    fetch(listarParaRelacionUrl)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('cargandoCfdiSustituir').style.display = 'none';
+            const list = data.facturas || [];
+            if (list.length === 0) {
+                document.getElementById('sinFacturasCfdiSustituir').style.display = 'block';
+                return;
+            }
+            const tbody = document.getElementById('listaFacturasSustituir');
+            list.forEach(f => {
+                const tr = document.createElement('tr');
+                const label = (f.serie || '') + '-' + (f.folio || '') + ' ' + (f.cliente_nombre || '');
+                tr.innerHTML = '<td>' + (f.serie || '') + ' ' + (f.folio || '') + '</td><td>' + (f.cliente_nombre || '') + '</td><td>' + (f.fecha_emision || '') + '</td><td>' + (f.total || 0) + '</td><td><button type="button" class="btn btn-primary btn-sm" data-uuid=\"' + (f.uuid || '').replace(/\"/g, '&quot;') + '\" data-label=\"' + (label || '').replace(/\"/g, '&quot;') + '\">Seleccionar</button></td>';
+                tr.querySelector('button').addEventListener('click', function() {
+                    document.getElementById('inputUuidReferencia').value = this.getAttribute('data-uuid');
+                    document.getElementById('inputUuidReferenciaDisplay').value = this.getAttribute('data-uuid');
+                    document.getElementById('inputTipoRelacion').value = '04';
+                    cerrarModalCfdiSustituir();
+                });
+                tbody.appendChild(tr);
+            });
+        })
+        .catch(() => {
+            document.getElementById('cargandoCfdiSustituir').style.display = 'none';
+            document.getElementById('sinFacturasCfdiSustituir').style.display = 'block';
+            document.getElementById('sinFacturasCfdiSustituir').textContent = 'Error al cargar facturas.';
+        });
+}
+function cerrarModalCfdiSustituir() {
+    document.getElementById('modalSeleccionarCfdiSustituir').classList.remove('show');
+}
+function limpiarCfdiSustituir() {
+    document.getElementById('inputUuidReferencia').value = '';
+    document.getElementById('inputUuidReferenciaDisplay').value = '';
+    document.getElementById('inputTipoRelacion').value = '04';
+}
+@endif
 </script>
 @endpush
+
+@if($factura->estado === 'borrador')
+{{-- Modal seleccionar CFDI a sustituir (relación tipo 04) --}}
+<div id="modalSeleccionarCfdiSustituir" class="modal">
+    <div class="modal-box" style="max-width: 640px;">
+        <div class="modal-header">
+            <div class="modal-title">Seleccionar CFDI a sustituir</div>
+            <button type="button" class="modal-close" onclick="cerrarModalCfdiSustituir()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 12px;">Elija la factura timbrada que fue emitida con errores y que esta factura en borrador sustituye.</p>
+            <div class="table-container" style="max-height: 320px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Serie / Folio</th>
+                            <th>Cliente</th>
+                            <th>Fecha</th>
+                            <th>Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaFacturasSustituir"></tbody>
+                </table>
+            </div>
+            <div id="cargandoCfdiSustituir" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando facturas...</div>
+            <div id="sinFacturasCfdiSustituir" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas timbradas para seleccionar.</div>
+        </div>
+    </div>
+</div>
+@endif

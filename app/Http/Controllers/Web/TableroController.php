@@ -64,16 +64,18 @@ class TableroController extends Controller
             ->get();
         $clientesImportantes->each(fn ($c) => $c->total_ventas = (float) ($c->total_ventas ?? 0));
 
+        // Días de crédito: 7. Al corriente = dentro de esos 7 días (no vencido o vencido hasta 7 días).
+        $diasCredito = 7;
         $antiguedadSaldos = $cuentasCobranza->filter(fn ($c) => $c->saldo_pendiente_real > 0)
-            ->groupBy(function ($c) {
+            ->groupBy(function ($c) use ($diasCredito) {
                 $d = $c->dias_vencido ?? 0;
-                if ($d <= 0) return 'Al corriente';
-                if ($d <= 30) return '1-30 días';
+                if ($d <= $diasCredito) return 'Al corriente (0-' . $diasCredito . ' días)';
+                if ($d <= 30) return '8-30 días';
                 if ($d <= 60) return '31-60 días';
                 if ($d <= 90) return '61-90 días';
                 return 'Más de 90 días';
             });
-        $ordenRango = ['Al corriente', '1-30 días', '31-60 días', '61-90 días', 'Más de 90 días'];
+        $ordenRango = ['Al corriente (0-' . $diasCredito . ' días)', '8-30 días', '31-60 días', '61-90 días', 'Más de 90 días'];
         $antiguedadLabels = $ordenRango;
         $antiguedadData = array_map(fn ($r) => (float) ($antiguedadSaldos->get($r)?->sum(fn ($c) => $c->saldo_pendiente_real) ?? 0), $ordenRango);
 

@@ -79,7 +79,7 @@ $breadcrumbs = [
 
 @if($aplicaResico)
 <p class="text-muted small mt-3">
-    <strong>RESICO (626):</strong> El ISR estimado se calcula sobre los <strong>ingresos cobrados</strong> del mes (base sin IVA) según la tabla de tasas por rangos de ingreso mensual. En RESICO el impuesto se paga sobre ingresos, no sobre utilidad; la Utilidad mostrada es solo informativa para el negocio.
+    <strong>RESICO (626):</strong> El ISR estimado se calcula sobre los <strong>ingresos cobrados</strong> del mes (base sin IVA) según la tabla de tasas por rangos de ingreso mensual. En RESICO el impuesto se paga sobre ingresos, no sobre utilidad. La <strong>Utilidad</strong> mostrada es la diferencia entre el precio de venta de la factura y el costo del producto, considerando solo las facturas ya cobradas en el mes (no forma parte del cálculo del ISR).
 </p>
 @else
 <p class="text-muted small mt-3">

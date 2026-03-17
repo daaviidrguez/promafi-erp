@@ -16,7 +16,7 @@ use Illuminate\Http\Request;
 class TableroAnualController extends Controller
 {
     /**
-     * Tablero anual: 12 tarjetas (una por mes) con ventas sin IVA, IVA traslado, IVA acreditable, IVA a pagar, ISR RESICO, utilidad.
+     * Tablero anual: 12 tarjetas (una por mes) con total ventas, subtotal, ingresos cobrados, IVA, ISR RESICO y utilidad.
      */
     public function index(Request $request)
     {
@@ -105,6 +105,8 @@ class TableroAnualController extends Controller
 
             $meses[$mes] = [
                 'nombre' => $nombresMeses[$mes],
+                'subtotal' => round($ventasSinIva, 2),
+                'total_ventas' => round($ventasSinIva + $ivaTraslado, 2),
                 'ventas_sin_iva' => round($ventasSinIva, 2),
                 'iva_traslado' => round($ivaTraslado, 2),
                 'iva_acreditable' => round($ivaAcreditable, 2),

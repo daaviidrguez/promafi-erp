@@ -2,7 +2,7 @@
 
 @section('title', 'Tablero anual')
 @section('page-title', '📅 Tablero anual')
-@section('page-subtitle', 'Ventas, IVA, ISR RESICO y utilidad por mes')
+@section('page-subtitle', 'Ventas, ingresos cobrados, IVA, ISR RESICO y Utilidad por mes')
 
 @php
 $breadcrumbs = [
@@ -36,8 +36,16 @@ $breadcrumbs = [
         <div class="card-body py-3">
             <table class="table table-sm table-borderless mb-0 tablero-anual-tabla">
                 <tr>
-                    <td class="text-muted small">Ventas (sin IVA)</td>
-                    <td class="text-end fw-semibold">${{ number_format($datos['ventas_sin_iva'], 2, '.', ',') }}</td>
+                    <td class="text-muted small">Total ventas</td>
+                    <td class="text-end fw-semibold">${{ number_format($datos['total_ventas'], 2, '.', ',') }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted small">Subtotal</td>
+                    <td class="text-end">${{ number_format($datos['subtotal'], 2, '.', ',') }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted small">Ingresos cobrados</td>
+                    <td class="text-end">${{ number_format($datos['ventas_sin_iva'], 2, '.', ',') }}</td>
                 </tr>
                 <tr>
                     <td class="text-muted small">IVA traslado</td>

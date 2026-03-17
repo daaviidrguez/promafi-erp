@@ -418,12 +418,19 @@ function abrirModalSeleccionarCfdiSustituir() {
             list.forEach(f => {
                 const tr = document.createElement('tr');
                 const label = (f.serie || '') + '-' + (f.folio || '') + ' ' + (f.cliente_nombre || '');
-                tr.innerHTML = '<td>' + (f.serie || '') + ' ' + (f.folio || '') + '</td><td>' + (f.cliente_nombre || '') + '</td><td>' + (f.fecha_emision || '') + '</td><td>' + (f.total || 0) + '</td><td><button type="button" class="btn btn-primary btn-sm" data-uuid="' + (f.uuid || '').replace(/"/g, '&quot;') + '" data-label="' + (label || '').replace(/"/g, '&quot;') + '">Seleccionar</button></td>';
+                tr.innerHTML = '<td>' + (f.serie || '') + ' ' + (f.folio || '') + '</td><td>' + (f.cliente_nombre || '') + '</td><td>' + (f.fecha_emision || '') + '</td><td>' + (f.total || 0) + '</td><td><button type="button" class="btn btn-primary btn-sm" data-uuid="' + (f.uuid || '').replace(/"/g, '&quot;') + '" data-label="' + (label || '').replace(/"/g, '&quot;') + '">Agregar</button></td>';
                 tr.querySelector('button').addEventListener('click', function() {
-                    document.getElementById('inputUuidReferencia').value = this.getAttribute('data-uuid');
-                    document.getElementById('inputUuidReferenciaDisplay').value = this.getAttribute('data-uuid');
+                    const uuid = this.getAttribute('data-uuid') || '';
+                    if (!uuid) return;
+                    const inputHidden = document.getElementById('inputUuidReferencia');
+                    const inputDisplay = document.getElementById('inputUuidReferenciaDisplay');
+                    const current = (inputHidden.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                    if (!current.includes(uuid)) {
+                        current.push(uuid);
+                    }
+                    inputHidden.value = current.join(', ');
+                    inputDisplay.value = inputHidden.value;
                     document.getElementById('inputTipoRelacion').value = '04';
-                    cerrarModalCfdiSustituir();
                 });
                 tbody.appendChild(tr);
             });

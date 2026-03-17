@@ -21,6 +21,7 @@ use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
 use App\Helpers\IsrResicoHelper;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -135,7 +136,9 @@ class FacturaController extends Controller
             'metodo_pago' => 'required|string|exists:metodos_pago,clave',
             'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
             'observaciones' => 'nullable|string',
-            'uuid_referencia' => 'nullable|string|size:36',
+            // Puede contener uno o más UUID separados por coma (Relación CFDI tipo 04)
+            // Puede contener uno o más UUID separados por coma (Relación CFDI tipo 04)
+            'uuid_referencia' => 'nullable|string|max:500',
             'tipo_relacion' => 'nullable|string|in:01,02,03,04',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
@@ -145,8 +148,16 @@ class FacturaController extends Controller
             'productos.*.descuento' => 'nullable|numeric|min:0',
         ]);
 
+        // Normalizar y limitar uuid_referencia para evitar overflow en DB
+        if (!empty($validated['uuid_referencia'])) {
+            $uuids = preg_split('/[,;\s]+/', $validated['uuid_referencia']) ?: [];
+            $uuids = array_values(array_unique(array_filter(array_map('trim', $uuids))));
+            $normalized = implode(', ', $uuids);
+            $validated['uuid_referencia'] = Str::limit($normalized, 500, '');
+        }
+
         $empresa = Empresa::principal();
-            $cliente = Cliente::findOrFail($validated['cliente_id']);
+        $cliente = Cliente::findOrFail($validated['cliente_id']);
 
             if (empty($empresa->codigo_postal) || strlen(preg_replace('/\D/', '', $empresa->codigo_postal)) < 5) {
                 return back()->withInput()->with('error', 'La empresa debe tener un código postal de 5 dígitos (Configuración → Domicilio Fiscal) para emitir facturas.');

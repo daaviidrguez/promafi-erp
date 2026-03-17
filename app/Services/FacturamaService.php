@@ -914,14 +914,25 @@ class FacturamaService
             $body['GlobalInformation'] = $this->buildGlobalInformation($factura->fecha_emision);
         }
 
-        // CFDI 4.0 / SAT 2026: relación de sustitución (tipo 04) cuando la factura sustituye un CFDI con errores
-        $uuidRef = trim((string) ($factura->uuid_referencia ?? ''));
+        // CFDI 4.0 / SAT 2026: relación de sustitución (tipo 04) cuando la factura sustituye uno o más CFDI con errores.
+        // Soporta múltiples UUID separados por coma en uuid_referencia.
+        $uuidRefRaw = trim((string) ($factura->uuid_referencia ?? ''));
         $tipoRelacion = trim((string) ($factura->tipo_relacion ?? ''));
-        if ($uuidRef !== '' && $tipoRelacion !== '') {
-            $body['Relations'] = [
-                'Type' => $tipoRelacion,
-                'Cfdis' => [['Uuid' => $uuidRef]],
-            ];
+        if ($uuidRefRaw !== '' && $tipoRelacion !== '') {
+            $parts = preg_split('/[,;\s]+/', $uuidRefRaw) ?: [];
+            $cfdis = [];
+            foreach ($parts as $u) {
+                $u = trim($u);
+                if ($u !== '' && preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i', $u)) {
+                    $cfdis[] = ['Uuid' => $u];
+                }
+            }
+            if (!empty($cfdis)) {
+                $body['Relations'] = [
+                    'Type' => $tipoRelacion,
+                    'Cfdis' => $cfdis,
+                ];
+            }
         }
 
         return $body;

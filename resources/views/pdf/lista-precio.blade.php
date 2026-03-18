@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <style>
 @page { margin: 15mm 20mm 25mm 20mm; size: letter; }
-body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
+body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
 .header { border-bottom: 2px solid #0B3C5D; padding-bottom: 10px; margin-bottom: 15px; display: table; width: 100%; }
 .header-left { display: table-cell; vertical-align: middle; width: 70%; }
 .header-right { display: table-cell; vertical-align: middle; width: 30%; text-align: right; }

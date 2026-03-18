@@ -245,9 +245,11 @@ $breadcrumbs = [
 
                 <div class="form-group">
                     <label class="form-label">Condiciones Comerciales</label>
-                    <textarea name="condiciones_pago" class="form-control" rows="3">
-    {{ $isEdit ? $cotizacion->condiciones_pago : 'Precios más IVA. Vigencia 15 días.' }}
-                    </textarea>
+                    <textarea name="condiciones_pago" class="form-control" rows="3">{{ 
+                $isEdit 
+                    ? $cotizacion->condiciones_pago 
+                    : "Precios más IVA. Vigencia 15 días.\ntoda cancelación / devolución genera un 20% de penalización y se tiene un plazo máximo de 5 días a partir de la recepción del material para solicitarla y queda sujeta a previa autorización." 
+                }}</textarea>
                 </div>
 
                 <div class="form-group">

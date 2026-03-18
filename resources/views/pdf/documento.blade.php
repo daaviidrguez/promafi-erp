@@ -10,7 +10,7 @@
 @page { margin: 8mm 12mm 8mm 12mm; size: letter; }
 
 body {
-    font-family: DejaVu Sans, Arial, sans-serif;
+    font-family: Arial, sans-serif;
     font-size: 7.5pt;
     color: #1F2937;
     margin: 0;

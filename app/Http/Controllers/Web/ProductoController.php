@@ -13,24 +13,124 @@ use Illuminate\Http\Request;
 
 class ProductoController extends Controller
 {
+    private const SESSION_SORT_KEY = 'productos_catalogo.sort';
+
+    private const SESSION_DIR_KEY = 'productos_catalogo.dir';
+
     public function index(Request $request)
     {
         $search = $request->get('search');
         $categoria_id = $request->get('categoria_id');
-        
-        $productos = Producto::with('categoria')
-            ->when($search, function($query) use ($search) {
-                $query->buscar($search);
-            })
-            ->when($categoria_id, function($query) use ($categoria_id) {
-                $query->where('categoria_id', $categoria_id);
-            })
-            ->orderBy('nombre')
-            ->paginate(20);
+
+        $allowedSort = ['codigo', 'nombre', 'precio_venta', 'stock', 'activo', 'categoria'];
+        $defaultSort = 'nombre';
+        $defaultDir = 'asc';
+
+        if ($request->has('sort')) {
+            $sort = $request->get('sort');
+            if (! in_array($sort, $allowedSort, true)) {
+                $sort = $defaultSort;
+            }
+            $dir = strtolower((string) $request->get('dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+            $request->session()->put(self::SESSION_SORT_KEY, $sort);
+            $request->session()->put(self::SESSION_DIR_KEY, $dir);
+        } else {
+            $sort = $request->session()->get(self::SESSION_SORT_KEY, $defaultSort);
+            if (! in_array($sort, $allowedSort, true)) {
+                $sort = $defaultSort;
+            }
+            $dir = $request->session()->get(self::SESSION_DIR_KEY, $defaultDir);
+            $dir = $dir === 'desc' ? 'desc' : 'asc';
+        }
+
+        $fCodigo = trim((string) $request->get('f_codigo', ''));
+        $fNombre = trim((string) $request->get('f_nombre', ''));
+        $fCategoriaCol = $request->get('f_categoria_col'); // '' | 'sin' | id
+        $fPrecioMin = $request->get('f_precio_min');
+        $fPrecioMax = $request->get('f_precio_max');
+        $fStock = $request->get('f_stock', ''); // '' | na | inventario | bajo
+        $fActivo = $request->get('f_activo', ''); // '' | 1 | 0
+
+        $query = Producto::query();
+
+        $query->when($search, function ($q) use ($search) {
+            $q->buscar($search);
+        });
+        $query->when($categoria_id, function ($q) use ($categoria_id) {
+            $q->where('categoria_id', $categoria_id);
+        });
+
+        if ($fCodigo !== '') {
+            $query->where('codigo', 'like', '%' . $fCodigo . '%');
+        }
+        if ($fNombre !== '') {
+            $query->where(function ($q) use ($fNombre) {
+                $q->where('nombre', 'like', '%' . $fNombre . '%')
+                    ->orWhere('descripcion', 'like', '%' . $fNombre . '%');
+            });
+        }
+        if ($fCategoriaCol === 'sin') {
+            $query->whereNull('categoria_id');
+        } elseif ($fCategoriaCol !== '' && $fCategoriaCol !== null && is_numeric($fCategoriaCol)) {
+            $query->where('categoria_id', (int) $fCategoriaCol);
+        }
+        if ($fPrecioMin !== '' && $fPrecioMin !== null && is_numeric($fPrecioMin)) {
+            $query->where('precio_venta', '>=', (float) $fPrecioMin);
+        }
+        if ($fPrecioMax !== '' && $fPrecioMax !== null && is_numeric($fPrecioMax)) {
+            $query->where('precio_venta', '<=', (float) $fPrecioMax);
+        }
+        if ($fStock === 'na') {
+            $query->where('controla_inventario', false);
+        } elseif ($fStock === 'inventario') {
+            $query->where('controla_inventario', true);
+        } elseif ($fStock === 'bajo') {
+            $query->where('controla_inventario', true)
+                ->whereColumn('stock', '<=', 'stock_minimo');
+        }
+        if ($fActivo === '1' || $fActivo === '0') {
+            $query->where('activo', (bool) (int) $fActivo);
+        }
+
+        if ($sort === 'categoria') {
+            $query->leftJoin('categorias_productos as cat_sort', 'productos.categoria_id', '=', 'cat_sort.id')
+                ->select('productos.*')
+                ->orderByRaw('COALESCE(cat_sort.nombre, \'\') ' . $dir);
+        } else {
+            $query->orderBy($sort, $dir);
+        }
+
+        $appends = array_merge($request->except('page'), [
+            'sort' => $sort,
+            'dir' => $dir,
+        ]);
+        $productos = $query->with('categoria')->paginate(20)->appends($appends);
 
         $categorias = CategoriaProducto::activas()->orderBy('nombre')->get();
 
-        return view('productos.index', compact('productos', 'categorias', 'search', 'categoria_id'));
+        $hayFiltrosColumna = $fCodigo !== '' || $fNombre !== '' || ($fCategoriaCol !== '' && $fCategoriaCol !== null)
+            || ($fPrecioMin !== '' && $fPrecioMin !== null) || ($fPrecioMax !== '' && $fPrecioMax !== null)
+            || ($fStock !== '' && $fStock !== null) || ($fActivo === '1' || $fActivo === '0');
+        $hayFiltros = $search || $categoria_id || $hayFiltrosColumna;
+        $mostrarTablaFiltros = $productos->isNotEmpty() || $hayFiltros || Producto::exists();
+
+        return view('productos.index', compact(
+            'productos',
+            'categorias',
+            'search',
+            'categoria_id',
+            'sort',
+            'dir',
+            'fCodigo',
+            'fNombre',
+            'fCategoriaCol',
+            'fPrecioMin',
+            'fPrecioMax',
+            'fStock',
+            'fActivo',
+            'hayFiltros',
+            'mostrarTablaFiltros'
+        ));
     }
 
     public function create()

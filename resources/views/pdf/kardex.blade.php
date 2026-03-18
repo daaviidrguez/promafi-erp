@@ -5,7 +5,7 @@
 <title>Kardex {{ $producto->codigo ?? '' }}</title>
 <style>
 @page { margin: 10mm; size: letter landscape; }
-body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8pt; color: #1F2937; margin: 0; padding: 8px; }
+body { font-family: Arial, sans-serif; font-size: 8pt; color: #1F2937; margin: 0; padding: 8px; }
 .header { border-bottom: 2px solid #0B3C5D; padding-bottom: 4px; margin-bottom: 8px; }
 .header h1 { margin: 0; font-size: 12pt; }
 .header .sub { font-size: 9pt; color: #6B7280; margin-top: 2px; }

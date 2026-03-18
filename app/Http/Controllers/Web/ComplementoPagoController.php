@@ -561,7 +561,11 @@ class ComplementoPagoController extends Controller
      */
     public function verPDF(ComplementoPago $complemento)
     {
-        if (!$complemento->pdf_path || !file_exists(storage_path('app/' . $complemento->pdf_path))) {
+        $regenerar = $complemento->esBorrador()
+            || !$complemento->pdf_path
+            || !file_exists(storage_path('app/' . $complemento->pdf_path));
+
+        if ($regenerar) {
             $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
             $complemento->update(['pdf_path' => $pdfPath]);
         }
@@ -573,7 +577,11 @@ class ComplementoPagoController extends Controller
      */
     public function descargarPDF(ComplementoPago $complemento)
     {
-        if (!$complemento->pdf_path || !file_exists(storage_path('app/' . $complemento->pdf_path))) {
+        $regenerar = $complemento->esBorrador()
+            || !$complemento->pdf_path
+            || !file_exists(storage_path('app/' . $complemento->pdf_path));
+
+        if ($regenerar) {
             $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
             $complemento->update(['pdf_path' => $pdfPath]);
         }

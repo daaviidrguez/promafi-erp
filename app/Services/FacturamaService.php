@@ -225,6 +225,18 @@ class FacturamaService
         $empresa = $complemento->empresa ?? Empresa::principal();
         $cliente = $complemento->cliente;
 
+        // Igual que facturas: si la hora en `fecha_emision` viene en 00:00:00,
+        // heredamos la hora real del momento de creación/edición para que el XML
+        // refleje lo mismo que el PDF.
+        $fechaEmisionTimbrar = $complemento->fecha_emision ? $complemento->fecha_emision->copy() : now();
+        if ($fechaEmisionTimbrar->format('H:i:s') === '00:00:00' && $complemento->created_at) {
+            $fechaEmisionTimbrar = $fechaEmisionTimbrar->copy()->setTime(
+                (int) $complemento->created_at->format('H'),
+                (int) $complemento->created_at->format('i'),
+                (int) $complemento->created_at->format('s')
+            );
+        }
+
         $lugarExp = $this->normalizarCodigoPostal($complemento->lugar_expedicion ?: $empresa->codigo_postal ?? null);
         if ($lugarExp === '00000') {
             $lugarExp = '01000';
@@ -274,15 +286,11 @@ class FacturamaService
                 }
                 $relatedDocs[] = $relatedDoc;
             }
-            $fechaPagoFormato = null;
-            if ($pago->fecha_pago) {
-                $fp = \Carbon\Carbon::parse($pago->fecha_pago);
-                $fpStart = $fp->copy()->startOfDay();
-                $fechaPagoFormato = $fpStart->isToday() ? now() : $fpStart->setTime(12, 0, 0);
-                $fechaPagoFormato = $fechaPagoFormato->format('Y-m-d\TH:i:s');
-            } else {
-                $fechaPagoFormato = now()->format('Y-m-d\TH:i:s');
-            }
+            // Para que el XML coincida con lo que se ve en el PDF, usamos la fecha/hora
+            // exacta guardada en `pago->fecha_pago` (no el `now()` del timbrado).
+            $fechaPagoFormato = $pago->fecha_pago
+                ? \Carbon\Carbon::parse($pago->fecha_pago)->format('Y-m-d\TH:i:s')
+                : now()->format('Y-m-d\TH:i:s');
             $payment = [
                 'Date' => $fechaPagoFormato,
                 'PaymentForm' => $pago->forma_pago ?? '03',
@@ -303,6 +311,7 @@ class FacturamaService
             'CfdiType' => 'P',
             'NameId' => '14',
             'Folio' => (string) $complemento->folio,
+            'Date' => $fechaEmisionTimbrar->format('Y-m-d\TH:i:s'),
             'ExpeditionPlace' => $lugarExp,
             'Receiver' => [
                 'Rfc' => trim($complemento->rfc_receptor),
@@ -803,6 +812,19 @@ class FacturamaService
     {
         $empresa = $factura->empresa ?? Empresa::principal();
 
+        // Facturama requiere Fecha con hora real (HH:MM:SS).
+        // En la app, cuando el usuario captura solo "fecha" (sin hora),
+        // `fecha_emision` se guarda con 00:00:00 y el PDF muestra la hora
+        // desde `created_at`. Para que el XML coincida, replicamos esa lógica.
+        $fechaEmisionTimbrar = $factura->fecha_emision ? $factura->fecha_emision->copy() : now();
+        if ($fechaEmisionTimbrar->format('H:i:s') === '00:00:00' && $factura->created_at) {
+            $fechaEmisionTimbrar = $fechaEmisionTimbrar->copy()->setTime(
+                (int) $factura->created_at->format('H'),
+                (int) $factura->created_at->format('i'),
+                (int) $factura->created_at->format('s')
+            );
+        }
+
         $items = [];
         foreach ($factura->detalles as $d) {
             $subtotal = (float) $d->importe;
@@ -887,7 +909,7 @@ class FacturamaService
 
         $body = [
             'NameId' => 1,
-            'Date' => $factura->fecha_emision->format('Y-m-d\TH:i:s'),
+            'Date' => $fechaEmisionTimbrar->format('Y-m-d\TH:i:s'),
             'Serie' => $serie,
             'Folio' => $folio,
             'CfdiType' => $factura->tipo_comprobante ?? 'I',
@@ -911,7 +933,7 @@ class FacturamaService
 
         // CFDI 4.0: cuando el receptor es público en general (RFC genérico), el SAT exige el nodo GlobalInformation
         if ($this->esReceptorPublicoEnGeneral($body['Receiver']['Rfc'] ?? '', $body['Receiver']['Name'] ?? '')) {
-            $body['GlobalInformation'] = $this->buildGlobalInformation($factura->fecha_emision);
+            $body['GlobalInformation'] = $this->buildGlobalInformation($fechaEmisionTimbrar);
         }
 
         // CFDI 4.0 / SAT 2026: relación de sustitución (tipo 04) cuando la factura sustituye uno o más CFDI con errores.
@@ -978,6 +1000,16 @@ class FacturamaService
         $notaCredito->load(['detalles.impuestos', 'empresa', 'factura']);
         $empresa = $notaCredito->empresa ?? Empresa::principal();
 
+        // Igual que en facturas: si `fecha_emision` está en 00:00:00, usar la hora real desde `created_at`.
+        $fechaEmisionTimbrar = $notaCredito->fecha_emision ? $notaCredito->fecha_emision->copy() : now();
+        if ($fechaEmisionTimbrar->format('H:i:s') === '00:00:00' && $notaCredito->created_at) {
+            $fechaEmisionTimbrar = $fechaEmisionTimbrar->copy()->setTime(
+                (int) $notaCredito->created_at->format('H'),
+                (int) $notaCredito->created_at->format('i'),
+                (int) $notaCredito->created_at->format('s')
+            );
+        }
+
         $items = [];
         foreach ($notaCredito->detalles as $d) {
             $subtotal = (float) $d->importe;
@@ -1041,7 +1073,7 @@ class FacturamaService
 
         $body = [
             'NameId' => 1,
-            'Date' => $notaCredito->fecha_emision->format('Y-m-d\TH:i:s'),
+            'Date' => $fechaEmisionTimbrar->format('Y-m-d\TH:i:s'),
             'Serie' => trim($notaCredito->serie ?? 'NC') ?: 'NC',
             'Folio' => (string) $notaCredito->folio,
             'CfdiType' => 'E',

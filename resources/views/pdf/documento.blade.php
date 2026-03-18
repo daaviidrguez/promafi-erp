@@ -460,6 +460,12 @@ body {
 
 @else
 {{-- FOOTER FACTURA / REMISIÓN: layout original con PAGARÉ y sello --}}
+@if($esFactura)
+{{-- Aviso fijo: entre leyenda CFDI y bloque DATOS BANCARIOS / sello --}}
+<div style="margin-top:10px; margin-bottom:10px; text-align:center; font-size:7pt; line-height:1.35;">
+    <span style="color:#1E40AF;"><strong>TODO MATERIAL SE ENTREGA A PIE DE CALLE, NO INCLUYE DESCARGAS. NI MANIOBRAS</strong></span><span style="color:#DC2626;"> TODA CANCELACIÓN / DEVOLUCIÓN GENERA UN 20% DE PENALIZACIÓN Y SE TIENE UN PLAZO MAXIMO DE 5 DÍAS A PARTIR DE LA RECEPCIÓN DEL MATERIAL PARA SOLICITARLA Y QUEDA SUJETA A PREVIA AUTORIZACIÓN.</span>
+</div>
+@endif
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
     <td width="65%" valign="top" style="padding-right:12px;">

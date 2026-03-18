@@ -899,11 +899,16 @@ class FacturaController extends Controller
     }
 
     /**
-     * Ver PDF en el navegador (como en cotizaciones)
+     * Ver PDF en el navegador (como en cotizaciones).
+     * En borrador siempre se regenera el PDF para reflejar las últimas ediciones.
      */
     public function verPDF(Factura $factura)
     {
-        if (!$factura->pdf_path || !file_exists(storage_path('app/' . $factura->pdf_path))) {
+        $regenerar = $factura->esBorrador()
+            || !$factura->pdf_path
+            || !file_exists(storage_path('app/' . $factura->pdf_path));
+
+        if ($regenerar) {
             try {
                 $pdfPath = $this->pdfService->generarFacturaPDF($factura);
                 $factura->update(['pdf_path' => $pdfPath]);

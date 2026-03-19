@@ -62,8 +62,8 @@ img { max-width: 100%; }
 
 /* ========== LAYOUT ========== */
 .page-wrapper    { display: flex; min-height: 100vh; }
-.main-content    { flex: 1; margin-left: var(--sidebar-width); min-height: 100vh; display: flex; flex-direction: column; transition: margin-left var(--transition); }
-.content-wrapper { flex: 1; padding: calc(var(--header-height) + 28px) 28px calc(var(--footer-height) + 28px); }
+.main-content    { flex: 1; margin-left: var(--sidebar-width); min-height: 100vh; min-width: 0; display: flex; flex-direction: column; transition: margin-left var(--transition); }
+.content-wrapper { flex: 1; padding: calc(var(--header-height) + 28px) 28px calc(var(--footer-height) + 28px); min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 body.sidebar-collapsed .main-content    { margin-left: var(--sidebar-mini); }
 body.sidebar-collapsed .header          { left: var(--sidebar-mini); }
@@ -485,6 +485,10 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 
 /* ========== FORMS ========== */
 .form-grid    { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.form-grid-filtros { grid-template-columns: 2fr 1fr 1fr 1fr auto; }
+.cotizacion-show-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+.cotizacion-create-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+.cotizacion-create-bottom-grid { display: grid; grid-template-columns: 7fr 3fr; gap: 20px; }
 .form-row     { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-group   { display: flex; flex-direction: column; gap: 6px; }
 .form-label   { font-size: 12px; font-weight: 600; color: var(--color-gray-700); }
@@ -560,6 +564,7 @@ table {
     max-width: none; /* permite scroll horizontal en móvil */
     border-collapse: collapse;
 }
+.table-container--scroll table { min-width: 560px; }
 .table-container thead    { background: var(--color-gray-50); }
 .table-container thead th {
     padding: 11px 16px; text-align: left;
@@ -813,6 +818,14 @@ body.sidebar-collapsed .main-content {
     .responsive-grid {
         grid-template-columns: 1fr !important;
     }
+
+    /* Permitir que celdas del grid se encojan para que table-container haga scroll */
+    .content-wrapper .responsive-grid > *,
+    .content-wrapper > form > div > .responsive-grid > * {
+        min-width: 0;
+    }
+    .content-wrapper > form { min-width: 0; }
+    .content-wrapper > form > div { min-width: 0; }
 
     .stats-grid {
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;

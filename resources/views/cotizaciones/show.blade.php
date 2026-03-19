@@ -14,7 +14,7 @@ $breadcrumbs = [
 
 @section('content')
 
-<div class="responsive-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+<div class="cotizacion-show-layout responsive-grid">
 
     {{-- Columna izquierda --}}
     <div>
@@ -69,7 +69,7 @@ $breadcrumbs = [
                     {{ $cotizacion->detalles->count() }} {{ $cotizacion->detalles->count() === 1 ? 'artículo' : 'artículos' }}
                 </span>
             </div>
-            <div class="table-container" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+            <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
                 <table>
                     <thead>
                         <tr>

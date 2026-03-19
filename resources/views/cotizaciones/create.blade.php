@@ -31,7 +31,7 @@ $breadcrumbs = [
 <div style="display:flex; flex-direction:column; gap:20px;">
 
     {{-- Fila 1: Cliente | Condiciones | Información General --}}
-    <div class="responsive-grid" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px;">
+    <div class="responsive-grid cotizacion-create-top-grid">
         <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">👤 Cliente</div>
@@ -236,7 +236,7 @@ $breadcrumbs = [
         </div>
 
     {{-- Fila 3: Condiciones y Observaciones | Totales --}}
-    <div class="responsive-grid" style="display:grid; grid-template-columns: 7fr 3fr; gap:20px;">
+    <div class="responsive-grid cotizacion-create-bottom-grid">
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📄 Condiciones y Observaciones</div>
@@ -330,6 +330,8 @@ $breadcrumbs = [
 
 @push('styles')
 <style>
+/* Tabla productos: scroll horizontal en móvil */
+.table-container .table-productos-cotizacion { min-width: 640px; }
 /* Descripción ancha, columnas numéricas proporción contable, compactas */
 .table-productos-cotizacion thead th:first-child { padding: 11px 16px; }
 .table-productos-cotizacion thead th:nth-child(n+2) { padding: 11px 4px; white-space: nowrap; }

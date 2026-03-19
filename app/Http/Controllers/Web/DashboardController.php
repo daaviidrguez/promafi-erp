@@ -67,6 +67,23 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
+        $remisionesPendientesFacturar = Remision::where('estado', 'entregada')
+            ->where(function ($q) {
+                $q->whereNull('factura_id')
+                    ->orWhereHas('factura', fn ($f) => $f->where('estado', 'cancelada'));
+            })
+            ->count();
+        $remisionesPendientesFacturarList = Remision::with('cliente')
+            ->where('estado', 'entregada')
+            ->where(function ($q) {
+                $q->whereNull('factura_id')
+                    ->orWhereHas('factura', fn ($f) => $f->where('estado', 'cancelada'));
+            })
+            ->orderBy('fecha_entrega', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+
         // ─── PRODUCTOS / INVENTARIO ───
         $totalProductos = Producto::count();
         $productosBajoStock = Producto::bajoStock()->count();
@@ -107,6 +124,8 @@ class DashboardController extends Controller
             'cuentasVencidas',
             'cuentasVencidasList',
             'facturasRecientes',
+            'remisionesPendientesFacturar',
+            'remisionesPendientesFacturarList',
             'totalProveedores',
             'proveedoresActivos',
             'ordenesBorrador',

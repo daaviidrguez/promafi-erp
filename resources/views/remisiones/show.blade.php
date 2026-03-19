@@ -77,6 +77,35 @@ $breadcrumbs = [
                 @else
                 <span class="badge badge-danger" style="font-size:14px;">Cancelada</span>
                 @endif
+
+                <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--color-gray-100);">
+                    <div class="info-label" style="margin-bottom:6px;">Facturada</div>
+                    @if($remision->factura_id || $remision->factura_id_cancelada)
+                        <span class="badge badge-success" style="font-size:13px;">Sí</span>
+                        @can('facturas.ver')
+                        <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+                            @if($remision->factura_id_cancelada)
+                                <a href="{{ route('facturas.show', $remision->factura_id_cancelada) }}"
+                                   class="btn btn-outline btn-sm w-full">
+                                    Ver factura vinculada - cancelada
+                                </a>
+                            @endif
+
+                            @if($remision->factura_id)
+                                @php
+                                    $esCancelada = $remision->factura && $remision->factura->estado === 'cancelada';
+                                @endphp
+                                <a href="{{ route('facturas.show', $remision->factura_id) }}"
+                                   class="btn btn-outline btn-sm w-full">
+                                    {{ $esCancelada ? 'Ver factura vinculada - cancelada' : 'Ver factura vinculada' }}
+                                </a>
+                            @endif
+                        </div>
+                        @endcan
+                    @else
+                        <span class="badge badge-gray" style="font-size:13px;">No</span>
+                    @endif
+                </div>
             </div>
         </div>
         <div class="card">
@@ -101,6 +130,32 @@ $breadcrumbs = [
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">✅ Marcar como entregada</button>
                 </form>
+                @endif
+                @if($remision->puedeConvertirseAFactura())
+                @can('facturas.crear')
+                <a href="{{ route('facturas.create', ['remision_id' => $remision->id]) }}" class="btn btn-primary w-full">💰 Convertir a factura</a>
+                <p class="text-muted small mb-0" style="margin-top:4px;">El inventario no se descontará al timbrar (ya salió con la remisión).</p>
+                @endcan
+                @endif
+                @if($remision->estado === 'entregada')
+                    @php
+                        $facturaTimbrada = ($remision->factura && $remision->factura->estado === 'timbrada')
+                            || ($remision->facturaCancelada && $remision->facturaCancelada->estado === 'timbrada');
+                    @endphp
+                    <form method="POST" action="{{ route('remisiones.cancelar', $remision->id) }}" style="margin:0;">
+                        @csrf
+                        <button type="submit"
+                                class="btn btn-outline w-full"
+                                style="border-color:var(--color-danger);color:var(--color-danger);"
+                                {{ $facturaTimbrada ? 'disabled' : '' }}>
+                            Cancelar remisión
+                        </button>
+                    </form>
+                    @if($facturaTimbrada)
+                        <p class="text-muted small mb-0" style="margin-top:4px;">
+                            Inhabilitado: existe factura timbrada vinculada.
+                        </p>
+                    @endif
                 @endif
                 @if($remision->puedeCancelarse() && $remision->estado !== 'borrador')
                 <form method="POST" action="{{ route('remisiones.cancelar', $remision->id) }}" style="margin:0;" onsubmit="return confirm('¿Cancelar esta remisión?');">

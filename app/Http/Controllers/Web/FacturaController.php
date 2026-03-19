@@ -17,6 +17,7 @@ use App\Models\InventarioMovimiento;
 use App\Models\FormaPago;
 use App\Models\MetodoPago;
 use App\Models\UsoCfdi;
+use App\Models\Remision;
 use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
@@ -118,10 +119,67 @@ class FacturaController extends Controller
             $clientePreseleccionado = Cliente::find($request->cliente_id);
         }
 
+        $remisionId = null;
+        $remisionLineasJson = null;
+        $observacionesPre = null;
+        if ($request->filled('remision_id')) {
+            $rem = Remision::with(['detalles.producto', 'cliente'])
+                ->where('estado', 'entregada')
+                ->with('factura')
+                ->find($request->remision_id);
+            if (! $rem) {
+                return redirect()->route('remisiones.index')
+                    ->with('error', 'La remisión no está disponible para facturar (debe estar entregada y sin factura activa).');
+            }
+
+            if ($rem->factura_id !== null) {
+                $facturaActiva = $rem->factura;
+                if (! $facturaActiva || $facturaActiva->estado !== 'cancelada') {
+                    return redirect()->route('remisiones.index', ['estado' => 'entregada'])
+                        ->with('error', 'La remisión no está disponible para facturar (la factura vinculada debe estar cancelada o inexistente).');
+                }
+            }
+
+            foreach ($rem->detalles as $det) {
+                if (! $det->producto_id || ! $det->producto) {
+                    return redirect()->route('remisiones.show', $rem)
+                        ->with('error', 'Para facturar desde remisión, todas las partidas deben tener un producto del catálogo asignado.');
+                }
+            }
+            $remisionId = $rem->id;
+            $clientePreseleccionado = $rem->cliente;
+            $observacionesPre = 'Documento de origen: Remisión #' . ($rem->folio ?? $rem->id);
+            $remisionLineasJson = $rem->detalles->map(function ($d) {
+                $p = $d->producto;
+                $tasa = ($p->tipo_factor ?? 'Tasa') === 'Exento' ? 0.0 : (float) ($p->tasa_iva ?? 0);
+
+                return [
+                    'producto_id' => (int) $d->producto_id,
+                    'descripcion' => (string) $d->descripcion,
+                    'cantidad' => (float) $d->cantidad,
+                    'valor_unitario' => (float) $p->precio_venta,
+                    'tasa_iva' => $tasa,
+                ];
+            })->values()->all();
+        }
+
         $folioContado = $empresa ? $empresa->obtenerSiguienteFolioFactura() : 'FA-0001';
         $folioCredito = $empresa ? $empresa->obtenerSiguienteFolioFacturaCredito() : 'FB-0001';
 
-        return view('facturas.create', compact('empresa', 'clientes', 'productos', 'clientePreseleccionado', 'formasPago', 'metodosPago', 'usosCfdi', 'folioContado', 'folioCredito'));
+        return view('facturas.create', compact(
+            'empresa',
+            'clientes',
+            'productos',
+            'clientePreseleccionado',
+            'formasPago',
+            'metodosPago',
+            'usosCfdi',
+            'folioContado',
+            'folioCredito',
+            'remisionId',
+            'remisionLineasJson',
+            'observacionesPre',
+        ));
     }
 
     /**
@@ -146,6 +204,7 @@ class FacturaController extends Controller
             'productos.*.cantidad' => 'required|numeric|min:0.01',
             'productos.*.valor_unitario' => 'required|numeric|min:0',
             'productos.*.descuento' => 'nullable|numeric|min:0',
+            'remision_id' => 'nullable|exists:remisiones,id',
         ]);
 
         // Normalizar y limitar uuid_referencia para evitar overflow en DB
@@ -171,6 +230,22 @@ class FacturaController extends Controller
 
         DB::beginTransaction();
         try {
+            $remisionVincular = null;
+            if (! empty($validated['remision_id'])) {
+                $remisionVincular = Remision::lockForUpdate()->find($validated['remision_id']);
+                if (! $remisionVincular
+                    || $remisionVincular->estado !== 'entregada'
+                    || (int) $remisionVincular->cliente_id !== (int) $validated['cliente_id']) {
+                    throw new \Exception('La remisión no es válida para vincular a esta factura.');
+                }
+
+                if ($remisionVincular->factura_id !== null) {
+                    $facturaVinculada = Factura::find($remisionVincular->factura_id);
+                    if (! $facturaVinculada || $facturaVinculada->estado !== 'cancelada') {
+                        throw new \Exception('La remisión no es válida para facturar: la factura vinculada debe estar cancelada.');
+                    }
+                }
+            }
 
             // Calcular totales
             $subtotal = 0;
@@ -325,6 +400,28 @@ class FacturaController extends Controller
                 $cliente->actualizarSaldo();
             }
 
+            if ($remisionVincular) {
+                // Si existe una factura anterior cancelada, se conserva para trazabilidad.
+                if ($remisionVincular->factura_id !== null) {
+                    $facturaAnterior = Factura::find($remisionVincular->factura_id);
+                    if ($facturaAnterior && $facturaAnterior->estado === 'cancelada') {
+                        $update = ['factura_id' => $factura->id];
+
+                        // Solo se preserva una factura cancelada en el campo adicional.
+                        if ($remisionVincular->factura_id_cancelada === null) {
+                            $update['factura_id_cancelada'] = $remisionVincular->factura_id;
+                        }
+
+                        $remisionVincular->update($update);
+                    } else {
+                        // Por seguridad: el flujo debería impedir llegar aquí.
+                        $remisionVincular->update(['factura_id' => $factura->id]);
+                    }
+                } else {
+                    $remisionVincular->update(['factura_id' => $factura->id]);
+                }
+            }
+
             DB::commit();
 
             return redirect()->route('facturas.show', $factura->id)
@@ -381,6 +478,13 @@ class FacturaController extends Controller
 
         DB::beginTransaction();
         try {
+            Remision::where(function ($q) use ($factura) {
+                $q->where('factura_id', $factura->id)
+                    ->orWhere('factura_id_cancelada', $factura->id);
+            })->update([
+                'factura_id' => null,
+                'factura_id_cancelada' => null,
+            ]);
             if ($factura->cuentaPorCobrar) {
                 $factura->cuentaPorCobrar->delete();
             }
@@ -617,21 +721,23 @@ class FacturaController extends Controller
                 'xml_content' => $resultado['xml'] ?? null,
             ]);
 
-            // Descontar inventario al timbrar (no en borrador)
-            $factura->load('detalles.producto');
-            foreach ($factura->detalles as $detalle) {
-                $producto = $detalle->producto;
-                if ($producto && $producto->controla_inventario) {
-                    InventarioMovimiento::registrar(
-                        $producto,
-                        InventarioMovimiento::TIPO_SALIDA_FACTURA,
-                        (float) $detalle->cantidad,
-                        auth()->id(),
-                        $factura->id,
-                        null,
-                        null,
-                        null
-                    );
+            // Descontar inventario al timbrar (no en borrador), salvo si la mercancía ya salió por remisión
+            $factura->load(['detalles.producto', 'remisionVinculada']);
+            if (! $factura->inventarioDescontadoEnRemision()) {
+                foreach ($factura->detalles as $detalle) {
+                    $producto = $detalle->producto;
+                    if ($producto && $producto->controla_inventario) {
+                        InventarioMovimiento::registrar(
+                            $producto,
+                            InventarioMovimiento::TIPO_SALIDA_FACTURA,
+                            (float) $detalle->cantidad,
+                            auth()->id(),
+                            $factura->id,
+                            null,
+                            null,
+                            null
+                        );
+                    }
                 }
             }
 
@@ -706,20 +812,23 @@ class FacturaController extends Controller
             $pdfPath = $this->pdfService->generarFacturaPDF($factura);
             $factura->update(['pdf_path' => $pdfPath]);
 
-            // Devolver productos al inventario (trazabilidad: devolucion_factura; razón en observaciones para auditoría)
-            foreach ($factura->detalles as $detalle) {
-                if ($detalle->producto && $detalle->producto->controla_inventario) {
-                    InventarioMovimiento::registrar(
-                        $detalle->producto,
-                        InventarioMovimiento::TIPO_DEVOLUCION_FACTURA,
-                        (float) $detalle->cantidad,
-                        auth()->id(),
-                        $factura->id,
-                        null,
-                        null,
-                        null,
-                        'Factura cancelada'
-                    );
+            // Devolver productos al inventario solo si se había descontado al timbrar (no aplica si salió por remisión)
+            $factura->load('remisionVinculada');
+            if (! $factura->inventarioDescontadoEnRemision()) {
+                foreach ($factura->detalles as $detalle) {
+                    if ($detalle->producto && $detalle->producto->controla_inventario) {
+                        InventarioMovimiento::registrar(
+                            $detalle->producto,
+                            InventarioMovimiento::TIPO_DEVOLUCION_FACTURA,
+                            (float) $detalle->cantidad,
+                            auth()->id(),
+                            $factura->id,
+                            null,
+                            null,
+                            null,
+                            'Factura cancelada'
+                        );
+                    }
                 }
             }
 

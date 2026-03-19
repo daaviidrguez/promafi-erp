@@ -16,7 +16,7 @@ class RemisionController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Remision::with(['cliente', 'usuario']);
+        $query = Remision::with(['cliente', 'usuario', 'factura', 'facturaCancelada']);
         if ($request->filled('estado')) {
             $query->where('estado', $request->estado);
         }
@@ -98,7 +98,7 @@ class RemisionController extends Controller
 
     public function show(Remision $remision)
     {
-        $remision->load(['cliente', 'detalles.producto', 'factura', 'usuario']);
+        $remision->load(['cliente', 'detalles.producto', 'factura', 'facturaCancelada', 'usuario']);
         return view('remisiones.show', compact('remision'));
     }
 
@@ -207,9 +207,56 @@ class RemisionController extends Controller
 
     public function cancelar(Remision $remision)
     {
+        $remision->loadMissing(['factura', 'facturaCancelada', 'detalles.producto']);
+
+        if ($remision->estado === 'cancelada') {
+            return back()->with('error', 'Esta remisión ya está cancelada.');
+        }
+
+        // Cancelación de remisión entregada: revierte inventario, pero se bloquea si
+        // existe una factura timbrada vinculada (seguridad).
+        if ($remision->estado === 'entregada') {
+            $facturaTimbrada = ($remision->factura && $remision->factura->estado === 'timbrada')
+                || ($remision->facturaCancelada && $remision->facturaCancelada->estado === 'timbrada');
+            if ($facturaTimbrada) {
+                return back()->with('error', 'No se puede cancelar: existe una factura timbrada vinculada a esta remisión.');
+            }
+
+            \DB::beginTransaction();
+            try {
+                foreach ($remision->detalles as $detalle) {
+                    if ($detalle->producto_id && $detalle->producto && $detalle->producto->controla_inventario) {
+                        \App\Models\InventarioMovimiento::registrar(
+                            $detalle->producto,
+                            \App\Models\InventarioMovimiento::TIPO_ENTRADA_REMISION,
+                            (float) $detalle->cantidad,
+                            auth()->id(),
+                            null,
+                            $remision->id,
+                            null,
+                            null,
+                            'Reversa por cancelación de remisión'
+                        );
+                    }
+                }
+
+                $remision->update([
+                    'estado' => 'cancelada',
+                ]);
+
+                \DB::commit();
+                return back()->with('success', 'Remisión cancelada y productos reversados.');
+            } catch (\Exception $e) {
+                \DB::rollBack();
+                return back()->with('error', 'Error al cancelar la remisión: ' . $e->getMessage());
+            }
+        }
+
+        // Cancelación normal (borrador/enviada) - sin reversa de inventario.
         if (!$remision->puedeCancelarse()) {
             return back()->with('error', 'No se puede cancelar esta remisión');
         }
+
         $remision->update(['estado' => 'cancelada']);
         return back()->with('success', 'Remisión cancelada');
     }

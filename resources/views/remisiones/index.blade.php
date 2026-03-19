@@ -56,6 +56,7 @@
                 <th>Cliente</th>
                 <th>Fecha</th>
                 <th class="td-center">Estado</th>
+                <th class="td-center">Facturada</th>
                 <th class="td-actions">Acciones</th>
             </tr>
         </thead>
@@ -70,6 +71,13 @@
                     @elseif($r->estado === 'enviada')<span class="badge badge-info">Enviada</span>
                     @elseif($r->estado === 'entregada')<span class="badge badge-success">Entregada</span>
                     @else<span class="badge badge-danger">Cancelada</span>@endif
+                </td>
+                <td class="td-center">
+                    @if($r->factura_id || $r->factura_id_cancelada)
+                        <span class="badge badge-success">Sí</span>
+                    @else
+                        <span class="badge badge-gray">No</span>
+                    @endif
                 </td>
                 <td class="td-actions">
                     <a href="{{ route('remisiones.show', $r->id) }}" class="btn btn-info btn-sm">Ver</a>

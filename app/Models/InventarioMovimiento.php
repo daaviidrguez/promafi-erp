@@ -34,12 +34,18 @@ class InventarioMovimiento extends Model
     const TIPO_SALIDA_FACTURA = 'salida_factura';
     const TIPO_DEVOLUCION_FACTURA = 'devolucion_factura';
     const TIPO_SALIDA_REMISION = 'salida_remision';
+    const TIPO_ENTRADA_REMISION = 'entrada_remision';
     const TIPO_ENTRADA_MANUAL = 'entrada_manual';
     const TIPO_SALIDA_MANUAL = 'salida_manual';
 
     public static function tiposEntrada(): array
     {
-        return [self::TIPO_ENTRADA_COMPRA, self::TIPO_ENTRADA_MANUAL, self::TIPO_DEVOLUCION_FACTURA];
+        return [
+            self::TIPO_ENTRADA_COMPRA,
+            self::TIPO_ENTRADA_REMISION,
+            self::TIPO_ENTRADA_MANUAL,
+            self::TIPO_DEVOLUCION_FACTURA,
+        ];
     }
 
     public static function esEntrada(string $tipo): bool
@@ -84,6 +90,7 @@ class InventarioMovimiento extends Model
             self::TIPO_SALIDA_FACTURA => 'Salida (factura)',
             self::TIPO_DEVOLUCION_FACTURA => 'Devolución (factura cancelada)',
             self::TIPO_SALIDA_REMISION => 'Salida (remisión)',
+            self::TIPO_ENTRADA_REMISION => 'Entrada (reversa remisión)',
             self::TIPO_ENTRADA_MANUAL => 'Entrada manual',
             self::TIPO_SALIDA_MANUAL => 'Salida manual',
             default => $this->tipo,

@@ -483,8 +483,8 @@ body {
 <tr>
     <td width="65%" valign="top" style="padding-right:12px;">
 
-        {{-- Datos bancarios --}}
-        @if($empresa->banco ?? $empresa->numero_cuenta ?? $empresa->clabe ?? false)
+        {{-- Datos bancarios (solo para facturas; en remisión se omiten) --}}
+        @if(($esFactura ?? false) && ($empresa->banco ?? $empresa->numero_cuenta ?? $empresa->clabe ?? false))
         <div class="banco-box">
             <div class="banco-box-titulo">DATOS PARA TRANSFERENCIA BANCARIA</div>
             <table width="100%" cellpadding="0" cellspacing="0">

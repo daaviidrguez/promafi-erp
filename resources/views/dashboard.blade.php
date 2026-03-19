@@ -191,6 +191,41 @@ $breadcrumbs = [
 </div>
 @endif
 
+{{-- Remisiones entregadas pendientes de facturar --}}
+<div class="card" style="margin-top: 24px; border-left: 4px solid var(--color-warning);">
+    <div class="card-header">
+        <div class="card-title">🚚 Remisiones pendientes de facturar</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span class="badge badge-warning" style="font-size: 13px;">{{ $remisionesPendientesFacturar ?? 0 }}</span>
+            <a href="{{ route('remisiones.index', ['estado' => 'entregada']) }}" class="btn btn-light btn-sm">Ver remisiones</a>
+        </div>
+    </div>
+    <div class="card-body" style="padding-top: 0;">
+        <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
+            Remisiones en estado <strong>Entregada</strong> sin factura vinculada (mercancía ya salió de inventario).
+        </p>
+        @if(isset($remisionesPendientesFacturarList) && $remisionesPendientesFacturarList->isNotEmpty())
+        <ul class="dashboard-list" style="margin: 0;">
+            @foreach($remisionesPendientesFacturarList as $rem)
+            <li style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span>
+                    <span class="fw-600 text-mono">{{ $rem->folio }}</span>
+                    <span class="text-muted"> — {{ $rem->cliente_nombre }}</span>
+                </span>
+                @can('facturas.crear')
+                <a href="{{ route('facturas.create', ['remision_id' => $rem->id]) }}" class="btn btn-primary btn-sm">Facturar</a>
+                @else
+                <a href="{{ route('remisiones.show', $rem->id) }}" class="btn btn-outline btn-sm">Ver</a>
+                @endcan
+            </li>
+            @endforeach
+        </ul>
+        @else
+        <p class="text-muted mb-0" style="font-size: 13px;">No hay remisiones pendientes de facturar.</p>
+        @endif
+    </div>
+</div>
+
 {{-- Facturas recientes --}}
 <div class="card" style="margin-top: 24px;">
     <div class="card-header">

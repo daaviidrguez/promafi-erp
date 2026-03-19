@@ -114,6 +114,27 @@ class Factura extends Model
     }
 
     /**
+     * Remisión que originó esta factura (si aplica). El inventario ya se descontó al entregar la remisión.
+     */
+    public function remisionVinculada()
+    {
+        return $this->hasOne(Remision::class, 'factura_id');
+    }
+
+    /**
+     * Indica si no debe moverse inventario al timbrar/cancelar (salida ya registrada en la remisión).
+     */
+    public function inventarioDescontadoEnRemision(): bool
+    {
+        // Se descontó el inventario al entregar la remisión.
+        // Para trazabilidad, una remisión puede conservar una factura cancelada
+        // en `remisiones.factura_id_cancelada`, por lo que aquí se valida ambos casos.
+        return Remision::where('factura_id', $this->id)
+            ->orWhere('factura_id_cancelada', $this->id)
+            ->exists();
+    }
+
+    /**
      * Relación con Detalle (productos)
      */
     public function detalles()

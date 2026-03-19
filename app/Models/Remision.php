@@ -19,6 +19,7 @@ class Remision extends Model
         'estado',
         'cliente_id',
         'factura_id',
+        'factura_id_cancelada',
         'empresa_id',
         'cliente_nombre',
         'cliente_rfc',
@@ -42,6 +43,15 @@ class Remision extends Model
     public function factura(): BelongsTo
     {
         return $this->belongsTo(Factura::class);
+    }
+
+    /**
+     * Factura anterior (cancelada) usada para auditoría cuando la remisión
+     * se vuelve a convertir y se conserva el primer CFDI cancelado.
+     */
+    public function facturaCancelada(): BelongsTo
+    {
+        return $this->belongsTo(Factura::class, 'factura_id_cancelada');
     }
 
     public function empresa(): BelongsTo
@@ -96,6 +106,33 @@ class Remision extends Model
     public function puedeCancelarse(): bool
     {
         return in_array($this->estado, ['borrador', 'enviada'], true);
+    }
+
+    /**
+     * Ya tiene factura (borrador o timbrada) vinculada.
+     */
+    public function estaFacturada(): bool
+    {
+        return $this->factura_id !== null || $this->factura_id_cancelada !== null;
+    }
+
+    /**
+     * Puede generar factura desde la remisión (entregada y sin factura vinculada).
+     */
+    public function puedeConvertirseAFactura(): bool
+    {
+        if ($this->estado !== 'entregada') {
+            return false;
+        }
+
+        // Si no hay factura activa, se puede convertir.
+        if ($this->factura_id === null) {
+            return true;
+        }
+
+        // Si la factura activa está cancelada, se puede convertir nuevamente.
+        $factura = $this->relationLoaded('factura') ? $this->factura : Factura::find($this->factura_id);
+        return $factura !== null && $factura->estado === 'cancelada';
     }
 
     public function scopeBuscar($query, ?string $search)

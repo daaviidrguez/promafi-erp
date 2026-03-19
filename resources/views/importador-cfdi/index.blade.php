@@ -105,7 +105,7 @@ $breadcrumbs = [['title' => 'Importador CFDI']];
         </div>
         <div class="card-body">
             <ul style="margin: 0; padding-left: 20px; line-height: 1.8; color: var(--color-gray-700);">
-                <li>Los clientes (receptor) deben existir en <strong>Administración &gt; Clientes</strong> con el mismo RFC que el XML.</li>
+                <li>Los clientes (receptor) deben existir en <strong>Catálogos &gt; Clientes</strong> con el mismo RFC que el XML.</li>
                 <li>La empresa emisora debe estar configurada en <strong>Sistema &gt; Configuración</strong> (RFC del emisor).</li>
                 <li>Para que los <strong>complementos de pago</strong> actualicen cuentas por cobrar, importe primero las <strong>facturas</strong> relacionadas.</li>
                 <li><strong>Facturas canceladas:</strong> importe primero el XML de la factura y después el XML del <strong>acuse de cancelación</strong>; la factura quedará en estado cancelada y podrá descargar el XML cancelado.</li>

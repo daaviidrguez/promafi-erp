@@ -93,26 +93,23 @@
         </div>
         @endif
 
-        {{-- Administración (dropdown) --}}
-        @can('clientes.ver')
-        @php $admHasActive = request()->routeIs('clientes.*'); @endphp
-        <div class="sidebar-dropdown {{ $admHasActive ? 'open' : '' }}">
-            <button type="button" class="sidebar-dropdown-trigger {{ $admHasActive ? 'active' : '' }}" data-dropdown="admin" title="Administración">
-                <span class="sidebar-menu-icon">👥</span>
-                <span class="sidebar-menu-text">Administración</span>
-                <span class="sidebar-dropdown-chevron">▼</span>
-            </button>
-            <ul class="sidebar-dropdown-menu">
-                <li><a href="{{ route('clientes.index') }}" class="sidebar-menu-link {{ request()->routeIs('clientes.*') ? 'active' : '' }}" title="Clientes"><span class="sidebar-menu-icon">👥</span><span class="sidebar-menu-text">Clientes</span></a></li>
-            </ul>
-        </div>
-        @endcan
-
         {{-- Catálogos (dropdown) --}}
         @php
-            $catHasActive = request()->routeIs('productos.*') || request()->routeIs('inventario.*') || request()->routeIs('categorias.*') || request()->routeIs('sugerencias.*');
+            $catHasActive = request()->routeIs('productos.*')
+                || request()->routeIs('inventario.*')
+                || request()->routeIs('categorias.*')
+                || request()->routeIs('sugerencias.*')
+                || request()->routeIs('clientes.*')
+                || request()->routeIs('proveedores.*');
         @endphp
-        @if(auth()->user()->can('productos.ver') || auth()->user()->can('inventario.ver') || auth()->user()->can('categorias.ver') || auth()->user()->can('sugerencias.ver'))
+        @if(
+            auth()->user()->can('productos.ver')
+            || auth()->user()->can('inventario.ver')
+            || auth()->user()->can('categorias.ver')
+            || auth()->user()->can('sugerencias.ver')
+            || auth()->user()->can('clientes.ver')
+            || auth()->user()->can('proveedores.ver')
+        )
         <div class="sidebar-dropdown {{ $catHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $catHasActive ? 'active' : '' }}" data-dropdown="catalogos" title="Catálogos">
                 <span class="sidebar-menu-icon">📦</span>
@@ -120,6 +117,8 @@
                 <span class="sidebar-dropdown-chevron">▼</span>
             </button>
             <ul class="sidebar-dropdown-menu">
+                @can('clientes.ver')<li><a href="{{ route('clientes.index') }}" class="sidebar-menu-link {{ request()->routeIs('clientes.*') ? 'active' : '' }}" title="Clientes"><span class="sidebar-menu-icon">👥</span><span class="sidebar-menu-text">Clientes</span></a></li>@endcan
+                @can('proveedores.ver')<li><a href="{{ route('proveedores.index') }}" class="sidebar-menu-link {{ request()->routeIs('proveedores.*') ? 'active' : '' }}" title="Proveedores"><span class="sidebar-menu-icon">🏭</span><span class="sidebar-menu-text">Proveedores</span></a></li>@endcan
                 @can('productos.ver')<li><a href="{{ route('productos.index') }}" class="sidebar-menu-link {{ request()->routeIs('productos.*') ? 'active' : '' }}" title="Productos"><span class="sidebar-menu-icon">📦</span><span class="sidebar-menu-text">Productos</span></a></li>@endcan
                 @can('inventario.ver')<li><a href="{{ route('inventario.index') }}" class="sidebar-menu-link {{ request()->routeIs('inventario.*') ? 'active' : '' }}" title="Inventario"><span class="sidebar-menu-icon">📊</span><span class="sidebar-menu-text">Inventario</span></a></li>@endcan
                 @can('categorias.ver')<li><a href="{{ route('categorias.index') }}" class="sidebar-menu-link {{ request()->routeIs('categorias.*') ? 'active' : '' }}" title="Categorías"><span class="sidebar-menu-icon">🗂️</span><span class="sidebar-menu-text">Categorías</span></a></li>@endcan
@@ -130,9 +129,9 @@
 
         {{-- Compras (dropdown) --}}
         @php
-            $compHasActive = request()->routeIs('ordenes-compra.*') || request()->routeIs('compras.*') || request()->routeIs('cotizaciones-compra.*') || request()->routeIs('proveedores.*') || request()->routeIs('cuentas-por-pagar.*');
+            $compHasActive = request()->routeIs('ordenes-compra.*') || request()->routeIs('compras.*') || request()->routeIs('cotizaciones-compra.*');
         @endphp
-        @if(auth()->user()->can('ordenes_compra.ver') || auth()->user()->can('cotizaciones_compra.ver') || auth()->user()->can('proveedores.ver') || auth()->user()->can('cuentas_por_pagar.ver'))
+        @if(auth()->user()->can('ordenes_compra.ver') || auth()->user()->can('cotizaciones_compra.ver'))
         <div class="sidebar-dropdown {{ $compHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $compHasActive ? 'active' : '' }}" data-dropdown="compras" title="Compras">
                 <span class="sidebar-menu-icon">🛒</span>
@@ -140,20 +139,20 @@
                 <span class="sidebar-dropdown-chevron">▼</span>
             </button>
             <ul class="sidebar-dropdown-menu">
-                @can('ordenes_compra.ver')<li><a href="{{ route('ordenes-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('ordenes-compra.*') ? 'active' : '' }}" title="Órdenes de Compra"><span class="sidebar-menu-icon">📦</span><span class="sidebar-menu-text">Órdenes de Compra</span></a></li>@endcan
                 @can('ordenes_compra.ver')<li><a href="{{ route('compras.index') }}" class="sidebar-menu-link {{ request()->routeIs('compras.*') ? 'active' : '' }}" title="Compras (facturas)"><span class="sidebar-menu-icon">🛒</span><span class="sidebar-menu-text">Compras</span></a></li>@endcan
-                @can('cotizaciones_compra.ver')<li><a href="{{ route('cotizaciones-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('cotizaciones-compra.*') ? 'active' : '' }}" title="Cotizaciones de Compra"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Cotizaciones de Compra</span></a></li>@endcan
-                @can('proveedores.ver')<li><a href="{{ route('proveedores.index') }}" class="sidebar-menu-link {{ request()->routeIs('proveedores.*') ? 'active' : '' }}" title="Proveedores"><span class="sidebar-menu-icon">🏭</span><span class="sidebar-menu-text">Proveedores</span></a></li>@endcan
-                @can('cuentas_por_pagar.ver')<li><a href="{{ route('cuentas-por-pagar.index') }}" class="sidebar-menu-link {{ request()->routeIs('cuentas-por-pagar.*') ? 'active' : '' }}" title="Cuentas por Pagar"><span class="sidebar-menu-icon">💳</span><span class="sidebar-menu-text">Cuentas por Pagar</span></a></li>@endcan
+                @can('ordenes_compra.ver')<li><a href="{{ route('ordenes-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('ordenes-compra.*') ? 'active' : '' }}" title="Órdenes de Compra"><span class="sidebar-menu-icon">📦</span><span class="sidebar-menu-text">Órdenes de Compra</span></a></li>@endcan
+                @can('cotizaciones_compra.ver')<li><a href="{{ route('cotizaciones-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('cotizaciones-compra.*') ? 'active' : '' }}" title="Cotizaciones de compras"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Cotizaciones de compras</span></a></li>@endcan
             </ul>
         </div>
         @endif
 
         {{-- Finanzas (dropdown) --}}
         @php
-            $finHasActive = request()->routeIs('estado-cuenta.*') || request()->routeIs('cuentas-cobrar.*');
+            $finHasActive = request()->routeIs('estado-cuenta.*')
+                || request()->routeIs('cuentas-cobrar.*')
+                || request()->routeIs('cuentas-por-pagar.*');
         @endphp
-        @if(auth()->user()->can('estado_cuenta.ver') || auth()->user()->can('cuentas_cobrar.ver'))
+        @if(auth()->user()->can('estado_cuenta.ver') || auth()->user()->can('cuentas_cobrar.ver') || auth()->user()->can('cuentas_por_pagar.ver'))
         <div class="sidebar-dropdown {{ $finHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $finHasActive ? 'active' : '' }}" data-dropdown="finanzas" title="Finanzas">
                 <span class="sidebar-menu-icon">💵</span>
@@ -163,6 +162,7 @@
             <ul class="sidebar-dropdown-menu">
                 @can('estado_cuenta.ver')<li><a href="{{ route('estado-cuenta.index') }}" class="sidebar-menu-link {{ request()->routeIs('estado-cuenta.*') ? 'active' : '' }}" title="Estado de Cuenta"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Estado de Cuenta</span></a></li>@endcan
                 @can('cuentas_cobrar.ver')<li><a href="{{ route('cuentas-cobrar.index') }}" class="sidebar-menu-link {{ request()->routeIs('cuentas-cobrar.*') ? 'active' : '' }}" title="Cuentas por Cobrar"><span class="sidebar-menu-icon">💵</span><span class="sidebar-menu-text">Cuentas por Cobrar</span></a></li>@endcan
+                @can('cuentas_por_pagar.ver')<li><a href="{{ route('cuentas-por-pagar.index') }}" class="sidebar-menu-link {{ request()->routeIs('cuentas-por-pagar.*') ? 'active' : '' }}" title="Cuentas por Pagar"><span class="sidebar-menu-icon">💳</span><span class="sidebar-menu-text">Cuentas por Pagar</span></a></li>@endcan
             </ul>
         </div>
         @endif

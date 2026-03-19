@@ -13,6 +13,38 @@ use Illuminate\Http\Request;
 
 class ClienteController extends Controller
 {
+    private function contieneRegimenSocietario(string $nombre): bool
+    {
+        $s = mb_strtoupper(trim($nombre));
+        if ($s === '') return false;
+
+        // Normalizar separadores: quitar puntos y comas, colapsar espacios
+        $s = str_replace(['.', ',', ';'], ' ', $s);
+        $s = preg_replace('/\s+/', ' ', $s) ?? $s;
+
+        // Variantes comunes de regímenes societarios
+        $patrones = [
+            '/\bS\s*A\b/',                  // SA
+            '/\bS\s*A\s+DE\s+C\s*V\b/',     // SA DE CV
+            '/\bS\s+DE\s+R\s*L\b/',         // S DE RL
+            '/\bS\s+DE\s+R\s*L\s+DE\s+C\s*V\b/', // S DE RL DE CV
+            '/\bSAPI\b/',
+            '/\bSAS\b/',
+            '/\bSC\b/',
+            '/\bS\s*C\b/',                  // S C
+            '/\bA\s*C\b/',                  // A C
+            '/\bA\s*C\s*\b/',               // AC
+            '/\bSOCIEDAD\s+ANONIMA\b/',
+            '/\bSOCIEDAD\s+DE\s+RESPONSABILIDAD\s+LIMITADA\b/',
+        ];
+
+        foreach ($patrones as $p) {
+            if (preg_match($p, $s)) return true;
+        }
+
+        return false;
+    }
+
     /**
      * Mostrar lista de clientes
      */
@@ -48,7 +80,16 @@ class ClienteController extends Controller
     {
         $rfcSize = $request->input('tipo_persona') === 'moral' ? 12 : 13;
         $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attr, $value, $fail) {
+                    if ($this->contieneRegimenSocietario((string) $value)) {
+                        $fail('El Nombre / Razón Social no se permite el régimen societario (sin S.A. de C.V., S. de R.L., etc.).');
+                    }
+                },
+            ],
             'nombre_comercial' => 'nullable|string|max:255',
             'tipo_persona' => 'required|in:fisica,moral',
             'rfc' => [
@@ -80,6 +121,7 @@ class ClienteController extends Controller
         ]);
 
         $validated['rfc'] = cleanRFC($validated['rfc']);
+        $validated['nombre'] = mb_strtoupper(trim((string) $validated['nombre']));
         $validated['activo'] = $request->boolean('activo', true);
         $validated['forma_pago'] = $validated['forma_pago'] ?? '03';
 
@@ -133,7 +175,16 @@ class ClienteController extends Controller
     {
         $rfcSize = $request->input('tipo_persona') === 'moral' ? 12 : 13;
         $validated = $request->validate([
-            'nombre' => 'required|string|max:255',
+            'nombre' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attr, $value, $fail) {
+                    if ($this->contieneRegimenSocietario((string) $value)) {
+                        $fail('El Nombre / Razón Social no se permite el régimen societario (sin S.A. de C.V., S. de R.L., etc.).');
+                    }
+                },
+            ],
             'nombre_comercial' => 'nullable|string|max:255',
             'tipo_persona' => 'required|in:fisica,moral',
             'rfc' => [
@@ -166,6 +217,7 @@ class ClienteController extends Controller
         ]);
 
         $validated['rfc'] = cleanRFC($validated['rfc']);
+        $validated['nombre'] = mb_strtoupper(trim((string) $validated['nombre']));
         $validated['activo'] = $request->boolean('activo', true);
         $validated['forma_pago'] = $validated['forma_pago'] ?? '03';
 

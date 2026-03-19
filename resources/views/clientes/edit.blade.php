@@ -29,8 +29,8 @@ $breadcrumbs = [
                 </div>
                 <div class="card-body">
                     <div class="form-group">
-                        <label class="form-label">Nombre / Razón Social <span class="req">*</span></label>
-                        <input type="text" name="nombre" class="form-control"
+                        <label class="form-label">Nombre / Razón Social sin el régimen societario (sin S.A. de C.V., S. de R.L., etc.) <span class="req">*</span></label>
+                        <input type="text" name="nombre" id="nombre" class="form-control"
                                value="{{ old('nombre', $cliente->nombre) }}" required>
                         @error('nombre')
                             <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
@@ -258,6 +258,7 @@ $breadcrumbs = [
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var rfc = document.getElementById('rfc');
+    var nombre = document.getElementById('nombre');
     var tipoPersona = document.querySelector('select[name="tipo_persona"]');
     var rfcHint = document.getElementById('rfcHint');
     function actualizarRfcPorTipo() {
@@ -272,6 +273,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tipoPersona) tipoPersona.addEventListener('change', actualizarRfcPorTipo);
     actualizarRfcPorTipo();
     rfc.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+
+    if (nombre) {
+        nombre.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+    }
+
+    @if($errors->has('nombre'))
+    window.addEventListener('load', function() {
+        alert(@json($errors->first('nombre')));
+    });
+    @endif
 });
 </script>
 @endpush

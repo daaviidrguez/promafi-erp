@@ -72,6 +72,15 @@ class Proveedor extends Model
         return $this->hasMany(CuentaPorPagar::class);
     }
 
+    /**
+     * Registros donde este proveedor tiene un código para el producto.
+     */
+    public function productoProveedores(): HasMany
+    {
+        return $this->hasMany(ProductoProveedor::class, 'proveedor_id')
+            ->orderByDesc('created_at');
+    }
+
     public function esContado(): bool
     {
         return (int) ($this->dias_credito ?? 0) === 0;

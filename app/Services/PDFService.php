@@ -17,6 +17,8 @@ class PDFService
             $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'factura', 'cliente', 'usuario', 'empresa']);
         } elseif ($tipo === 'complemento') {
             $modelo->loadMissing(['pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar', 'pagosRecibidos.documentosRelacionados.factura.detalles.impuestos', 'cliente', 'usuario', 'empresa']);
+        } elseif ($tipo === 'cotizacion_compra') {
+            $modelo->loadMissing(['detalles.producto', 'proveedor', 'usuario', 'empresa']);
         } elseif ($tipo === 'orden_compra') {
             $modelo->loadMissing(['detalles.producto', 'proveedor', 'usuario', 'empresa']);
         } elseif ($tipo === 'factura_compra') {
@@ -46,6 +48,7 @@ class PDFService
             'esCotizacion' => $tipo === 'cotizacion',
             'esRemision' => $tipo === 'remision',
             'esComplemento' => $tipo === 'complemento',
+            'esCotizacionCompra' => $tipo === 'cotizacion_compra',
             'esOrdenCompra' => $tipo === 'orden_compra',
             'esFacturaCompra' => $tipo === 'factura_compra',
         ])->render();
@@ -68,6 +71,11 @@ class PDFService
     public function generarCotizacionPDF($cotizacion): string
     {
         return $this->generarDocumentoPDF($cotizacion, 'cotizacion');
+    }
+
+    public function generarCotizacionCompraPDF($cotizacionCompra): string
+    {
+        return $this->generarDocumentoPDF($cotizacionCompra, 'cotizacion_compra');
     }
 
     public function generarFacturaPDF($factura): string

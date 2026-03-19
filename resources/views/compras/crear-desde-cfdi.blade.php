@@ -11,11 +11,19 @@ $breadcrumbs = [
 ];
 $conceptos = $datos['conceptos'] ?? [];
 $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['fecha_emision'])->format('Y-m-d') : date('Y-m-d');
+$conceptosCount = count($conceptos);
 @endphp
 
 @section('content')
 
-<form action="{{ route('compras.store-desde-cfdi') }}" method="POST" id="formCfdiCompra">
+@if(session('success'))
+    <div class="alert alert-success mb-3">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="alert alert-danger mb-3">{{ session('error') }}</div>
+@endif
+
+<form action="{{ route('compras.store-desde-cfdi') }}" method="POST" id="formCfdiCompra" data-cfdi-concepto-indices='@json(array_keys($conceptos))'>
 @csrf
 
 <div class="responsive-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
@@ -23,7 +31,7 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
         <div class="card">
             <div class="card-header"><div class="card-title">📋 Datos del CFDI</div></div>
             <div class="card-body">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;">
                     <div class="form-group">
                         <label class="form-label">Fecha <span class="req">*</span></label>
                         <input type="date" name="fecha_emision" value="{{ old('fecha_emision', $fechaEmision) }}" required class="form-control">
@@ -40,6 +48,10 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
                             <option value="PPD" {{ ($datos['metodo_pago'] ?? '') === 'PPD' ? 'selected' : '' }}>PPD - Pago diferido</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Uso del CFDI</label>
+                        <input type="text" class="form-control" value="{{ $datos['uso_cfdi'] ?? '—' }}" readonly style="background:var(--color-gray-50);">
+                    </div>
                 </div>
             </div>
         </div>
@@ -48,11 +60,22 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
             <div class="card-header"><div class="card-title">🏭 Proveedor</div></div>
             <div class="card-body">
                 <div class="form-group search-box">
-                    <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control" value="{{ $proveedor ? $proveedor->nombre : ($datos['nombre_emisor'] ?? '') }}">
-                    <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $proveedor?->id ?? '' }}" required>
+                    <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control"
+                           value="{{ $proveedor ? $proveedor->nombre : ($datos['rfc_emisor'] ?? ($datos['nombre_emisor'] ?? '')) }}">
+                    <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $proveedor?->id ?? '' }}">
                     <div id="proveedorResults" class="autocomplete-results"></div>
                 </div>
-                <p class="text-muted small mt-2 mb-0">Emisor CFDI: {{ $datos['nombre_emisor'] ?? '—' }} (RFC: {{ $datos['rfc_emisor'] ?? '—' }})</p>
+                <p class="text-muted small mt-2 mb-0">
+                    Emisor CFDI: {{ $datos['nombre_emisor'] ?? '—' }} (RFC: {{ $datos['rfc_emisor'] ?? '—' }})
+                </p>
+                @if(!$proveedor && !empty($datos['rfc_emisor']))
+                    <div class="mt-2">
+                        <p class="text-danger small mb-1" style="font-weight:700;">no existe proveedor</p>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('modalAgregarProveedorCfdi').classList.add('show')">
+                            ➕ Agregar
+                        </button>
+                    </div>
+                @endif
             </div>
         </div>
 
@@ -76,14 +99,36 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
                             @php
                                 $importeLinea = ($c['importe'] ?? 0) - ($c['descuento'] ?? 0);
                                 $ivaLinea = collect($c['impuestos'] ?? [])->sum('importe');
+                            $noIdent = trim((string) ($c['no_identificacion'] ?? ''));
+                            $productoPorProveedorCodigo = null;
+                            if ($proveedor && $noIdent !== '' && !empty($productoProveedorMap[strtoupper($noIdent)] ?? null)) {
+                                $productoPorProveedorCodigo = $productoProveedorMap[strtoupper($noIdent)] ?? null;
+                            }
+                            $productoLinea = $productosPorLinea[$i] ?? null;
+                            $productoVinculado = $productoPorProveedorCodigo ?? $productoLinea;
                             @endphp
                             <tr data-row="{{ $i }}">
                                 <td>
+                                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;">
                                     <div style="display:flex;align-items:center;gap:6px;">
                                         <button type="button" class="btn btn-outline btn-sm btn-icon" title="Seleccionar producto" onclick="abrirModalProducto({{ $i }})">🔍</button>
                                         <input type="hidden" name="productos[{{ $i }}][concepto_index]" value="{{ $i }}">
-                                        <input type="hidden" name="productos[{{ $i }}][producto_id]" id="producto_id_{{ $i }}" value="">
-                                        <span id="codigo_display_{{ $i }}" class="text-mono" style="font-size:13px;">—</span>
+                                        <input type="hidden" name="productos[{{ $i }}][no_identificacion]" id="no_identificacion_{{ $i }}" value="{{ $noIdent }}">
+                                    <input type="hidden" name="productos[{{ $i }}][producto_id]" id="producto_id_{{ $i }}"
+                                           value="{{ $productoVinculado?->id ?? '' }}">
+                                    <span id="codigo_display_{{ $i }}" class="text-mono" style="font-size:13px;">
+                                        @if($productoVinculado)
+                                            {{ $noIdent !== '' ? $noIdent : $productoVinculado->codigo }}
+                                        @else
+                                            no existe producto
+                                        @endif
+                                    </span>
+                                    </div>
+                                    @if(!$productoVinculado && $proveedor)
+                                        <button type="button" class="btn btn-sm btn-outline" style="font-weight:700;" title="Crear producto desde esta partida del CFDI" onclick="solicitarCrearProductoLineaCfdi({{ $i }})">➕ Agregar</button>
+                                    @elseif(!$productoVinculado && !$proveedor)
+                                        <span class="text-muted small">Cree el proveedor para usar ➕ Agregar</span>
+                                    @endif
                                     </div>
                                 </td>
                                 <td>{{ $c['descripcion'] ?? '—' }}</td>
@@ -126,6 +171,12 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
 
 </form>
 
+<form id="formCrearProductoLineaCfdi" method="POST" action="{{ route('compras.crear-desde-cfdi.crear-producto-linea') }}" style="display:none;">
+    @csrf
+    <input type="hidden" name="proveedor_id" id="crear_linea_proveedor_id" value="">
+    <input type="hidden" name="concepto_index" id="crear_linea_concepto_index" value="">
+</form>
+
 {{-- Modal seleccionar producto --}}
 <div id="modalProducto" class="modal">
     <div class="modal-box" style="max-width:520px;">
@@ -144,12 +195,99 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
     </div>
 </div>
 
+{{-- Modal agregar proveedor desde CFDI --}}
+<div id="modalAgregarProveedorCfdi" class="modal">
+    <div class="modal-box" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-title" style="color: var(--color-primary);">⚠️ no existe proveedor</div>
+            <button type="button" class="modal-close" onclick="cerrarModalAgregarProveedorCfdi()">✕</button>
+        </div>
+        <form method="POST" action="{{ route('compras.crear-desde-cfdi.agregar-proveedor') }}" id="formAgregarProveedorCfdi">
+            @csrf
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom:16px;">
+                    no existe proveedor deseas agregarlo ?
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Nombre / Razón Social <span class="req">*</span></label>
+                    <input type="text" name="nombre" class="form-control" required value="{{ $datos['nombre_emisor'] ?? '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">RFC <span class="req">*</span></label>
+                    <input type="text" name="rfc" class="form-control text-mono" required value="{{ $datos['rfc_emisor'] ?? '' }}" maxlength="13" style="text-transform:uppercase;">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Días de crédito</label>
+                    <input type="number" name="dias_credito" class="form-control" min="0" value="0">
+                    <span class="form-hint">Si indica días y el pago es <strong>PPD</strong>, se generará cuenta por pagar.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="cerrarModalAgregarProveedorCfdi()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Sí, agregar proveedor</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal crear productos desde CFDI --}}
+<div id="modalCrearProductosCfdi" class="modal">
+    <div class="modal-box" style="max-width:560px;">
+        <div class="modal-header">
+            <div class="modal-title">⚠️ Crear productos</div>
+            <button type="button" class="modal-close" onclick="cerrarModalCrearProductosCfdi()">✕</button>
+        </div>
+        <form method="POST" action="{{ route('compras.crear-desde-cfdi.crear-productos') }}" id="formCrearProductosCfdi">
+            @csrf
+            <input type="hidden" name="proveedor_id" id="crear_productos_proveedor_id" value="{{ $proveedor?->id ?? '' }}">
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom:16px;">
+                    No se pudo relacionar producto ya que no existe código de proveedor relacionado al producto.<br>
+                    Verifica si el producto existe y está relacionado con la lupita. Si no existe deseas crear el producto?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="cerrarModalCrearProductosCfdi()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Sí, crear productos</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal crear producto desde una sola partida del CFDI (➕ Agregar) --}}
+<div id="modalCrearProductoLineaCfdi" class="modal">
+    <div class="modal-box" style="max-width:560px;">
+        <div class="modal-header">
+            <div class="modal-title">⚠️ Crear productos</div>
+            <button type="button" class="modal-close" onclick="cerrarModalCrearProductoLineaCfdi()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom:16px;">
+                No se pudo relacionar producto ya que no existe código de proveedor relacionado al producto.<br>
+                Verifica si el producto existe y está relacionado con la lupita. Si no existe deseas crear el producto?
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="cerrarModalCrearProductoLineaCfdi()">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="confirmarCrearProductoLineaCfdi()">Sí, crear producto</button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 (function() {
     const listarUrl = '{{ route("compras.buscar-productos") }}';
+    const urlVerificarSimilitud = '{{ route("compras.crear-desde-cfdi.verificar-similitud-descripcion") }}';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    window.CFDI_DESCRIPCION_POR_INDICE = @json($descripcionPorIndiceLineaCfdi ?? []);
+    window.CFDI_DESCRIPCIONES_CON_NOIDENT = @json($descripcionesConNoIdentCfdi ?? []);
     let filaActual = null;
     let timerModal = null;
+    window.CFDI_IDX_LINEA_A_CREAR = null;
 
     window.abrirModalProducto = function(rowIndex) {
         filaActual = rowIndex;
@@ -163,6 +301,102 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
         document.getElementById('modalProducto').classList.remove('show');
         filaActual = null;
     };
+
+    window.solicitarCrearProductoLineaCfdi = function(idx) {
+        var pid = document.getElementById('proveedor_id').value;
+        if (!pid || String(pid).trim() === '') {
+            alert('Indique o cree el proveedor primero.');
+            return;
+        }
+        window.CFDI_IDX_LINEA_A_CREAR = idx;
+        document.getElementById('modalCrearProductoLineaCfdi').classList.add('show');
+    };
+
+    window.cerrarModalAgregarProveedorCfdi = function() {
+        document.getElementById('modalAgregarProveedorCfdi').classList.remove('show');
+    };
+
+    window.cerrarModalCrearProductosCfdi = function() {
+        document.getElementById('modalCrearProductosCfdi').classList.remove('show');
+    };
+
+    window.cerrarModalCrearProductoLineaCfdi = function() {
+        document.getElementById('modalCrearProductoLineaCfdi').classList.remove('show');
+        window.CFDI_IDX_LINEA_A_CREAR = null;
+    };
+
+    window.confirmarCrearProductoLineaCfdi = function() {
+        var idx = window.CFDI_IDX_LINEA_A_CREAR;
+        if (idx === null || idx === undefined) return;
+        var pid = document.getElementById('proveedor_id').value;
+        if (!pid || String(pid).trim() === '') {
+            alert('Indique o cree el proveedor primero.');
+            return;
+        }
+
+        var map = window.CFDI_DESCRIPCION_POR_INDICE || {};
+        var desc = (map[idx] !== undefined && map[idx] !== null) ? map[idx] : map[String(idx)];
+        if (desc === undefined || desc === null) {
+            desc = '';
+        }
+
+        fetch(urlVerificarSimilitud, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ descripcion: String(desc) })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.similar && data.message) {
+                    alert(data.message);
+                    return;
+                }
+                document.getElementById('crear_linea_proveedor_id').value = pid;
+                document.getElementById('crear_linea_concepto_index').value = idx;
+                document.getElementById('modalCrearProductoLineaCfdi').classList.remove('show');
+                document.getElementById('formCrearProductoLineaCfdi').submit();
+            })
+            .catch(function() {
+                alert('No se pudo verificar similitud con el catálogo. Intente de nuevo.');
+            });
+    };
+
+    document.getElementById('formCrearProductosCfdi').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var proveedorId = document.getElementById('proveedor_id').value;
+        if (!proveedorId || String(proveedorId).trim() === '') {
+            alert('Indique o cree el proveedor primero.');
+            return;
+        }
+        document.getElementById('crear_productos_proveedor_id').value = proveedorId;
+        var list = window.CFDI_DESCRIPCIONES_CON_NOIDENT || [];
+        fetch(urlVerificarSimilitud, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ descripciones: list })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.similar && data.message) {
+                    alert(data.message);
+                    return;
+                }
+                document.getElementById('formCrearProductosCfdi').submit();
+            })
+            .catch(function() {
+                alert('No se pudo verificar similitud con el catálogo. Intente de nuevo.');
+            });
+    });
 
     document.getElementById('modalBuscarProducto').addEventListener('input', function() {
         clearTimeout(timerModal);
@@ -192,7 +426,8 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
                             const codigo = this.getAttribute('data-codigo');
                             if (filaActual !== null) {
                                 document.getElementById('producto_id_' + filaActual).value = id;
-                                document.getElementById('codigo_display_' + filaActual).textContent = codigo || id;
+                                    const noIdent = document.getElementById('no_identificacion_' + filaActual)?.value || '';
+                                    document.getElementById('codigo_display_' + filaActual).textContent = noIdent || codigo || id;
                             }
                             cerrarModalProducto();
                         });
@@ -204,11 +439,63 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
         }, 280);
     });
 
+    // Interceptar el guardado para mostrar modales cuando falte proveedor o productos.
     document.getElementById('formCfdiCompra').addEventListener('submit', function(e) {
-        if (!document.getElementById('proveedor_id').value) {
+        var proveedorId = document.getElementById('proveedor_id').value;
+        if (!proveedorId) {
             e.preventDefault();
-            alert('Seleccione un proveedor.');
+            document.getElementById('modalAgregarProveedorCfdi').classList.add('show');
             return;
+        }
+
+        var formEl = document.getElementById('formCfdiCompra');
+        var indices = [];
+        try {
+            indices = JSON.parse(formEl.getAttribute('data-cfdi-concepto-indices') || '[]');
+        } catch (err) {
+            indices = [];
+        }
+        if (!indices.length) {
+            formEl.querySelectorAll('input[name*="[producto_id]"]').forEach(function(inp) {
+                var m = (inp.name || '').match(/productos\[([^\]]+)\]\[producto_id\]/);
+                if (m && indices.indexOf(m[1]) === -1) indices.push(m[1]);
+            });
+        }
+
+        var faltaProducto = false;
+        var faltaProductoConNoIdent = false;
+        var faltaProductoSinNoIdent = false;
+
+        indices.forEach(function(idx) {
+            var inp = document.getElementById('producto_id_' + idx);
+            if (!inp) return;
+            var v = String(inp.value || '').trim();
+            if (v === '') faltaProducto = true;
+        });
+
+        if (faltaProducto) {
+            e.preventDefault();
+            indices.forEach(function(idx) {
+                var inp = document.getElementById('producto_id_' + idx);
+                if (!inp || String(inp.value || '').trim() !== '') return;
+                var noIdentInput = document.getElementById('no_identificacion_' + idx);
+                var noIdent = noIdentInput ? String(noIdentInput.value || '').trim() : '';
+                if (noIdent) faltaProductoConNoIdent = true;
+                else faltaProductoSinNoIdent = true;
+            });
+
+            if (faltaProductoSinNoIdent && !faltaProductoConNoIdent) {
+                alert('Hay líneas sin NoIdentificacion en el CFDI. Selecciona el producto manualmente con la lupa en el detalle.');
+                return;
+            }
+
+            if (faltaProductoConNoIdent) {
+                document.getElementById('crear_productos_proveedor_id').value = proveedorId;
+                document.getElementById('modalCrearProductosCfdi').classList.add('show');
+                return;
+            }
+
+            alert('Faltan productos por vincular. Usa la lupa en el detalle o completa la relación.');
         }
     });
 

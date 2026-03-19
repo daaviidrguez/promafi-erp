@@ -88,7 +88,14 @@ $breadcrumbs = [
                         @foreach($cotizacion->detalles as $d)
                         <tr>
                             <td>
-                                <span class="producto-row-code">{{ $d->codigo === 'MANUAL' ? '—' : ($d->codigo ?? '—') }}</span>
+                                @if($cotizacion->puedeFacturarse())
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button" class="btn btn-outline btn-sm btn-icon" title="Asignar producto" onclick="abrirModalAsignarProducto({{ $d->id }})">🔍</button>
+                                        <span class="producto-row-code">{{ $d->codigo === 'MANUAL' ? '—' : ($d->codigo ?? '—') }}</span>
+                                    </div>
+                                @else
+                                    <span class="producto-row-code">{{ $d->codigo === 'MANUAL' ? '—' : ($d->codigo ?? '—') }}</span>
+                                @endif
                             </td>
                             <td>
                                 <div class="fw-600">{{ $d->descripcion }}</div>
@@ -288,14 +295,10 @@ $breadcrumbs = [
                 </form>
                 @endif
 
-                @if($cotizacion->puedeFacturarse() && $cotizacion->tienePartidasManuales())
-                <form method="POST" action="{{ route('cotizaciones.crear-productos-manuales', $cotizacion->id) }}">
-                    @csrf
-                    <button type="submit" class="btn btn-outline w-full"
-                            onclick="return confirm('¿Crear productos en el catálogo a partir de las partidas manuales? Se usará descripción, unidad y precio unitario.')">
-                        📦 Crear producto(s)
+                @if($cotizacion->puedeFacturarse())
+                    <button type="button" class="btn btn-outline w-full" onclick="document.getElementById('modalAsignarProductosCotizacion').classList.add('show')">
+                        📦 Asignar producto(s)
                     </button>
-                </form>
                 @endif
 
                 @if($cotizacion->puedeFacturarse())
@@ -323,5 +326,125 @@ $breadcrumbs = [
 
     </div>
 </div>
+
+{{-- Modal: Asignar productos (instrucciones) --}}
+<div id="modalAsignarProductosCotizacion" class="modal">
+    <div class="modal-box" style="max-width:560px;">
+        <div class="modal-header">
+            <div class="modal-title">📦 Asignar producto(s)</div>
+            <button type="button" class="modal-close" onclick="document.getElementById('modalAsignarProductosCotizacion').classList.remove('show')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom:8px;">
+                Debe seleccionar la <strong>lupita</strong> en las partidas para asignar un producto del catálogo.
+            </p>
+            <p class="text-muted" style="margin-bottom:0;">
+                Cuando todas las partidas tengan producto asignado y exista stock (si aplica), se habilitará <strong>Convertir a factura</strong>.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('modalAsignarProductosCotizacion').classList.remove('show')">Entendido</button>
+        </div>
+    </div>
+</div>
+
+{{-- Modal: Buscar y asignar producto a una partida --}}
+<div id="modalAsignarProductoCotizacion" class="modal">
+    <div class="modal-box" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-title">Asignar producto</div>
+            <button type="button" class="modal-close" onclick="cerrarModalAsignarProducto()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" id="modalBuscarProductoCot" placeholder="Buscar por código o nombre..." class="form-control" autocomplete="off">
+            </div>
+            <div id="modalProductoListaCot" class="table-container" style="max-height:280px;overflow-y:auto;">
+                <p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function() {
+    const listarUrl = '{{ route("cotizaciones.buscar-productos") }}';
+    const asignarUrlTpl = '{{ route("cotizaciones.detalles.asignar-producto", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    let detalleActual = null;
+    let timer = null;
+
+    window.abrirModalAsignarProducto = function(detalleId) {
+        detalleActual = detalleId;
+        document.getElementById('modalAsignarProductoCotizacion').classList.add('show');
+        document.getElementById('modalBuscarProductoCot').value = '';
+        document.getElementById('modalBuscarProductoCot').focus();
+        document.getElementById('modalProductoListaCot').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+    };
+
+    window.cerrarModalAsignarProducto = function() {
+        document.getElementById('modalAsignarProductoCotizacion').classList.remove('show');
+        detalleActual = null;
+    };
+
+    document.getElementById('modalBuscarProductoCot').addEventListener('input', function() {
+        clearTimeout(timer);
+        const q = this.value.trim();
+        if (q.length < 2) {
+            document.getElementById('modalProductoListaCot').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+            return;
+        }
+        timer = setTimeout(function() {
+            fetch(listarUrl + '?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(function(list) {
+                    const productos = (list || []).filter(x => x.tipo === 'producto');
+                    const div = document.getElementById('modalProductoListaCot');
+                    if (!productos.length) {
+                        div.innerHTML = '<p class="text-muted text-center py-3">Sin resultados.</p>';
+                        return;
+                    }
+                    div.innerHTML = '<table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead><tbody>' +
+                        productos.map(function(p) {
+                            const codigo = (p.codigo || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            const nombre = (p.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            return '<tr><td class="text-mono">' + codigo + '</td><td>' + nombre + '</td><td><button type="button" class="btn btn-primary btn-sm" data-id="' + p.id + '">Asignar</button></td></tr>';
+                        }).join('') + '</tbody></table>';
+                    div.querySelectorAll('button[data-id]').forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            const productoId = this.getAttribute('data-id');
+                            if (!detalleActual) return;
+                            const url = asignarUrlTpl.replace('__DETALLE__', String(detalleActual));
+                            fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': csrfToken,
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                body: JSON.stringify({ producto_id: productoId })
+                            })
+                                .then(r => r.json())
+                                .then(function(resp) {
+                                    if (!resp || resp.success !== true) {
+                                        alert(resp && resp.message ? resp.message : 'No se pudo asignar el producto.');
+                                        return;
+                                    }
+                                    window.location.reload();
+                                })
+                                .catch(function() { alert('No se pudo asignar el producto.'); });
+                        });
+                    });
+                })
+                .catch(function() {
+                    document.getElementById('modalProductoListaCot').innerHTML = '<p class="text-danger text-center py-3">Error al buscar.</p>';
+                });
+        }, 280);
+    });
+})();
+</script>
+@endpush
 
 @endsection

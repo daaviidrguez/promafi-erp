@@ -29,6 +29,34 @@ $breadcrumbs = [
                     @if($compra->uuid)
                     <div class="info-row"><div class="info-label">UUID</div><div class="info-value text-mono" style="font-size:12px;">{{ $compra->uuid }}</div></div>
                     @endif
+                    @php
+                        $usoCfdiEtiqueta = $usoCfdi
+                            ? (optional(\App\Models\UsoCfdi::where('clave', $usoCfdi)->first())->etiqueta ?? null)
+                            : null;
+                    @endphp
+                    <div class="info-row">
+                        <div class="info-label">Uso del CFDI</div>
+                        <div class="info-value">
+                            @if($usoCfdi)
+                                @php
+                                    $et = $usoCfdiEtiqueta ? trim((string) $usoCfdiEtiqueta) : '';
+                                    $clave = trim((string) $usoCfdi);
+                                    $etUpper = mb_strtoupper($et);
+                                    $claveUpper = mb_strtoupper($clave);
+                                    $etiquetaIncluyeClave = $et !== '' && str_starts_with($etUpper, $claveUpper);
+                                @endphp
+                                @if($etiquetaIncluyeClave)
+                                    {{ $et }}
+                                @elseif($et !== '')
+                                    {{ $clave }} - {{ $et }}
+                                @else
+                                    {{ $clave }}
+                                @endif
+                            @else
+                                —
+                            @endif
+                        </div>
+                    </div>
                     @if($compra->forma_pago)
                     <div class="info-row"><div class="info-label">Forma de pago</div><div class="info-value">{{ optional(\App\Models\FormaPago::where('clave', $compra->forma_pago)->first())->etiqueta ?? $compra->forma_pago }}</div></div>
                     @endif

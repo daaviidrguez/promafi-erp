@@ -31,7 +31,7 @@ $breadcrumbs = [
                         <div class="form-group">
                             <label class="form-label">Código <span class="req">*</span></label>
                             <input type="text" id="codigo" name="codigo" class="form-control text-mono"
-                                   value="{{ old('codigo') }}" required style="text-transform: uppercase;">
+                                   value="{{ old('codigo', $codigoConsecutivo ?? '') }}" required style="text-transform: uppercase;">
                             @error('codigo')
                                 <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
                             @enderror
@@ -227,6 +227,12 @@ $breadcrumbs = [
 
 @push('scripts')
 <script>
+    @if($errors->has('codigo'))
+        window.addEventListener('load', function() {
+            alert(@json($errors->first('codigo')));
+        });
+    @endif
+
     document.getElementById('codigo').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });

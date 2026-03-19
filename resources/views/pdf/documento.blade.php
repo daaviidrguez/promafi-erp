@@ -239,6 +239,10 @@ body {
             <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Nota de Crédito</div>
             @elseif($esComplemento)
             <div style="font-size:10.5pt; font-weight:bold;">CFDI 4.0 - Complemento de Pago</div>
+            @elseif($esCotizacionCompra ?? false)
+            <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
+                COTIZACIÓN DE COMPRA
+            </div>
             @elseif($esOrdenCompra ?? false)
             <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
                 ORDEN DE COMPRA
@@ -281,6 +285,8 @@ body {
     @include('pdf.partials.factura-cfdi')
 @elseif($esComplemento)
     @include('pdf.partials.complemento-pago')
+@elseif($esCotizacionCompra ?? false)
+    @include('pdf.partials.cotizacion-compra')
 @elseif($esOrdenCompra ?? false)
     @include('pdf.partials.orden-compra')
 @elseif($esFacturaCompra ?? false)
@@ -456,6 +462,13 @@ body {
         Gracias por su preferencia<br>
         <strong>{{ $empresa->razon_social ?? '' }}</strong><br>
         RFC: {{ $empresa->rfc ?? '' }} | {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}
+    </div>
+
+@elseif($esCotizacionCompra ?? false)
+{{-- FOOTER COTIZACIÓN DE COMPRA: sin datos bancarios ni sello --}}
+    <div style="text-align: center; margin-top: 8px; padding-top: 8px; font-size: 8pt; line-height: 1.5;">
+        Documento generado por {{ $empresa->razon_social ?? '' }}<br>
+        RFC: {{ $empresa->rfc ?? '' }}
     </div>
 
 @else

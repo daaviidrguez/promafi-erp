@@ -254,6 +254,12 @@ $breadcrumbs = [
 
 @push('scripts')
 <script>
+    @if($errors->has('codigo'))
+        window.addEventListener('load', function() {
+            alert(@json($errors->first('codigo')));
+        });
+    @endif
+
     document.getElementById('codigo').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });

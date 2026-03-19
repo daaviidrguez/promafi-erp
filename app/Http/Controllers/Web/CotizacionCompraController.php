@@ -10,6 +10,7 @@ use App\Models\OrdenCompraDetalle;
 use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Empresa;
+use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -218,6 +219,31 @@ class CotizacionCompraController extends Controller
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'rfc', 'dias_credito']);
         return response()->json($list);
+    }
+
+    public function verPDF(CotizacionCompra $cotizacionCompra)
+    {
+        try {
+            $cotizacionCompra->load(['detalles.producto', 'proveedor', 'empresa', 'usuario']);
+            $pdfPath = app(PDFService::class)->generarCotizacionCompraPDF($cotizacionCompra);
+            return response()->file(storage_path('app/' . $pdfPath));
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error al generar PDF: ' . $e->getMessage());
+        }
+    }
+
+    public function descargarPDF(CotizacionCompra $cotizacionCompra)
+    {
+        try {
+            $cotizacionCompra->load(['detalles.producto', 'proveedor', 'empresa', 'usuario']);
+            $pdfPath = app(PDFService::class)->generarCotizacionCompraPDF($cotizacionCompra);
+            return response()->download(
+                storage_path('app/' . $pdfPath),
+                'CotizacionCompra_' . $cotizacionCompra->folio . '.pdf'
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error al descargar PDF: ' . $e->getMessage());
+        }
     }
 
     public function buscarProductos(Request $request)

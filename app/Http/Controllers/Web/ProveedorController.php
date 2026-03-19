@@ -47,6 +47,8 @@ class ProveedorController extends Controller
         $proveedor->load([
             'ordenesCompra' => fn ($q) => $q->latest()->limit(10),
             'cuentasPorPagar',
+            'productoProveedores' => fn ($q) => $q->orderByDesc('created_at'),
+            'productoProveedores.producto',
         ]);
         $estadisticas = [
             'total_ordenes' => $proveedor->ordenesCompra()->count(),

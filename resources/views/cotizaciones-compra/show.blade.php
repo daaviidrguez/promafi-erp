@@ -90,6 +90,13 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">Acciones</div></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+                @if(in_array($cotizacionCompra->estado, ['borrador', 'aprobada'], true))
+                    <a href="{{ route('cotizaciones-compra.ver-pdf', $cotizacionCompra->id) }}"
+                       target="_blank" class="btn btn-outline w-full">👁️ Ver PDF</a>
+
+                    <a href="{{ route('cotizaciones-compra.descargar-pdf', $cotizacionCompra->id) }}"
+                       class="btn btn-outline w-full">📄 Descargar PDF</a>
+                @endif
                 @if($cotizacionCompra->estado === 'borrador')
                 <form method="POST" action="{{ route('cotizaciones-compra.aprobar', $cotizacionCompra->id) }}" style="margin:0;">
                     @csrf

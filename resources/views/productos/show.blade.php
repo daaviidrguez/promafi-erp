@@ -52,6 +52,74 @@ $breadcrumbs = [
             </div>
         </div>
 
+        {{-- Código de proveedor --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📦 Código Proveedor</div>
+                <button type="button"
+                        class="btn btn-primary btn-sm"
+                        onclick="abrirModalCodigoProveedorNuevo()">
+                    ➕ Nuevo
+                </button>
+            </div>
+            <div class="card-body">
+                @if($producto->codigosProveedores->count())
+                    <div class="table-container" style="border:none; box-shadow:none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Proveedor</th>
+                                    <th>Código</th>
+                                    <th class="td-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($producto->codigosProveedores as $cp)
+                                    <tr>
+                                        <td>
+                                            {{ $cp->proveedor->nombre_comercial ?: $cp->proveedor->nombre }}
+                                            @if($cp->proveedor->codigo)
+                                                <span class="text-muted" style="font-size: 12px; margin-left: 6px;">({{ $cp->proveedor->codigo }})</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-mono fw-600">{{ $cp->codigo }}</td>
+                                        <td class="td-center">
+                                            <button type="button"
+                                                    class="btn btn-light btn-sm"
+                                                    onclick="abrirModalCodigoProveedorEditar(this)"
+                                                    data-id="{{ $cp->id }}"
+                                                    data-proveedor-id="{{ $cp->proveedor_id }}"
+                                                    data-codigo="{{ $cp->codigo }}">
+                                                ✏️
+                                            </button>
+                                            <form method="POST"
+                                                  action="{{ route('productos.proveedores-codigo.destroy', [$producto->id, $cp->id]) }}"
+                                                  style="display:inline;">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit"
+                                                        class="btn btn-danger btn-sm"
+                                                        onclick="return confirm('¿Eliminar este código de proveedor?');"
+                                                        title="Eliminar">
+                                                    🗑️
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📦</div>
+                        <div class="empty-state-title">Sin códigos de proveedor</div>
+                        <div class="empty-state-text">Agrega el código del producto para cada proveedor.</div>
+                    </div>
+                @endif
+            </div>
+        </div>
+
         {{-- Datos Fiscales --}}
         <div class="card">
             <div class="card-header">
@@ -247,5 +315,106 @@ $breadcrumbs = [
 
     </div>
 </div>
+
+{{-- Modal Código de Proveedor --}}
+<div id="modalCodigoProveedor" class="modal">
+    <div class="modal-box" style="max-width: 560px;">
+        <div class="modal-header">
+            <div class="modal-title" id="modalCodigoProveedorTitulo">➕ Nuevo Código de Proveedor</div>
+            <button class="modal-close" onclick="cerrarModalCodigoProveedor()">✕</button>
+        </div>
+
+        <form method="POST" action="{{ route('productos.proveedores-codigo.save', $producto->id) }}" id="formCodigoProveedor">
+            @csrf
+            <input type="hidden" name="producto_proveedor_id" id="pp_producto_proveedor_id" value="">
+            <input type="hidden" name="proveedor_id" id="pp_proveedor_id" value="">
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Código <span class="req">*</span></label>
+                    <input type="text" name="codigo" id="pp_codigo" class="form-control" required>
+                </div>
+
+                <div class="form-group" style="margin-top: 12px;">
+                    <label class="form-label">Proveedor <span class="req">*</span></label>
+                    <select id="pp_proveedor_select" class="form-control" required>
+                        @foreach($proveedores as $prov)
+                            <option value="{{ $prov->id }}">{{ $prov->nombre_comercial ?: $prov->nombre }} ({{ $prov->codigo ?? '—' }})</option>
+                        @endforeach
+                    </select>
+                    <p class="form-hint" id="pp_proveedor_hint" style="margin: 8px 0 0; color: var(--color-gray-600);">
+                        Selecciona el proveedor del catálogo.
+                    </p>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="cerrarModalCodigoProveedor()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">✓ Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    var modal = document.getElementById('modalCodigoProveedor');
+    var titulo = document.getElementById('modalCodigoProveedorTitulo');
+    var ppId = document.getElementById('pp_producto_proveedor_id');
+    var ppCodigo = document.getElementById('pp_codigo');
+    var ppProveedorHidden = document.getElementById('pp_proveedor_id');
+    var ppProveedorSelect = document.getElementById('pp_proveedor_select');
+    var ppProveedorHint = document.getElementById('pp_proveedor_hint');
+
+    function setProveedorSeleccionado(id) {
+        ppProveedorSelect.value = String(id ?? '');
+        ppProveedorHidden.value = String(id ?? '');
+    }
+
+    window.abrirModalCodigoProveedorNuevo = function() {
+        ppId.value = '';
+        ppCodigo.value = '';
+        titulo.textContent = '➕ Nuevo Código de Proveedor';
+        ppProveedorSelect.disabled = false;
+        ppProveedorHint.textContent = 'Selecciona el proveedor del catálogo.';
+
+        // Predeterminar al primer proveedor si existe.
+        var first = ppProveedorSelect.options[0];
+        if (first) {
+            setProveedorSeleccionado(first.value);
+        } else {
+            ppProveedorHidden.value = '';
+        }
+
+        modal.classList.add('show');
+    };
+
+    window.abrirModalCodigoProveedorEditar = function(btn) {
+        ppId.value = btn.dataset.id || '';
+        ppCodigo.value = btn.dataset.codigo || '';
+
+        var provId = btn.dataset.proveedorId || '';
+        titulo.textContent = '✏️ Editar Código de Proveedor';
+
+        // En edición asumimos que solo cambia el código (no el proveedor).
+        ppProveedorSelect.disabled = true;
+        ppProveedorHint.textContent = 'El proveedor está bloqueado en edición (solo cambia el código).';
+
+        setProveedorSeleccionado(provId);
+        modal.classList.add('show');
+    };
+
+    window.cerrarModalCodigoProveedor = function() {
+        modal.classList.remove('show');
+    };
+
+    // Cuando el usuario cambia el proveedor en modo "Nuevo", sincronizamos el hidden.
+    ppProveedorSelect.addEventListener('change', function() {
+        if (!ppProveedorSelect.disabled) {
+            ppProveedorHidden.value = ppProveedorSelect.value;
+        }
+    });
+})();
+</script>
 
 @endsection

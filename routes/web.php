@@ -14,6 +14,7 @@ use App\Http\Controllers\Web\CotizacionController;
 use App\Http\Controllers\Web\ClienteController;
 use App\Http\Controllers\Web\ClienteContactoController;
 use App\Http\Controllers\Web\ProductoController;
+use App\Http\Controllers\Web\ProductoProveedorController;
 use App\Http\Controllers\Web\CategoriaProductoController;
 use App\Http\Controllers\Web\FacturaController;
 use App\Http\Controllers\Web\CuentaPorCobrarController;
@@ -119,6 +120,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/cotizaciones/{cotizacion}/enviar', [CotizacionController::class, 'enviar'])->name('cotizaciones.enviar');
     Route::post('/cotizaciones/{cotizacion}/convertir-factura', [CotizacionController::class, 'convertirFactura'])->name('cotizaciones.convertir-factura');
     Route::post('/cotizaciones/{cotizacion}/crear-productos-manuales', [CotizacionController::class, 'crearProductosDesdeManuales'])->name('cotizaciones.crear-productos-manuales');
+    Route::post('/cotizaciones/{cotizacion}/detalles/{detalle}/asignar-producto', [CotizacionController::class, 'asignarProductoDetalle'])
+        ->name('cotizaciones.detalles.asignar-producto');
     
     // PDFs
     Route::get('/cotizaciones/{cotizacion}/generar-pdf', [CotizacionController::class, 'generarPDF'])->name('cotizaciones.generar-pdf');
@@ -136,6 +139,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/cotizaciones-compra/{cotizacionCompra}', [CotizacionCompraController::class, 'show'])->name('cotizaciones-compra.show');
     Route::post('/cotizaciones-compra/{cotizacionCompra}/aprobar', [CotizacionCompraController::class, 'aprobar'])->name('cotizaciones-compra.aprobar');
     Route::post('/cotizaciones-compra/{cotizacionCompra}/generar-orden', [CotizacionCompraController::class, 'generarOrdenCompra'])->name('cotizaciones-compra.generar-orden');
+    Route::get('/cotizaciones-compra/{cotizacionCompra}/ver-pdf', [CotizacionCompraController::class, 'verPDF'])->name('cotizaciones-compra.ver-pdf');
+    Route::get('/cotizaciones-compra/{cotizacionCompra}/descargar-pdf', [CotizacionCompraController::class, 'descargarPDF'])->name('cotizaciones-compra.descargar-pdf');
 
     // ========================================
     // ÓRDENES DE COMPRA
@@ -159,6 +164,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::match(['get', 'post'], '/compras/subir-cfdi', [CompraController::class, 'uploadCfdi'])->name('compras.upload-cfdi');
     Route::get('/compras/crear-desde-cfdi', [CompraController::class, 'crearDesdeCfdi'])->name('compras.crear-desde-cfdi');
     Route::post('/compras/guardar-desde-cfdi', [CompraController::class, 'storeDesdeCfdi'])->name('compras.store-desde-cfdi');
+    Route::post('/compras/crear-desde-cfdi/agregar-proveedor', [CompraController::class, 'agregarProveedorDesdeCfdi'])->name('compras.crear-desde-cfdi.agregar-proveedor');
+    Route::post('/compras/crear-desde-cfdi/crear-productos', [CompraController::class, 'crearProductosDesdeCfdi'])->name('compras.crear-desde-cfdi.crear-productos');
+    Route::post('/compras/crear-desde-cfdi/crear-producto-linea', [CompraController::class, 'crearProductoLineaDesdeCfdi'])->name('compras.crear-desde-cfdi.crear-producto-linea');
+    Route::post('/compras/crear-desde-cfdi/verificar-similitud-descripcion', [CompraController::class, 'verificarSimilitudDescripcionCfdi'])->name('compras.crear-desde-cfdi.verificar-similitud-descripcion');
     Route::get('/compras/buscar-proveedores', [CompraController::class, 'buscarProveedores'])->name('compras.buscar-proveedores');
     Route::get('/compras/buscar-productos', [CompraController::class, 'buscarProductos'])->name('compras.buscar-productos');
     Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
@@ -207,6 +216,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── PRODUCTOS ───── ✅
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
     Route::resource('productos', ProductoController::class);
+    Route::post('/productos/{producto}/proveedores-codigo', [ProductoProveedorController::class, 'save'])->name('productos.proveedores-codigo.save');
+    Route::delete('/productos/{producto}/proveedores-codigo/{productoProveedor}', [ProductoProveedorController::class, 'destroy'])
+        ->name('productos.proveedores-codigo.destroy');
 
     // ───── CATEGORIAS ───── ✅
     Route::resource('categorias', CategoriaProductoController::class);

@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\CotizacionEnviada;
+use Illuminate\Http\JsonResponse;
 
 class CotizacionController extends Controller
 {
@@ -658,6 +659,42 @@ class CotizacionController extends Controller
             DB::rollBack();
             return back()->with('error', 'Error al convertir: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Asignar un producto del catálogo a una partida de la cotización (lupita en show).
+     */
+    public function asignarProductoDetalle(Request $request, $cotizacion, CotizacionDetalle $detalle): JsonResponse
+    {
+        $cotizacion = Cotizacion::with(['detalles', 'detalles.producto'])->findOrFail($cotizacion);
+        $this->authorizeCotizacion($cotizacion);
+
+        if (!$cotizacion->puedeFacturarse()) {
+            return response()->json(['success' => false, 'message' => 'La cotización debe estar aceptada o enviada.'], 422);
+        }
+
+        if ((int) $detalle->cotizacion_id !== (int) $cotizacion->id) {
+            return response()->json(['success' => false, 'message' => 'La partida no pertenece a la cotización.'], 422);
+        }
+
+        $validated = $request->validate([
+            'producto_id' => 'required|exists:productos,id',
+        ]);
+
+        $producto = Producto::where('activo', true)->findOrFail((int) $validated['producto_id']);
+
+        // Vinculamos producto + código; conservamos descripción y precio ya cotizados.
+        $detalle->update([
+            'producto_id' => $producto->id,
+            'codigo' => $producto->codigo,
+            'unidad' => $detalle->unidad ?? $producto->unidad ?? 'PZA',
+            'es_producto_manual' => false,
+            'tasa_iva' => $detalle->tasa_iva !== null
+                ? $detalle->tasa_iva
+                : ((($producto->tipo_factor ?? 'Tasa') === 'Exento') ? null : (float) ($producto->tasa_iva ?? 0.16)),
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     /**

@@ -93,8 +93,10 @@ class FacturaCompraCfdiService
         try {
             $proveedor = Proveedor::where('rfc', $datos['rfc_emisor'])->first();
 
+            $serie = $this->normalizarSerieFacturaCompra((string) ($datos['serie'] ?? ''));
+
             $fc = FacturaCompra::create([
-                'serie' => $datos['serie'] ?? null,
+                'serie' => $serie !== '' ? $serie : null,
                 'folio' => $datos['folio'] ?? '0',
                 'tipo_comprobante' => $tipoComprobante,
                 'estado' => 'registrada',
@@ -177,6 +179,30 @@ class FacturaCompraCfdiService
             DB::rollBack();
             return ['success' => false, 'factura_compra' => null, 'message' => 'Error al guardar: ' . $e->getMessage()];
         }
+    }
+
+    /**
+     * `facturas_compra.serie` es VARCHAR(5). Algunos CFDI traen "INV/2026/".
+     * Normalizamos para que quepa: tomamos el segmento inicial y truncamos.
+     */
+    private function normalizarSerieFacturaCompra(string $serie): string
+    {
+        $s = trim($serie);
+        if ($s === '') {
+            return '';
+        }
+
+        if (str_contains($s, '/')) {
+            $parts = array_filter(explode('/', $s), fn ($p) => trim((string) $p) !== '');
+            if (!empty($parts)) {
+                $s = (string) $parts[0];
+            }
+        }
+
+        $s = str_replace(['/', '\\'], '', $s);
+        $s = trim($s);
+
+        return mb_substr($s, 0, 5);
     }
 
     protected function normalizarXml(string $xml): string
@@ -373,6 +399,7 @@ class FacturaCompraCfdiService
             'rfc_receptor' => $receptor ? $e($receptor, 'Rfc') : '',
             'nombre_receptor' => $receptor ? $e($receptor, 'Nombre') : '',
             'regimen_fiscal_receptor' => $receptor ? $e($receptor, 'RegimenFiscalReceptor') : null,
+            'uso_cfdi' => $receptor ? $e($receptor, 'UsoCFDI') : null,
             'uuid' => $uuid,
             'fecha_timbrado' => $fechaTimbrado,
             'no_certificado_sat' => $noCertificadoSat,

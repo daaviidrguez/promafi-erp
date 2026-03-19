@@ -232,4 +232,12 @@ class Producto extends Model
               ->orWhere('clave_sat', 'like', "%{$search}%");
         });
     }
+
+    /**
+     * Códigos del producto para cada proveedor (catálogo del proveedor).
+     */
+    public function codigosProveedores()
+    {
+        return $this->hasMany(ProductoProveedor::class, 'producto_id');
+    }
 }

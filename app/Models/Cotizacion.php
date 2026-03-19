@@ -183,11 +183,19 @@ class Cotizacion extends Model
     }
 
     /**
-     * Si tiene al menos una partida manual
+     * Si tiene al menos una partida manual (histórico; se mantiene para UI/indicadores).
      */
     public function tienePartidasManuales(): bool
     {
         return $this->detalles()->where('es_producto_manual', true)->exists();
+    }
+
+    /**
+     * Partidas sin producto asignado (requiere asignación con lupita para facturar).
+     */
+    public function tienePartidasSinProductoAsignado(): bool
+    {
+        return $this->detalles()->whereNull('producto_id')->exists();
     }
 
     /**
@@ -199,14 +207,15 @@ class Cotizacion extends Model
         if (!$this->puedeFacturarse()) {
             return false;
         }
-        if ($this->tienePartidasManuales()) {
+        if ($this->tienePartidasSinProductoAsignado()) {
             return false;
         }
         foreach ($this->detalles as $d) {
-            if ($d->producto_id && $d->producto) {
-                if ($d->producto->controla_inventario && !$d->producto->tieneStock((float) $d->cantidad)) {
-                    return false;
-                }
+            if (!$d->producto_id || !$d->producto) {
+                return false;
+            }
+            if ($d->producto->controla_inventario && !$d->producto->tieneStock((float) $d->cantidad)) {
+                return false;
             }
         }
         return true;
@@ -220,8 +229,8 @@ class Cotizacion extends Model
         if (!$this->puedeFacturarse()) {
             return 'La cotización debe estar aceptada o enviada.';
         }
-        if ($this->tienePartidasManuales()) {
-            return 'Primero debe crear los productos desde las partidas manuales (botón «Crear producto(s)»).';
+        if ($this->tienePartidasSinProductoAsignado()) {
+            return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
         }
         $sinStock = [];
         foreach ($this->detalles as $d) {

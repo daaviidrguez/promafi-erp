@@ -9,13 +9,46 @@ use App\Models\Producto;
 use App\Models\CategoriaProducto;
 use App\Models\ClaveProdServicio;
 use App\Models\UnidadMedidaSat;
+use App\Models\Proveedor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductoController extends Controller
 {
     private const SESSION_SORT_KEY = 'productos_catalogo.sort';
 
     private const SESSION_DIR_KEY = 'productos_catalogo.dir';
+
+    private const SESSION_PSI_NEXT_NUM = 'productos_catalogo.psi_next_num';
+
+    private function obtenerSiguientePsiNumDesde(int $desde): int
+    {
+        $usados = Producto::withTrashed()
+            ->where('codigo', 'like', 'PSI-%')
+            ->pluck('codigo')
+            ->map(function ($codigo) {
+                if (!is_string($codigo)) {
+                    return null;
+                }
+                if (preg_match('/^PSI-(\d+)$/', $codigo, $m)) {
+                    return (int) $m[1];
+                }
+                return null;
+            })
+            ->filter(fn ($n) => $n !== null)
+            ->unique()
+            ->values()
+            ->all();
+
+        $set = array_flip($usados);
+
+        $n = max(1, $desde);
+        while (isset($set[$n])) {
+            $n++;
+        }
+
+        return $n;
+    }
 
     public function index(Request $request)
     {
@@ -140,7 +173,31 @@ class ProductoController extends Controller
         $claveSatDefault = old('clave_sat', '01010101');
         $catalogoCreate = ClaveProdServicio::where('clave', $claveSatDefault)->first();
         $claveSatEtiqueta = $catalogoCreate ? $catalogoCreate->etiqueta : $claveSatDefault;
-        return view('productos.create', compact('categorias', 'unidadesMedida', 'claveSatEtiqueta', 'claveSatDefault'));
+
+        // Precarga consecutiva PSI-N para nuevos productos.
+        // Se reutiliza el mismo consecutivo si el usuario NO guarda el precargado.
+        $psiNextNum = (int) session()->get(self::SESSION_PSI_NEXT_NUM, 0);
+        if ($psiNextNum < 1) {
+            $psiNextNum = $this->obtenerSiguientePsiNumDesde(1);
+            session()->put(self::SESSION_PSI_NEXT_NUM, $psiNextNum);
+        } else {
+            // Si por alguna razón el candidato ya existe, brincamos al siguiente disponible.
+            $codigoCandidato = 'PSI-' . $psiNextNum;
+            if (Producto::where('codigo', $codigoCandidato)->exists()) {
+                $psiNextNum = $this->obtenerSiguientePsiNumDesde($psiNextNum + 1);
+                session()->put(self::SESSION_PSI_NEXT_NUM, $psiNextNum);
+            }
+        }
+
+        $codigoConsecutivo = 'PSI-' . $psiNextNum;
+
+        return view('productos.create', compact(
+            'categorias',
+            'unidadesMedida',
+            'claveSatEtiqueta',
+            'claveSatDefault',
+            'codigoConsecutivo'
+        ));
     }
 
     /**
@@ -183,7 +240,17 @@ class ProductoController extends Controller
             'stock_maximo' => 'nullable|numeric|min:0',
             'controla_inventario' => 'boolean',
             'aplica_iva' => 'boolean',
+        ], [
+            'codigo.unique' => 'El código ya existe en el sistema.',
         ]);
+
+        // Normalización: siempre guardamos el código en mayúsculas.
+        $validated['codigo'] = strtoupper(trim((string) $validated['codigo']));
+
+        // Avanza consecutivo SOLO si se guardó el código precargado.
+        $psiNextNum = (int) $request->session()->get(self::SESSION_PSI_NEXT_NUM, 0);
+        $psiCandidateCode = $psiNextNum > 0 ? ('PSI-' . $psiNextNum) : null;
+        $codigoGuardado = (string) $validated['codigo'];
 
         $validated['activo'] = true;
         $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
@@ -192,16 +259,23 @@ class ProductoController extends Controller
 
         $producto = Producto::create($validated);
 
+        if ($psiCandidateCode && $codigoGuardado === $psiCandidateCode) {
+            $nuevoNum = $this->obtenerSiguientePsiNumDesde($psiNextNum + 1);
+            $request->session()->put(self::SESSION_PSI_NEXT_NUM, $nuevoNum);
+        }
+
         return redirect()->route('productos.show', $producto->id)
             ->with('success', 'Producto creado exitosamente');
     }
 
     public function show(Producto $producto)
     {
-        $producto->load('categoria');
+        $producto->load(['categoria', 'codigosProveedores.proveedor']);
         $catalogo = ClaveProdServicio::where('clave', $producto->clave_sat)->first();
         $claveSatEtiqueta = $catalogo ? $catalogo->etiqueta : $producto->clave_sat;
-        return view('productos.show', compact('producto', 'claveSatEtiqueta'));
+        $proveedores = Proveedor::activos()->orderBy('nombre')->get();
+
+        return view('productos.show', compact('producto', 'claveSatEtiqueta', 'proveedores'));
     }
 
     public function edit(Producto $producto)
@@ -235,6 +309,8 @@ class ProductoController extends Controller
             'controla_inventario' => 'boolean',
             'aplica_iva' => 'boolean',
             'activo' => 'boolean',
+        ], [
+            'codigo.unique' => 'El código ya existe en el sistema.',
         ]);
 
         $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
@@ -248,9 +324,44 @@ class ProductoController extends Controller
 
     public function destroy(Producto $producto)
     {
-        $producto->delete();
+        if ($this->productoTieneRelacionesParaAuditoria($producto->id)) {
+            return back()->with('error', 'No se puede eliminar el producto porque tiene movimientos o relaciones (ventas/facturas/compras/inventario). Por trazabilidad y auditoría debe conservarse.');
+        }
+
+        // Borrado físico SOLO si no hay trazabilidad.
+        $producto->forceDelete();
 
         return redirect()->route('productos.index')
             ->with('success', 'Producto eliminado exitosamente');
+    }
+
+    private function productoTieneRelacionesParaAuditoria(int $productoId): bool
+    {
+        // Inventario (entradas/salidas)
+        if (DB::table('inventario_movimientos')->where('producto_id', $productoId)->exists()) return true;
+
+        // Ventas / facturación / documentos
+        if (DB::table('facturas_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+        if (DB::table('notas_credito_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+        if (DB::table('devolucion_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+
+        // Compras
+        if (DB::table('facturas_compra_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+        if (DB::table('ordenes_compra_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+        if (DB::table('cotizaciones_compra_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+
+        // Cotizaciones / remisiones (ventas)
+        if (DB::table('cotizaciones_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+        // Nota: en este ERP algunas instalaciones guardan el producto en `remisiones_detalle` y otras en `remisiones`.
+        if (Schema::hasTable('remisiones_detalle') && DB::table('remisiones_detalle')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+        if (DB::table('remisiones')->where('producto_id', $productoId)->whereNotNull('producto_id')->exists()) return true;
+
+        // Listas de precios
+        if (DB::table('listas_precios_detalle')->where('producto_id', $productoId)->exists()) return true;
+
+        // Relaciones catálogo proveedor (no auditoría, pero evita huérfanos y duplicidad)
+        if (DB::table('producto_proveedores')->where('producto_id', $productoId)->exists()) return true;
+
+        return false;
     }
 }

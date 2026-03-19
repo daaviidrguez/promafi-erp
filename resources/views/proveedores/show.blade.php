@@ -26,6 +26,53 @@
             </div>
         </div>
 
+        {{-- Productos asociados --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📦 Productos asociados</div>
+            </div>
+            <div class="card-body">
+                @if($proveedor->productoProveedores->count())
+                    <div class="table-container" style="border:none; box-shadow:none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Código proveedor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($proveedor->productoProveedores as $pp)
+                                    @php $p = $pp->producto; @endphp
+                                    <tr>
+                                        <td>
+                                            @if($p)
+                                                <a href="{{ route('productos.show', $p->id) }}" class="fw-600" style="color: var(--color-primary); text-decoration: none;">
+                                                    {{ $p->nombre }}
+                                                </a>
+                                                <div class="text-muted" style="font-size:12px; margin-top:2px;">
+                                                    {{ $p->codigo }}
+                                                </div>
+                                            @else
+                                                <span class="text-muted">Producto eliminado</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-mono fw-600">{{ $pp->codigo }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📦</div>
+                        <div class="empty-state-title">Sin productos asociados</div>
+                        <div class="empty-state-text">Cuando agregues códigos de proveedor al producto, aparecerán aquí.</div>
+                    </div>
+                @endif
+            </div>
+        </div>
+
         {{-- Compras Recientes --}}
         <div class="card">
             <div class="card-header">

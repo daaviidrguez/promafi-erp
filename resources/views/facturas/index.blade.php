@@ -25,14 +25,13 @@ $breadcrumbs = [
 {{-- Filtros + Acción --}}
 <div class="card">
     <div class="card-body">
-        <form method="GET" action="{{ route('facturas.index') }}"
-              style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <div style="display: flex; gap: 12px; flex: 1; flex-wrap: wrap;">
+        <form method="GET" action="{{ route('facturas.index') }}" class="filtros-bar">
+            <div class="filtros-bar-left">
                 <input type="text" name="search" value="{{ $search ?? '' }}"
                        placeholder="Buscar por folio, UUID, cliente..."
-                       class="form-control" style="flex: 1; min-width: 240px;">
+                       class="form-control" style="flex: 1; min-width: 200px;">
 
-                <select name="estado" class="form-control" style="min-width: 160px;">
+                <select name="estado" class="form-control" style="min-width: 140px;">
                     <option value="">Todos los estados</option>
                     <option value="borrador"  {{ ($estado ?? '') == 'borrador'  ? 'selected' : '' }}>📝 Borrador</option>
                     <option value="timbrada"  {{ ($estado ?? '') == 'timbrada'  ? 'selected' : '' }}>Timbrada</option>

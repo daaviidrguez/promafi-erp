@@ -29,7 +29,7 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
     @csrf
     @method('PUT')
 
-    <div class="responsive-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+    <div class="factura-create-layout responsive-grid">
 
         {{-- Columna izquierda --}}
         <div>
@@ -84,7 +84,7 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
                     </button>
                 </div>
                 <div class="card-body" style="padding: 0;">
-                    <div class="table-container" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+                    <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
                         <table>
                             <thead>
                                 <tr>

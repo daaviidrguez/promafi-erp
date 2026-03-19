@@ -16,7 +16,7 @@ $breadcrumbs = [
 <form method="POST" action="{{ route('productos.store') }}">
     @csrf
 
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+    <div class="producto-create-layout responsive-grid">
 
         {{-- Columna izquierda --}}
         <div>

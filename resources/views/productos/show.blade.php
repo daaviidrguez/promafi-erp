@@ -13,7 +13,7 @@ $breadcrumbs = [
 
 @section('content')
 
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+<div class="producto-show-layout responsive-grid">
 
     {{-- Columna izquierda --}}
     <div>
@@ -64,7 +64,7 @@ $breadcrumbs = [
             </div>
             <div class="card-body">
                 @if($producto->codigosProveedores->count())
-                    <div class="table-container" style="border:none; box-shadow:none;">
+                    <div class="table-container table-container--scroll" style="border:none; box-shadow:none;">
                         <table>
                             <thead>
                                 <tr>

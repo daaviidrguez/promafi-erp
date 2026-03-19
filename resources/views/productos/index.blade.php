@@ -25,12 +25,12 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
 {{-- Búsqueda + Acción --}}
 <div class="card">
     <div class="card-body">
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <div style="display: flex; gap: 12px; flex: 1; flex-wrap: wrap;">
+        <div class="filtros-bar">
+            <div class="filtros-bar-left">
                 <input type="text" name="search" value="{{ $search ?? '' }}"
                        placeholder="Buscar producto..." class="form-control"
-                       style="flex: 1; min-width: 200px;">
-                <select name="categoria_id" class="form-control" style="min-width: 180px;">
+                       style="flex: 1; min-width: 180px;">
+                <select name="categoria_id" class="form-control" style="min-width: 160px;">
                     <option value="">Todas las categorías</option>
                     @foreach($categorias as $cat)
                         <option value="{{ $cat->id }}" {{ ($categoria_id ?? '') == $cat->id ? 'selected' : '' }}>
@@ -244,6 +244,7 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
 
 @push('styles')
 <style>
+.table-container .table-productos-filtros { min-width: 640px; }
 .table-productos-filtros thead th {
     vertical-align: top;
     padding: 10px 8px;

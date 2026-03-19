@@ -122,4 +122,17 @@ class FacturaCompra extends Model
     {
         return $this->estado === 'recibida';
     }
+
+    /**
+     * Scope para búsqueda global (folio, proveedor, UUID).
+     */
+    public function scopeBuscar($query, $search)
+    {
+        return $query->where(function ($q) use ($search) {
+            $q->where('folio', 'like', "%{$search}%")
+                ->orWhere('serie', 'like', "%{$search}%")
+                ->orWhere('uuid', 'like', "%{$search}%")
+                ->orWhere('nombre_emisor', 'like', "%{$search}%");
+        });
+    }
 }

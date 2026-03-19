@@ -101,6 +101,24 @@
             const icon = document.getElementById('toggleIcon');
             if (icon) icon.textContent = '▶';
         }
+
+        // Tablas responsivas: envolver en contenedor con scroll horizontal
+        const content = document.querySelector('.content-wrapper');
+        if (content) {
+            const tables = content.querySelectorAll('table');
+            tables.forEach((table) => {
+                if (!table || table.closest('.table-container') || table.classList.contains('table-no-scroll')) return;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'table-container';
+
+                const parent = table.parentNode;
+                if (!parent) return;
+
+                parent.insertBefore(wrapper, table);
+                wrapper.appendChild(table);
+            });
+        }
     });
 
     function toggleUserMenu() {

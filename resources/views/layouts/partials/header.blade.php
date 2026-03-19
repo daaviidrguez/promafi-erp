@@ -122,13 +122,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
     });
 
+    const SECTION_LABELS = {
+        productos: 'Productos',
+        clientes: 'Clientes',
+        proveedores: 'Proveedores',
+        facturas: 'Facturas',
+        cotizaciones: 'Cotizaciones',
+        remisiones: 'Remisiones',
+        compras: 'Compras'
+    };
+    const SECTION_ORDER = ['productos', 'clientes', 'proveedores', 'facturas', 'cotizaciones', 'remisiones', 'compras'];
+
     function renderResults(data) {
 
         resultsContainer.innerHTML = '';
 
         let hasResults = false;
 
-        Object.keys(data).forEach(section => {
+        SECTION_ORDER.forEach(section => {
 
             if (data[section] && data[section].length > 0) {
 
@@ -136,7 +147,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 const title = document.createElement('div');
                 title.className = 'search-group-title';
-                title.innerText = section.toUpperCase();
+                title.innerText = SECTION_LABELS[section] || section;
                 resultsContainer.appendChild(title);
 
                 data[section].forEach(item => {

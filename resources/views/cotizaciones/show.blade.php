@@ -264,7 +264,7 @@ $breadcrumbs = [
             </div>
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
-                <a href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
+                <a id="linkVerCotizacionPdf" href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
                    target="_blank" class="btn btn-outline w-full">👁️ Ver PDF</a>
 
                 <a href="{{ route('cotizaciones.descargar-pdf', $cotizacion->id) }}"
@@ -369,6 +369,21 @@ $breadcrumbs = [
 @push('scripts')
 <script>
 (function() {
+    const linkVerCotizacionPdf = document.getElementById('linkVerCotizacionPdf');
+    if (linkVerCotizacionPdf) {
+        const isMobile = window.matchMedia('(max-width: 1024px)').matches;
+        const isStandalonePwa = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        if (isMobile || isStandalonePwa) {
+            linkVerCotizacionPdf.removeAttribute('target');
+            const baseHref = linkVerCotizacionPdf.getAttribute('href');
+            const returnUrl = document.referrer && document.referrer.startsWith(window.location.origin)
+                ? document.referrer
+                : '{{ route('cotizaciones.index') }}';
+            const sep = baseHref.includes('?') ? '&' : '?';
+            linkVerCotizacionPdf.setAttribute('href', `${baseHref}${sep}app_view=1&return_url=${encodeURIComponent(returnUrl)}`);
+        }
+    }
+
     const listarUrl = '{{ route("cotizaciones.buscar-productos") }}';
     const asignarUrlTpl = '{{ route("cotizaciones.detalles.asignar-producto", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';

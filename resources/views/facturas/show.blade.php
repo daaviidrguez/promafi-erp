@@ -520,9 +520,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const isMobile = window.matchMedia('(max-width: 1024px)').matches;
     const isStandalonePwa = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-    // En móvil/PWA abrir en el mismo flujo para que "atrás" regrese a la vista previa.
+    // En móvil/PWA abrir dentro de una vista contenedora con botón X de regreso.
     if (isMobile || isStandalonePwa) {
         linkVerFacturaPdf.removeAttribute('target');
+        const baseHref = linkVerFacturaPdf.getAttribute('href');
+        const returnUrl = document.referrer && document.referrer.startsWith(window.location.origin)
+            ? document.referrer
+            : '{{ route('cotizaciones.index') }}';
+        const sep = baseHref.includes('?') ? '&' : '?';
+        linkVerFacturaPdf.setAttribute('href', `${baseHref}${sep}app_view=1&return_url=${encodeURIComponent(returnUrl)}`);
     }
 });
 </script>

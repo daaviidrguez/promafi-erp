@@ -1011,7 +1011,7 @@ class FacturaController extends Controller
      * Ver PDF en el navegador (como en cotizaciones).
      * En borrador siempre se regenera el PDF para reflejar las últimas ediciones.
      */
-    public function verPDF(Factura $factura)
+    public function verPDF(Request $request, Factura $factura)
     {
         $regenerar = $factura->esBorrador()
             || !$factura->pdf_path
@@ -1024,6 +1024,32 @@ class FacturaController extends Controller
             } catch (\Exception $e) {
                 return back()->with('error', 'Error al generar PDF: ' . $e->getMessage());
             }
+        }
+
+        if ($request->boolean('app_view')) {
+            $returnUrl = $request->query('return_url');
+            $fallbackUrl = route('cotizaciones.index');
+
+            if (!is_string($returnUrl) || trim($returnUrl) === '') {
+                $returnUrl = $fallbackUrl;
+            }
+
+            // Seguridad básica: solo permitir rutas internas.
+            if (preg_match('/^https?:\/\//i', $returnUrl)) {
+                $appUrl = rtrim((string) config('app.url'), '/');
+                if ($appUrl === '' || !str_starts_with($returnUrl, $appUrl)) {
+                    $returnUrl = $fallbackUrl;
+                }
+            }
+
+            return view('facturas.ver-pdf-app', [
+                'factura' => $factura,
+                'returnUrl' => $returnUrl,
+                'pdfSrc' => route('facturas.ver-pdf', [
+                    'factura' => $factura->id,
+                    'raw' => 1,
+                ]),
+            ]);
         }
 
         return response()->file(storage_path('app/' . $factura->pdf_path));

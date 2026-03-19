@@ -1,0 +1,21 @@
+{
+    "name": "PROMAFI ERP",
+    "short_name": "PROMAFI",
+    "background_color": "#0B3C5D",
+    "display": "standalone",
+    "description": "Sistema ERP Comercial - Cotizaciones, Facturas, Productos y m\u00e1s",
+    "theme_color": "#0B3C5D",
+    "start_url": "/",
+    "icons": [
+        {
+            "src": "logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "logo.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+}

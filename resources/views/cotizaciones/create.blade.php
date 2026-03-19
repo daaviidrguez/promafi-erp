@@ -342,6 +342,66 @@ $breadcrumbs = [
 /* Inputs numéricos: padding horizontal reducido */
 .table-productos-cotizacion .form-control-numeric { padding: 9px 6px; font-size: 13px; }
 .table-productos-cotizacion .form-control-numeric:focus { padding: 9px 6px; }
+
+/* Móvil: layout tipo tarjeta por partida, con descripción amplia arriba */
+@media (max-width: 768px) {
+    .table-container .table-productos-cotizacion {
+        min-width: 0;
+        width: 100%;
+        table-layout: auto !important;
+    }
+
+    .table-productos-cotizacion thead {
+        display: none;
+    }
+
+    .table-productos-cotizacion tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 8px;
+        border: 1px solid var(--color-gray-200);
+        border-radius: var(--radius-md);
+        margin: 10px 8px;
+        padding: 10px;
+        background: #fff;
+    }
+
+    .table-productos-cotizacion tbody tr#emptyRow {
+        display: table-row;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+    }
+
+    .table-productos-cotizacion tbody tr#emptyRow td {
+        grid-column: auto;
+    }
+
+    .table-productos-cotizacion tbody td {
+        padding: 0 !important;
+    }
+
+    .table-productos-cotizacion tbody td:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .table-productos-cotizacion tbody td:first-child .form-control {
+        min-height: 92px;
+        font-size: 14px;
+    }
+
+    .table-productos-cotizacion tbody td:nth-child(9) {
+        grid-column: 2;
+        justify-self: end;
+        align-self: end;
+    }
+
+    .table-productos-cotizacion .form-control-numeric {
+        min-height: 42px;
+        font-size: 14px;
+    }
+}
 </style>
 @endpush
 

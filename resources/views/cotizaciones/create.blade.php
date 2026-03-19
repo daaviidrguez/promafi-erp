@@ -343,65 +343,25 @@ $breadcrumbs = [
 .table-productos-cotizacion .form-control-numeric { padding: 9px 6px; font-size: 13px; }
 .table-productos-cotizacion .form-control-numeric:focus { padding: 9px 6px; }
 
-/* Móvil: layout tipo tarjeta por partida, con descripción amplia arriba */
 @media (max-width: 768px) {
+    /* Solo móvil: descripción más ancha y scroll horizontal estable */
     .table-container .table-productos-cotizacion {
-        min-width: 0;
-        width: 100%;
-        table-layout: auto !important;
+        min-width: calc(100vw + 220px);
     }
-
-    .table-productos-cotizacion thead {
-        display: none;
+    .table-productos-cotizacion colgroup col:first-child {
+        width: 48vw !important;
+        min-width: 260px;
     }
-
-    .table-productos-cotizacion tbody tr {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px 8px;
-        border: 1px solid var(--color-gray-200);
-        border-radius: var(--radius-md);
-        margin: 10px 8px;
-        padding: 10px;
-        background: #fff;
+    .table-productos-cotizacion tbody td:first-child,
+    .table-productos-cotizacion thead th:first-child {
+        min-width: 260px;
     }
-
-    .table-productos-cotizacion tbody tr#emptyRow {
-        display: table-row;
-        border: 0;
-        margin: 0;
-        padding: 0;
-        background: transparent;
-    }
-
-    .table-productos-cotizacion tbody tr#emptyRow td {
-        grid-column: auto;
-    }
-
-    .table-productos-cotizacion tbody td {
-        padding: 0 !important;
-    }
-
-    .table-productos-cotizacion tbody td:first-child {
-        grid-column: 1 / -1;
-    }
-
-    .table-productos-cotizacion tbody td:first-child .form-control {
-        min-height: 92px;
-        font-size: 14px;
-    }
-
-    .table-productos-cotizacion tbody td:nth-child(9) {
-        grid-column: 2;
-        justify-self: end;
-        align-self: end;
-    }
-
-    .table-productos-cotizacion .form-control-numeric {
-        min-height: 42px;
-        font-size: 14px;
+    .table-productos-cotizacion .manual-desc-mobile {
+        min-height: 88px;
+        resize: vertical;
     }
 }
+
 </style>
 @endpush
 
@@ -701,6 +661,12 @@ function renderProductos() {
         calcTotales(); return;
     }
     tbody.innerHTML = productos.map((p, i) => {
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        const nombreEsc = (p.nombre || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
         const sub = p.cantidad * p.precio;
         const desc = sub * (p.descuento / 100);
         const base = sub - desc;
@@ -710,7 +676,10 @@ function renderProductos() {
             <td>
                 ${p.manual
                     ? `<div class="search-box search-box-manual">
-                       <input type="text" id="manualDesc_${i}" value="${(p.nombre||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control" style="font-size:13px;" autocomplete="off" data-row="${i}">
+                       ${isMobile
+                            ? `<textarea id="manualDesc_${i}" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control manual-desc-mobile" style="font-size:13px;" autocomplete="off" data-row="${i}">${nombreEsc}</textarea>`
+                            : `<input type="text" id="manualDesc_${i}" value="${nombreEsc}" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control" style="font-size:13px;" autocomplete="off" data-row="${i}">`
+                        }
                        </div>
                        <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">
                        <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">`

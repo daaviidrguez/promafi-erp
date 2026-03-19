@@ -208,7 +208,7 @@ $breadcrumbs = [
             </div>
             <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
-                <a href="{{ route('facturas.ver-pdf', $factura->id) }}"
+                <a id="linkVerFacturaPdf" href="{{ route('facturas.ver-pdf', $factura->id) }}"
                    target="_blank" class="btn btn-outline w-full">👁️ Ver Factura</a>
 
                 @if($factura->esBorrador())
@@ -510,3 +510,20 @@ $breadcrumbs = [
 @endif
 
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const linkVerFacturaPdf = document.getElementById('linkVerFacturaPdf');
+    if (!linkVerFacturaPdf) return;
+
+    const isMobile = window.matchMedia('(max-width: 1024px)').matches;
+    const isStandalonePwa = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    // En móvil/PWA abrir en el mismo flujo para que "atrás" regrese a la vista previa.
+    if (isMobile || isStandalonePwa) {
+        linkVerFacturaPdf.removeAttribute('target');
+    }
+});
+</script>
+@endpush

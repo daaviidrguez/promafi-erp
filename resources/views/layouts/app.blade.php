@@ -122,6 +122,20 @@
                 wrapper.appendChild(table);
             });
         }
+
+        // Coherencia móvil/PWA: los enlaces "Ver PDF" no abren en nueva pestaña.
+        // Evita que el botón atrás cierre la app al salir de un contexto externo.
+        const isMobile = window.matchMedia('(max-width: 1024px)').matches;
+        const isStandalonePwa = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        if (isMobile || isStandalonePwa) {
+            const verPdfLinks = Array.from(document.querySelectorAll('a[target="_blank"]'))
+                .filter((a) => {
+                    const href = (a.getAttribute('href') || '').toLowerCase();
+                    const text = (a.textContent || '').toLowerCase();
+                    return href.includes('/ver-pdf') || text.includes('ver pdf') || text.includes('ver factura');
+                });
+            verPdfLinks.forEach((a) => a.removeAttribute('target'));
+        }
     });
 
     function toggleUserMenu() {

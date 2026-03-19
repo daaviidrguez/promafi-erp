@@ -426,7 +426,7 @@ class CotizacionController extends Controller
     /**
      * Ver PDF en navegador
      */
-    public function verPDF(Request $request, $id)
+    public function verPDF($id)
     {
         try {
             $cotizacion = Cotizacion::with('detalles')->findOrFail($id);
@@ -436,31 +436,6 @@ class CotizacionController extends Controller
                 $pdfPath = app(PDFService::class)->generarCotizacionPDF($cotizacion);
                 $cotizacion->pdf_path = $pdfPath;
                 $cotizacion->save();
-            }
-
-            if ($request->boolean('app_view')) {
-                $returnUrl = $request->query('return_url');
-                $fallbackUrl = route('cotizaciones.index');
-
-                if (!is_string($returnUrl) || trim($returnUrl) === '') {
-                    $returnUrl = $fallbackUrl;
-                }
-
-                if (preg_match('/^https?:\/\//i', $returnUrl)) {
-                    $appUrl = rtrim((string) config('app.url'), '/');
-                    if ($appUrl === '' || !str_starts_with($returnUrl, $appUrl)) {
-                        $returnUrl = $fallbackUrl;
-                    }
-                }
-
-                return view('cotizaciones.ver-pdf-app', [
-                    'cotizacion' => $cotizacion,
-                    'returnUrl' => $returnUrl,
-                    'pdfSrc' => route('cotizaciones.ver-pdf', [
-                        'cotizacion' => $cotizacion->id,
-                        'raw' => 1,
-                    ]),
-                ]);
             }
 
             return response()->file(storage_path('app/' . $cotizacion->pdf_path));

@@ -144,6 +144,8 @@ class CotizacionController extends Controller
             'forma_pago' => 'nullable|string|exists:formas_pago,clave',
             'condiciones_pago' => 'nullable|string',
             'observaciones' => 'nullable|string',
+            'referencia_comercial' => 'nullable|string|max:255',
+            'referencia_url' => 'nullable|string|max:2048',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
             'productos.*.descripcion' => 'required|string',
@@ -234,6 +236,8 @@ class CotizacionController extends Controller
                 'forma_pago' => $validated['forma_pago'] ?? $cliente->forma_pago ?? '03',
                 'condiciones_pago' => $validated['condiciones_pago'],
                 'observaciones' => $validated['observaciones'],
+                'referencia_comercial' => $validated['referencia_comercial'] ?? null,
+                'referencia_url' => $validated['referencia_url'] ?? null,
             ]);
 
             // Al editar, invalidar PDF para que se regenere con los datos actuales

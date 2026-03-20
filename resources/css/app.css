@@ -488,7 +488,11 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 .form-grid-filtros { grid-template-columns: 2fr 1fr 1fr 1fr auto; }
 .cotizacion-show-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
 .cotizacion-create-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-.cotizacion-create-bottom-grid { display: grid; grid-template-columns: 7fr 3fr; gap: 20px; }
+.cotizacion-create-bottom-grid { display: grid; grid-template-columns: 7fr 3fr 3fr; gap: 20px; }
+.cotizacion-show-referencia-totales-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 768px) {
+    .cotizacion-show-referencia-totales-grid { grid-template-columns: 1fr; }
+}
 .factura-show-layout,
 .factura-create-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
 .producto-show-layout,

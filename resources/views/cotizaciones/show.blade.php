@@ -134,9 +134,32 @@ $breadcrumbs = [
                 </table>
             </div>
 
-            {{-- Totales --}}
-            <div class="card-body" style="display: flex; justify-content: flex-end;">
-                <div class="totales-panel" style="min-width: 280px;">
+            {{-- Referencia (interno) | Totales --}}
+            <div class="card-body cotizacion-show-referencia-totales-grid">
+                <div class="totales-panel" style="min-width: 0;">
+                    <div class="card-title" style="margin: -4px 0 14px 0; padding-bottom: 12px; border-bottom: 1px solid var(--color-gray-200);">🔗 Referencia</div>
+                    <div style="margin-bottom: 18px;">
+                        <div class="info-label mb-8">Referencia comercial</div>
+                        <div class="text-muted" style="font-size: 12px; margin-bottom: 8px;">MercadoLibre, Amazon, Walmart, etc.</div>
+                        <div style="font-size: 14px; color: var(--color-gray-800);">
+                            @if($cotizacion->referencia_comercial)
+                                {{ $cotizacion->referencia_comercial }}
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </div>
+                    </div>
+                    <div>
+                        <div class="info-label mb-8">URL</div>
+                        <span class="form-hint" style="display:block;margin-bottom:8px;">Esta información es solo para uso interno y no se mostrará al cliente.</span>
+                        @if($cotizacion->referencia_url)
+                            <a href="{{ $cotizacion->referencia_url }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $cotizacion->referencia_url }}</a>
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </div>
+                </div>
+                <div class="totales-panel" style="min-width: 0;">
                     <div class="totales-row">
                         <span>Subtotal</span>
                         <span class="monto text-mono">${{ number_format($cotizacion->subtotal, 2) }}</span>

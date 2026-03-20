@@ -58,6 +58,8 @@ class Cotizacion extends Model
         'forma_pago',
         'condiciones_pago',
         'observaciones',
+        'referencia_comercial',
+        'referencia_url',
         
         // Archivos
         'pdf_path',

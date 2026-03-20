@@ -94,8 +94,8 @@ $breadcrumbs = [
                     <input type="number"
                         name="dias_credito"
                         id="diasCredito"
-                        value="{{ $isEdit ? $cotizacion->dias_credito_aplicados : '' }}"
-                        min="1"
+                        value="{{ $isEdit ? (int) $cotizacion->dias_credito_aplicados : 0 }}"
+                        min="0"
                         class="form-control">
                 </div>
                 <div class="form-group">
@@ -417,9 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProductos();
     }
 
-    @if($isEdit && isset($cotizacion) && $cotizacion->tipo_venta === 'credito')
-    document.getElementById('diasCreditoGroup').style.display = 'block';
-    @endif
+    // Sincroniza visibilidad, disabled y validación HTML5 de días (evita "not focusable" si está oculto con min incompatible)
+    onTipoVentaChange();
 
     // Buscador cliente
     document.getElementById('buscarCliente').addEventListener('input', function() {
@@ -493,8 +492,11 @@ function seleccionarCliente(c) {
     if (c.dias_credito > 0) {
         document.getElementById('tipoVenta').value = 'credito';
         document.getElementById('diasCredito').value = c.dias_credito;
-        document.getElementById('diasCreditoGroup').style.display = 'block';
+    } else {
+        document.getElementById('tipoVenta').value = 'contado';
+        document.getElementById('diasCredito').value = '0';
     }
+    onTipoVentaChange();
     const fpSelect = document.getElementById('formaPagoCotizacion');
     if (fpSelect && c.forma_pago) {
         fpSelect.value = c.forma_pago;
@@ -517,7 +519,15 @@ function limpiarCliente() {
 
 function onTipoVentaChange() {
     const tipo = document.getElementById('tipoVenta').value;
-    document.getElementById('diasCreditoGroup').style.display = tipo === 'credito' ? 'block' : 'none';
+    const grupo = document.getElementById('diasCreditoGroup');
+    const input = document.getElementById('diasCredito');
+    const esCredito = tipo === 'credito';
+    grupo.style.display = esCredito ? 'block' : 'none';
+    // Los campos disabled no participan en la validación del formulario (evita error al guardar en contado con grupo oculto)
+    input.disabled = !esCredito;
+    if (!esCredito) {
+        input.value = '0';
+    }
 }
 
 async function fetchListasPreciosCliente(clienteId) {

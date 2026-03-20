@@ -60,6 +60,7 @@ class Cotizacion extends Model
         'observaciones',
         'referencia_comercial',
         'referencia_url',
+        'referencia_url_2',
         
         // Archivos
         'pdf_path',

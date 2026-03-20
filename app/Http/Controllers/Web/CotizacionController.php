@@ -146,6 +146,7 @@ class CotizacionController extends Controller
             'observaciones' => 'nullable|string',
             'referencia_comercial' => 'nullable|string|max:255',
             'referencia_url' => 'nullable|string|max:2048',
+            'referencia_url_2' => 'nullable|string|max:2048',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
             'productos.*.descripcion' => 'required|string',
@@ -238,6 +239,7 @@ class CotizacionController extends Controller
                 'observaciones' => $validated['observaciones'],
                 'referencia_comercial' => $validated['referencia_comercial'] ?? null,
                 'referencia_url' => $validated['referencia_url'] ?? null,
+                'referencia_url_2' => $validated['referencia_url_2'] ?? null,
             ]);
 
             // Al editar, invalidar PDF para que se regenere con los datos actuales

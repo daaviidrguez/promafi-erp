@@ -40,6 +40,8 @@ $breadcrumbs = [
                             <th>Descripción</th>
                             <th class="td-center">Cantidad</th>
                             <th class="td-center">Unidad</th>
+                            <th class="td-right">Precio unit.</th>
+                            <th class="td-center">IVA</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -49,6 +51,16 @@ $breadcrumbs = [
                             <td>{{ $d->descripcion }}</td>
                             <td class="td-center">{{ number_format($d->cantidad, 2) }}</td>
                             <td class="td-center">{{ $d->unidad }}</td>
+                            <td class="td-right text-mono">
+                                {{ number_format(($d->precio_unitario ?? $d->producto?->precio_venta ?? 0), 2) }}
+                            </td>
+                            <td class="td-center">
+                                @if(($d->tasa_iva ?? $d->producto?->tasa_iva ?? null) === null)
+                                    <span class="text-muted">Exento</span>
+                                @else
+                                    {{ number_format((($d->tasa_iva ?? $d->producto?->tasa_iva ?? 0) * 100), 0) }}%
+                                @endif
+                            </td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -133,7 +145,7 @@ $breadcrumbs = [
                 @endif
                 @if($remision->puedeConvertirseAFactura())
                 @can('facturas.crear')
-                <a href="{{ route('facturas.create', ['remision_id' => $remision->id]) }}" class="btn btn-primary w-full">💰 Convertir a factura</a>
+                <a href="{{ route('facturas.create') }}?remision_id={{ $remision->id }}" class="btn btn-primary w-full">💰 Convertir a factura</a>
                 <p class="text-muted small mb-0" style="margin-top:4px;">El inventario no se descontará al timbrar (ya salió con la remisión).</p>
                 @endcan
                 @endif

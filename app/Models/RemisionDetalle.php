@@ -19,11 +19,22 @@ class RemisionDetalle extends Model
         'descripcion',
         'cantidad',
         'unidad',
+        // Snapshot tipo cotización (trazabilidad fiscal/administrativa)
+        'precio_unitario',
+        'tasa_iva',
+        'subtotal',
+        'iva_monto',
+        'total',
         'orden',
     ];
 
     protected $casts = [
         'cantidad' => 'decimal:2',
+        'precio_unitario' => 'decimal:2',
+        'tasa_iva' => 'decimal:4',
+        'subtotal' => 'decimal:2',
+        'iva_monto' => 'decimal:2',
+        'total' => 'decimal:2',
         'orden' => 'integer',
     ];
 

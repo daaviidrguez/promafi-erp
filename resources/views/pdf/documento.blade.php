@@ -293,6 +293,9 @@ body {
     @include('pdf.partials.factura-compra')
 @else
 {{-- CLIENTE / INFO (cotización, remisión, etc.) --}}
+@php
+    $esRemision = ($tipo ?? '') === 'remision';
+@endphp
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
 <td width="48%" valign="top">
@@ -301,26 +304,47 @@ body {
         {{ $doc->cliente_nombre ?? $doc->nombre_receptor }}<br>
         RFC: {{ $doc->cliente_rfc ?? $doc->rfc_receptor }}<br>
         @if($esCotizacion)
-        @php
-            $dir = trim(
-                ($doc->cliente_calle ?? '') . ' ' .
-                ($doc->cliente_numero_exterior ?? '') .
-                ($doc->cliente_numero_interior ? ' Int. ' . $doc->cliente_numero_interior : '') .
-                ', ' . ($doc->cliente_colonia ?? '') .
-                ', ' . ($doc->cliente_municipio ?? '') .
-                ', ' . ($doc->cliente_estado ?? '') .
-                ' CP ' . ($doc->cliente_codigo_postal ?? '')
-            );
-        @endphp
-        @if($dir !== '' && $dir !== ',  CP ')
-        Direccion: {{ trim($dir, ' ,') }}<br>
+            @php
+                $dir = trim(
+                    ($doc->cliente_calle ?? '') . ' ' .
+                    ($doc->cliente_numero_exterior ?? '') .
+                    ($doc->cliente_numero_interior ? ' Int. ' . $doc->cliente_numero_interior : '') .
+                    ', ' . ($doc->cliente_colonia ?? '') .
+                    ', ' . ($doc->cliente_municipio ?? '') .
+                    ', ' . ($doc->cliente_estado ?? '') .
+                    ' CP ' . ($doc->cliente_codigo_postal ?? '')
+                );
+            @endphp
+            @if($dir !== '' && $dir !== ',  CP ')
+            Direccion: {{ trim($dir, ' ,') }}<br>
+            @endif
+        @elseif($esRemision)
+            @php
+                $direccionEntrega = trim($doc->direccion_entrega ?? '');
+                $cliente = $doc->cliente ?? null;
+                $dirFiscal = trim(
+                    ($cliente?->calle ?? '') . ' ' .
+                    ($cliente?->numero_exterior ?? '') .
+                    ($cliente?->numero_interior ? ' Int. ' . $cliente?->numero_interior : '') .
+                    (($cliente?->colonia ?? '') !== '' ? ', ' . $cliente?->colonia : '') .
+                    (($cliente?->municipio ?? $cliente?->ciudad ?? '') !== '' ? ', ' . ($cliente?->municipio ?? $cliente?->ciudad) : '') .
+                    (($cliente?->estado ?? '') !== '' ? ', ' . $cliente?->estado : '') .
+                    (($cliente?->codigo_postal ?? '') !== '' ? ', C.P. ' . $cliente?->codigo_postal : '')
+                );
+            @endphp
+
+            @if($direccionEntrega !== '')
+                Direccion de entrega: {!! nl2br(e($direccionEntrega)) !!}<br>
+            @elseif($dirFiscal !== '')
+                Direccion de entrega: {{ $dirFiscal }}<br>
+            @endif
         @endif
+
         @if(!empty($doc->cliente_telefono))
         Telefono: {{ $doc->cliente_telefono }}<br>
         @endif
         @if(!empty($doc->cliente_email))
         Email: {{ $doc->cliente_email }}
-        @endif
         @endif
     </div>
 </td>
@@ -355,8 +379,8 @@ body {
 <th>Codigo</th>
 <th>Descripcion</th>
 <th class="center">Cant</th>
-@if($esCotizacion)<th class="center">Unidad</th>@endif
-<th class="right">{{ $esCotizacion ? 'Precio Unit.' : 'Precio' }}</th>
+@if($esCotizacion || $esRemision)<th class="center">Unidad</th>@endif
+<th class="right">{{ $esCotizacion ? 'Precio Unit.' : ($esRemision ? 'Precio Unit.' : 'Precio') }}</th>
 <th class="center">IVA</th>
 @if($esCotizacion)<th class="center">Desc %</th>@endif
 <th class="right">Importe</th>
@@ -368,15 +392,33 @@ body {
 <td>{{ ($d->codigo === 'MANUAL' || $d->codigo === null) ? '-' : $d->codigo }}</td>
 <td>{{ $d->descripcion }}</td>
 <td class="center">{{ number_format($d->cantidad, 2) }}</td>
-@if($esCotizacion)
-<td class="center">{{ $d->unidad ?? $d->producto->unidad ?? 'PZA' }}</td>
+@if($esCotizacion || $esRemision)
+<td class="center">{{ $d->unidad ?? $d->producto?->unidad ?? 'PZA' }}</td>
 @endif
-<td class="right">${{ number_format($d->precio_unitario ?? $d->valor_unitario, 2) }}</td>
+<td class="right">
+    @if($esCotizacion)
+        ${{ number_format($d->precio_unitario ?? 0, 2) }}
+    @elseif($esRemision)
+        ${{ number_format($d->precio_unitario ?? $d->producto?->precio_venta ?? 0, 2) }}
+    @else
+        ${{ number_format($d->valor_unitario ?? 0, 2) }}
+    @endif
+</td>
 <td class="center">
-    @if(isset($d->tasa_iva) && $d->tasa_iva === null)
-        Exento
-    @elseif(isset($d->tasa_iva))
-        {{ number_format($d->tasa_iva * 100, 0) }}%
+    @if($esCotizacion)
+        @if(isset($d->tasa_iva) && $d->tasa_iva === null)
+            Exento
+        @elseif(isset($d->tasa_iva))
+            {{ number_format($d->tasa_iva * 100, 0) }}%
+        @else
+            -
+        @endif
+    @elseif($esRemision)
+        @if(($d->tasa_iva ?? $d->producto?->tasa_iva ?? null) === null)
+            Exento
+        @else
+            {{ number_format((($d->tasa_iva ?? $d->producto?->tasa_iva ?? 0) * 100), 0) }}%
+        @endif
     @else
         -
     @endif
@@ -390,20 +432,55 @@ body {
     @endif
 </td>
 @endif
-<td class="right">${{ number_format($esCotizacion ? ($d->base_imponible ?? $d->subtotal ?? $d->total) : ($d->total ?? $d->importe), 2) }}</td>
+<td class="right">
+    @if($esCotizacion)
+        ${{ number_format($d->base_imponible ?? $d->subtotal ?? $d->total ?? 0, 2) }}
+    @elseif($esRemision)
+        ${{ number_format((float)($d->total ?? ((float)($d->cantidad ?? 0) * (float)($d->precio_unitario ?? $d->producto?->precio_venta ?? 0))), 2) }}
+    @else
+        ${{ number_format($d->total ?? $d->importe ?? 0, 2) }}
+    @endif
+</td>
 </tr>
 @endforeach
 </tbody>
 </table>
 
 <table class="totales-table">
-<tr><td>Subtotal:</td><td>${{ number_format($doc->subtotal, 2) }}</td></tr>
+@php
+    $subtotalPdf = $doc->subtotal ?? 0;
+    $ivaPdf = $doc->iva ?? 0;
+    $totalPdf = $doc->total ?? 0;
+
+    if ($esRemision) {
+        $subtotalPdf = 0;
+        $ivaPdf = 0;
+
+        foreach ($doc->detalles as $d) {
+            $cantidad = (float) ($d->cantidad ?? 0);
+            $precioUnit = (float) ($d->precio_unitario ?? $d->producto?->precio_venta ?? 0);
+            $importeLinea = $cantidad * $precioUnit;
+
+            $subtotalPdf += $importeLinea;
+
+            $tasaIva = $d->tasa_iva ?? $d->producto?->tasa_iva ?? null;
+            if ($tasaIva !== null) {
+                $ivaPdf += $importeLinea * (float) $tasaIva;
+            }
+        }
+
+        $subtotalPdf = round((float) $subtotalPdf, 2);
+        $ivaPdf = round((float) $ivaPdf, 2);
+        $totalPdf = round((float) ($subtotalPdf + $ivaPdf), 2);
+    }
+@endphp
+<tr><td>Subtotal:</td><td>${{ number_format($subtotalPdf, 2) }}</td></tr>
 @if($esCotizacion && ($doc->descuento ?? 0) > 0)
 <tr><td>Descuento:</td><td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td></tr>
 @endif
-<tr><td>IVA:</td><td>${{ number_format($doc->iva ?? 0, 2) }}</td></tr>
-<tr class="total-final"><td>TOTAL:</td><td>${{ number_format($doc->total, 2) }} MXN</td></tr>
-<tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float)($doc->total ?? 0)) }}</td></tr>
+<tr><td>IVA:</td><td>${{ number_format($ivaPdf, 2) }}</td></tr>
+<tr class="total-final"><td>TOTAL:</td><td>${{ number_format($totalPdf, 2) }} MXN</td></tr>
+<tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float) $totalPdf) }}</td></tr>
 </table>
 @endif
 

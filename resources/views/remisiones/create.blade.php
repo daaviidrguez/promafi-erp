@@ -59,7 +59,6 @@ $breadcrumbs = [
         <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">📦 Productos / Partidas</div>
-                <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">➕ Agregar línea</button>
             </div>
             <div class="card-body" style="padding:0;">
                 <div class="search-box" style="padding:16px;">
@@ -74,11 +73,13 @@ $breadcrumbs = [
                                 <th>Descripción</th>
                                 <th class="td-center">Cant.</th>
                                 <th class="td-center">Unidad</th>
+                                <th class="td-right">Precio unit.</th>
+                                <th class="td-center">IVA</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody id="productosBody">
-                            <tr id="emptyRow"><td colspan="5" class="text-center text-muted" style="padding:24px;">Sin partidas. Busca producto o agrega línea manual.</td></tr>
+                            <tr id="emptyRow"><td colspan="7" class="text-center text-muted" style="padding:24px;">Sin partidas. Busca producto.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -178,14 +179,9 @@ async function buscarProductos(q) {
 
 function agregarProducto(p) {
     if (productos.some(x => x.id && x.id === p.id)) { alert('Ya está en la lista'); return; }
-    productos.push({ id: p.id, codigo: p.codigo || '', nombre: p.nombre, cantidad: 1, unidad: p.unidad || 'PZA', manual: false });
+    productos.push({ id: p.id, codigo: p.codigo || '', nombre: p.nombre, cantidad: 1, unidad: p.unidad || 'PZA', precio_unitario: p.precio_unitario ?? 0, tasa_iva: p.tasa_iva ?? null, manual: false });
     document.getElementById('buscarProducto').value = '';
     closeDropdown('productoResults');
-    renderProductos();
-}
-
-function agregarManual() {
-    productos.push({ id: null, codigo: '', nombre: '', cantidad: 1, unidad: 'PZA', manual: true });
     renderProductos();
 }
 
@@ -200,10 +196,23 @@ function upd(i, field, val) {
 
 function quitarProducto(i) { productos.splice(i, 1); renderProductos(); }
 
+function fmtPrecio(x) {
+    const n = x === null || x === undefined ? 0 : parseFloat(x);
+    return (Number.isFinite(n) ? n : 0).toFixed(2);
+}
+
+function fmtIva(tasa) {
+    if (tasa === null || tasa === undefined) return 'Exento';
+    const n = parseFloat(tasa);
+    if (!Number.isFinite(n)) return 'Exento';
+    // tasa_iva en el backend suele venir como decimal (ej. 0.16)
+    return (n * 100).toFixed(0) + '%';
+}
+
 function renderProductos() {
     const tbody = document.getElementById('productosBody');
     if (!productos.length) {
-        tbody.innerHTML = '<tr id="emptyRow"><td colspan="5" class="text-center text-muted" style="padding:24px;">Sin partidas. Busca producto o agrega línea manual.</td></tr>';
+        tbody.innerHTML = '<tr id="emptyRow"><td colspan="7" class="text-center text-muted" style="padding:24px;">Sin partidas. Busca producto.</td></tr>';
         return;
     }
     tbody.innerHTML = productos.map((p, i) => `
@@ -213,7 +222,12 @@ function renderProductos() {
             </td>
             <td>${p.manual ? '<input type="text" value="'+(p.nombre||'').replace(/"/g,'&quot;')+'" onchange="upd('+i+',\'nombre\',this.value)" placeholder="Descripción" class="form-control" style="font-size:13px;" name="productos['+i+'][descripcion]" required>' : '<div class="fw-600">'+(p.nombre||'').replace(/</g,'&lt;')+'</div><input type="hidden" name="productos['+i+'][descripcion]" value="'+(p.nombre||'').replace(/"/g,'&quot;')+'">'}</td>
             <td class="td-center"><input type="number" name="productos[${i}][cantidad]" value="${p.cantidad}" min="0.01" step="0.01" onchange="upd(${i},'cantidad',+this.value)" class="form-control" style="width:70px;text-align:center;"></td>
-            <td class="td-center"><input type="text" name="productos[${i}][unidad]" value="${p.unidad}" onchange="upd(${i},'unidad',this.value)" class="form-control" style="width:60px;text-align:center;"></td>
+            <td class="td-center">
+                <span>${(p.unidad || 'PZA').toString()}</span>
+                <input type="hidden" name="productos[${i}][unidad]" value="${(p.unidad || 'PZA').toString()}">
+            </td>
+            <td class="td-right text-mono">${fmtPrecio(p.precio_unitario)}</td>
+            <td class="td-center">${fmtIva(p.tasa_iva)}</td>
             <td><button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm">✕</button></td>
         </tr>
     `).join('');

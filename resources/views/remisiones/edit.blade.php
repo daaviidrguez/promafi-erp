@@ -48,7 +48,6 @@ $breadcrumbs = [
         <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">📦 Productos / Partidas</div>
-                <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">➕ Agregar línea</button>
             </div>
             <div class="card-body" style="padding:0;">
                 <div class="search-box" style="padding:16px;">
@@ -63,6 +62,8 @@ $breadcrumbs = [
                                 <th>Descripción</th>
                                 <th class="td-center">Cant.</th>
                                 <th class="td-center">Unidad</th>
+                                <th class="td-right">Precio unit.</th>
+                                <th class="td-center">IVA</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -76,12 +77,25 @@ $breadcrumbs = [
                                     <div class="fw-600">{{ $d->descripcion }}</div>
                                 </td>
                                 <td class="td-center"><input type="number" name="productos[{{ $i }}][cantidad]" value="{{ old('productos.'.$i.'.cantidad', $d->cantidad) }}" min="0.01" step="0.01" class="form-control" style="width:70px;text-align:center;"></td>
-                                <td class="td-center"><input type="text" name="productos[{{ $i }}][unidad]" value="{{ old('productos.'.$i.'.unidad', $d->unidad) }}" class="form-control" style="width:60px;text-align:center;"></td>
+                                <td class="td-center">
+                                    <span>{{ $d->unidad }}</span>
+                                    <input type="hidden" name="productos[{{ $i }}][unidad]" value="{{ $d->unidad }}">
+                                </td>
+                                <td class="td-right text-mono">
+                                    {{ number_format(($d->precio_unitario ?? $d->producto?->precio_venta ?? 0), 2) }}
+                                </td>
+                                <td class="td-center">
+                                    @if(($d->tasa_iva ?? $d->producto?->tasa_iva ?? null) === null)
+                                        <span class="text-muted">Exento</span>
+                                    @else
+                                        {{ number_format((($d->tasa_iva ?? $d->producto?->tasa_iva ?? 0) * 100), 0) }}%
+                                    @endif
+                                </td>
                                 <td><button type="button" onclick="quitarFila(this)" class="btn btn-danger btn-icon btn-sm">✕</button></td>
                             </tr>
                             @endforeach
                             @if($remision->detalles->isEmpty())
-                            <tr id="emptyRow"><td colspan="5" class="text-center text-muted" style="padding:24px;">Sin partidas. Busca producto o agrega línea manual.</td></tr>
+                            <tr id="emptyRow"><td colspan="7" class="text-center text-muted" style="padding:24px;">Sin partidas. Busca producto.</td></tr>
                             @endif
                         </tbody>
                     </table>
@@ -139,6 +153,9 @@ async function buscarProductos(q) {
 }
 
 function agregarProducto(p) {
+    const ivaLabel = (p.tasa_iva === null || p.tasa_iva === undefined)
+        ? 'Exento'
+        : ((parseFloat(p.tasa_iva) * 100).toFixed(0) + '%');
     const tbody = document.getElementById('productosBody');
     const emptyRow = document.getElementById('emptyRow');
     if (emptyRow) emptyRow.remove();
@@ -148,28 +165,17 @@ function agregarProducto(p) {
         <td class="text-mono">${p.codigo || '—'}</td>
         <td><input type="hidden" name="productos[${i}][producto_id]" value="${p.id}"><input type="hidden" name="productos[${i}][descripcion]" value="${(p.nombre||'').replace(/"/g,'&quot;')}"><div class="fw-600">${(p.nombre||'').replace(/</g,'&lt;')}</div></td>
         <td class="td-center"><input type="number" name="productos[${i}][cantidad]" value="1" min="0.01" step="0.01" class="form-control" style="width:70px;text-align:center;"></td>
-        <td class="td-center"><input type="text" name="productos[${i}][unidad]" value="${p.unidad||'PZA'}" class="form-control" style="width:60px;text-align:center;"></td>
+        <td class="td-center">
+            <span>${(p.unidad||'PZA').toString()}</span>
+            <input type="hidden" name="productos[${i}][unidad]" value="${(p.unidad||'PZA').toString()}">
+        </td>
+        <td class="td-right text-mono">${(parseFloat(p.precio_unitario ?? 0) || 0).toFixed(2)}</td>
+        <td class="td-center">${ivaLabel}</td>
         <td><button type="button" onclick="quitarFila(this)" class="btn btn-danger btn-icon btn-sm">✕</button></td>
     `;
     tbody.appendChild(tr);
     document.getElementById('buscarProducto').value = '';
     document.getElementById('productoResults').classList.remove('show');
-}
-
-function agregarManual() {
-    const tbody = document.getElementById('productosBody');
-    const emptyRow = document.getElementById('emptyRow');
-    if (emptyRow) emptyRow.remove();
-    const i = tbody.querySelectorAll('tr').length;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-        <td class="text-mono">—</td>
-        <td><input type="hidden" name="productos[${i}][producto_id]" value=""><input type="text" name="productos[${i}][descripcion]" placeholder="Descripción" class="form-control" style="font-size:13px;" required></td>
-        <td class="td-center"><input type="number" name="productos[${i}][cantidad]" value="1" min="0.01" step="0.01" class="form-control" style="width:70px;text-align:center;"></td>
-        <td class="td-center"><input type="text" name="productos[${i}][unidad]" value="PZA" class="form-control" style="width:60px;text-align:center;"></td>
-        <td><button type="button" onclick="quitarFila(this)" class="btn btn-danger btn-icon btn-sm">✕</button></td>
-    `;
-    tbody.appendChild(tr);
 }
 
 document.getElementById('remisionForm').addEventListener('submit', function(e) {

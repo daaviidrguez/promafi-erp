@@ -287,6 +287,75 @@ document.getElementById('cliente_id').addEventListener('change', function() {
     }
 });
 
+// Prefill desde remisión (cuando se llega con `?remision_id=...`)
+const remisionLineasPrefill = @json($remisionLineasJson ?? []);
+const clientePreId = @json($clientePreseleccionado?->id ?? null);
+const observacionesPreValue = @json($observacionesPre ?? null);
+
+function prefillFacturaDesdeRemision() {
+    if (!Array.isArray(remisionLineasPrefill) || remisionLineasPrefill.length === 0) return;
+
+    const container = document.getElementById('productosContainer');
+    const emptyProductos = document.getElementById('emptyProductos');
+
+    if (container) container.innerHTML = '';
+    // Reiniciar contador para que los ids de filas sigan la convención prod-{i}
+    productoIndex = 0;
+    if (emptyProductos) emptyProductos.style.display = 'none';
+
+    remisionLineasPrefill.forEach((line) => {
+        const i = productoIndex;
+        agregarProducto(); // crea la fila con id prod-{i}
+
+        const row = document.getElementById(`prod-${i}`);
+        if (!row) return;
+
+        const select = row.querySelector('select.form-control-producto');
+        if (select) {
+            select.value = String(line.producto_id);
+
+            // Reemplazar tasa para cálculos del UI con el snapshot de remisión.
+            const opt = select.options[select.selectedIndex];
+            if (opt && line.tasa_iva !== undefined) opt.dataset.tasaIva = String(line.tasa_iva ?? 0);
+
+            seleccionarProducto(i, select);
+        }
+
+        // Sobrescribir descripción/importe con snapshot de remisión
+        const inpDesc = row.querySelector('[name*="[descripcion]"]');
+        if (inpDesc && line.descripcion !== undefined) inpDesc.value = String(line.descripcion ?? '');
+
+        const inpCant = row.querySelector('[name*="[cantidad]"]');
+        if (inpCant && line.cantidad !== undefined) inpCant.value = Number(line.cantidad ?? 0);
+
+        const inpValUnit = row.querySelector('[name*="[valor_unitario]"]');
+        if (inpValUnit && line.valor_unitario !== undefined) {
+            const v = parseFloat(line.valor_unitario ?? 0);
+            inpValUnit.value = (Number.isFinite(v) ? v : 0).toFixed(2);
+        }
+
+        const inpDescMonto = row.querySelector('[name*="[descuento]"]');
+        if (inpDescMonto) inpDescMonto.value = '0';
+
+        calcularTotales();
+    });
+
+    // Pre-cargar cliente (y disparar change para que se actualice método/folio)
+    if (clientePreId) {
+        const clienteSelect = document.getElementById('cliente_id');
+        if (clienteSelect) {
+            clienteSelect.value = String(clientePreId);
+            clienteSelect.dispatchEvent(new Event('change'));
+        }
+    }
+
+    // Observaciones
+    const obs = document.querySelector('textarea[name="observaciones"]');
+    if (obs && observacionesPreValue) obs.value = String(observacionesPreValue ?? '');
+}
+
+document.addEventListener('DOMContentLoaded', prefillFacturaDesdeRemision);
+
 function agregarProducto() {
     document.getElementById('emptyProductos').style.display = 'none';
     const i = productoIndex++;

@@ -151,13 +151,15 @@ class FacturaController extends Controller
             $observacionesPre = 'Documento de origen: Remisión #' . ($rem->folio ?? $rem->id);
             $remisionLineasJson = $rem->detalles->map(function ($d) {
                 $p = $d->producto;
-                $tasa = ($p->tipo_factor ?? 'Tasa') === 'Exento' ? 0.0 : (float) ($p->tasa_iva ?? 0);
+                $tasa = $d->tasa_iva !== null
+                    ? (float) $d->tasa_iva
+                    : ((($p?->tipo_factor ?? 'Tasa') === 'Exento') ? 0.0 : (float) ($p?->tasa_iva ?? 0));
 
                 return [
                     'producto_id' => (int) $d->producto_id,
                     'descripcion' => (string) $d->descripcion,
                     'cantidad' => (float) $d->cantidad,
-                    'valor_unitario' => (float) $p->precio_venta,
+                    'valor_unitario' => (float) ($d->precio_unitario ?? $p?->precio_venta ?? 0),
                     'tasa_iva' => $tasa,
                 ];
             })->values()->all();

@@ -14,6 +14,55 @@ use Illuminate\Support\Facades\DB;
 
 class RemisionController extends Controller
 {
+    /**
+     * Asegura que `remisiones_detalle` tenga snapshot tipo cotización.
+     * Esto evita que el PDF/visual dependa de cambios futuros en `productos`.
+     */
+    private function asegurarSnapshotDetalles(Remision $remision): void
+    {
+        $remision->loadMissing(['detalles.producto']);
+
+        foreach ($remision->detalles as $detalle) {
+            if (! $detalle->producto_id) {
+                continue;
+            }
+
+            // Si ya está completo, no toca nada.
+            // Nota: para exento `tasa_iva` puede ser NULL; por eso no se exige.
+            if ($detalle->precio_unitario !== null && $detalle->total !== null) {
+                continue;
+            }
+
+            $producto = $detalle->producto;
+            if (! $producto) {
+                continue;
+            }
+
+            $cantidad = (float) ($detalle->cantidad ?? 0);
+            $precioUnitario = (float) ($producto->precio_venta ?? 0);
+            $tipoFactor = $producto->tipo_factor ?? 'Tasa';
+            $tasaIva = $tipoFactor === 'Exento' ? null : (float) ($producto->tasa_iva ?? 0);
+
+            $unidad = $producto->unidad ?? 'PZA';
+            $subtotal = round($cantidad * $precioUnitario, 2);
+            $ivaMonto = $tasaIva === null ? 0.0 : round($subtotal * (float) $tasaIva, 2);
+            $total = round($subtotal + $ivaMonto, 2);
+
+            $detalle->fill([
+                'codigo' => $producto->codigo,
+                'descripcion' => $producto->nombre,
+                'unidad' => $unidad,
+                'precio_unitario' => $precioUnitario,
+                'tasa_iva' => $tasaIva,
+                'subtotal' => $subtotal,
+                'iva_monto' => $ivaMonto,
+                'total' => $total,
+            ]);
+
+            $detalle->save();
+        }
+    }
+
     public function index(Request $request)
     {
         $query = Remision::with(['cliente', 'usuario', 'factura', 'facturaCancelada']);
@@ -51,7 +100,8 @@ class RemisionController extends Controller
             'direccion_entrega' => 'nullable|string|max:2000',
             'observaciones' => 'nullable|string|max:2000',
             'productos' => 'required|array|min:1',
-            'productos.*.producto_id' => 'nullable|exists:productos,id',
+            // Seguridad: en remisiones no se permiten partidas manuales (producto_id requerido).
+            'productos.*.producto_id' => 'required|exists:productos,id',
             'productos.*.descripcion' => 'required|string|max:500',
             'productos.*.cantidad' => 'required|numeric|min:0.01',
             'productos.*.unidad' => 'nullable|string|max:10',
@@ -76,15 +126,30 @@ class RemisionController extends Controller
             $remision->save();
 
             foreach ($validated['productos'] as $index => $item) {
-                $producto = !empty($item['producto_id']) ? Producto::find($item['producto_id']) : null;
-                $unidad = $item['unidad'] ?? ($producto?->unidad ?? 'PZA');
+                $producto = Producto::findOrFail($item['producto_id']);
+                // Snapshot tipo cotización: unidad, precio e IVA se toman del producto al guardar.
+                $unidad = $producto->unidad ?? 'PZA';
+                $cantidad = (float) ($item['cantidad'] ?? 0);
+                $precioUnitario = (float) ($producto->precio_venta ?? 0);
+                $tipoFactor = $producto->tipo_factor ?? 'Tasa';
+                $tasaIva = $tipoFactor === 'Exento' ? null : (float) ($producto->tasa_iva ?? 0);
+
+                $subtotal = round($cantidad * $precioUnitario, 2);
+                $ivaMonto = $tasaIva === null ? 0.0 : round($subtotal * (float) $tasaIva, 2);
+                $total = round($subtotal + $ivaMonto, 2);
+
                 RemisionDetalle::create([
                     'remision_id' => $remision->id,
-                    'producto_id' => $producto?->id,
-                    'codigo' => $producto?->codigo,
-                    'descripcion' => $item['descripcion'],
-                    'cantidad' => $item['cantidad'],
+                    'producto_id' => $producto->id,
+                    'codigo' => $producto->codigo,
+                    'descripcion' => $producto->nombre,
+                    'cantidad' => $cantidad,
                     'unidad' => $unidad,
+                    'precio_unitario' => $precioUnitario,
+                    'tasa_iva' => $tasaIva,
+                    'subtotal' => $subtotal,
+                    'iva_monto' => $ivaMonto,
+                    'total' => $total,
                     'orden' => $index,
                 ]);
             }
@@ -99,6 +164,7 @@ class RemisionController extends Controller
     public function show(Remision $remision)
     {
         $remision->load(['cliente', 'detalles.producto', 'factura', 'facturaCancelada', 'usuario']);
+        $this->asegurarSnapshotDetalles($remision);
         return view('remisiones.show', compact('remision'));
     }
 
@@ -108,6 +174,7 @@ class RemisionController extends Controller
             return redirect()->route('remisiones.show', $remision->id)->with('error', 'Solo se pueden editar remisiones en borrador');
         }
         $remision->load('detalles.producto');
+        $this->asegurarSnapshotDetalles($remision);
         return view('remisiones.edit', compact('remision'));
     }
 
@@ -122,7 +189,8 @@ class RemisionController extends Controller
             'direccion_entrega' => 'nullable|string|max:2000',
             'observaciones' => 'nullable|string|max:2000',
             'productos' => 'required|array|min:1',
-            'productos.*.producto_id' => 'nullable|exists:productos,id',
+            // Seguridad: en remisiones no se permiten partidas manuales (producto_id requerido).
+            'productos.*.producto_id' => 'required|exists:productos,id',
             'productos.*.descripcion' => 'required|string|max:500',
             'productos.*.cantidad' => 'required|numeric|min:0.01',
             'productos.*.unidad' => 'nullable|string|max:10',
@@ -137,15 +205,30 @@ class RemisionController extends Controller
 
             $remision->detalles()->delete();
             foreach ($validated['productos'] as $index => $item) {
-                $producto = !empty($item['producto_id']) ? Producto::find($item['producto_id']) : null;
-                $unidad = $item['unidad'] ?? ($producto?->unidad ?? 'PZA');
+                $producto = Producto::findOrFail($item['producto_id']);
+                // Snapshot tipo cotización: unidad, precio e IVA se toman del producto al guardar.
+                $unidad = $producto->unidad ?? 'PZA';
+                $cantidad = (float) ($item['cantidad'] ?? 0);
+                $precioUnitario = (float) ($producto->precio_venta ?? 0);
+                $tipoFactor = $producto->tipo_factor ?? 'Tasa';
+                $tasaIva = $tipoFactor === 'Exento' ? null : (float) ($producto->tasa_iva ?? 0);
+
+                $subtotal = round($cantidad * $precioUnitario, 2);
+                $ivaMonto = $tasaIva === null ? 0.0 : round($subtotal * (float) $tasaIva, 2);
+                $total = round($subtotal + $ivaMonto, 2);
+
                 RemisionDetalle::create([
                     'remision_id' => $remision->id,
-                    'producto_id' => $producto?->id,
-                    'codigo' => $producto?->codigo,
-                    'descripcion' => $item['descripcion'],
-                    'cantidad' => $item['cantidad'],
+                    'producto_id' => $producto->id,
+                    'codigo' => $producto->codigo,
+                    'descripcion' => $producto->nombre,
+                    'cantidad' => $cantidad,
                     'unidad' => $unidad,
+                    'precio_unitario' => $precioUnitario,
+                    'tasa_iva' => $tasaIva,
+                    'subtotal' => $subtotal,
+                    'iva_monto' => $ivaMonto,
+                    'total' => $total,
                     'orden' => $index,
                 ]);
             }
@@ -267,6 +350,7 @@ class RemisionController extends Controller
     public function verPDF(Remision $remision)
     {
         $remision->loadMissing(['detalles.producto', 'cliente', 'empresa']);
+        $this->asegurarSnapshotDetalles($remision);
         $pdfPath = app(PDFService::class)->generarRemisionPDF($remision);
         return response()->file(storage_path('app/' . $pdfPath));
     }
@@ -277,6 +361,7 @@ class RemisionController extends Controller
     public function descargarPDF(Remision $remision)
     {
         $remision->loadMissing(['detalles.producto', 'cliente', 'empresa']);
+        $this->asegurarSnapshotDetalles($remision);
         $pdfPath = app(PDFService::class)->generarRemisionPDF($remision);
         $filename = 'Remision_' . $remision->folio . '.pdf';
         return response()->download(storage_path('app/' . $pdfPath), $filename);
@@ -305,12 +390,14 @@ class RemisionController extends Controller
                     ->orWhere('codigo', 'like', "%{$search}%");
             })
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'unidad']);
+            ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva']);
         return response()->json($productos->map(fn ($p) => [
             'id' => $p->id,
             'codigo' => $p->codigo,
             'nombre' => $p->nombre,
             'unidad' => $p->unidad ?? 'PZA',
+            'precio_unitario' => $p->precio_venta ?? 0,
+            'tasa_iva' => $p->tasa_iva,
         ]));
     }
 }

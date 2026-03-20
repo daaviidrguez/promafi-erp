@@ -213,7 +213,7 @@ $breadcrumbs = [
                     <span class="text-muted"> — {{ $rem->cliente_nombre }}</span>
                 </span>
                 @can('facturas.crear')
-                <a href="{{ route('facturas.create', ['remision_id' => $rem->id]) }}" class="btn btn-primary btn-sm">Facturar</a>
+                <a href="{{ route('facturas.create') }}?remision_id={{ $rem->id }}" class="btn btn-primary btn-sm">Facturar</a>
                 @else
                 <a href="{{ route('remisiones.show', $rem->id) }}" class="btn btn-outline btn-sm">Ver</a>
                 @endcan

@@ -41,7 +41,23 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">📍 Dirección de entrega</div></div>
             <div class="card-body">
-                <textarea name="direccion_entrega" class="form-control" rows="3">{{ old('direccion_entrega', $remision->direccion_entrega) }}</textarea>
+                @php
+                    $direccionActual = old('direccion_entrega', $remision->direccion_entrega) ?? '';
+                @endphp
+                <select id="direccionEntregaSelect" class="form-control mb-2">
+                    <option value="">Usar domicilio fiscal del cliente</option>
+                    @foreach(($remision->cliente?->direccionesEntrega ?? collect()) as $dir)
+                        <option value="{{ $dir->id }}"
+                                data-direccion="{{ str_replace(['\r','\n'], '\\n', $dir->direccion_completa) }}"
+                                {{ ((string)($dir->direccion_completa ?? '') === (string)$direccionActual) ? 'selected' : '' }}>
+                            {{ $dir->sucursal_almacen }}
+                        </option>
+                    @endforeach
+                </select>
+                <textarea id="direccionEntregaTextarea"
+                          name="direccion_entrega"
+                          class="form-control"
+                          rows="3">{{ $direccionActual }}</textarea>
             </div>
         </div>
 
@@ -183,6 +199,25 @@ document.getElementById('remisionForm').addEventListener('submit', function(e) {
     if (!rows.length || (rows.length === 1 && rows[0].querySelector('td[colspan]'))) {
         e.preventDefault();
         alert('Agrega al menos una partida');
+    }
+});
+
+const direccionEntregaSelect = document.getElementById('direccionEntregaSelect');
+const direccionEntregaTextarea = document.getElementById('direccionEntregaTextarea');
+
+direccionEntregaSelect?.addEventListener('change', () => {
+    if (!direccionEntregaSelect || !direccionEntregaTextarea) return;
+    const opt = direccionEntregaSelect.options[direccionEntregaSelect.selectedIndex];
+    if (!opt || !direccionEntregaSelect.value) {
+        direccionEntregaTextarea.value = '';
+        return;
+    }
+    direccionEntregaTextarea.value = (opt.dataset.direccion || '').replace(/\\n/g, '\n');
+});
+
+direccionEntregaTextarea?.addEventListener('input', () => {
+    if (!direccionEntregaTextarea.value.trim()) {
+        direccionEntregaSelect.value = '';
     }
 });
 </script>

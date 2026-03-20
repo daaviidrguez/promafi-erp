@@ -13,6 +13,7 @@ use App\Http\Controllers\Web\PerfilController;
 use App\Http\Controllers\Web\CotizacionController;
 use App\Http\Controllers\Web\ClienteController;
 use App\Http\Controllers\Web\ClienteContactoController;
+use App\Http\Controllers\Web\ClienteDireccionEntregaController;
 use App\Http\Controllers\Web\ProductoController;
 use App\Http\Controllers\Web\ProductoProveedorController;
 use App\Http\Controllers\Web\CategoriaProductoController;
@@ -212,6 +213,14 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── CLIENTES ───── ✅
     Route::resource('clientes', ClienteController::class);
     Route::resource('clientes.contactos', ClienteContactoController::class)->parameters(['contactos' => 'contacto']);
+    Route::post('/clientes/{cliente}/direcciones-entrega', [ClienteDireccionEntregaController::class, 'store'])
+        ->name('clientes.direcciones-entrega.store');
+    Route::put('/clientes/{cliente}/direcciones-entrega/{direccionEntrega}', [ClienteDireccionEntregaController::class, 'update'])
+        ->name('clientes.direcciones-entrega.update');
+    Route::delete('/clientes/{cliente}/direcciones-entrega/{direccionEntrega}', [ClienteDireccionEntregaController::class, 'destroy'])
+        ->name('clientes.direcciones-entrega.destroy');
+    Route::get('/clientes/{cliente}/direcciones-entrega', [ClienteDireccionEntregaController::class, 'index'])
+        ->name('clientes.direcciones-entrega.index');
     
     // ───── PRODUCTOS ───── ✅
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');

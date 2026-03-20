@@ -151,6 +151,9 @@ class ClienteController extends Controller
             },
             'contactos' => function($q) {
                 $q->orderByDesc('principal');
+            },
+            'direccionesEntrega' => function($q) {
+                $q->orderByDesc('activo')->orderBy('id');
             }
         ]);
 

@@ -173,7 +173,7 @@ class RemisionController extends Controller
         if (!$remision->puedeEditarse()) {
             return redirect()->route('remisiones.show', $remision->id)->with('error', 'Solo se pueden editar remisiones en borrador');
         }
-        $remision->load('detalles.producto');
+        $remision->load(['cliente.direccionesEntrega', 'detalles.producto']);
         $this->asegurarSnapshotDetalles($remision);
         return view('remisiones.edit', compact('remision'));
     }

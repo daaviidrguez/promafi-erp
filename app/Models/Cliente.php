@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\ClienteContacto; 
+use App\Models\ClienteDireccionEntrega;
 
 class Cliente extends Model
 {
@@ -58,6 +59,14 @@ class Cliente extends Model
     public function contactos()
     {
         return $this->hasMany(ClienteContacto::class);
+    }
+
+    /**
+     * Relación con Direcciones de entrega (interno para remisiones/facturación).
+     */
+    public function direccionesEntrega()
+    {
+        return $this->hasMany(ClienteDireccionEntrega::class);
     }
 
     public function contactoPrincipal()

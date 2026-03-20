@@ -51,7 +51,14 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">📍 Dirección de entrega</div></div>
             <div class="card-body">
-                <textarea name="direccion_entrega" class="form-control" rows="3" placeholder="Opcional. Si se deja vacío se puede usar el domicilio fiscal del cliente.">{{ old('direccion_entrega') }}</textarea>
+                <select id="direccionEntregaSelect" class="form-control mb-2" disabled>
+                    <option value="">Usar domicilio fiscal del cliente</option>
+                </select>
+                <textarea id="direccionEntregaTextarea"
+                          name="direccion_entrega"
+                          class="form-control"
+                          rows="3"
+                          placeholder="Opcional. Si se deja vacío se puede usar el domicilio fiscal del cliente.">{{ old('direccion_entrega') }}</textarea>
                 @error('direccion_entrega')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
             </div>
         </div>
@@ -159,6 +166,9 @@ function seleccionarCliente(c) {
     document.getElementById('clienteRfc').textContent = c.rfc ? ' RFC: ' + c.rfc : '';
     document.getElementById('clienteInfo').style.display = 'block';
     closeDropdown('clienteResults');
+
+    // Direcciones de entrega del cliente (si existen)
+    cargarDireccionesEntrega(c.id);
 }
 
 function limpiarCliente() {
@@ -236,6 +246,80 @@ function renderProductos() {
 document.getElementById('remisionForm').addEventListener('submit', function(e) {
     if (!document.getElementById('cliente_id').value) { e.preventDefault(); alert('Selecciona un cliente'); return; }
     if (!productos.length) { e.preventDefault(); alert('Agrega al menos una partida'); return; }
+});
+
+const direccionEntregaSelect = document.getElementById('direccionEntregaSelect');
+const direccionEntregaTextarea = document.getElementById('direccionEntregaTextarea');
+const dirEntregaUrlTemplate = @json(route('clientes.direcciones-entrega.index', ['cliente' => '__CLIENTE__']));
+
+async function cargarDireccionesEntrega(clienteId) {
+    if (!direccionEntregaSelect || !direccionEntregaTextarea) return;
+
+    direccionEntregaSelect.disabled = true;
+    direccionEntregaSelect.innerHTML = '<option value="">Usar domicilio fiscal del cliente</option>';
+    const actual = (direccionEntregaTextarea.value || '').trim();
+
+    if (!clienteId) return;
+
+    try {
+        const url = dirEntregaUrlTemplate.replace('__CLIENTE__', clienteId);
+        const r = await fetch(url);
+        const data = await r.json();
+        const direcciones = Array.isArray(data.direcciones) ? data.direcciones : [];
+
+        if (!direcciones.length) {
+            // Si no hay direcciones guardadas, dejamos el texto como esté.
+            direccionEntregaSelect.disabled = true;
+            return;
+        }
+
+        direccionEntregaSelect.disabled = false;
+
+        // Mantener coherencia: si el textarea ya tiene algo (ej. old), intentamos hacer match.
+        // Si no hay match, NO sobrescribimos el texto: solo dejamos el select en "domicilio fiscal".
+        // Si el textarea está vacío, precargamos la primera dirección.
+        let selectedDir = null;
+        if (actual) {
+            selectedDir = direcciones.find(d => (d.direccion_completa || '').trim() === actual) || null;
+        } else {
+            selectedDir = direcciones[0] || null;
+        }
+
+        // Render options
+        direcciones.forEach((d) => {
+            const opt = document.createElement('option');
+            opt.value = d.id;
+            opt.textContent = d.sucursal_almacen ? d.sucursal_almacen : ('Dirección ' + d.id);
+            opt.dataset.direccion = d.direccion_completa || '';
+            if (selectedDir && d.id == selectedDir.id) opt.selected = true;
+            direccionEntregaSelect.appendChild(opt);
+        });
+
+        direccionEntregaSelect.value = selectedDir && selectedDir.id ? String(selectedDir.id) : '';
+        // Si hubo precarga/match, sincronizamos el texto; si no, lo dejamos como estaba.
+        if (selectedDir && selectedDir.direccion_completa) {
+            direccionEntregaTextarea.value = selectedDir.direccion_completa;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+direccionEntregaSelect?.addEventListener('change', () => {
+    if (!direccionEntregaSelect || !direccionEntregaTextarea) return;
+    const opt = direccionEntregaSelect.options[direccionEntregaSelect.selectedIndex];
+    if (!opt || !direccionEntregaSelect.value) {
+        direccionEntregaTextarea.value = '';
+        return;
+    }
+    direccionEntregaTextarea.value = opt.dataset.direccion || '';
+});
+
+direccionEntregaTextarea?.addEventListener('input', () => {
+    // Si el usuario borra el texto, dejamos el select en "domicilio fiscal"
+    if (!direccionEntregaTextarea.value.trim()) {
+        direccionEntregaSelect.value = '';
+    }
 });
 </script>
 @endpush

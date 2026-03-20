@@ -28,14 +28,22 @@ class ClienteContactoController extends Controller
             'notas' => 'nullable|string',
         ]);
 
+        // Checkbox: si no viene, boolean() lo toma como false.
+        $validated['principal'] = $request->boolean('principal', false);
+        $validated['activo'] = $request->boolean('activo', true);
+
         if (!empty($validated['principal'])) {
             $cliente->contactos()->update(['principal' => false]);
         }
 
         $cliente->contactos()->create($validated);
 
-        return redirect()
-            ->route('clientes.show', $cliente)
+        if ($request->wantsJson()) {
+            $cliente->load(['contactos']);
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->route('clientes.show', $cliente)
             ->with('success', 'Contacto agregado correctamente');
     }
 
@@ -58,14 +66,21 @@ class ClienteContactoController extends Controller
             'notas' => 'nullable|string',
         ]);
 
+        // Checkbox: si no viene, boolean() lo toma como false.
+        $validated['principal'] = $request->boolean('principal', false);
+        $validated['activo'] = $request->boolean('activo', true);
+
         if (!empty($validated['principal'])) {
             $cliente->contactos()->update(['principal' => false]);
         }
 
         $contacto->update($validated);
 
-        return redirect()
-            ->route('clientes.show', $cliente)
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->route('clientes.show', $cliente)
             ->with('success', 'Contacto actualizado correctamente');
     }
 
@@ -73,8 +88,11 @@ class ClienteContactoController extends Controller
     {
         $contacto->delete();
 
-        return redirect()
-            ->route('clientes.show', $cliente)
+        if (request()->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->route('clientes.show', $cliente)
             ->with('success', 'Contacto eliminado correctamente');
     }
 }

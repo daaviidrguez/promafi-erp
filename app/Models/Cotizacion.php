@@ -61,6 +61,7 @@ class Cotizacion extends Model
         'referencia_comercial',
         'referencia_url',
         'referencia_url_2',
+        'referencia_url_3',
         
         // Archivos
         'pdf_path',

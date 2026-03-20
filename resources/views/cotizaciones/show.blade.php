@@ -157,10 +157,18 @@ $breadcrumbs = [
                             <span class="text-muted">—</span>
                         @endif
                     </div>
-                    <div>
+                    <div style="margin-bottom: 18px;">
                         <div class="info-label mb-8">URL adicional</div>
                         @if($cotizacion->referencia_url_2)
                             <a href="{{ $cotizacion->referencia_url_2 }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $cotizacion->referencia_url_2 }}</a>
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </div>
+                    <div>
+                        <div class="info-label mb-8">Otra URL</div>
+                        @if($cotizacion->referencia_url_3)
+                            <a href="{{ $cotizacion->referencia_url_3 }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $cotizacion->referencia_url_3 }}</a>
                         @else
                             <span class="text-muted">—</span>
                         @endif

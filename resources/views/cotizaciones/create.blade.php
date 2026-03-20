@@ -281,13 +281,19 @@ $breadcrumbs = [
                            placeholder="https://…"
                            autocomplete="off">
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
+                <div class="form-group">
                     <label class="form-label">URL adicional</label>
                     <input type="text" name="referencia_url_2" class="form-control"
                            value="{{ old('referencia_url_2', $isEdit ? ($cotizacion->referencia_url_2 ?? '') : '') }}"
                            placeholder="https://…"
                            autocomplete="off">
-                    <span class="form-hint" style="margin-top:6px;display:block;">Esta información es solo para uso interno y no se mostrará al cliente.</span>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Otra URL</label>
+                    <input type="text" name="referencia_url_3" class="form-control"
+                           value="{{ old('referencia_url_3', $isEdit ? ($cotizacion->referencia_url_3 ?? '') : '') }}"
+                           placeholder="https://…"
+                           autocomplete="off">
                 </div>
             </div>
         </div>

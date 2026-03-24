@@ -27,6 +27,7 @@ class EnsureUserHasRoutePermission
         'devoluciones' => 'devoluciones.ver',
         'notas-credito' => 'notas_credito.ver',
         'productos' => 'productos.ver',
+        'catalogo-online' => 'productos.ver',
         'inventario' => 'inventario.ver',
         'categorias' => 'categorias.ver',
         'sugerencias' => 'sugerencias.ver',

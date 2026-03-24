@@ -15,6 +15,7 @@ use App\Http\Controllers\Web\ClienteController;
 use App\Http\Controllers\Web\ClienteContactoController;
 use App\Http\Controllers\Web\ClienteDireccionEntregaController;
 use App\Http\Controllers\Web\ProductoController;
+use App\Http\Controllers\Web\CatalogoOnlineController;
 use App\Http\Controllers\Web\ProductoProveedorController;
 use App\Http\Controllers\Web\CategoriaProductoController;
 use App\Http\Controllers\Web\FacturaController;
@@ -224,6 +225,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     
     // ───── PRODUCTOS ───── ✅
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
+    Route::get('/catalogo-online', [CatalogoOnlineController::class, 'index'])->name('catalogo-online.index');
+    Route::put('/catalogo-online/productos/{producto}', [CatalogoOnlineController::class, 'updateProducto'])->name('catalogo-online.productos.update');
     Route::resource('productos', ProductoController::class);
     Route::post('/productos/{producto}/proveedores-codigo', [ProductoProveedorController::class, 'save'])->name('productos.proveedores-codigo.save');
     Route::delete('/productos/{producto}/proveedores-codigo/{productoProveedor}', [ProductoProveedorController::class, 'destroy'])

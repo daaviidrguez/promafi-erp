@@ -96,6 +96,7 @@
         {{-- Catálogos (dropdown) --}}
         @php
             $catHasActive = request()->routeIs('productos.*')
+                || request()->routeIs('catalogo-online.*')
                 || request()->routeIs('inventario.*')
                 || request()->routeIs('categorias.*')
                 || request()->routeIs('sugerencias.*')
@@ -120,6 +121,7 @@
                 @can('clientes.ver')<li><a href="{{ route('clientes.index') }}" class="sidebar-menu-link {{ request()->routeIs('clientes.*') ? 'active' : '' }}" title="Clientes"><span class="sidebar-menu-icon">👥</span><span class="sidebar-menu-text">Clientes</span></a></li>@endcan
                 @can('proveedores.ver')<li><a href="{{ route('proveedores.index') }}" class="sidebar-menu-link {{ request()->routeIs('proveedores.*') ? 'active' : '' }}" title="Proveedores"><span class="sidebar-menu-icon">🏭</span><span class="sidebar-menu-text">Proveedores</span></a></li>@endcan
                 @can('productos.ver')<li><a href="{{ route('productos.index') }}" class="sidebar-menu-link {{ request()->routeIs('productos.*') ? 'active' : '' }}" title="Productos"><span class="sidebar-menu-icon">📦</span><span class="sidebar-menu-text">Productos</span></a></li>@endcan
+                @can('productos.ver')<li><a href="{{ route('catalogo-online.index') }}" class="sidebar-menu-link {{ request()->routeIs('catalogo-online.*') ? 'active' : '' }}" title="Catálogo Online"><span class="sidebar-menu-icon">🌐</span><span class="sidebar-menu-text">Catálogo Online</span></a></li>@endcan
                 @can('inventario.ver')<li><a href="{{ route('inventario.index') }}" class="sidebar-menu-link {{ request()->routeIs('inventario.*') ? 'active' : '' }}" title="Inventario"><span class="sidebar-menu-icon">📊</span><span class="sidebar-menu-text">Inventario</span></a></li>@endcan
                 @can('categorias.ver')<li><a href="{{ route('categorias.index') }}" class="sidebar-menu-link {{ request()->routeIs('categorias.*') ? 'active' : '' }}" title="Categorías"><span class="sidebar-menu-icon">🗂️</span><span class="sidebar-menu-text">Categorías</span></a></li>@endcan
                 @can('sugerencias.ver')<li><a href="{{ route('sugerencias.index') }}" class="sidebar-menu-link {{ request()->routeIs('sugerencias.*') ? 'active' : '' }}" title="Sugerencias"><span class="sidebar-menu-icon">💡</span><span class="sidebar-menu-text">Sugerencias</span></a></li>@endcan

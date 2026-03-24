@@ -12,6 +12,7 @@ use App\Models\UnidadMedidaSat;
 use App\Models\Proveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ProductoController extends Controller
 {
@@ -244,6 +245,15 @@ class ProductoController extends Controller
             'codigo.unique' => 'El código ya existe en el sistema.',
         ]);
 
+        $request->validate([
+            'imagenes' => 'nullable|array|max:3',
+            'imagenes.*' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+        ], [
+            'imagenes.max' => 'Máximo 3 imágenes.',
+            'imagenes.*.image' => 'Cada archivo debe ser una imagen válida.',
+            'imagenes.*.max' => 'Cada imagen no debe superar 5 MB.',
+        ]);
+
         // Normalización: siempre guardamos el código en mayúsculas.
         $validated['codigo'] = strtoupper(trim((string) $validated['codigo']));
 
@@ -258,6 +268,8 @@ class ProductoController extends Controller
         $validated['stock'] = 0; // Stock se gestiona desde el módulo Inventario
 
         $producto = Producto::create($validated);
+
+        $this->procesarImagenesEnCreacion($request, $producto);
 
         if ($psiCandidateCode && $codigoGuardado === $psiCandidateCode) {
             $nuevoNum = $this->obtenerSiguientePsiNumDesde($psiNextNum + 1);
@@ -313,10 +325,25 @@ class ProductoController extends Controller
             'codigo.unique' => 'El código ya existe en el sistema.',
         ]);
 
+        $request->validate([
+            'quitar_imagen' => 'nullable|array',
+            'quitar_imagen.*' => 'integer|in:0,1,2',
+            'imagenes' => 'nullable|array',
+            'imagenes.*' => 'required|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+        ], [
+            'imagenes.*.image' => 'Cada archivo debe ser una imagen válida.',
+            'imagenes.*.max' => 'Cada imagen no debe superar 5 MB.',
+        ]);
+
         $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
         $validated['aplica_iva'] = ($validated['tipo_factor'] ?? 'Tasa') !== 'Exento';
         unset($validated['stock']); // Stock solo se modifica desde Inventario
         $producto->update($validated);
+
+        $redirectImagenes = $this->procesarImagenesEnActualizacion($request, $producto);
+        if ($redirectImagenes instanceof \Illuminate\Http\RedirectResponse) {
+            return $redirectImagenes;
+        }
 
         return redirect()->route('productos.show', $producto->id)
             ->with('success', 'Producto actualizado exitosamente');
@@ -363,5 +390,62 @@ class ProductoController extends Controller
         if (DB::table('producto_proveedores')->where('producto_id', $productoId)->exists()) return true;
 
         return false;
+    }
+
+    private function procesarImagenesEnCreacion(Request $request, Producto $producto): void
+    {
+        $files = array_values(array_filter($request->file('imagenes', []) ?: []));
+        $files = array_slice($files, 0, 3);
+        if ($files === []) {
+            return;
+        }
+
+        $paths = [];
+        foreach ($files as $file) {
+            $paths[] = $file->store('productos', 'public');
+        }
+
+        $producto->imagenes = $paths;
+        $producto->imagen_principal = $paths[0] ?? null;
+        $producto->save();
+    }
+
+    private function procesarImagenesEnActualizacion(Request $request, Producto $producto): ?\Illuminate\Http\RedirectResponse
+    {
+        $actuales = $producto->rutasImagenes();
+        $quitar = array_unique(array_map('intval', $request->input('quitar_imagen', [])));
+
+        $mantener = [];
+        foreach ($actuales as $indice => $path) {
+            $path = trim((string) $path);
+            if (in_array($indice, $quitar, true)) {
+                if ($path !== '') {
+                    Storage::disk('public')->delete($path);
+                }
+            } else {
+                if ($path !== '') {
+                    $mantener[] = $path;
+                }
+            }
+        }
+
+        $files = array_values(array_filter($request->file('imagenes', []) ?: []));
+        $maxNuevos = max(0, 3 - count($mantener));
+        if (count($files) > $maxNuevos) {
+            return back()->withInput()->withErrors([
+                'imagenes' => 'Solo puedes subir hasta '.$maxNuevos.' imagen(es) nueva(s) (máximo 3 en total).',
+            ]);
+        }
+
+        foreach ($files as $file) {
+            $mantener[] = $file->store('productos', 'public');
+        }
+
+        $mantener = array_values(array_filter($mantener));
+        $producto->imagenes = $mantener !== [] ? $mantener : null;
+        $producto->imagen_principal = $mantener[0] ?? null;
+        $producto->save();
+
+        return null;
     }
 }

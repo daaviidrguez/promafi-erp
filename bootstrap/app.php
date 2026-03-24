@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permiso' => \App\Http\Middleware\CheckPermission::class,
             'route.permission' => \App\Http\Middleware\EnsureUserHasRoutePermission::class,
+            'catalogo.api' => \App\Http\Middleware\ValidateCatalogoApiToken::class,
         ]);
     })
     ->withProviders([

@@ -313,6 +313,30 @@ $breadcrumbs = [
             </div>
         </div>
 
+        {{-- Imágenes del producto --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📷 Imagen</div>
+            </div>
+            <div class="card-body">
+                @if(count($producto->imagenes_urls))
+                    <div class="producto-imagenes-grid">
+                        @foreach($producto->imagenes_urls as $url)
+                            <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" class="producto-imagen-link">
+                                <img src="{{ $url }}" alt="" class="producto-imagen-thumb" loading="lazy">
+                            </a>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="empty-state" style="padding: 20px 12px;">
+                        <div class="empty-state-icon">📷</div>
+                        <div class="empty-state-title">Sin imágenes</div>
+                        <div class="empty-state-text">Puedes agregarlas al editar el producto.</div>
+                    </div>
+                @endif
+            </div>
+        </div>
+
     </div>
 </div>
 

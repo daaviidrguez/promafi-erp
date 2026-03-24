@@ -9,6 +9,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CatalogoOnlineApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,6 +20,18 @@ use App\Http\Controllers\Api\AuthController;
 | Todas estas rutas automáticamente tienen el prefijo /api
 |
 */
+
+// ============================================================================
+// Catálogo online (sitio web externo, token CATALOGO_API_TOKEN)
+// GET https://erp.promafi.mx/api/v1/catalogo/productos
+// ============================================================================
+
+Route::prefix('v1/catalogo')
+    ->middleware('catalogo.api')
+    ->group(function () {
+        Route::get('/productos', [CatalogoOnlineApiController::class, 'index']);
+        Route::get('/productos/{producto}', [CatalogoOnlineApiController::class, 'show']);
+    });
 
 // ============================================================================
 // RUTAS PÚBLICAS (no requieren autenticación)

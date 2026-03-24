@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Producto extends Model
 {
@@ -35,6 +36,9 @@ class Producto extends Model
         'controla_inventario',
         'categoria_id',
         'imagen_principal',
+        'imagenes',
+        'catalogo_online_visible',
+        'catalogo_online_mostrar_precio',
         'activo',
         'notas',
     ];
@@ -53,7 +57,71 @@ class Producto extends Model
         'stock_maximo' => 'decimal:2',
         'controla_inventario' => 'boolean',
         'activo' => 'boolean',
+        'imagenes' => 'array',
+        'catalogo_online_visible' => 'boolean',
+        'catalogo_online_mostrar_precio' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::forceDeleting(function (Producto $producto) {
+            $producto->eliminarArchivosImagenesDelDisco();
+        });
+    }
+
+    /**
+     * Rutas relativas guardadas (máx. 3) en disco public.
+     *
+     * @return array<int, string>
+     */
+    public function rutasImagenes(): array
+    {
+        $paths = $this->imagenes;
+        if (! is_array($paths) || $paths === []) {
+            if (! empty($this->imagen_principal)) {
+                return [trim((string) $this->imagen_principal)];
+            }
+
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn ($p) => is_string($p) ? trim($p) : '', $paths)));
+    }
+
+    /**
+     * URLs públicas para mostrar en vistas (storage link).
+     *
+     * @return array<int, string>
+     */
+    public function getImagenesUrlsAttribute(): array
+    {
+        return array_values(array_filter(array_map(
+            fn (string $p) => $p !== '' ? asset('storage/'.ltrim($p, '/')) : null,
+            $this->rutasImagenes()
+        )));
+    }
+
+    /**
+     * URL del endpoint JSON de este producto para el catálogo online (API pública con token).
+     */
+    public function urlApiCatalogoOnline(): string
+    {
+        $base = rtrim((string) config('catalogo.public_base_url', config('app.url')), '/');
+
+        return $base.'/api/v1/catalogo/productos/'.$this->id;
+    }
+
+    public function eliminarArchivosImagenesDelDisco(): void
+    {
+        $paths = array_unique(array_filter(array_merge(
+            $this->rutasImagenes(),
+            $this->imagen_principal ? [trim((string) $this->imagen_principal)] : []
+        )));
+
+        foreach ($paths as $path) {
+            Storage::disk('public')->delete($path);
+        }
+    }
 
     /**
      * Relación con Categoría

@@ -13,7 +13,7 @@ $breadcrumbs = [
 
 @section('content')
 
-<form method="POST" action="{{ route('productos.update', $producto->id) }}">
+<form method="POST" action="{{ route('productos.update', $producto->id) }}" enctype="multipart/form-data">
     @csrf
     @method('PUT')
 
@@ -56,6 +56,56 @@ $breadcrumbs = [
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+                </div>
+            </div>
+
+            @php
+                $rutasImagenesProducto = $producto->rutasImagenes();
+                $slotsLibresImagenes = max(0, 3 - count($rutasImagenesProducto));
+            @endphp
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📷 Imagen</div>
+                </div>
+                <div class="card-body">
+                    @if(count($rutasImagenesProducto))
+                        <p class="form-hint" style="margin-top:0;">Imágenes actuales. Marca <strong>Quitar</strong> para eliminar del producto.</p>
+                        <div class="producto-imagenes-edit-grid">
+                            @foreach($rutasImagenesProducto as $idx => $ruta)
+                                <div class="producto-imagen-edit-item">
+                                    <img src="{{ asset('storage/'.$ruta) }}" alt="" class="producto-imagen-thumb">
+                                    <label class="producto-imagen-quitar">
+                                        <input type="checkbox" name="quitar_imagen[]" value="{{ $idx }}"> Quitar
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-muted" style="margin:0 0 12px;">Sin imágenes guardadas.</p>
+                    @endif
+
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Agregar imágenes</label>
+                        <input type="file"
+                               name="imagenes[]"
+                               id="imagenesProductoEdit"
+                               class="form-control"
+                               accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+                               multiple>
+                        <span class="form-hint">
+                            Opcional. Puedes subir hasta <strong>{{ $slotsLibresImagenes }}</strong> imagen(es) nuevas (máx. 3 en total).
+                        </span>
+                        @error('imagenes')
+                            <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
+                        @enderror
+                        @foreach ($errors->getMessages() as $field => $messages)
+                            @if(\Illuminate\Support\Str::startsWith($field, 'imagenes.'))
+                                @foreach($messages as $m)
+                                    <span class="form-hint" style="color: var(--color-danger); display:block;">{{ $m }}</span>
+                                @endforeach
+                            @endif
+                        @endforeach
                     </div>
                 </div>
             </div>
@@ -263,6 +313,31 @@ $breadcrumbs = [
     document.getElementById('codigo').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });
+
+    (function() {
+        var inputImg = document.getElementById('imagenesProductoEdit');
+        if (!inputImg) return;
+        var actuales = {{ count($rutasImagenesProducto) }};
+        function maxNuevasPermitidas() {
+            var quitando = document.querySelectorAll('input[name="quitar_imagen[]"]:checked').length;
+            var restantes = Math.max(0, actuales - quitando);
+            return Math.max(0, 3 - restantes);
+        }
+        inputImg.addEventListener('change', function() {
+            var max = maxNuevasPermitidas();
+            if (this.files && this.files.length > max) {
+                alert('Solo puedes subir hasta ' + max + ' imagen(es) nueva(s) (máximo 3 en total).');
+                this.value = '';
+            }
+        });
+        document.querySelectorAll('input[name="quitar_imagen[]"]').forEach(function(cb) {
+            cb.addEventListener('change', function() {
+                if (inputImg.files && inputImg.files.length > maxNuevasPermitidas()) {
+                    inputImg.value = '';
+                }
+            });
+        });
+    })();
 
     function actualizarTasaEdit() {
         const tipoFactor = document.getElementById('tipo_factor_edit').value;

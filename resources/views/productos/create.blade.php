@@ -13,7 +13,7 @@ $breadcrumbs = [
 
 @section('content')
 
-<form method="POST" action="{{ route('productos.store') }}">
+<form method="POST" action="{{ route('productos.store') }}" enctype="multipart/form-data">
     @csrf
 
     <div class="producto-create-layout responsive-grid">
@@ -58,6 +58,35 @@ $breadcrumbs = [
                                 @endforeach
                             </select>
                         </div>
+                </div>
+            </div>
+
+            {{-- Imágenes (opcional, máx. 3) --}}
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📷 Imagen</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label">Seleccionar archivos</label>
+                        <input type="file"
+                               name="imagenes[]"
+                               id="imagenesProducto"
+                               class="form-control"
+                               accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+                               multiple>
+                        <span class="form-hint">Opcional. Hasta <strong>3</strong> imágenes (JPG, PNG, GIF o WebP, máx. 5 MB c/u).</span>
+                        @error('imagenes')
+                            <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
+                        @enderror
+                        @foreach ($errors->getMessages() as $field => $messages)
+                            @if(\Illuminate\Support\Str::startsWith($field, 'imagenes.'))
+                                @foreach($messages as $m)
+                                    <span class="form-hint" style="color: var(--color-danger); display:block;">{{ $m }}</span>
+                                @endforeach
+                            @endif
+                        @endforeach
+                    </div>
                 </div>
             </div>
 
@@ -235,6 +264,13 @@ $breadcrumbs = [
 
     document.getElementById('codigo').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
+    });
+
+    document.getElementById('imagenesProducto')?.addEventListener('change', function() {
+        if (this.files && this.files.length > 3) {
+            alert('Solo puedes seleccionar hasta 3 imágenes.');
+            this.value = '';
+        }
     });
 
     function actualizarTasaCreate() {

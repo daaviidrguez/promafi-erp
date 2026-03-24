@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\CategoriaProducto;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class CategoriaProductoController extends Controller
@@ -38,8 +39,13 @@ class CategoriaProductoController extends Controller
         ]);
 
         $validated['activo'] = true;
+        $this->normalizarColorCategoria($validated);
 
-        CategoriaProducto::create($validated);
+        try {
+            CategoriaProducto::create($validated);
+        } catch (QueryException $e) {
+            return $this->respuestaErrorBdCategorias($request, $e);
+        }
 
         return redirect()->route('categorias.index')
             ->with('success', 'Categoría creada exitosamente');
@@ -58,7 +64,13 @@ class CategoriaProductoController extends Controller
             'activo' => 'boolean',
         ]);
 
-        $categoria->update($validated);
+        $this->normalizarColorCategoria($validated);
+
+        try {
+            $categoria->update($validated);
+        } catch (QueryException $e) {
+            return $this->respuestaErrorBdCategorias($request, $e);
+        }
 
         return redirect()->route('categorias.index')
             ->with('success', 'Categoría actualizada exitosamente');
@@ -78,5 +90,34 @@ class CategoriaProductoController extends Controller
 
         return redirect()->route('categorias.index')
             ->with('success', 'Categoría eliminada exitosamente');
+    }
+
+    /**
+     * La columna color es NOT NULL en BD; los formularios pueden enviar vacío → null.
+     */
+    private function normalizarColorCategoria(array &$validated): void
+    {
+        $color = $validated['color'] ?? null;
+        if ($color === null || trim((string) $color) === '') {
+            $validated['color'] = '#0B3C5D';
+        }
+    }
+
+    private function respuestaErrorBdCategorias(Request $request, QueryException $e)
+    {
+        $msg = $e->getMessage();
+        $alerta = 'No se pudo guardar la categoría. Revisa los datos e inténtalo de nuevo.';
+
+        if (str_contains($msg, 'color') && str_contains($msg, 'cannot be null')) {
+            $alerta = 'El color es obligatorio en el sistema. Indica un color en formato hexadecimal (por ejemplo #0B3C5D) o deja el campo vacío para usar el color predeterminado.';
+        } elseif (str_contains($msg, 'Duplicate entry') || str_contains($msg, '1062')) {
+            $alerta = 'Ya existe una categoría con ese código u otro dato único. Usa un código distinto.';
+        } elseif (str_contains($msg, 'foreign key') || str_contains($msg, '1452')) {
+            $alerta = 'La categoría padre seleccionada no es válida o ya no existe.';
+        }
+
+        return redirect()->route('categorias.index')
+            ->withInput()
+            ->with('error', $alerta);
     }
 }

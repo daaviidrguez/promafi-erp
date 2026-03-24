@@ -79,6 +79,7 @@ class CatalogoOnlineApiController extends Controller
             'id' => $producto->id,
             'codigo' => $producto->codigo,
             'nombre' => $producto->nombre,
+            'marca' => $producto->marca,
             'descripcion' => $producto->descripcion,
             'unidad' => $producto->unidad,
             'categoria' => $producto->categoria ? [

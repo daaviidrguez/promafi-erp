@@ -41,6 +41,11 @@ $breadcrumbs = [
                         </div>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Marca</label>
+                        <input type="text" name="marca" class="form-control"
+                               value="{{ old('marca', $producto->marca) }}" placeholder="Ej: 3M, Truper, Bosch...">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Descripción</label>
                         <textarea name="descripcion" class="form-control"
                                   rows="3">{{ old('descripcion', $producto->descripcion) }}</textarea>

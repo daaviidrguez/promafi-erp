@@ -226,6 +226,7 @@ class ProductoController extends Controller
         $validated = $request->validate([
             'codigo' => 'required|string|max:50|unique:productos,codigo',
             'nombre' => 'required|string|max:255',
+            'marca' => 'nullable|string|max:120',
             'descripcion' => 'nullable|string',
             'categoria_id' => 'nullable|exists:categorias_productos,id',
             'clave_sat' => 'required|string|max:8',
@@ -305,6 +306,7 @@ class ProductoController extends Controller
         $validated = $request->validate([
             'codigo' => 'required|string|max:50|unique:productos,codigo,' . $producto->id,
             'nombre' => 'required|string|max:255',
+            'marca' => 'nullable|string|max:120',
             'descripcion' => 'nullable|string',
             'categoria_id' => 'nullable|exists:categorias_productos,id',
             'clave_sat' => 'required|string|max:8',

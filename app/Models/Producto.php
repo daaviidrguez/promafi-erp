@@ -15,6 +15,7 @@ class Producto extends Model
         'codigo',
         'codigo_barras',
         'nombre',
+        'marca',
         'descripcion',
         'clave_sat',
         'clave_unidad_sat',

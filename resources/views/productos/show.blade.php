@@ -56,6 +56,10 @@ $breadcrumbs = [
                             </div>
                         </div>
                     </div>
+                    <div class="info-row">
+                        <div class="info-label">Marca</div>
+                        <div class="info-value">{{ $producto->marca ?: 'Sin marca' }}</div>
+                    </div>
                     @if($producto->descripcion)
                     <div class="info-row" style="grid-column: 1 / -1;">
                         <div class="info-label">Descripción</div>

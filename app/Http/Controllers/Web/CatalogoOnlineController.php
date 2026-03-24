@@ -11,7 +11,7 @@ class CatalogoOnlineController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Producto::query()->with(['categoria']);
+        $query = Producto::query()->with(['categoria.parent']);
 
         if ($request->filled('q')) {
             $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($request->get('q'))).'%';
@@ -34,7 +34,7 @@ class CatalogoOnlineController extends Controller
         }
 
         $productos = $query->orderBy('nombre')->paginate(24)->withQueryString();
-        $categorias = CategoriaProducto::activas()->orderBy('nombre')->get();
+        $categorias = CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
 
         $hayFiltros = $request->anyFilled(['q', 'categoria_id', 'precio_min', 'precio_max']);
 

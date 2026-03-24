@@ -18,7 +18,7 @@ class CatalogoOnlineApiController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Producto::query()
-            ->with(['categoria'])
+            ->with(['categoria.parent'])
             ->where('activo', true)
             ->where('catalogo_online_visible', true);
 
@@ -61,7 +61,7 @@ class CatalogoOnlineApiController extends Controller
             return response()->json(['message' => 'No encontrado'], 404);
         }
 
-        $producto->loadMissing(['categoria']);
+        $producto->loadMissing(['categoria.parent']);
 
         return response()->json([
             'meta' => [
@@ -86,6 +86,12 @@ class CatalogoOnlineApiController extends Controller
                 'nombre' => $producto->categoria->nombre,
                 'icono' => $producto->categoria->icono ?? null,
                 'color' => $producto->categoria->color ?? null,
+            ] : null,
+            'categoria_padre' => ($producto->categoria && $producto->categoria->parent) ? [
+                'id' => $producto->categoria->parent->id,
+                'nombre' => $producto->categoria->parent->nombre,
+                'icono' => $producto->categoria->parent->icono ?? null,
+                'color' => $producto->categoria->parent->color ?? null,
             ] : null,
             'precio_venta' => $mostrarPrecio ? (float) $producto->precio_venta : null,
             'mostrar_precio' => $mostrarPrecio,

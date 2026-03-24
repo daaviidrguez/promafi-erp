@@ -23,7 +23,11 @@ $breadcrumbs = [
                     <option value="">Todas las categorías</option>
                     @foreach($categorias as $cat)
                         <option value="{{ $cat->id }}" {{ (string) request('categoria_id') === (string) $cat->id ? 'selected' : '' }}>
-                            {{ $cat->icono }} {{ $cat->nombre }}
+                            @if($cat->parent)
+                                {{ $cat->parent->icono }} {{ $cat->parent->nombre }} › {{ $cat->icono }} {{ $cat->nombre }}
+                            @else
+                                {{ $cat->icono }} {{ $cat->nombre }}
+                            @endif
                         </option>
                     @endforeach
                 </select>
@@ -60,9 +64,24 @@ $breadcrumbs = [
                 <div class="fw-600" style="font-size: 14px; margin-top: 4px; line-height: 1.35;">{{ $p->nombre }}</div>
                 @if($p->categoria)
                     <div style="margin-top: 8px;">
-                        <span class="badge" style="background: {{ $p->categoria->color }}20; color: {{ $p->categoria->color }};">
-                            {{ $p->categoria->icono }} {{ $p->categoria->nombre }}
-                        </span>
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
+                            @if($p->categoria->parent)
+                                <span class="badge" style="background: {{ $p->categoria->parent->color }}20; color: {{ $p->categoria->parent->color }}; font-size:11px;">
+                                    {{ $p->categoria->parent->icono }} {{ $p->categoria->parent->nombre }}
+                                </span>
+                                <span class="text-muted" style="font-size: 12px;" aria-hidden="true">›</span>
+                            @endif
+                            <span class="badge" style="background: {{ $p->categoria->color }}20; color: {{ $p->categoria->color }};">
+                                {{ $p->categoria->icono }} {{ $p->categoria->nombre }}
+                            </span>
+                        </div>
+                        <div class="text-muted" style="font-size: 12px; margin-top: 4px;">
+                            @if($p->categoria->parent)
+                                Padre > Hija
+                            @else
+                                Categoría raíz
+                            @endif
+                        </div>
                     </div>
                 @else
                     <div class="text-muted" style="font-size: 12px; margin-top: 6px;">Sin categoría</div>

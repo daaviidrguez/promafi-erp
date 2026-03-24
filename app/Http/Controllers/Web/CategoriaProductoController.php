@@ -17,17 +17,12 @@ class CategoriaProductoController extends Controller
             ->orderBy('nombre')
             ->paginate(20);
 
-        return view('categorias.index', compact('categorias'));
-    }
-
-    public function create()
-    {
-        $categorias = CategoriaProducto::activas()
+        $categoriasPadre = CategoriaProducto::activas()
             ->raiz()
             ->orderBy('nombre')
             ->get();
 
-        return view('categorias.create', compact('categorias'));
+        return view('categorias.index', compact('categorias', 'categoriasPadre'));
     }
 
     public function store(Request $request)
@@ -48,16 +43,6 @@ class CategoriaProductoController extends Controller
 
         return redirect()->route('categorias.index')
             ->with('success', 'Categoría creada exitosamente');
-    }
-
-    public function edit(CategoriaProducto $categoria)
-    {
-        $categorias = CategoriaProducto::where('id', '!=', $categoria->id)
-            ->raiz()
-            ->orderBy('nombre')
-            ->get();
-
-        return view('categorias.edit', compact('categoria', 'categorias'));
     }
 
     public function update(Request $request, CategoriaProducto $categoria)

@@ -233,7 +233,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('productos.proveedores-codigo.destroy');
 
     // ───── CATEGORIAS ───── ✅
-    Route::resource('categorias', CategoriaProductoController::class);
+    Route::resource('categorias', CategoriaProductoController::class)->except(['create', 'edit', 'show']);
 
     // ───── INVENTARIO ─────
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');

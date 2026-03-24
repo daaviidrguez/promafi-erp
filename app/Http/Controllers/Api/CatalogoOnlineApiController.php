@@ -93,7 +93,7 @@ class CatalogoOnlineApiController extends Controller
                 'icono' => $producto->categoria->parent->icono ?? null,
                 'color' => $producto->categoria->parent->color ?? null,
             ] : null,
-            'precio_venta' => $mostrarPrecio ? (float) $producto->precio_venta : null,
+            'precio_venta' => $mostrarPrecio ? (float) $producto->precio_con_iva : null,
             'mostrar_precio' => $mostrarPrecio,
             'imagenes' => $producto->imagenes_urls,
         ];

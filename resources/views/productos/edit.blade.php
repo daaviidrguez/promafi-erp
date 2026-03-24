@@ -47,15 +47,20 @@ $breadcrumbs = [
                     </div>
                     <div class="form-group">
                         <label class="form-label">Categoría</label>
-                        <select name="categoria_id" class="form-control">
+                        <select name="categoria_id" id="categoria_id" class="form-control" onchange="actualizarCategoriaPadreEdit()">
                             <option value="">Sin categoría</option>
                             @foreach($categorias as $categoria)
                                 <option value="{{ $categoria->id }}"
+                                    data-parent-nombre="{{ $categoria->parent?->nombre ?? '' }}"
                                     {{ old('categoria_id', $producto->categoria_id) == $categoria->id ? 'selected' : '' }}>
-                                    {{ $categoria->icono }} {{ $categoria->nombre }}
+                                    {{ $categoria->icono }} {{ $categoria->nombre }}{{ $categoria->parent ? ' (Hija de: ' . $categoria->parent->nombre . ')' : '' }}
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Categoría Padre</label>
+                        <input type="text" id="categoria_padre_nombre" class="form-control" value="Sin categoría padre" readonly style="background: var(--color-gray-50);">
                     </div>
                 </div>
             </div>
@@ -362,7 +367,17 @@ $breadcrumbs = [
             '$' + total.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
     }
 
+    function actualizarCategoriaPadreEdit() {
+        var categoriaSel = document.getElementById('categoria_id');
+        var padreInput = document.getElementById('categoria_padre_nombre');
+        if (!categoriaSel || !padreInput) return;
+        var opt = categoriaSel.options[categoriaSel.selectedIndex];
+        var parentNombre = opt ? (opt.getAttribute('data-parent-nombre') || '') : '';
+        padreInput.value = parentNombre !== '' ? parentNombre : 'Sin categoría padre';
+    }
+
     actualizarTasaEdit();
+    actualizarCategoriaPadreEdit();
 
     // Unidad de medida: al elegir, precargar clave y nombre
     var sel = document.getElementById('unidad_medida_select');

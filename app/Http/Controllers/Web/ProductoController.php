@@ -138,9 +138,9 @@ class ProductoController extends Controller
             'sort' => $sort,
             'dir' => $dir,
         ]);
-        $productos = $query->with('categoria')->paginate(20)->appends($appends);
+        $productos = $query->with(['categoria.parent'])->paginate(20)->appends($appends);
 
-        $categorias = CategoriaProducto::activas()->orderBy('nombre')->get();
+        $categorias = CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
 
         $hayFiltrosColumna = $fCodigo !== '' || $fNombre !== '' || ($fCategoriaCol !== '' && $fCategoriaCol !== null)
             || ($fPrecioMin !== '' && $fPrecioMin !== null) || ($fPrecioMax !== '' && $fPrecioMax !== null)
@@ -282,7 +282,7 @@ class ProductoController extends Controller
 
     public function show(Producto $producto)
     {
-        $producto->load(['categoria', 'codigosProveedores.proveedor']);
+        $producto->load(['categoria.parent', 'codigosProveedores.proveedor']);
         $catalogo = ClaveProdServicio::where('clave', $producto->clave_sat)->first();
         $claveSatEtiqueta = $catalogo ? $catalogo->etiqueta : $producto->clave_sat;
         $proveedores = Proveedor::activos()->orderBy('nombre')->get();
@@ -292,7 +292,7 @@ class ProductoController extends Controller
 
     public function edit(Producto $producto)
     {
-        $categorias = CategoriaProducto::activas()->orderBy('nombre')->get();
+        $categorias = CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
         $unidadesMedida = UnidadMedidaSat::activos()->get();
         $claveSat = old('clave_sat', $producto->clave_sat);
         $catalogo = ClaveProdServicio::where('clave', $claveSat)->first();

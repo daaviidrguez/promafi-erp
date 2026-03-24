@@ -34,7 +34,11 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                     <option value="">Todas las categorías</option>
                     @foreach($categorias as $cat)
                         <option value="{{ $cat->id }}" {{ ($categoria_id ?? '') == $cat->id ? 'selected' : '' }}>
-                            {{ $cat->nombre }}
+                            @if($cat->parent)
+                                {{ $cat->parent->nombre }} › {{ $cat->nombre }}
+                            @else
+                                {{ $cat->nombre }}
+                            @endif
                         </option>
                     @endforeach
                 </select>
@@ -125,7 +129,13 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                         <option value="">Todas</option>
                         <option value="sin" {{ ($fCategoriaCol ?? '') === 'sin' ? 'selected' : '' }}>Sin categoría</option>
                         @foreach($categorias as $cat)
-                            <option value="{{ $cat->id }}" {{ (string)($fCategoriaCol ?? '') === (string)$cat->id ? 'selected' : '' }}>{{ $cat->nombre }}</option>
+                            <option value="{{ $cat->id }}" {{ (string)($fCategoriaCol ?? '') === (string)$cat->id ? 'selected' : '' }}>
+                                @if($cat->parent)
+                                    {{ $cat->parent->nombre }} › {{ $cat->nombre }}
+                                @else
+                                    {{ $cat->nombre }}
+                                @endif
+                            </option>
                         @endforeach
                     </select>
                 </th>
@@ -167,9 +177,17 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                 </td>
                 <td>
                     @if($producto->categoria)
-                        <span class="badge" style="background: {{ $producto->categoria->color }}20; color: {{ $producto->categoria->color }};">
-                            {{ $producto->categoria->icono }} {{ $producto->categoria->nombre }}
-                        </span>
+                        <div class="producto-cat-cell" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+                            @if($producto->categoria->parent)
+                                <span class="badge" style="background: {{ $producto->categoria->parent->color }}20; color: {{ $producto->categoria->parent->color }}; font-size: 11px;">
+                                    {{ $producto->categoria->parent->icono }} {{ $producto->categoria->parent->nombre }}
+                                </span>
+                                <span class="text-muted" style="font-size: 12px;" aria-hidden="true">›</span>
+                            @endif
+                            <span class="badge" style="background: {{ $producto->categoria->color }}20; color: {{ $producto->categoria->color }};">
+                                {{ $producto->categoria->icono }} {{ $producto->categoria->nombre }}
+                            </span>
+                        </div>
                     @else
                         <span class="text-muted">Sin categoría</span>
                     @endif

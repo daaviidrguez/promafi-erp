@@ -26,20 +26,34 @@ $breadcrumbs = [
             </div>
             <div class="card-body">
                 <div class="info-grid-2">
-                    <div class="info-row">
-                        <div class="info-label">Código</div>
-                        <div class="info-value text-mono">{{ $producto->codigo }}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Categoría</div>
-                        <div style="margin-top: 4px;">
-                            @if($producto->categoria)
-                                <span class="badge" style="background: {{ $producto->categoria->color }}20; color: {{ $producto->categoria->color }};">
-                                    {{ $producto->categoria->icono }} {{ $producto->categoria->nombre }}
-                                </span>
-                            @else
-                                <span class="text-muted">Sin categoría</span>
-                            @endif
+                    <div class="info-row producto-show-meta-line" style="grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; align-items: start; margin-bottom: 8px;">
+                        <div>
+                            <div class="info-label">Código</div>
+                            <div class="info-value text-mono">{{ $producto->codigo }}</div>
+                        </div>
+                        <div>
+                            <div class="info-label">Categoría</div>
+                            <div style="margin-top: 4px;">
+                                @if($producto->categoria)
+                                    <span class="badge" style="background: {{ $producto->categoria->color }}20; color: {{ $producto->categoria->color }};">
+                                        {{ $producto->categoria->icono }} {{ $producto->categoria->nombre }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">Sin categoría</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div>
+                            <div class="info-label">Categoría padre</div>
+                            <div style="margin-top: 4px;">
+                                @if($producto->categoria && $producto->categoria->parent)
+                                    <span class="badge" style="background: {{ $producto->categoria->parent->color }}20; color: {{ $producto->categoria->parent->color }};">
+                                        {{ $producto->categoria->parent->icono }} {{ $producto->categoria->parent->nombre }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">Sin categoría padre</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                     @if($producto->descripcion)
@@ -440,5 +454,15 @@ $breadcrumbs = [
     });
 })();
 </script>
+
+@push('styles')
+<style>
+@media (max-width: 768px) {
+    .producto-show-meta-line {
+        grid-template-columns: 1fr !important;
+    }
+}
+</style>
+@endpush
 
 @endsection

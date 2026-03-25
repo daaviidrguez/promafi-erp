@@ -47,6 +47,7 @@ use App\Http\Controllers\Web\IsrResicoController;
 use App\Http\Controllers\Web\ListaPrecioController;
 use App\Http\Controllers\Web\ReporteController;
 use App\Http\Controllers\Web\ImportadorCfdiController;
+use App\Http\Controllers\Web\CancelacionAdministrativaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -345,7 +346,11 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── BUSCADOR GLOBAL ─────
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');
 
-    // ───── SISTEMA: Usuarios, Roles, Importador CFDI ─────
+    // ───── SISTEMA: Usuarios, Roles, Importador CFDI, Cancelaciones administrativas ─────
+    Route::middleware('can:cancelaciones_administrativas.administrar')->group(function () {
+        Route::get('/cancelaciones-administrativas', [CancelacionAdministrativaController::class, 'index'])->name('cancelaciones-administrativas.index');
+        Route::post('/cancelaciones-administrativas/{factura}', [CancelacionAdministrativaController::class, 'ejecutar'])->name('cancelaciones-administrativas.ejecutar');
+    });
     Route::get('/importador-cfdi', [ImportadorCfdiController::class, 'index'])->name('importador-cfdi.index');
     Route::post('/importador-cfdi', [ImportadorCfdiController::class, 'store'])->name('importador-cfdi.store');
     Route::resource('usuarios', UsuarioController::class)->parameters(['usuarios' => 'usuario']);

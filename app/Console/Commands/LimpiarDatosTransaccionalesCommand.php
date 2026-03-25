@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Elimina datos transaccionales de la BD.
  * Mantiene: empresas, clientes, cliente_contactos, categorias_productos, productos,
- * proveedores, users, roles, permissions, permission_role, catálogos SAT.
+ * proveedores, producto_proveedores, clientes_direcciones_entrega, users, roles,
+ * permissions, permission_role, catálogos SAT.
  */
 class LimpiarDatosTransaccionalesCommand extends Command
 {
@@ -40,6 +41,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'devoluciones',
         'facturas_impuestos',
         'facturas_detalle',
+        'factura_cancelaciones_administrativas',
         'facturas',
         // Listas de precios y cotizaciones
         'listas_precios_detalle',

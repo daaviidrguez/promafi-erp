@@ -155,6 +155,17 @@ $breadcrumbs = [
                             @if($factura->fecha_cancelacion)
                                 <div class="text-muted" style="font-size: 11px; margin-top: 4px;">{{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}</div>
                             @endif
+                            @if($factura->cancelacion_administrativa ?? false)
+                                <div class="alert alert-warning" style="margin-top: 10px; margin-bottom: 0; text-align: left; font-size: 13px;">
+                                    <strong>Cancelación administrativa (solo ERP).</strong> No cancela el CFDI ante el SAT.
+                                    @if($factura->cancelacion_administrativa_motivo)
+                                        <div style="margin-top: 4px;">Motivo: {{ $factura->cancelacion_administrativa_motivo }}</div>
+                                    @endif
+                                    @if($factura->cancelacionAdministrativaUsuario)
+                                        <div class="text-muted" style="font-size: 12px; margin-top: 4px;">Usuario: {{ $factura->cancelacionAdministrativaUsuario->name }}</div>
+                                    @endif
+                                </div>
+                            @endif
                         @endif
                     </div>
                 </div>

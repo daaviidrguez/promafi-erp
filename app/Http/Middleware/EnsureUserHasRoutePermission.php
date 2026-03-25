@@ -41,6 +41,7 @@ class EnsureUserHasRoutePermission
         'usuarios' => 'usuarios.ver',
         'roles' => 'roles.ver',
         'importador-cfdi' => 'importador_cfdi.ver',
+        'cancelaciones-administrativas' => 'cancelaciones_administrativas.administrar',
     ];
 
     public function handle(Request $request, Closure $next): Response

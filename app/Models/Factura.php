@@ -55,12 +55,18 @@ class Factura extends Model
         'uuid_referencia',
         'tipo_relacion',
         'usuario_id',
+        'cancelacion_administrativa',
+        'cancelacion_administrativa_motivo',
+        'cancelacion_administrativa_at',
+        'cancelacion_administrativa_user_id',
     ];
 
     protected $casts = [
         'fecha_emision' => 'datetime',
         'fecha_timbrado' => 'datetime',
         'fecha_cancelacion' => 'datetime',
+        'cancelacion_administrativa' => 'boolean',
+        'cancelacion_administrativa_at' => 'datetime',
         'tipo_cambio' => 'decimal:6',
         'subtotal' => 'decimal:2',
         'descuento' => 'decimal:2',
@@ -151,11 +157,35 @@ class Factura extends Model
     }
 
     /**
+     * Auditoría de cancelaciones administrativas (solo ERP).
+     */
+    public function cancelacionesAdministrativas()
+    {
+        return $this->hasMany(FacturaCancelacionAdministrativa::class);
+    }
+
+    public function cancelacionAdministrativaUsuario()
+    {
+        return $this->belongsTo(User::class, 'cancelacion_administrativa_user_id');
+    }
+
+    /**
      * Documentos relacionados en complementos de pago (pagos aplicados a esta factura)
      */
     public function documentosRelacionadosPago()
     {
         return $this->hasMany(DocumentoRelacionadoPago::class);
+    }
+
+    /**
+     * Solo documentos cuyo complemento sigue timbrado (vigente).
+     * Tras cancelar el complemento, las filas históricas siguen existiendo pero no deben bloquear la factura.
+     */
+    public function documentosRelacionadosPagoVigentes()
+    {
+        return $this->documentosRelacionadosPago()->whereHas('pagoRecibido.complementoPago', function ($q) {
+            $q->where('estado', 'timbrado');
+        });
     }
 
     /**
@@ -217,13 +247,13 @@ class Factura extends Model
 
     /**
      * Verificar si la factura tiene documentos relacionados que impiden cancelarla.
-     * Incluye: complementos de pago, notas de crédito y devoluciones.
+     * Incluye: complementos de pago vigentes, NC timbradas y devoluciones autorizadas.
      */
     public function tieneDocumentosRelacionados(): bool
     {
-        return $this->documentosRelacionadosPago()->exists()
-            || $this->notasCredito()->exists()
-            || $this->devoluciones()->exists();
+        return $this->documentosRelacionadosPagoVigentes()->exists()
+            || $this->notasCredito()->where('estado', 'timbrada')->exists()
+            || $this->devoluciones()->where('estado', 'autorizada')->exists();
     }
 
     /**
@@ -232,20 +262,22 @@ class Factura extends Model
     public function getDocumentosRelacionadosDetalle(): array
     {
         $detalle = [];
-        if ($this->documentosRelacionadosPago()->exists()) {
-            $count = $this->documentosRelacionadosPago()->count();
+        if ($this->documentosRelacionadosPagoVigentes()->exists()) {
+            $count = $this->documentosRelacionadosPagoVigentes()->count();
             $detalle[] = $count === 1
                 ? '1 complemento de pago aplicado'
                 : "{$count} complementos de pago aplicados";
         }
-        if ($this->notasCredito()->exists()) {
-            $count = $this->notasCredito()->count();
+        $ncQuery = $this->notasCredito()->where('estado', 'timbrada');
+        if ($ncQuery->exists()) {
+            $count = $ncQuery->count();
             $detalle[] = $count === 1
                 ? '1 nota de crédito emitida'
                 : "{$count} notas de crédito emitidas";
         }
-        if ($this->devoluciones()->exists()) {
-            $count = $this->devoluciones()->count();
+        $devQuery = $this->devoluciones()->where('estado', 'autorizada');
+        if ($devQuery->exists()) {
+            $count = $devQuery->count();
             $detalle[] = $count === 1
                 ? '1 devolución registrada'
                 : "{$count} devoluciones registradas";
@@ -321,8 +353,11 @@ class Factura extends Model
             return 'Timbrada';
         }
         if ($this->estado === 'cancelada') {
+            if ($this->cancelacion_administrativa) {
+                return 'Cancelada (Administrativa — ERP)';
+            }
             $cod = $this->codigo_estatus_cancelacion;
-            if ($cod) {
+            if ($cod && $cod !== 'ADM') {
                 return 'Cancelada (' . $cod . ')';
             }
             return 'Cancelada';

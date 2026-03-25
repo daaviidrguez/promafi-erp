@@ -441,7 +441,7 @@ class FacturaController extends Controller
      */
     public function show(Factura $factura)
     {
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario']);
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario']);
         $ncBorrador = \App\Models\NotaCredito::where('factura_id', $factura->id)->where('estado', 'borrador')->first();
         $complementoBorrador = $factura->cliente_id ? \App\Models\ComplementoPago::where('cliente_id', $factura->cliente_id)->where('estado', 'borrador')->first() : null;
         return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador'));

@@ -25,6 +25,10 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">📋 Datos</div></div>
             <div class="card-body">
+                <div class="form-group">
+                    <label class="form-label">Folio</label>
+                    <input type="text" value="{{ $folio }}" readonly class="form-control text-mono fw-bold" style="background:var(--color-gray-100);">
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                     <div class="form-group">
                         <label class="form-label">Fecha <span class="req">*</span></label>

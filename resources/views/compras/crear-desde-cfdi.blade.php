@@ -154,7 +154,14 @@ $conceptosCount = count($conceptos);
         <div class="card">
             <div class="card-header"><div class="card-title">Resumen</div></div>
             <div class="card-body">
-                <p class="text-muted small">Serie/Folio: {{ $datos['serie'] ?? '' }}-{{ $datos['folio'] ?? '—' }}</p>
+                @php
+                    $cfdiSerie = trim((string) ($datos['serie'] ?? ''));
+                    $cfdiFolio = trim((string) ($datos['folio'] ?? ''));
+                    $cfdiFiscal = ($cfdiSerie !== '' && $cfdiFolio !== '') ? ($cfdiSerie . '/' . $cfdiFolio) : ($cfdiSerie !== '' ? $cfdiSerie : ($cfdiFolio !== '' ? $cfdiFolio : ''));
+                @endphp
+                <p class="text-muted small">
+                    Folio: <span class="text-mono fw-600">{{ $folioInterno }}@if($cfdiFiscal !== '') — {{ $cfdiFiscal }}@endif</span>
+                </p>
                 @if(!empty($datos['uuid']))<p class="text-muted small text-mono">UUID: {{ $datos['uuid'] }}</p>@endif
                 <p class="small mt-2">Al guardar, la compra quedará en estado <strong>Registrada</strong>. En la ficha de la compra use <strong>Recibir mercancía</strong> para dar de alta la entrada en inventario (solo en líneas con producto vinculado).</p>
             </div>

@@ -72,10 +72,30 @@ class CotizacionCompra extends Model
 
     public static function generarFolio(): string
     {
-        $year = date('Y');
-        $ultimo = self::where('folio', 'like', "CC-{$year}-%")->orderBy('id', 'desc')->first();
-        $numero = $ultimo && preg_match('/CC-' . $year . '-(\d{4})/', $ultimo->folio, $m) ? intval($m[1]) + 1 : 1;
-        return 'CC-' . $year . '-' . str_pad($numero, 4, '0', STR_PAD_LEFT);
+        $max = 0;
+        foreach (self::where('folio', 'like', 'CC-%')->pluck('folio') as $folio) {
+            $n = self::extraerSecuenciaFolioCc($folio);
+            if ($n > $max) {
+                $max = $n;
+            }
+        }
+
+        return 'CC-' . str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * CC-0001 (actual) o CC-2026-0001 (histórico).
+     */
+    private static function extraerSecuenciaFolioCc(string $folio): int
+    {
+        if (preg_match('/^CC-(\d{4})$/', $folio, $m)) {
+            return (int) $m[1];
+        }
+        if (preg_match('/^CC-\d{4}-(\d{4})$/', $folio, $m)) {
+            return (int) $m[1];
+        }
+
+        return 0;
     }
 
     public function puedeEditarse(): bool

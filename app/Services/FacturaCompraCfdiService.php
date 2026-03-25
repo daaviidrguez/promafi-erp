@@ -94,10 +94,12 @@ class FacturaCompraCfdiService
             $proveedor = Proveedor::where('rfc', $datos['rfc_emisor'])->first();
 
             $serie = $this->normalizarSerieFacturaCompra((string) ($datos['serie'] ?? ''));
+            $folioInterno = FacturaCompra::generarFolioInterno();
 
             $fc = FacturaCompra::create([
                 'serie' => $serie !== '' ? $serie : null,
                 'folio' => $datos['folio'] ?? '0',
+                'folio_interno' => $folioInterno,
                 'tipo_comprobante' => $tipoComprobante,
                 'estado' => 'registrada',
                 'proveedor_id' => $proveedor?->id,

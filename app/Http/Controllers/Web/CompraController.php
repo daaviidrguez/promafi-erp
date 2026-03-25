@@ -40,7 +40,9 @@ class CompraController extends Controller
         if (!$empresa) {
             return redirect()->route('dashboard')->with('error', 'Configura la empresa primero');
         }
-        return view('compras.create', compact('empresa'));
+        $folio = FacturaCompra::generarFolioInterno();
+
+        return view('compras.create', compact('empresa', 'folio'));
     }
 
     public function store(Request $request)
@@ -74,9 +76,11 @@ class CompraController extends Controller
             }
             $total = $subtotal - $descuento + $iva;
 
+            $folioInterno = FacturaCompra::generarFolioInterno();
             $fc = FacturaCompra::create([
                 'serie' => '',
-                'folio' => FacturaCompra::generarFolioManual(),
+                'folio' => $folioInterno,
+                'folio_interno' => $folioInterno,
                 'tipo_comprobante' => 'E',
                 'estado' => 'registrada',
                 'proveedor_id' => $proveedor->id,
@@ -324,6 +328,8 @@ class CompraController extends Controller
             }
         }
 
+        $folioInterno = FacturaCompra::generarFolioInterno();
+
         return view('compras.crear-desde-cfdi', compact(
             'datos',
             'empresa',
@@ -331,7 +337,8 @@ class CompraController extends Controller
             'productoProveedorMap',
             'productosPorLinea',
             'descripcionPorIndiceLineaCfdi',
-            'descripcionesConNoIdentCfdi'
+            'descripcionesConNoIdentCfdi',
+            'folioInterno'
         ));
     }
 
@@ -462,9 +469,11 @@ class CompraController extends Controller
 
         DB::beginTransaction();
         try {
+            $folioInterno = FacturaCompra::generarFolioInterno();
             $fc = FacturaCompra::create([
                 'serie' => $serie,
                 'folio' => $datos['folio'] ?? '0',
+                'folio_interno' => $folioInterno,
                 'tipo_comprobante' => $datos['tipo_comprobante'] ?? 'E',
                 'estado' => 'registrada',
                 'proveedor_id' => $proveedor->id,
@@ -911,9 +920,11 @@ class CompraController extends Controller
         try {
             $compra->load(['detalles.producto', 'proveedor', 'empresa']);
             $pdfPath = app(PDFService::class)->generarFacturaCompraPDF($compra);
+            $nombreArchivo = 'Compra_' . preg_replace('/[^a-zA-Z0-9._-]+/', '_', $compra->folio_completo) . '.pdf';
+
             return response()->download(
                 storage_path('app/' . $pdfPath),
-                'Compra_' . $compra->folio_completo . '.pdf'
+                $nombreArchivo
             );
         } catch (\Exception $e) {
             return back()->with('error', 'Error al descargar PDF: ' . $e->getMessage());

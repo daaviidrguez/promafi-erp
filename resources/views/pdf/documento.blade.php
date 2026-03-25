@@ -258,7 +258,11 @@ body {
             @endif
 
             <div style="font-size:10.5pt; font-weight:bold; margin-top:2px;">
-                {{ $doc->serie ?? '' }}{{ ($doc->serie ?? '') ? ' ' : '' }}{{ $doc->folio }}
+                @if($esFacturaCompra ?? false)
+                    {{ $doc->folio_completo ?? trim(($doc->serie ?? '') . ' ' . ($doc->folio ?? '')) }}
+                @else
+                    {{ $doc->serie ?? '' }}{{ ($doc->serie ?? '') ? ' ' : '' }}{{ $doc->folio }}
+                @endif
             </div>
 
             @if(($esFactura || $esNotaCredito) && ($doc->uuid ?? null) && ($doc->estado ?? '') === 'cancelada')

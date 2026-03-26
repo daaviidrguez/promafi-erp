@@ -143,12 +143,15 @@ $breadcrumbs = [
                     <button type="submit" class="btn btn-primary w-full">✅ Marcar como entregada</button>
                 </form>
                 @endif
-                @if($remision->puedeConvertirseAFactura())
                 @can('facturas.crear')
-                <a href="{{ route('facturas.create') }}?remision_id={{ $remision->id }}" class="btn btn-primary w-full">💰 Convertir a factura</a>
-                <p class="text-muted small mb-0" style="margin-top:4px;">El inventario no se descontará al timbrar (ya salió con la remisión).</p>
+                    @if($remision->factura && $remision->factura->estado === 'borrador')
+                        <a href="{{ route('facturas.edit', $remision->factura->id) }}" class="btn btn-primary w-full">💰 Continuar factura en borrador</a>
+                        <p class="text-muted small mb-0" style="margin-top:4px;">Esta remisión ya tiene un borrador vinculado.</p>
+                    @elseif($remision->puedeConvertirseAFactura())
+                        <a href="{{ route('facturas.create') }}?remision_id={{ $remision->id }}" class="btn btn-primary w-full">💰 Convertir a factura</a>
+                        <p class="text-muted small mb-0" style="margin-top:4px;">El inventario no se descontará al timbrar (ya salió con la remisión).</p>
+                    @endif
                 @endcan
-                @endif
                 @if($remision->estado === 'entregada')
                     @php
                         $facturaTimbrada = ($remision->factura && $remision->factura->estado === 'timbrada')

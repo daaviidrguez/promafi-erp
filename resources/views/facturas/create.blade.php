@@ -15,6 +15,9 @@ $breadcrumbs = [
 
 <form method="POST" action="{{ route('facturas.store') }}" id="formFactura">
     @csrf
+    @if(!empty($remisionId))
+        <input type="hidden" name="remision_id" value="{{ $remisionId }}">
+    @endif
 
     <div class="factura-create-layout responsive-grid">
 

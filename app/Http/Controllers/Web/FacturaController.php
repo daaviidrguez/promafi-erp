@@ -134,6 +134,10 @@ class FacturaController extends Controller
 
             if ($rem->factura_id !== null) {
                 $facturaActiva = $rem->factura;
+                if ($facturaActiva && $facturaActiva->estado === 'borrador') {
+                    return redirect()->route('facturas.edit', $facturaActiva->id)
+                        ->with('info', 'Esta remisión ya tiene una factura en borrador. Continúe editando ese borrador.');
+                }
                 if (! $facturaActiva || $facturaActiva->estado !== 'cancelada') {
                     return redirect()->route('remisiones.index', ['estado' => 'entregada'])
                         ->with('error', 'La remisión no está disponible para facturar (la factura vinculada debe estar cancelada o inexistente).');

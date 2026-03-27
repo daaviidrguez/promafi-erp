@@ -357,6 +357,9 @@ body {
     <div class="info-box">
         <div class="section-title">{{ $esCotizacion ? 'INFORMACION FISCAL' : 'INFORMACION' }}</div>
         Fecha Emision: {{ \Carbon\Carbon::parse($doc->fecha ?? $doc->fecha_emision)->format('d/m/Y') }}<br>
+        @if($esRemision && !empty($doc->orden_compra))
+        Orden de compra: {{ $doc->orden_compra }}<br>
+        @endif
         @if($esCotizacion)
             @if($doc->tipo_venta === 'credito' && ($doc->dias_credito_aplicados ?? 0) > 0)
             <strong>Condicion de Compra:</strong>

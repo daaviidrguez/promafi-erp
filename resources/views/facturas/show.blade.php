@@ -116,6 +116,18 @@ $breadcrumbs = [
             </div>
         </div>
 
+        {{-- Orden de compra --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🧾 Orden de compra</div>
+            </div>
+            <div class="card-body">
+                <div class="info-value-sm text-mono">
+                    {{ $factura->orden_compra ?? '—' }}
+                </div>
+            </div>
+        </div>
+
         {{-- Observaciones --}}
         @if($factura->observaciones)
         <div class="card">

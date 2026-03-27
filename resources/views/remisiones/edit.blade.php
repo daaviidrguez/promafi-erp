@@ -35,6 +35,14 @@ $breadcrumbs = [
                     <input type="date" name="fecha" value="{{ old('fecha', $remision->fecha->format('Y-m-d')) }}" required class="form-control">
                     @error('fecha')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Orden de compra</label>
+                    <input type="text"
+                           name="orden_compra"
+                           value="{{ old('orden_compra', $remision->orden_compra) }}"
+                           placeholder="Referencia libre (ej. OC-0001)"
+                           class="form-control">
+                </div>
             </div>
         </div>
 

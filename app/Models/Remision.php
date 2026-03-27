@@ -20,6 +20,7 @@ class Remision extends Model
         'cliente_id',
         'factura_id',
         'factura_id_cancelada',
+        'orden_compra',
         'empresa_id',
         'cliente_nombre',
         'cliente_rfc',

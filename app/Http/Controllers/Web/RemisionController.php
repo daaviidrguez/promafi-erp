@@ -99,6 +99,7 @@ class RemisionController extends Controller
             'fecha' => 'required|date',
             'direccion_entrega' => 'nullable|string|max:2000',
             'observaciones' => 'nullable|string|max:2000',
+            'orden_compra' => 'nullable|string|max:200',
             'productos' => 'required|array|min:1',
             // Seguridad: en remisiones no se permiten partidas manuales (producto_id requerido).
             'productos.*.producto_id' => 'required|exists:productos,id',
@@ -117,6 +118,7 @@ class RemisionController extends Controller
             $remision->estado = 'borrador';
             $remision->cliente_id = $cliente->id;
             $remision->empresa_id = $empresa?->id;
+            $remision->orden_compra = $validated['orden_compra'] ?? null;
             $remision->cliente_nombre = $cliente->nombre;
             $remision->cliente_rfc = $cliente->rfc;
             $remision->fecha = $validated['fecha'];
@@ -188,6 +190,7 @@ class RemisionController extends Controller
             'fecha' => 'required|date',
             'direccion_entrega' => 'nullable|string|max:2000',
             'observaciones' => 'nullable|string|max:2000',
+            'orden_compra' => 'nullable|string|max:200',
             'productos' => 'required|array|min:1',
             // Seguridad: en remisiones no se permiten partidas manuales (producto_id requerido).
             'productos.*.producto_id' => 'required|exists:productos,id',
@@ -201,6 +204,7 @@ class RemisionController extends Controller
             $remision->fecha = $validated['fecha'];
             $remision->direccion_entrega = $validated['direccion_entrega'] ?? null;
             $remision->observaciones = $validated['observaciones'] ?? null;
+            $remision->orden_compra = $validated['orden_compra'] ?? null;
             $remision->save();
 
             $remision->detalles()->delete();

@@ -126,6 +126,14 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
                         </div>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Orden de compra</label>
+                        <input type="text"
+                               name="orden_compra"
+                               value="{{ old('orden_compra', $factura->orden_compra) }}"
+                               placeholder="Referencia libre (ej. OC-0001)"
+                               class="form-control">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
                         <input type="date" name="fecha_emision" class="form-control"
                                value="{{ old('fecha_emision', $factura->fecha_emision->format('Y-m-d')) }}" required>

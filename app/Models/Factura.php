@@ -19,6 +19,7 @@ class Factura extends Model
         'estado',
         'cliente_id',
         'empresa_id',
+        'orden_compra',
         'rfc_emisor',
         'nombre_emisor',
         'regimen_fiscal_emisor',
@@ -102,6 +103,8 @@ class Factura extends Model
     {
         return $this->belongsTo(Empresa::class);
     }
+
+    // Nota: antes este campo estaba como FK a ordenes_compra, ahora es texto libre (orden_compra).
 
     /**
      * Relación con Usuario

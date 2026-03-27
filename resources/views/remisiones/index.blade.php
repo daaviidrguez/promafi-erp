@@ -55,6 +55,7 @@
                 <th>Folio</th>
                 <th>Cliente</th>
                 <th>Fecha</th>
+                <th>Orden de compra</th>
                 <th class="td-center">Estado</th>
                 <th class="td-center">Facturada</th>
                 <th class="td-actions">Acciones</th>
@@ -66,6 +67,7 @@
                 <td class="text-mono fw-600">{{ $r->folio }}</td>
                 <td>{{ $r->cliente_nombre }}</td>
                 <td>{{ $r->fecha->format('d/m/Y') }}</td>
+                <td class="text-mono">{{ $r->orden_compra ?? '—' }}</td>
                 <td class="td-center">
                     @if($r->estado === 'borrador')<span class="badge badge-warning">Borrador</span>
                     @elseif($r->estado === 'enviada')<span class="badge badge-info">Enviada</span>

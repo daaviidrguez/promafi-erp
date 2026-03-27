@@ -24,6 +24,7 @@ $breadcrumbs = [
                     <div class="info-row"><div class="info-label">Razón Social</div><div class="info-value">{{ $remision->cliente_nombre }}</div></div>
                     <div class="info-row"><div class="info-label">RFC</div><div class="info-value text-mono">{{ $remision->cliente_rfc ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">Fecha</div><div class="info-value">{{ $remision->fecha->format('d/m/Y') }}</div></div>
+                    <div class="info-row"><div class="info-label">Orden de compra</div><div class="info-value text-mono">{{ $remision->orden_compra ?? '—' }}</div></div>
                     @if($remision->fecha_entrega)<div class="info-row"><div class="info-label">Fecha entrega</div><div class="info-value">{{ $remision->fecha_entrega->format('d/m/Y') }}</div></div>@endif
                     @if($remision->direccion_entrega)<div class="info-row"><div class="info-label">Dirección de entrega</div><div class="info-value" style="white-space:pre-wrap;">{{ $remision->direccion_entrega }}</div></div>@endif
                 </div>

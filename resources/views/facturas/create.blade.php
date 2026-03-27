@@ -120,6 +120,14 @@ $breadcrumbs = [
                         <span class="form-hint">Según método de pago (PUE = contado, PPD = crédito)</span>
                     </div>
                     <div class="form-group">
+                        <label class="form-label">Orden de compra</label>
+                        <input type="text"
+                               name="orden_compra"
+                               value="{{ old('orden_compra', $ordenCompraPreseleccionado ?? '') }}"
+                               placeholder="Referencia libre (ej. OC-0001)"
+                               class="form-control">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
                         <input type="date" name="fecha_emision" class="form-control"
                                value="{{ old('fecha_emision', now()->format('Y-m-d')) }}" required>

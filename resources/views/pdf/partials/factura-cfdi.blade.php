@@ -73,6 +73,9 @@
             @else
                 C.P. {{ $f->domicilio_fiscal_receptor ?? '-' }}
             @endif
+            @if(!empty($f->orden_compra))
+            <br><strong>Orden de compra:</strong> {{ $f->orden_compra }}
+            @endif
             @if(!empty($f->observaciones))
             <br><strong>Observaciones:</strong><br>{!! nl2br(e($f->observaciones)) !!}
             @endif

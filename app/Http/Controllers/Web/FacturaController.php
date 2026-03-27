@@ -122,6 +122,7 @@ class FacturaController extends Controller
         $remisionId = null;
         $remisionLineasJson = null;
         $observacionesPre = null;
+        $ordenCompraPreseleccionado = null;
         if ($request->filled('remision_id')) {
             $rem = Remision::with(['detalles.producto', 'cliente'])
                 ->where('estado', 'entregada')
@@ -152,6 +153,7 @@ class FacturaController extends Controller
             }
             $remisionId = $rem->id;
             $clientePreseleccionado = $rem->cliente;
+            $ordenCompraPreseleccionado = $rem->orden_compra;
             $observacionesPre = 'Documento de origen: Remisión #' . ($rem->folio ?? $rem->id);
             $remisionLineasJson = $rem->detalles->map(function ($d) {
                 $p = $d->producto;
@@ -185,6 +187,7 @@ class FacturaController extends Controller
             'remisionId',
             'remisionLineasJson',
             'observacionesPre',
+            'ordenCompraPreseleccionado',
         ));
     }
 
@@ -211,6 +214,7 @@ class FacturaController extends Controller
             'productos.*.valor_unitario' => 'required|numeric|min:0',
             'productos.*.descuento' => 'nullable|numeric|min:0',
             'remision_id' => 'nullable|exists:remisiones,id',
+            'orden_compra' => 'nullable|string|max:200',
         ]);
 
         // Normalizar y limitar uuid_referencia para evitar overflow en DB
@@ -320,6 +324,7 @@ class FacturaController extends Controller
                 'uuid_referencia' => !empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null,
                 'tipo_relacion' => !empty($validated['uuid_referencia']) ? ($validated['tipo_relacion'] ?? '04') : null,
                 'usuario_id' => auth()->id(),
+                'orden_compra' => $validated['orden_compra'] ?? $remisionVincular?->orden_compra ?? null,
             ]);
 
             // Base gravable total para prorratear retención ISR
@@ -468,7 +473,6 @@ class FacturaController extends Controller
         $formasPago = FormaPago::activos()->get();
         $metodosPago = MetodoPago::activos()->get();
         $usosCfdi = UsoCfdi::activos()->get();
-
         return view('facturas.edit', compact('factura', 'empresa', 'clientes', 'productos', 'formasPago', 'metodosPago', 'usosCfdi'));
     }
 
@@ -528,6 +532,7 @@ class FacturaController extends Controller
             'metodo_pago' => 'required|string|exists:metodos_pago,clave',
             'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
             'observaciones' => 'nullable|string',
+            'orden_compra' => 'nullable|string|max:200',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
             'productos.*.descripcion' => 'required|string',
@@ -594,6 +599,7 @@ class FacturaController extends Controller
                 'descuento' => $descuentoTotal,
                 'total' => $total,
                 'observaciones' => $validated['observaciones'],
+                'orden_compra' => $validated['orden_compra'] ?? $factura->orden_compra,
             ]);
 
             // Eliminar detalles e impuestos anteriores

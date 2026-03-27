@@ -244,7 +244,16 @@ function renderProductos() {
                 <span>${(p.unidad || 'PZA').toString()}</span>
                 <input type="hidden" name="productos[${i}][unidad]" value="${(p.unidad || 'PZA').toString()}">
             </td>
-            <td class="td-right text-mono">${fmtPrecio(p.precio_unitario)}</td>
+            <td class="td-right">
+                <input type="number"
+                       name="productos[${i}][precio_unitario]"
+                       value="${fmtPrecio(p.precio_unitario)}"
+                       min="0"
+                       step="0.01"
+                       onchange="upd(${i},'precio_unitario',+this.value)"
+                       class="form-control text-mono"
+                       style="width:110px;text-align:right;">
+            </td>
             <td class="td-center">${fmtIva(p.tasa_iva)}</td>
             <td><button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm">✕</button></td>
         </tr>

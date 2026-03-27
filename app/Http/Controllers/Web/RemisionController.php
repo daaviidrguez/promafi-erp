@@ -105,6 +105,7 @@ class RemisionController extends Controller
             'productos.*.producto_id' => 'required|exists:productos,id',
             'productos.*.descripcion' => 'required|string|max:500',
             'productos.*.cantidad' => 'required|numeric|min:0.01',
+            'productos.*.precio_unitario' => 'required|numeric|min:0',
             'productos.*.unidad' => 'nullable|string|max:10',
         ]);
 
@@ -129,10 +130,11 @@ class RemisionController extends Controller
 
             foreach ($validated['productos'] as $index => $item) {
                 $producto = Producto::findOrFail($item['producto_id']);
-                // Snapshot tipo cotización: unidad, precio e IVA se toman del producto al guardar.
+                // Snapshot de remisión: unidad e IVA se toman del producto al guardar.
+                // El precio unitario puede ser ajustado por el usuario en la captura.
                 $unidad = $producto->unidad ?? 'PZA';
                 $cantidad = (float) ($item['cantidad'] ?? 0);
-                $precioUnitario = (float) ($producto->precio_venta ?? 0);
+                $precioUnitario = (float) ($item['precio_unitario'] ?? $producto->precio_venta ?? 0);
                 $tipoFactor = $producto->tipo_factor ?? 'Tasa';
                 $tasaIva = $tipoFactor === 'Exento' ? null : (float) ($producto->tasa_iva ?? 0);
 
@@ -196,6 +198,7 @@ class RemisionController extends Controller
             'productos.*.producto_id' => 'required|exists:productos,id',
             'productos.*.descripcion' => 'required|string|max:500',
             'productos.*.cantidad' => 'required|numeric|min:0.01',
+            'productos.*.precio_unitario' => 'required|numeric|min:0',
             'productos.*.unidad' => 'nullable|string|max:10',
         ]);
 
@@ -210,10 +213,11 @@ class RemisionController extends Controller
             $remision->detalles()->delete();
             foreach ($validated['productos'] as $index => $item) {
                 $producto = Producto::findOrFail($item['producto_id']);
-                // Snapshot tipo cotización: unidad, precio e IVA se toman del producto al guardar.
+                // Snapshot de remisión: unidad e IVA se toman del producto al guardar.
+                // El precio unitario puede ser ajustado por el usuario en la captura.
                 $unidad = $producto->unidad ?? 'PZA';
                 $cantidad = (float) ($item['cantidad'] ?? 0);
-                $precioUnitario = (float) ($producto->precio_venta ?? 0);
+                $precioUnitario = (float) ($item['precio_unitario'] ?? $producto->precio_venta ?? 0);
                 $tipoFactor = $producto->tipo_factor ?? 'Tasa';
                 $tasaIva = $tipoFactor === 'Exento' ? null : (float) ($producto->tasa_iva ?? 0);
 

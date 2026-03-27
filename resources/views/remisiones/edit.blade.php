@@ -105,8 +105,14 @@ $breadcrumbs = [
                                     <span>{{ $d->unidad }}</span>
                                     <input type="hidden" name="productos[{{ $i }}][unidad]" value="{{ $d->unidad }}">
                                 </td>
-                                <td class="td-right text-mono">
-                                    {{ number_format(($d->precio_unitario ?? $d->producto?->precio_venta ?? 0), 2) }}
+                                <td class="td-right">
+                                    <input type="number"
+                                           name="productos[{{ $i }}][precio_unitario]"
+                                           value="{{ old('productos.'.$i.'.precio_unitario', $d->precio_unitario ?? $d->producto?->precio_venta ?? 0) }}"
+                                           min="0"
+                                           step="0.01"
+                                           class="form-control text-mono"
+                                           style="width:110px;text-align:right;">
                                 </td>
                                 <td class="td-center">
                                     @if(($d->tasa_iva ?? $d->producto?->tasa_iva ?? null) === null)
@@ -193,7 +199,15 @@ function agregarProducto(p) {
             <span>${(p.unidad||'PZA').toString()}</span>
             <input type="hidden" name="productos[${i}][unidad]" value="${(p.unidad||'PZA').toString()}">
         </td>
-        <td class="td-right text-mono">${(parseFloat(p.precio_unitario ?? 0) || 0).toFixed(2)}</td>
+        <td class="td-right">
+            <input type="number"
+                   name="productos[${i}][precio_unitario]"
+                   value="${(parseFloat(p.precio_unitario ?? 0) || 0).toFixed(2)}"
+                   min="0"
+                   step="0.01"
+                   class="form-control text-mono"
+                   style="width:110px;text-align:right;">
+        </td>
         <td class="td-center">${ivaLabel}</td>
         <td><button type="button" onclick="quitarFila(this)" class="btn btn-danger btn-icon btn-sm">✕</button></td>
     `;

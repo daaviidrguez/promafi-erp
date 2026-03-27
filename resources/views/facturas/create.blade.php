@@ -25,7 +25,7 @@ $breadcrumbs = [
         <div>
 
             {{-- Datos del Cliente --}}
-            <div class="card">
+            <div class="card card-search">
                 <div class="card-header">
                     <div class="card-title">👤 Datos del Cliente</div>
                 </div>
@@ -74,21 +74,22 @@ $breadcrumbs = [
                     </button>
                 </div>
                 <div class="card-body" style="padding: 0;">
-                    <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+                    <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0; overflow-y: visible; position: relative;">
                         <table>
                             <thead>
                                 <tr>
-                                    <th style="width: 35%;">Descripción</th>
-                                    <th class="td-center" style="width: 12%;">Cantidad</th>
-                                    <th class="td-right" style="width: 18%;">Precio Unit.</th>
-                                    <th class="td-right" style="width: 15%;">Descuento</th>
-                                    <th class="td-right" style="width: 15%;">Importe</th>
+                                    <th style="width: 48%;">Descripción</th>
+                                    <th class="td-center" style="width: 10%;">Cantidad</th>
+                                    <th class="td-right" style="width: 14%;">Precio Unit.</th>
+                                    <th class="td-right" style="width: 12%;">Descuento</th>
+                                    <th class="td-right" style="width: 13%;">Importe</th>
                                     <th style="width: 5%;"></th>
                                 </tr>
                             </thead>
                             <tbody id="productosContainer"></tbody>
                         </table>
                     </div>
+                    <div id="productoResultsFlotanteFactura" class="autocomplete-results autocomplete-results-flotante" style="display:none; position:fixed; z-index:2000;"></div>
 
                     <div id="emptyProductos" style="padding: 40px 20px; text-align: center; color: var(--color-gray-500);">
                         <div style="font-size: 36px; margin-bottom: 10px; opacity: 0.3;">📦</div>
@@ -270,9 +271,19 @@ $breadcrumbs = [
 @push('scripts')
 <script>
 let productoIndex = 0;
+let filaBusquedaActiva = null;
 const catalogoProductos = @json($productos);
 const folioContado = @json($folioContado ?? 'FA-0001');
 const folioCredito = @json($folioCredito ?? 'FB-0001');
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 function actualizarVisorFolio() {
     const metodo = document.getElementById('metodo_pago').value;
@@ -280,6 +291,11 @@ function actualizarVisorFolio() {
 }
 
 document.getElementById('metodo_pago').addEventListener('change', actualizarVisorFolio);
+document.addEventListener('click', function (e) {
+    if (!e.target.closest('.search-box') && !e.target.closest('#productoResultsFlotanteFactura')) {
+        cerrarFlotanteProductosFactura();
+    }
+});
 
 // Info cliente al cambiar select
 document.getElementById('cliente_id').addEventListener('change', function() {
@@ -320,16 +336,10 @@ function prefillFacturaDesdeRemision() {
 
         const row = document.getElementById(`prod-${i}`);
         if (!row) return;
-
-        const select = row.querySelector('select.form-control-producto');
-        if (select) {
-            select.value = String(line.producto_id);
-
-            // Reemplazar tasa para cálculos del UI con el snapshot de remisión.
-            const opt = select.options[select.selectedIndex];
-            if (opt && line.tasa_iva !== undefined) opt.dataset.tasaIva = String(line.tasa_iva ?? 0);
-
-            seleccionarProducto(i, select);
+        seleccionarProductoPorId(i, line.producto_id);
+        if (line.tasa_iva !== undefined) {
+            const inpTasa = row.querySelector('.input-tasa-iva');
+            if (inpTasa) inpTasa.value = String(line.tasa_iva ?? 0);
         }
 
         // Sobrescribir descripción/importe con snapshot de remisión
@@ -370,23 +380,23 @@ document.addEventListener('DOMContentLoaded', prefillFacturaDesdeRemision);
 function agregarProducto() {
     document.getElementById('emptyProductos').style.display = 'none';
     const i = productoIndex++;
-    const opciones = catalogoProductos.map(p => {
-        const tasa = p.tipo_factor === 'Exento' ? 0 : (parseFloat(p.tasa_iva) || 0);
-        return `<option value="${p.id}" data-precio="${p.precio_venta}" data-nombre="${p.nombre}" data-tasa-iva="${tasa}">${p.codigo} — ${p.nombre}</option>`;
-    }).join('');
-
     const tr = document.createElement('tr');
     tr.id = `prod-${i}`;
     tr.innerHTML = `
-        <td>
-            <select class="form-control form-control-producto" style="font-size: 13px; margin-bottom: 6px;" data-row="${i}"
-                    onchange="seleccionarProducto(${i}, this)">
-                <option value="">Seleccionar del catálogo...</option>
-                ${opciones}
-            </select>
+        <td style="min-width: 520px;">
+            <div class="search-box" style="position: relative; margin-bottom: 6px;">
+                <input type="text"
+                       class="form-control"
+                       style="font-size: 13px; width: 100%;"
+                       placeholder="Buscar producto por código o nombre..."
+                       oninput="buscarProductosFila(${i}, this.value)"
+                       onfocus="filaBusquedaActiva=${i}"
+                       autocomplete="off">
+            </div>
             <input type="hidden" name="productos[${i}][producto_id]" class="input-producto-id" value="">
+            <input type="hidden" class="input-tasa-iva" value="0">
             <input type="text" name="productos[${i}][descripcion]"
-                   placeholder="Descripción *" class="form-control" style="font-size: 13px;" required>
+                   placeholder="Descripción *" class="form-control" style="font-size: 13px; width: 100%; min-width: 500px;" required>
         </td>
         <td class="td-center">
             <input type="number" name="productos[${i}][cantidad]"
@@ -414,14 +424,79 @@ function agregarProducto() {
     document.getElementById('productosContainer').appendChild(tr);
 }
 
-function seleccionarProducto(i, select) {
-    if (!select.value) return;
-    const opt = select.options[select.selectedIndex];
+function buscarProductosFila(i, query) {
+    filaBusquedaActiva = i;
+    const flotante = document.getElementById('productoResultsFlotanteFactura');
     const row = document.getElementById(`prod-${i}`);
-    row.querySelector('[name*="[descripcion]"]').value        = opt.dataset.nombre;
-    row.querySelector('[name*="[valor_unitario]"]').value      = parseFloat(opt.dataset.precio).toFixed(2);
-    row.querySelector('.input-producto-id').value             = select.value;
+    const input = row ? row.querySelector('.search-box input[type="text"]') : null;
+    if (!flotante || !input) return;
+    const q = (query || '').trim().toLowerCase();
+    if (q.length < 2) {
+        cerrarFlotanteProductosFactura();
+        return;
+    }
+
+    const encontrados = catalogoProductos
+        .filter(p => {
+            const nombre = String(p.nombre || '').toLowerCase();
+            const codigo = String(p.codigo || '').toLowerCase();
+            return nombre.includes(q) || codigo.includes(q);
+        })
+        .slice(0, 10);
+
+    if (!encontrados.length) {
+        posicionarFlotanteProductosFactura(input, flotante);
+        flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+        flotante.classList.add('show');
+        flotante.style.display = 'block';
+        return;
+    }
+
+    posicionarFlotanteProductosFactura(input, flotante);
+    flotante.innerHTML = encontrados.map(p => `
+        <div class="autocomplete-item" onclick="seleccionarProductoPorId(${i}, ${p.id})">
+            <div class="autocomplete-item-name">${escapeHtml(p.nombre)}</div>
+            <div class="autocomplete-item-sub">${escapeHtml(p.codigo || '')} — ${escapeHtml(p.unidad || 'PZA')}</div>
+        </div>
+    `).join('');
+    flotante.classList.add('show');
+    flotante.style.display = 'block';
+}
+
+function seleccionarProductoPorId(i, productoId) {
+    const p = catalogoProductos.find(x => Number(x.id) === Number(productoId));
+    if (!p) return;
+    const row = document.getElementById(`prod-${i}`);
+    if (!row) return;
+    const inputBuscar = row.querySelector('.search-box input[type="text"]');
+    const tasa = p.tipo_factor === 'Exento' ? 0 : (parseFloat(p.tasa_iva) || 0);
+    if (inputBuscar) {
+        const etiquetaProducto = `${p.codigo || ''} — ${p.nombre || ''}`.trim();
+        inputBuscar.value = etiquetaProducto;
+        inputBuscar.title = etiquetaProducto;
+    }
+    row.querySelector('.input-tasa-iva').value = String(tasa);
+    row.querySelector('[name*="[descripcion]"]').value        = p.nombre || '';
+    row.querySelector('[name*="[valor_unitario]"]').value      = (parseFloat(p.precio_venta) || 0).toFixed(2);
+    row.querySelector('.input-producto-id').value             = p.id;
+    cerrarFlotanteProductosFactura();
     calcularTotales();
+}
+
+function posicionarFlotanteProductosFactura(input, flotante) {
+    const rect = input.getBoundingClientRect();
+    flotante.style.top = (rect.bottom + 6) + 'px';
+    flotante.style.left = rect.left + 'px';
+    flotante.style.width = Math.max(rect.width, 420) + 'px';
+    flotante.style.minWidth = '380px';
+}
+
+function cerrarFlotanteProductosFactura() {
+    const flotante = document.getElementById('productoResultsFlotanteFactura');
+    if (!flotante) return;
+    flotante.innerHTML = '';
+    flotante.classList.remove('show');
+    flotante.style.display = 'none';
 }
 
 function quitarProducto(i) {
@@ -444,8 +519,7 @@ function calcularTotales() {
         subtotal  += importe;
         descuento += desc;
         const baseImpuesto = importe - desc;
-        const sel = tr.querySelector('select.form-control-producto');
-        const tasa = (sel && sel.value && sel.options[sel.selectedIndex]) ? parseFloat(sel.options[sel.selectedIndex].dataset.tasaIva || 0) : 0;
+        const tasa = parseFloat(tr.querySelector('.input-tasa-iva')?.value || 0) || 0;
         iva += baseImpuesto * tasa;
         const imp = tr.querySelector('[id^="importe-"]');
         if (imp) imp.textContent = fmt(importe);

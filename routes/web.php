@@ -86,6 +86,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/reportes/ventas', [ReporteController::class, 'ventas'])->name('reportes.ventas');
     Route::get('/reportes/compras', [ReporteController::class, 'compras'])->name('reportes.compras');
     Route::get('/reportes/utilidad', [ReporteController::class, 'utilidad'])->name('reportes.utilidad');
+    Route::get('/reportes/utilidad/export', [ReporteController::class, 'utilidadExport'])->name('reportes.utilidad.export');
 
     // ───── PERFIL ─────
     Route::get('/perfil', [PerfilController::class, 'edit'])->name('perfil.edit');

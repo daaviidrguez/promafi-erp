@@ -18,7 +18,7 @@ $breadcrumbs = [
         <div class="card-title">Filtros</div>
     </div>
     <div class="card-body">
-        <form method="GET" action="{{ route('reportes.utilidad') }}" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; align-items: end;">
+        <form id="formFiltrosUtilidad" method="GET" action="{{ route('reportes.utilidad') }}" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; align-items: end;">
             <div class="form-group">
                 <label class="form-label">📅 Fecha desde</label>
                 <input type="date" name="fecha_desde" class="form-control" value="{{ $fechaDesde ?? '' }}">
@@ -57,7 +57,11 @@ $breadcrumbs = [
                 </select>
             </div>
             <div class="form-group">
-                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <label class="form-label" style="visibility: hidden; user-select: none;" aria-hidden="true">Acciones</label>
+                <div style="display: flex; gap: 10px; flex-wrap: nowrap; align-items: center;">
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('modalExportUtilidad').classList.add('show')">Exportar</button>
+                </div>
             </div>
         </form>
     </div>
@@ -148,5 +152,57 @@ $breadcrumbs = [
 <p class="text-muted small mt-2">
     <strong>Nota:</strong> El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
 </p>
+
+<div id="modalExportUtilidad" class="modal">
+    <div class="modal-box" style="max-width: 420px;">
+        <div class="modal-header">
+            <div class="modal-title">Exportar reporte</div>
+            <button type="button" class="modal-close" onclick="document.getElementById('modalExportUtilidad').classList.remove('show')" aria-label="Cerrar">✕</button>
+        </div>
+        <form id="formExportUtilidad" method="GET" action="{{ route('reportes.utilidad.export') }}">
+            <input type="hidden" name="fecha_desde" value="">
+            <input type="hidden" name="fecha_hasta" value="">
+            <input type="hidden" name="cliente_id" value="">
+            <input type="hidden" name="producto_id" value="">
+            <input type="hidden" name="factura_id" value="">
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Formato</label>
+                    <select name="formato" id="exportUtilidadFormato" class="form-control" required>
+                        <option value="pdf">PDF</option>
+                        <option value="xlsx">Excel</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="document.getElementById('modalExportUtilidad').classList.remove('show')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Descargar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function () {
+    var formFiltros = document.getElementById('formFiltrosUtilidad');
+    var formExport = document.getElementById('formExportUtilidad');
+    if (!formFiltros || !formExport) return;
+
+    function val(name) {
+        var el = formFiltros.querySelector('[name="' + name + '"]');
+        return el ? el.value : '';
+    }
+
+    formExport.addEventListener('submit', function () {
+        formExport.querySelector('[name="fecha_desde"]').value = val('fecha_desde');
+        formExport.querySelector('[name="fecha_hasta"]').value = val('fecha_hasta');
+        formExport.querySelector('[name="cliente_id"]').value = val('cliente_id');
+        formExport.querySelector('[name="producto_id"]').value = val('producto_id');
+        formExport.querySelector('[name="factura_id"]').value = val('factura_id');
+    });
+})();
+</script>
+@endpush
 
 @endsection

@@ -11,9 +11,13 @@ use App\Models\OrdenCompra;
 use App\Models\FacturaCompra;
 use App\Models\Producto;
 use App\Models\Empresa;
+use App\Exports\ReporteUtilidadExport;
 use App\Helpers\IsrResicoHelper;
 use Carbon\Carbon;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReporteController extends Controller
 {
@@ -195,13 +199,111 @@ class ReporteController extends Controller
      */
     public function utilidad(Request $request)
     {
+        $core = $this->construirDatosReporteUtilidad($request);
+
+        $clientes = Cliente::activos()->orderBy('nombre')->get(['id', 'nombre']);
+        $productos = Producto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'codigo']);
+        $facturas = Factura::where('estado', 'timbrada')
+            ->whereDate('fecha_emision', '>=', $core['fechaDesde'])
+            ->whereDate('fecha_emision', '<=', $core['fechaHasta'])
+            ->when($core['clienteId'], fn ($q) => $q->where('cliente_id', $core['clienteId']))
+            ->orderBy('fecha_emision', 'desc')
+            ->get(['id', 'serie', 'folio', 'fecha_emision', 'cliente_id']);
+
+        return view('reportes.utilidad', array_merge($core, compact(
+            'clientes', 'productos', 'facturas'
+        )));
+    }
+
+    /**
+     * Exportar reporte de utilidad (PDF o Excel) con los mismos filtros que la vista.
+     */
+    public function utilidadExport(Request $request)
+    {
+        foreach (['cliente_id', 'producto_id', 'factura_id'] as $clave) {
+            if ($request->input($clave) === '' || $request->input($clave) === null) {
+                $request->merge([$clave => null]);
+            }
+        }
+
+        $validated = $request->validate([
+            'formato' => 'required|in:pdf,xlsx',
+            'fecha_desde' => 'nullable|date',
+            'fecha_hasta' => 'nullable|date',
+            'cliente_id' => 'nullable|exists:clientes,id',
+            'producto_id' => 'nullable|exists:productos,id',
+            'factura_id' => 'nullable|exists:facturas,id',
+        ]);
+
+        $core = $this->construirDatosReporteUtilidad($request);
+        $lineas = $this->lineasExportablesUtilidad($core['filas']);
+
+        $slug = 'reporte-utilidad_'.now()->format('Y-m-d_His');
+        $etiquetaFiltros = $this->etiquetaFiltrosUtilidad($core);
+
+        if ($validated['formato'] === 'xlsx') {
+            return Excel::download(
+                new ReporteUtilidadExport(
+                    $lineas,
+                    $core['totalIngreso'],
+                    $core['totalCosto'],
+                    $core['totalUtilidad'],
+                    $core['margen']
+                ),
+                $slug.'.xlsx'
+            );
+        }
+
+        $empresa = Empresa::principal();
+        $html = view('pdf.reporte-utilidad', [
+            'empresa' => $empresa,
+            'lineas' => $lineas,
+            'totalIngreso' => $core['totalIngreso'],
+            'totalCosto' => $core['totalCosto'],
+            'totalUtilidad' => $core['totalUtilidad'],
+            'margen' => $core['margen'],
+            'fechaDesde' => $core['fechaDesde'],
+            'fechaHasta' => $core['fechaHasta'],
+            'etiquetaFiltros' => $etiquetaFiltros,
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'landscape');
+        $dompdf->render();
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$slug.'.pdf"',
+        ]);
+    }
+
+    /**
+     * @return array{
+     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float}>,
+     *   totalIngreso: float,
+     *   totalCosto: float,
+     *   totalUtilidad: float,
+     *   margen: float,
+     *   fechaDesde: string,
+     *   fechaHasta: string,
+     *   clienteId: mixed,
+     *   productoId: mixed,
+     *   facturaId: mixed
+     * }
+     */
+    private function construirDatosReporteUtilidad(Request $request): array
+    {
         $fechaDesde = $request->get('fecha_desde', now()->startOfMonth()->format('Y-m-d'));
         $fechaHasta = $request->get('fecha_hasta', now()->format('Y-m-d'));
         $clienteId = $request->get('cliente_id');
         $productoId = $request->get('producto_id');
         $facturaId = $request->get('factura_id');
 
-        $query = FacturaDetalle::with(['factura.cliente', 'producto'])
+        $query = FacturaDetalle::with(['factura.cliente', 'factura.cuentaPorCobrar', 'producto'])
             ->whereHas('factura', function ($q) use ($fechaDesde, $fechaHasta, $clienteId, $facturaId) {
                 $q->where('estado', 'timbrada')
                     ->whereDate('fecha_emision', '>=', $fechaDesde)
@@ -246,19 +348,92 @@ class ReporteController extends Controller
         $totalUtilidad = $totalIngreso - $totalCosto;
         $margen = $totalIngreso > 0 ? ($totalUtilidad / $totalIngreso) * 100 : 0;
 
-        $clientes = Cliente::activos()->orderBy('nombre')->get(['id', 'nombre']);
-        $productos = Producto::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'codigo']);
-        $facturas = Factura::where('estado', 'timbrada')
-            ->whereDate('fecha_emision', '>=', $fechaDesde)
-            ->whereDate('fecha_emision', '<=', $fechaHasta)
-            ->when($clienteId, fn ($q) => $q->where('cliente_id', $clienteId))
-            ->orderBy('fecha_emision', 'desc')
-            ->get(['id', 'serie', 'folio', 'fecha_emision', 'cliente_id']);
+        return [
+            'filas' => $filas,
+            'totalIngreso' => $totalIngreso,
+            'totalCosto' => $totalCosto,
+            'totalUtilidad' => $totalUtilidad,
+            'margen' => $margen,
+            'fechaDesde' => $fechaDesde,
+            'fechaHasta' => $fechaHasta,
+            'clienteId' => $clienteId,
+            'productoId' => $productoId,
+            'facturaId' => $facturaId,
+        ];
+    }
 
-        return view('reportes.utilidad', compact(
-            'filas', 'totalIngreso', 'totalCosto', 'totalUtilidad', 'margen',
-            'fechaDesde', 'fechaHasta', 'clienteId', 'productoId', 'facturaId',
-            'clientes', 'productos', 'facturas'
-        ));
+    /**
+     * PUE (contado): se considera pagada al timbrar. PPD: según saldo de cuenta por cobrar.
+     */
+    private function etiquetaPagadaFactura(Factura $factura): string
+    {
+        if (($factura->metodo_pago ?? '') === 'PUE') {
+            return 'Pagada';
+        }
+        $cx = $factura->cuentaPorCobrar;
+        if ($cx) {
+            return ((float) $cx->saldo_pendiente_real) <= 0.0000001 ? 'Pagada' : 'Pendiente';
+        }
+
+        return 'Pendiente';
+    }
+
+    /**
+     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float}>  $filas
+     * @return array<int, array{factura: string, fecha: string, cliente: string, concepto: string, cantidad: float, ingreso: float, costo: float, utilidad: float, pagada: string}>
+     */
+    private function lineasExportablesUtilidad(array $filas): array
+    {
+        $lineas = [];
+        foreach ($filas as $fila) {
+            $d = $fila['detalle'];
+            $factura = $d->factura;
+            $folio = $factura->folio_completo ?? trim(($factura->serie ?? '').'-'.$factura->folio);
+            if ($d->producto) {
+                $concepto = ($d->producto->codigo ? $d->producto->codigo.' - ' : '')
+                    .($d->descripcion ?? $d->producto->nombre);
+            } else {
+                $concepto = (string) ($d->descripcion ?? 'Concepto');
+            }
+
+            $lineas[] = [
+                'factura' => $folio,
+                'fecha' => $factura->fecha_emision->format('d/m/Y'),
+                'cliente' => optional($factura->cliente)->nombre ?? (string) ($factura->nombre_receptor ?? ''),
+                'concepto' => $concepto,
+                'cantidad' => (float) $d->cantidad,
+                'ingreso' => $fila['ingreso'],
+                'costo' => $fila['costo'],
+                'utilidad' => $fila['utilidad'],
+                'pagada' => $this->etiquetaPagadaFactura($factura),
+            ];
+        }
+
+        return $lineas;
+    }
+
+    private function etiquetaFiltrosUtilidad(array $core): string
+    {
+        $partes = [];
+        if (! empty($core['clienteId'])) {
+            $c = Cliente::find($core['clienteId']);
+            if ($c) {
+                $partes[] = 'Cliente: '.$c->nombre;
+            }
+        }
+        if (! empty($core['productoId'])) {
+            $p = Producto::find($core['productoId']);
+            if ($p) {
+                $partes[] = 'Producto: '.($p->codigo ? $p->codigo.' — ' : '').$p->nombre;
+            }
+        }
+        if (! empty($core['facturaId'])) {
+            $f = Factura::find($core['facturaId']);
+            if ($f) {
+                $partes[] = 'Factura: '.($f->folio_completo ?? trim(($f->serie ?? '').'-'.$f->folio));
+            }
+        }
+
+        return implode(' · ', $partes);
     }
 }

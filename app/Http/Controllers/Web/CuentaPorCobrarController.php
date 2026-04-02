@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\FormaPago;
+use App\Models\NotaCredito;
 use Illuminate\Http\Request;
 
 class CuentaPorCobrarController extends Controller
@@ -45,12 +46,35 @@ class CuentaPorCobrarController extends Controller
             ->get();
         $totales = [
             'pendiente' => $cuentasParaTotales->sum(fn ($c) => $c->saldo_pendiente_real),
-            // "Total Vencido" debe reflejar el mismo criterio que el badge/estado_display:
-            // si el saldo real (saldo_pendiente_real) ya es 0 por NC, se considera "pagada"
-            // aunque la fecha haya sido vencida.
-            'vencido' => $cuentasParaTotales
-                ->filter(fn ($c) => $c->estado_display === 'vencida')
-                ->sum(fn ($c) => $c->saldo_pendiente_real),
+            // "Total Vencido" debe reflejar el mismo criterio que Notificaciones:
+            // 1) scopeVencidas() (vencimiento por fecha: < hoy, y estado vencida en BD)
+            // 2) saldo real pendiente = monto_pendiente - NC timbradas (por factura)
+            'vencido' => (function () {
+                $basesVencidas = CuentaPorCobrar::query()
+                    ->excluirFacturaBorrador()
+                    ->vencidas()
+                    ->get(['id', 'factura_id', 'monto_pendiente']);
+
+                if ($basesVencidas->isEmpty()) {
+                    return 0.0;
+                }
+
+                $facturaIds = $basesVencidas->pluck('factura_id')->unique()->values();
+
+                $ncPorFactura = NotaCredito::query()
+                    ->whereIn('factura_id', $facturaIds)
+                    ->where('estado', 'timbrada')
+                    ->groupBy('factura_id')
+                    ->selectRaw('factura_id, SUM(total) as total_nc')
+                    ->pluck('total_nc', 'factura_id');
+
+                return (float) $basesVencidas
+                    ->map(function ($cuenta) use ($ncPorFactura) {
+                        $totalNc = (float) ($ncPorFactura[$cuenta->factura_id] ?? 0);
+                        return max(0.0, (float) $cuenta->monto_pendiente - $totalNc);
+                    })
+                    ->sum();
+            })(),
             'pagado' => CuentaPorCobrar::excluirFacturaBorrador()->where('estado', 'pagada')->sum('monto_pagado'),
         ];
 

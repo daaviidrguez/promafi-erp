@@ -27,7 +27,7 @@ $breadcrumbs = [
         <div class="stat-info-box">
             <div class="stat-label">Total Vencido</div>
             <div class="stat-value" style="font-size: 22px;">
-                ${{ number_format($totales['vencido'], 0, '.', ',') }}
+                ${{ number_format($totales['vencido'], 2, '.', ',') }}
             </div>
         </div>
         <div class="stat-icon">⚠️</div>

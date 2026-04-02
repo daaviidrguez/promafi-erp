@@ -45,7 +45,12 @@ class CuentaPorCobrarController extends Controller
             ->get();
         $totales = [
             'pendiente' => $cuentasParaTotales->sum(fn ($c) => $c->saldo_pendiente_real),
-            'vencido' => $cuentasParaTotales->filter(fn ($c) => $c->estaVencida())->sum(fn ($c) => $c->saldo_pendiente_real),
+            // "Total Vencido" debe reflejar el mismo criterio que el badge/estado_display:
+            // si el saldo real (saldo_pendiente_real) ya es 0 por NC, se considera "pagada"
+            // aunque la fecha haya sido vencida.
+            'vencido' => $cuentasParaTotales
+                ->filter(fn ($c) => $c->estado_display === 'vencida')
+                ->sum(fn ($c) => $c->saldo_pendiente_real),
             'pagado' => CuentaPorCobrar::excluirFacturaBorrador()->where('estado', 'pagada')->sum('monto_pagado'),
         ];
 

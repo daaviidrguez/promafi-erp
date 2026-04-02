@@ -225,6 +225,10 @@ document.addEventListener("DOMContentLoaded", function () {
         const credito = data.credito_excedente;
         const vencidas = data.vencidas || {};
 
+        const creditoDisponible = credito
+            ? -Math.abs(Number(credito.saldo_excedente ?? 0))
+            : 0;
+
         const creditoHtml = credito
             ? `
                 <div style="font-family: var(--font-display); font-weight: 800; color: var(--color-primary); font-size: 13.5px; margin-bottom: 4px;">
@@ -232,7 +236,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
                 <div style="font-size: 13.5px; color: var(--color-gray-600);">
                     <div><span style="font-weight: 700; color: var(--color-gray-700);">Cliente:</span> ${escapeHtml(credito.cliente_nombre)}</div>
-                    <div><span style="font-weight: 700; color: var(--color-gray-700);">Saldo excedente / Crédito disponible:</span> ${formatMXN(credito.saldo_excedente)}</div>
+                    <div><span style="font-weight: 700; color: var(--color-gray-700);">Saldo excedente / Crédito disponible:</span> <span style="color: var(--color-danger); font-weight: 800;">${formatMXN(creditoDisponible)}</span></div>
                 </div>
             `
             : `

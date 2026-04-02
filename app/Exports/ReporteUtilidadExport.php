@@ -26,6 +26,7 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             'Ingreso',
             'Costo',
             'Utilidad',
+            'Entregado',
             'Pagada',
         ];
     }
@@ -41,12 +42,13 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             round($l['ingreso'], 2),
             round($l['costo'], 2),
             round($l['utilidad'], 2),
+            $l['entregado_destino'] ?? 'No',
             $l['pagada'],
         ])->all();
 
-        $rows[] = ['', '', '', '', '', '', '', '', ''];
-        $rows[] = ['', '', '', '', 'Totales', round($this->totalIngreso, 2), round($this->totalCosto, 2), round($this->totalUtilidad, 2), ''];
-        $rows[] = ['', '', '', '', 'Margen %', round($this->margen, 2), '', '', ''];
+        $rows[] = ['', '', '', '', '', '', '', '', '', ''];
+        $rows[] = ['', '', '', '', 'Totales', round($this->totalIngreso, 2), round($this->totalCosto, 2), round($this->totalUtilidad, 2), '', ''];
+        $rows[] = ['', '', '', '', 'Margen %', round($this->margen, 2), '', '', '', ''];
 
         return $rows;
     }

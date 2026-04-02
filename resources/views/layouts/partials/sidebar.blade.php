@@ -93,6 +93,22 @@
         </div>
         @endif
 
+        @can('logistica.ver')
+        @php $logisticaSidebarActive = request()->routeIs('logistica.*'); @endphp
+        <div class="sidebar-section">
+            <ul class="sidebar-menu">
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('logistica.index') }}"
+                       class="sidebar-menu-link {{ $logisticaSidebarActive ? 'active' : '' }}"
+                       title="Envíos de logística">
+                        <span class="sidebar-menu-icon">🚚</span>
+                        <span class="sidebar-menu-text">Envíos de logística</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        @endcan
+
         {{-- Catálogos (dropdown) --}}
         @php
             $catHasActive = request()->routeIs('productos.*')

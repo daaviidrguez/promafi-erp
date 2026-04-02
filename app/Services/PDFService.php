@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use App\Models\Empresa;
 use App\Models\InventarioMovimiento;
+use App\Models\LogisticaEnvio;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class PDFService
 {
@@ -30,14 +31,14 @@ class PDFService
         }
         $empresa = Empresa::principal();
 
-        $directory = storage_path('app/documentos/' . $tipo . '/' . now()->format('Y/m'));
+        $directory = storage_path('app/documentos/'.$tipo.'/'.now()->format('Y/m'));
 
-        if (!file_exists($directory)) {
+        if (! file_exists($directory)) {
             mkdir($directory, 0755, true);
         }
 
-        $filename = strtoupper($tipo) . '_' . $modelo->folio . '.pdf';
-        $filepath = $directory . '/' . $filename;
+        $filename = strtoupper($tipo).'_'.$modelo->folio.'.pdf';
+        $filepath = $directory.'/'.$filename;
 
         $html = view('pdf.documento', [
             'doc' => $modelo,
@@ -53,7 +54,7 @@ class PDFService
             'esFacturaCompra' => $tipo === 'factura_compra',
         ])->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isRemoteEnabled', true);
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isPhpEnabled', true);
@@ -65,7 +66,7 @@ class PDFService
 
         file_put_contents($filepath, $dompdf->output());
 
-        return 'documentos/' . $tipo . '/' . now()->format('Y/m') . '/' . $filename;
+        return 'documentos/'.$tipo.'/'.now()->format('Y/m').'/'.$filename;
     }
 
     public function generarCotizacionPDF($cotizacion): string
@@ -108,11 +109,48 @@ class PDFService
         return $this->generarDocumentoPDF($remision, 'remision');
     }
 
+    /**
+     * Comprobante de entrega / envío (firma de quien recibe).
+     *
+     * @return string Ruta relativa bajo storage/app
+     */
+    public function generarLogisticaEnvioPdf(LogisticaEnvio $envio): string
+    {
+        $envio->loadMissing(['items.producto', 'cliente', 'factura', 'remision', 'usuario', 'direccionEntregaRel']);
+        $empresa = Empresa::principal();
+
+        $directory = storage_path('app/documentos/logistica/'.now()->format('Y/m'));
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = 'Logistica_'.preg_replace('/[^a-zA-Z0-9_-]/', '_', $envio->folio).'.pdf';
+        $filepath = $directory.'/'.$filename;
+
+        $html = view('pdf.logistica-envio', [
+            'empresa' => $empresa,
+            'envio' => $envio,
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isPhpEnabled', true);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'portrait');
+        $dompdf->render();
+        file_put_contents($filepath, $dompdf->output());
+
+        return 'documentos/logistica/'.now()->format('Y/m').'/'.$filename;
+    }
+
     public function descargarPDF(string $relativePath, string $filename)
     {
-        $fullPath = storage_path('app/' . $relativePath);
+        $fullPath = storage_path('app/'.$relativePath);
 
-        if (!file_exists($fullPath)) {
+        if (! file_exists($fullPath)) {
             abort(404, 'Archivo PDF no encontrado.');
         }
 
@@ -122,22 +160,21 @@ class PDFService
     /**
      * Genera PDF del kardex de un producto en un rango de fechas.
      *
-     * @param \App\Models\Producto $producto
-     * @param \Illuminate\Support\Collection<int, InventarioMovimiento> $movimientos
-     * @param \Carbon\Carbon $fechaDesde
-     * @param \Carbon\Carbon $fechaHasta
-     * @param float $saldoInicial
+     * @param  \App\Models\Producto  $producto
+     * @param  \Illuminate\Support\Collection<int, InventarioMovimiento>  $movimientos
+     * @param  \Carbon\Carbon  $fechaDesde
+     * @param  \Carbon\Carbon  $fechaHasta
      * @return string Ruta relativa del archivo guardado
      */
     public function generarKardexPDF($producto, $movimientos, $fechaDesde, $fechaHasta, float $saldoInicial): string
     {
         $empresa = Empresa::principal();
-        $directory = storage_path('app/documentos/kardex/' . now()->format('Y/m'));
-        if (!file_exists($directory)) {
+        $directory = storage_path('app/documentos/kardex/'.now()->format('Y/m'));
+        if (! file_exists($directory)) {
             mkdir($directory, 0755, true);
         }
-        $filename = 'Kardex_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $producto->codigo ?? 'prod') . '_' . $fechaDesde->format('Y-m-d') . '.pdf';
-        $filepath = $directory . '/' . $filename;
+        $filename = 'Kardex_'.preg_replace('/[^a-zA-Z0-9_-]/', '_', $producto->codigo ?? 'prod').'_'.$fechaDesde->format('Y-m-d').'.pdf';
+        $filepath = $directory.'/'.$filename;
 
         $html = view('pdf.kardex', [
             'empresa' => $empresa,
@@ -148,7 +185,7 @@ class PDFService
             'saldoInicial' => $saldoInicial,
         ])->render();
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isRemoteEnabled', true);
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isPhpEnabled', true);
@@ -158,6 +195,6 @@ class PDFService
         $dompdf->render();
         file_put_contents($filepath, $dompdf->output());
 
-        return 'documentos/kardex/' . now()->format('Y/m') . '/' . $filename;
+        return 'documentos/kardex/'.now()->format('Y/m').'/'.$filename;
     }
 }

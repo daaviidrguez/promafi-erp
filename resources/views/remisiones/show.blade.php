@@ -78,17 +78,13 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header"><div class="card-title">Estado</div></div>
             <div class="card-body">
-                @if($remision->estado === 'borrador')
-                <span class="badge badge-warning" style="font-size:14px;">Borrador</span>
-                <p style="margin-top:12px;font-size:13px;">Puedes editar o enviar la remisión.</p>
-                @elseif($remision->estado === 'enviada')
-                <span class="badge badge-info" style="font-size:14px;">Enviada</span>
-                <p style="margin-top:12px;font-size:13px;">Marca como entregada cuando el cliente reciba la mercancía.</p>
-                @elseif($remision->estado === 'entregada')
-                <span class="badge badge-success" style="font-size:14px;">Entregada</span>
-                <p style="margin-top:12px;font-size:13px;">Entrega registrada.</p>
-                @else
-                <span class="badge badge-danger" style="font-size:14px;">Cancelada</span>
+                @php
+                    $evRemision = $remision->estadoVisualListado();
+                    $ayudaEstadoRemision = $remision->estadoAyudaParaShow();
+                @endphp
+                <span class="badge {{ $evRemision['badge'] }}" style="font-size:14px;">{{ $evRemision['label'] }}</span>
+                @if($ayudaEstadoRemision !== '')
+                <p style="margin-top:12px;font-size:13px;">{{ $ayudaEstadoRemision }}</p>
                 @endif
 
                 <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--color-gray-100);">
@@ -132,6 +128,7 @@ $breadcrumbs = [
                     @csrf
                     <button type="submit" class="btn btn-success w-full">📤 Marcar como enviada</button>
                 </form>
+                <p class="text-muted small mb-0" style="margin-top:6px;">Se validará stock y se descontará inventario de los productos que lo controlan. Sin stock suficiente no se puede enviar.</p>
                 <form method="POST" action="{{ route('remisiones.destroy', $remision->id) }}" style="margin:0;" onsubmit="return confirm('¿Eliminar esta remisión?');">
                     @csrf
                     @method('DELETE')
@@ -139,10 +136,11 @@ $breadcrumbs = [
                 </form>
                 @endif
                 @if($remision->puedeEntregarse())
-                <form method="POST" action="{{ route('remisiones.entregar', $remision->id) }}" style="margin:0;">
-                    @csrf
-                    <button type="submit" class="btn btn-primary w-full">✅ Marcar como entregada</button>
-                </form>
+                <button type="button"
+                        class="btn btn-primary w-full"
+                        onclick="document.getElementById('modalMarcarEntregadaRemision').classList.add('show')">
+                    ✅ Marcar como entregada
+                </button>
                 @endif
                 @can('facturas.crear')
                     @if($remision->factura && $remision->factura->estado === 'borrador')
@@ -150,7 +148,7 @@ $breadcrumbs = [
                         <p class="text-muted small mb-0" style="margin-top:4px;">Esta remisión ya tiene un borrador vinculado.</p>
                     @elseif($remision->puedeConvertirseAFactura())
                         <a href="{{ route('facturas.create') }}?remision_id={{ $remision->id }}" class="btn btn-primary w-full">💰 Convertir a factura</a>
-                        <p class="text-muted small mb-0" style="margin-top:4px;">El inventario no se descontará al timbrar (ya salió con la remisión).</p>
+                        <p class="text-muted small mb-0" style="margin-top:4px;">Al timbrar no se vuelve a descontar inventario (ya se descontó al marcar la remisión como enviada).</p>
                     @endif
                 @endcan
                 @if($remision->estado === 'entregada')
@@ -184,5 +182,36 @@ $breadcrumbs = [
         </div>
     </div>
 </div>
+
+@if($remision->puedeEntregarse())
+<div id="modalMarcarEntregadaRemision" class="modal">
+    <div class="modal-box" style="max-width: 480px;">
+        <div class="modal-header">
+            <div class="modal-title">Confirmar entrega</div>
+            <button type="button"
+                    class="modal-close"
+                    onclick="document.getElementById('modalMarcarEntregadaRemision').classList.remove('show')"
+                    aria-label="Cerrar">✕</button>
+        </div>
+        <form method="POST" action="{{ route('remisiones.entregar', $remision->id) }}">
+            @csrf
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom:0;">
+                    ¿Confirmas que todas las partidas de la remisión fueron entregadas?
+                    Si es así, pulsa <strong>Aceptar</strong>; si no, cancela y comprueba en Logística que no existan partidas con entrega parcial.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button"
+                        class="btn btn-light"
+                        onclick="document.getElementById('modalMarcarEntregadaRemision').classList.remove('show')">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">Aceptar</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 
 @endsection

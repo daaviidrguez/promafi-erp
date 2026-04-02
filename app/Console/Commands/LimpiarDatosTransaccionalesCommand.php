@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
  * Elimina datos transaccionales de la BD.
  * Mantiene: empresas, clientes, cliente_contactos, categorias_productos, productos,
  * proveedores, producto_proveedores, clientes_direcciones_entrega, users, roles,
- * permissions, permission_role, catálogos SAT.
+ * permissions, permission_role, catálogos SAT, permisos de logística (no se borran).
  */
 class LimpiarDatosTransaccionalesCommand extends Command
 {
@@ -58,6 +58,10 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'cotizaciones_compra',
         // Inventario y sugerencias
         'inventario_movimientos',
+        // Logística (hijos antes que logistica_envios)
+        'logistica_envio_historial',
+        'logistica_envio_items',
+        'logistica_envios',
         // Facturas de compra (módulo Compras)
         'facturas_compra_impuestos',
         'facturas_compra_detalle',
@@ -76,8 +80,9 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
     public function handle(): int
     {
-        if (!$this->option('force') && !$this->confirm('¿Eliminar todos los datos transaccionales, credenciales Facturama y certificados? Se mantendrán: datos fiscales empresa, clientes, productos, proveedores, usuarios y roles.')) {
+        if (! $this->option('force') && ! $this->confirm('¿Eliminar todos los datos transaccionales, credenciales Facturama y certificados? Se mantendrán: datos fiscales empresa, clientes, productos, proveedores, usuarios y roles.')) {
             $this->info('Operación cancelada.');
+
             return self::SUCCESS;
         }
 
@@ -88,7 +93,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
         $limpiadas = 0;
         foreach ($this->tablasALimpiar as $tabla) {
-            if (!Schema::hasTable($tabla)) {
+            if (! Schema::hasTable($tabla)) {
                 continue;
             }
             try {
@@ -96,7 +101,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
                 $this->line("  ✓ {$tabla}");
                 $limpiadas++;
             } catch (\Throwable $e) {
-                $this->warn("  ✗ {$tabla}: " . $e->getMessage());
+                $this->warn("  ✗ {$tabla}: ".$e->getMessage());
             }
         }
 
@@ -110,7 +115,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
         // Resetear folios, series por defecto, credenciales Facturama y certificados en empresas
         if (Schema::hasTable('empresas')) {
-            $folios = ['folio_factura', 'folio_factura_credito', 'folio_nota_credito', 'folio_nota_debito', 'folio_complemento', 'folio_cotizacion', 'folio_remision'];
+            $folios = ['folio_factura', 'folio_factura_credito', 'folio_nota_credito', 'folio_nota_debito', 'folio_complemento', 'folio_cotizacion', 'folio_remision', 'folio_logistica'];
             $update = [];
             foreach ($folios as $col) {
                 if (Schema::hasColumn('empresas', $col)) {
@@ -125,6 +130,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
                 'serie_complemento' => 'CP',
                 'serie_cotizacion' => 'COT',
                 'serie_remision' => 'REM',
+                'serie_logistica' => 'LOG',
             ];
             foreach ($seriesDefaults as $col => $default) {
                 if (Schema::hasColumn('empresas', $col)) {
@@ -166,7 +172,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
                 }
             }
 
-            if (!empty($update)) {
+            if (! empty($update)) {
                 DB::table('empresas')->update($update);
                 $this->line('  ✓ empresas: folios y series reseteados, credenciales Facturama y certificados limpiados');
             }
@@ -182,7 +188,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
         ];
         $baseDir = storage_path('app');
         foreach ($dirsStorage as $dir) {
-            $path = $baseDir . '/' . $dir;
+            $path = $baseDir.'/'.$dir;
             if (File::isDirectory($path)) {
                 File::cleanDirectory($path);
                 $this->line("  ✓ storage/app/{$dir}/ vaciado");
@@ -201,6 +207,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
 
         $this->newLine();
         $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Folios y series de empresa reseteados. Documentos (PDF/XML) en storage limpiados. Caché, config, vistas y rutas limpiadas. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
+
         return self::SUCCESS;
     }
 }

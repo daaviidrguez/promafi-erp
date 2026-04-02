@@ -43,6 +43,7 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
             <th class="right">Ingreso</th>
             <th class="right">Costo</th>
             <th class="right">Utilidad</th>
+            <th class="center">Entregado</th>
             <th class="center">Pagada</th>
         </tr>
     </thead>
@@ -56,11 +57,12 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
             <td class="right">${{ number_format($l['ingreso'], 2, '.', ',') }}</td>
             <td class="right">${{ number_format($l['costo'], 2, '.', ',') }}</td>
             <td class="right">${{ number_format($l['utilidad'], 2, '.', ',') }}</td>
+            <td class="center">{{ $l['entregado_destino'] ?? 'No' }}</td>
             <td class="center">{{ $l['pagada'] }}</td>
         </tr>
         @empty
         <tr>
-            <td colspan="8" style="text-align:center;padding:16px;color:#6B7280;">Sin datos con los filtros aplicados.</td>
+            <td colspan="9" style="text-align:center;padding:16px;color:#6B7280;">Sin datos con los filtros aplicados.</td>
         </tr>
         @endforelse
     </tbody>
@@ -75,6 +77,7 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
 
 <p class="note">
     El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
+    <strong>Entregado:</strong> mismo criterio que logística: cantidad entregada en destino para la línea de factura igual o mayor a la facturada (Sí); si aún hay pendiente por entregar en destino (No).
     <strong>Estado de pago:</strong> columna <em>Pagada</em>: PUE (contado) figura como Pagada; PPD según saldo de la cuenta por cobrar (complementos de pago y notas de crédito). Si aún hay saldo, figura como Pendiente.
 </p>
 

@@ -2,17 +2,18 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Exports\ReporteUtilidadExport;
+use App\Helpers\IsrResicoHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\ComplementoPago;
-use App\Models\Factura;
-use App\Models\FacturaDetalle;
-use App\Models\OrdenCompra;
-use App\Models\FacturaCompra;
-use App\Models\Producto;
 use App\Models\Empresa;
-use App\Exports\ReporteUtilidadExport;
-use App\Helpers\IsrResicoHelper;
+use App\Models\Factura;
+use App\Models\FacturaCompra;
+use App\Models\FacturaDetalle;
+use App\Models\LogisticaEnvio;
+use App\Models\OrdenCompra;
+use App\Models\Producto;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -87,6 +88,7 @@ class ReporteController extends Controller
                     }
                 }
             }
+
             return $total;
         });
         $ivaAcreditable = $ivaOrdenes + $ivaFacturasCompra;
@@ -129,6 +131,7 @@ class ReporteController extends Controller
                 }
             }
         }
+
         return $total;
     }
 
@@ -379,8 +382,18 @@ class ReporteController extends Controller
     }
 
     /**
+     * Entregado en destino (logística): línea de factura sin cantidad pendiente según {@see LogisticaEnvio::cantidadPendienteEntregaFacturaDetalle}.
+     */
+    private function etiquetaEntregadoDestinoFacturaLinea(FacturaDetalle $detalle): string
+    {
+        $pend = LogisticaEnvio::cantidadPendienteEntregaFacturaDetalle((int) $detalle->id);
+
+        return $pend <= 1e-6 ? 'Sí' : 'No';
+    }
+
+    /**
      * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float}>  $filas
-     * @return array<int, array{factura: string, fecha: string, cliente: string, concepto: string, cantidad: float, ingreso: float, costo: float, utilidad: float, pagada: string}>
+     * @return array<int, array{factura: string, fecha: string, cliente: string, concepto: string, cantidad: float, ingreso: float, costo: float, utilidad: float, entregado_destino: string, pagada: string}>
      */
     private function lineasExportablesUtilidad(array $filas): array
     {
@@ -405,6 +418,7 @@ class ReporteController extends Controller
                 'ingreso' => $fila['ingreso'],
                 'costo' => $fila['costo'],
                 'utilidad' => $fila['utilidad'],
+                'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
                 'pagada' => $this->etiquetaPagadaFactura($factura),
             ];
         }

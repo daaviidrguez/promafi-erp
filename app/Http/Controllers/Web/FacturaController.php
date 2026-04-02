@@ -5,26 +5,28 @@ namespace App\Http\Controllers\Web;
 // UBICACIÓN: app/Http/Controllers/Web/FacturaController.php
 // REEMPLAZA el contenido actual con este
 
+use App\Helpers\IsrResicoHelper;
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\CuentaPorCobrar;
+use App\Models\Empresa;
 use App\Models\Factura;
 use App\Models\FacturaDetalle;
 use App\Models\FacturaImpuesto;
-use App\Models\Cliente;
-use App\Models\Producto;
-use App\Models\Empresa;
-use App\Models\CuentaPorCobrar;
-use App\Models\InventarioMovimiento;
 use App\Models\FormaPago;
+use App\Models\InventarioMovimiento;
+use App\Models\LogisticaEnvio;
+use App\Models\LogisticaEnvioHistorial;
 use App\Models\MetodoPago;
-use App\Models\UsoCfdi;
+use App\Models\Producto;
 use App\Models\Remision;
+use App\Models\UsoCfdi;
 use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
-use App\Helpers\IsrResicoHelper;
-use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class FacturaController extends Controller
 {
@@ -40,12 +42,12 @@ class FacturaController extends Controller
     {
         $search = $request->get('search');
         $estado = $request->get('estado');
-        
+
         $facturas = Factura::with(['cliente', 'usuario'])
-            ->when($search, function($query) use ($search) {
+            ->when($search, function ($query) use ($search) {
                 $query->buscar($search);
             })
-            ->when($estado, function($query) use ($estado) {
+            ->when($estado, function ($query) use ($estado) {
                 $query->where('estado', $estado);
             })
             ->orderBy('created_at', 'desc')
@@ -75,9 +77,9 @@ class FacturaController extends Controller
         if ($request->filled('keyword')) {
             $keyword = trim($request->keyword);
             $query->where(function ($q) use ($keyword) {
-                $q->where('uuid', 'like', '%' . $keyword . '%')
-                    ->orWhere('folio', 'like', '%' . $keyword . '%')
-                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', '%' . $keyword . '%'));
+                $q->where('uuid', 'like', '%'.$keyword.'%')
+                    ->orWhere('folio', 'like', '%'.$keyword.'%')
+                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', '%'.$keyword.'%'));
             });
         }
 
@@ -102,8 +104,8 @@ class FacturaController extends Controller
     public function create(Request $request)
     {
         $empresa = Empresa::principal();
-        
-        if (!$empresa) {
+
+        if (! $empresa) {
             return redirect()->route('dashboard')
                 ->with('error', 'Debes configurar los datos de la empresa primero');
         }
@@ -154,7 +156,7 @@ class FacturaController extends Controller
             $remisionId = $rem->id;
             $clientePreseleccionado = $rem->cliente;
             $ordenCompraPreseleccionado = $rem->orden_compra;
-            $observacionesPre = 'Documento de origen: Remisión #' . ($rem->folio ?? $rem->id);
+            $observacionesPre = 'Documento de origen: Remisión #'.($rem->folio ?? $rem->id);
             $remisionLineasJson = $rem->detalles->map(function ($d) {
                 $p = $d->producto;
                 $tasa = $d->tasa_iva !== null
@@ -218,7 +220,7 @@ class FacturaController extends Controller
         ]);
 
         // Normalizar y limitar uuid_referencia para evitar overflow en DB
-        if (!empty($validated['uuid_referencia'])) {
+        if (! empty($validated['uuid_referencia'])) {
             $uuids = preg_split('/[,;\s]+/', $validated['uuid_referencia']) ?: [];
             $uuids = array_values(array_unique(array_filter(array_map('trim', $uuids))));
             $normalized = implode(', ', $uuids);
@@ -228,15 +230,15 @@ class FacturaController extends Controller
         $empresa = Empresa::principal();
         $cliente = Cliente::findOrFail($validated['cliente_id']);
 
-            if (empty($empresa->codigo_postal) || strlen(preg_replace('/\D/', '', $empresa->codigo_postal)) < 5) {
-                return back()->withInput()->with('error', 'La empresa debe tener un código postal de 5 dígitos (Configuración → Domicilio Fiscal) para emitir facturas.');
-            }
-            if (empty($cliente->codigo_postal) || strlen(preg_replace('/\D/', '', $cliente->codigo_postal)) < 5) {
-                return back()->withInput()->with('error', 'El cliente debe tener un código postal de 5 dígitos para facturar. Edita el cliente y completa su domicilio fiscal.');
-            }
-            if (empty($cliente->regimen_fiscal) || !preg_match('/^\d{3}$/', $cliente->regimen_fiscal)) {
-                return back()->withInput()->with('error', 'El cliente debe tener un régimen fiscal (clave de 3 dígitos del SAT). Edita el cliente.');
-            }
+        if (empty($empresa->codigo_postal) || strlen(preg_replace('/\D/', '', $empresa->codigo_postal)) < 5) {
+            return back()->withInput()->with('error', 'La empresa debe tener un código postal de 5 dígitos (Configuración → Domicilio Fiscal) para emitir facturas.');
+        }
+        if (empty($cliente->codigo_postal) || strlen(preg_replace('/\D/', '', $cliente->codigo_postal)) < 5) {
+            return back()->withInput()->with('error', 'El cliente debe tener un código postal de 5 dígitos para facturar. Edita el cliente y completa su domicilio fiscal.');
+        }
+        if (empty($cliente->regimen_fiscal) || ! preg_match('/^\d{3}$/', $cliente->regimen_fiscal)) {
+            return back()->withInput()->with('error', 'El cliente debe tener un régimen fiscal (clave de 3 dígitos del SAT). Edita el cliente.');
+        }
 
         DB::beginTransaction();
         try {
@@ -266,7 +268,7 @@ class FacturaController extends Controller
                 $cantidad = $prod['cantidad'];
                 $valorUnitario = $prod['valor_unitario'];
                 $descuento = $prod['descuento'] ?? 0;
-                
+
                 $importe = $cantidad * $valorUnitario;
                 $subtotal += $importe;
                 $descuentoTotal += $descuento;
@@ -274,7 +276,7 @@ class FacturaController extends Controller
                 $producto = isset($prod['producto_id']) ? Producto::find($prod['producto_id']) : null;
                 $baseImpuesto = $importe - $descuento;
                 if ($producto && $producto->aplicaImpuestoTraslado()) {
-                    $ivaTotal += round($baseImpuesto * (float)$producto->tasa_iva, 2);
+                    $ivaTotal += round($baseImpuesto * (float) $producto->tasa_iva, 2);
                 }
             }
 
@@ -321,8 +323,8 @@ class FacturaController extends Controller
                 'descuento' => $descuentoTotal,
                 'total' => $total,
                 'observaciones' => $validated['observaciones'],
-                'uuid_referencia' => !empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null,
-                'tipo_relacion' => !empty($validated['uuid_referencia']) ? ($validated['tipo_relacion'] ?? '04') : null,
+                'uuid_referencia' => ! empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null,
+                'tipo_relacion' => ! empty($validated['uuid_referencia']) ? ($validated['tipo_relacion'] ?? '04') : null,
                 'usuario_id' => auth()->id(),
                 'orden_compra' => $validated['orden_compra'] ?? $remisionVincular?->orden_compra ?? null,
             ]);
@@ -356,7 +358,7 @@ class FacturaController extends Controller
                 // Impuestos traslado (IVA) según datos fiscales del producto
                 if ($producto && in_array($objetoImpuesto, ['02', '03'], true)) {
                     $tipoFactor = $producto->tipo_factor ?? 'Tasa';
-                    $tasa = (float)($producto->tasa_iva ?? 0);
+                    $tasa = (float) ($producto->tasa_iva ?? 0);
                     FacturaImpuesto::create([
                         'factura_detalle_id' => $detalle->id,
                         'tipo' => 'traslado',
@@ -395,7 +397,7 @@ class FacturaController extends Controller
             // Si es a crédito (PPD), crear cuenta por cobrar
             if ($factura->metodo_pago === 'PPD') {
                 $fechaVencimiento = now()->addDays($cliente->dias_credito);
-                
+
                 CuentaPorCobrar::create([
                     'factura_id' => $factura->id,
                     'cliente_id' => $cliente->id,
@@ -440,8 +442,9 @@ class FacturaController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withInput()
-                ->with('error', 'Error al crear factura: ' . $e->getMessage());
+                ->with('error', 'Error al crear factura: '.$e->getMessage());
         }
     }
 
@@ -453,7 +456,26 @@ class FacturaController extends Controller
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario']);
         $ncBorrador = \App\Models\NotaCredito::where('factura_id', $factura->id)->where('estado', 'borrador')->first();
         $complementoBorrador = $factura->cliente_id ? \App\Models\ComplementoPago::where('cliente_id', $factura->cliente_id)->where('estado', 'borrador')->first() : null;
-        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador'));
+
+        $remisionIds = Remision::query()->where('factura_id', $factura->id)->pluck('id');
+        $envioIds = LogisticaEnvio::query()
+            ->where(function ($q) use ($factura, $remisionIds) {
+                $q->where('factura_id', $factura->id);
+                if ($remisionIds->isNotEmpty()) {
+                    $q->orWhereIn('remision_id', $remisionIds);
+                }
+            })
+            ->pluck('id');
+        $historialEnviosFactura = $envioIds->isEmpty()
+            ? collect()
+            : LogisticaEnvioHistorial::query()
+                ->whereIn('logistica_envio_id', $envioIds)
+                ->with(['envio:id,folio', 'user:id,name'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->get();
+
+        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura'));
     }
 
     /**
@@ -461,7 +483,7 @@ class FacturaController extends Controller
      */
     public function edit(Factura $factura)
     {
-        if (!$factura->esBorrador()) {
+        if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden editar facturas en borrador.');
         }
@@ -473,6 +495,7 @@ class FacturaController extends Controller
         $formasPago = FormaPago::activos()->get();
         $metodosPago = MetodoPago::activos()->get();
         $usosCfdi = UsoCfdi::activos()->get();
+
         return view('facturas.edit', compact('factura', 'empresa', 'clientes', 'productos', 'formasPago', 'metodosPago', 'usosCfdi'));
     }
 
@@ -481,7 +504,7 @@ class FacturaController extends Controller
      */
     public function destroy(Factura $factura)
     {
-        if (!$factura->esBorrador()) {
+        if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden borrar facturas en borrador.');
         }
@@ -510,8 +533,9 @@ class FacturaController extends Controller
                 ->with('success', 'Factura en borrador eliminada correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
+
             return redirect()->route('facturas.show', $factura)
-                ->with('error', 'No se pudo eliminar la factura: ' . $e->getMessage());
+                ->with('error', 'No se pudo eliminar la factura: '.$e->getMessage());
         }
     }
 
@@ -520,7 +544,7 @@ class FacturaController extends Controller
      */
     public function update(Request $request, Factura $factura)
     {
-        if (!$factura->esBorrador()) {
+        if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden editar facturas en borrador.');
         }
@@ -550,7 +574,7 @@ class FacturaController extends Controller
         if (empty($cliente->codigo_postal) || strlen(preg_replace('/\D/', '', $cliente->codigo_postal)) < 5) {
             return back()->withInput()->with('error', 'El cliente debe tener un código postal de 5 dígitos.');
         }
-        if (empty($cliente->regimen_fiscal) || !preg_match('/^\d{3}$/', $cliente->regimen_fiscal)) {
+        if (empty($cliente->regimen_fiscal) || ! preg_match('/^\d{3}$/', $cliente->regimen_fiscal)) {
             return back()->withInput()->with('error', 'El cliente debe tener un régimen fiscal.');
         }
 
@@ -666,10 +690,10 @@ class FacturaController extends Controller
             $cuentaExistente = $factura->cuentaPorCobrar;
             $nuevoEsCredito = ($validated['metodo_pago'] ?? '') === 'PPD';
 
-            if ($cuentaExistente && !$nuevoEsCredito) {
+            if ($cuentaExistente && ! $nuevoEsCredito) {
                 $cuentaExistente->delete();
                 $cliente->actualizarSaldo();
-            } elseif (!$cuentaExistente && $nuevoEsCredito) {
+            } elseif (! $cuentaExistente && $nuevoEsCredito) {
                 $fechaVencimiento = now()->addDays($cliente->dias_credito);
                 CuentaPorCobrar::create([
                     'factura_id' => $factura->id,
@@ -698,7 +722,8 @@ class FacturaController extends Controller
                 ->with('success', 'Factura actualizada correctamente.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->withInput()->with('error', 'Error al actualizar: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Error al actualizar: '.$e->getMessage());
         }
     }
 
@@ -707,7 +732,7 @@ class FacturaController extends Controller
      */
     public function timbrar(Factura $factura)
     {
-        if (!$factura->puedeTimbrar()) {
+        if (! $factura->puedeTimbrar()) {
             return back()->with('error', 'Esta factura no puede ser timbrada');
         }
 
@@ -716,7 +741,7 @@ class FacturaController extends Controller
             // Llamar al servicio de timbrado
             $resultado = $this->pacService->timbrarFactura($factura);
 
-            if (!$resultado['success']) {
+            if (! $resultado['success']) {
                 throw new \Exception($resultado['message']);
             }
 
@@ -766,11 +791,12 @@ class FacturaController extends Controller
             DB::commit();
 
             return redirect()->route('facturas.show', $factura->id)
-                ->with('success', $resultado['message'] . ' - PDF generado automáticamente');
+                ->with('success', $resultado['message'].' - PDF generado automáticamente');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error al timbrar: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al timbrar: '.$e->getMessage());
         }
     }
 
@@ -779,10 +805,11 @@ class FacturaController extends Controller
      */
     public function cancelar(Request $request, Factura $factura)
     {
-        if (!$factura->puedeCancelar()) {
+        if (! $factura->puedeCancelar()) {
             $msg = $factura->tieneDocumentosRelacionados()
                 ? 'No se puede cancelar: esta factura tiene documentos relacionados (complementos de pago, notas de crédito o devoluciones). Use el flujo castada.'
                 : 'Esta factura no puede ser cancelada';
+
             return back()->with('error', $msg);
         }
 
@@ -807,7 +834,7 @@ class FacturaController extends Controller
                 $uuidSustituto
             );
 
-            if (!$resultado['success']) {
+            if (! $resultado['success']) {
                 throw new \Exception($resultado['message']);
             }
 
@@ -863,7 +890,8 @@ class FacturaController extends Controller
             $msg = $e->getMessage();
             $codigo = $this->extraerCodigoErrorCancelacion($msg);
             $factura->update(['codigo_estatus_cancelacion' => $codigo]);
-            return back()->with('error', 'Error al cancelar: ' . $msg);
+
+            return back()->with('error', 'Error al cancelar: '.$msg);
         }
     }
 
@@ -873,7 +901,7 @@ class FacturaController extends Controller
     protected function extraerCodigoErrorCancelacion(string $mensaje): string
     {
         if (preg_match('/\b(201|202|203|204|205|206|301|302|401|601)\b/', $mensaje, $m)) {
-            return 'R-' . $m[1];
+            return 'R-'.$m[1];
         }
         if (stripos($mensaje, 'ya fue cancelad') !== false || stripos($mensaje, 'already cancelled') !== false) {
             return 'R-202';
@@ -884,6 +912,7 @@ class FacturaController extends Controller
         if (stripos($mensaje, 'documentos relacionados') !== false || stripos($mensaje, 'no cancelable') !== false) {
             return 'R-601';
         }
+
         return 'R';
     }
 
@@ -899,7 +928,7 @@ class FacturaController extends Controller
             return redirect()->route('facturas.show', $factura->id)
                 ->with('success', 'PDF generado exitosamente');
         } catch (\Exception $e) {
-            return back()->with('error', 'Error al generar PDF: ' . $e->getMessage());
+            return back()->with('error', 'Error al generar PDF: '.$e->getMessage());
         }
     }
 
@@ -908,24 +937,25 @@ class FacturaController extends Controller
      */
     public function descargarXML(Factura $factura)
     {
-        if (!$factura->xml_path && empty($factura->xml_content)) {
+        if (! $factura->xml_path && empty($factura->xml_content)) {
             return back()->with('error', 'XML no disponible');
         }
 
-        $filepath = storage_path('app/' . $factura->xml_path);
+        $filepath = storage_path('app/'.$factura->xml_path);
         if ($factura->xml_path && file_exists($filepath)) {
-            return response()->download($filepath, $factura->folio_completo . '.xml');
+            return response()->download($filepath, $factura->folio_completo.'.xml');
         }
-        $filepathPrivate = storage_path('app/private/' . $factura->xml_path);
+        $filepathPrivate = storage_path('app/private/'.$factura->xml_path);
         if ($factura->xml_path && file_exists($filepathPrivate)) {
-            return response()->download($filepathPrivate, $factura->folio_completo . '.xml');
+            return response()->download($filepathPrivate, $factura->folio_completo.'.xml');
         }
-        if (!empty($factura->xml_content)) {
+        if (! empty($factura->xml_content)) {
             return response($factura->xml_content, 200, [
                 'Content-Type' => 'application/xml',
-                'Content-Disposition' => 'attachment; filename="' . $factura->folio_completo . '.xml"',
+                'Content-Disposition' => 'attachment; filename="'.$factura->folio_completo.'.xml"',
             ]);
         }
+
         return back()->with('error', 'Archivo XML no encontrado');
     }
 
@@ -938,11 +968,11 @@ class FacturaController extends Controller
         if ($factura->estado !== 'cancelada') {
             return back()->with('error', 'Solo aplica a facturas canceladas.');
         }
-        if (!empty($factura->acuse_cancelacion)) {
+        if (! empty($factura->acuse_cancelacion)) {
             return back()->with('info', 'La factura ya tiene el acuse de cancelación guardado.');
         }
         $empresa = $factura->empresa ?? Empresa::principal();
-        if (!$empresa) {
+        if (! $empresa) {
             return back()->with('error', 'No hay empresa configurada.');
         }
         try {
@@ -952,9 +982,10 @@ class FacturaController extends Controller
                 return back()->with('error', 'No se pudo obtener el acuse de cancelación desde Facturama. Verifica que el CFDI esté cancelado en el PAC.');
             }
             $factura->update(['acuse_cancelacion' => $acuse]);
+
             return back()->with('success', 'Acuse de cancelación guardado. Ya puedes descargar el XML cancelado.');
         } catch (\Throwable $e) {
-            return back()->with('error', 'Error al obtener acuse: ' . $e->getMessage());
+            return back()->with('error', 'Error al obtener acuse: '.$e->getMessage());
         }
     }
 
@@ -968,7 +999,7 @@ class FacturaController extends Controller
             return back()->with('error', 'Solo se puede actualizar el estatus de facturas canceladas.');
         }
         $empresa = $factura->empresa ?? Empresa::principal();
-        if (!$empresa) {
+        if (! $empresa) {
             return back()->with('error', 'No hay empresa configurada.');
         }
         try {
@@ -982,9 +1013,10 @@ class FacturaController extends Controller
                 'acuse_cancelacion' => $acuse,
                 'codigo_estatus_cancelacion' => $codigoEstatus,
             ]);
-            return back()->with('success', 'Estatus actualizado: ' . Factura::descripcionCodigoCancelacion($codigoEstatus) . ' (código ' . $codigoEstatus . ').');
+
+            return back()->with('success', 'Estatus actualizado: '.Factura::descripcionCodigoCancelacion($codigoEstatus).' (código '.$codigoEstatus.').');
         } catch (\Throwable $e) {
-            return back()->with('error', 'Error al actualizar estatus: ' . $e->getMessage());
+            return back()->with('error', 'Error al actualizar estatus: '.$e->getMessage());
         }
     }
 
@@ -1010,12 +1042,12 @@ class FacturaController extends Controller
             return back()->with('error', 'El acuse de cancelación guardado no es válido.');
         }
 
-        $filename = 'AcuseCancelacion_' . ($factura->uuid ?? $factura->folio_completo) . '.xml';
+        $filename = 'AcuseCancelacion_'.($factura->uuid ?? $factura->folio_completo).'.xml';
         $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
 
         return response($xml, 200, [
-            'Content-Type'        => 'application/xml',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Type' => 'application/xml',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
     }
 
@@ -1026,19 +1058,19 @@ class FacturaController extends Controller
     public function verPDF(Factura $factura)
     {
         $regenerar = $factura->esBorrador()
-            || !$factura->pdf_path
-            || !file_exists(storage_path('app/' . $factura->pdf_path));
+            || ! $factura->pdf_path
+            || ! file_exists(storage_path('app/'.$factura->pdf_path));
 
         if ($regenerar) {
             try {
                 $pdfPath = $this->pdfService->generarFacturaPDF($factura);
                 $factura->update(['pdf_path' => $pdfPath]);
             } catch (\Exception $e) {
-                return back()->with('error', 'Error al generar PDF: ' . $e->getMessage());
+                return back()->with('error', 'Error al generar PDF: '.$e->getMessage());
             }
         }
 
-        return response()->file(storage_path('app/' . $factura->pdf_path));
+        return response()->file(storage_path('app/'.$factura->pdf_path));
     }
 
     /**
@@ -1046,11 +1078,11 @@ class FacturaController extends Controller
      */
     public function descargarPDF(Factura $factura)
     {
-        if (!$factura->pdf_path) {
+        if (! $factura->pdf_path) {
             return back()->with('error', 'PDF no disponible');
         }
 
-        return $this->pdfService->descargarPDF($factura->pdf_path, $factura->folio_completo . '.pdf');
+        return $this->pdfService->descargarPDF($factura->pdf_path, $factura->folio_completo.'.pdf');
     }
 
     /**
@@ -1058,17 +1090,17 @@ class FacturaController extends Controller
      */
     protected function guardarXML(Factura $factura, string $xml): string
     {
-        $directory = storage_path('app/facturas/' . now()->format('Y/m'));
-        
-        if (!file_exists($directory)) {
+        $directory = storage_path('app/facturas/'.now()->format('Y/m'));
+
+        if (! file_exists($directory)) {
             mkdir($directory, 0755, true);
         }
 
-        $filename = $factura->folio_completo . '.xml';
-        $filepath = $directory . '/' . $filename;
-        
+        $filename = $factura->folio_completo.'.xml';
+        $filepath = $directory.'/'.$filename;
+
         file_put_contents($filepath, $xml);
 
-        return 'facturas/' . now()->format('Y/m') . '/' . $filename;
+        return 'facturas/'.now()->format('Y/m').'/'.$filename;
     }
 }

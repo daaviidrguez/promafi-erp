@@ -128,6 +128,40 @@ $breadcrumbs = [
             </div>
         </div>
 
+        {{-- Historial envíos de logística (factura y remisiones vinculadas) --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🕐 Historial</div>
+            </div>
+            <div class="card-body text-muted" style="max-height:420px;overflow:auto;font-size:13px;">
+                @forelse($historialEnviosFactura as $h)
+                    <div style="border-bottom:1px solid var(--color-gray-100);padding:8px 0;font-size:13px;">
+                        <div class="fw-600">
+                            @if($h->envio)
+                                @can('logistica.ver')
+                                    <a href="{{ route('logistica.show', $h->envio) }}" class="text-mono">{{ $h->envio->folio }}</a>
+                                @else
+                                    <span class="text-mono">{{ $h->envio->folio }}</span>
+                                @endcan
+                            @else
+                                <span class="text-mono">—</span>
+                            @endif
+                            <span class="text-muted fw-400"> · </span>
+                            {{ $h->estado_anterior ?? '—' }} → {{ $h->estado_nuevo }}
+                        </div>
+                        <div class="text-muted">{{ $h->created_at?->format('d/m/Y H:i') }}
+                            @if($h->user) · {{ $h->user->name }}@endif
+                        </div>
+                        @if($h->nota)
+                            <div style="margin-top:4px;">{{ $h->nota }}</div>
+                        @endif
+                    </div>
+                @empty
+                    <p class="text-muted" style="margin:0;">Sin movimientos de envíos relacionados a esta factura.</p>
+                @endforelse
+            </div>
+        </div>
+
         {{-- Observaciones --}}
         @if($factura->observaciones)
         <div class="card">

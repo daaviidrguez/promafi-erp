@@ -38,6 +38,8 @@
                     <option value="">Todos</option>
                     <option value="borrador" {{ request('estado') === 'borrador' ? 'selected' : '' }}>Borrador</option>
                     <option value="enviada" {{ request('estado') === 'enviada' ? 'selected' : '' }}>Enviada</option>
+                    <option value="en_ruta" {{ request('estado') === 'en_ruta' ? 'selected' : '' }}>En ruta (logística)</option>
+                    <option value="entrega_parcial" {{ request('estado') === 'entrega_parcial' ? 'selected' : '' }}>Entrega parcial (logística)</option>
                     <option value="entregada" {{ request('estado') === 'entregada' ? 'selected' : '' }}>Entregada</option>
                     <option value="cancelada" {{ request('estado') === 'cancelada' ? 'selected' : '' }}>Cancelada</option>
                 </select>
@@ -69,10 +71,8 @@
                 <td>{{ $r->fecha->format('d/m/Y') }}</td>
                 <td class="text-mono">{{ $r->orden_compra ?? '—' }}</td>
                 <td class="td-center">
-                    @if($r->estado === 'borrador')<span class="badge badge-warning">Borrador</span>
-                    @elseif($r->estado === 'enviada')<span class="badge badge-info">Enviada</span>
-                    @elseif($r->estado === 'entregada')<span class="badge badge-success">Entregada</span>
-                    @else<span class="badge badge-danger">Cancelada</span>@endif
+                    @php $ev = $r->estadoVisualListado(); @endphp
+                    <span class="badge {{ $ev['badge'] }}">{{ $ev['label'] }}</span>
                 </td>
                 <td class="td-center">
                     @if($r->factura_id || $r->factura_id_cancelada)

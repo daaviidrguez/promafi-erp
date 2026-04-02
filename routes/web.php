@@ -3,51 +3,52 @@
 // UBICACIÓN: routes/web.php
 // REEMPLAZA el contenido actual con este
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Web\AuthController;
-use App\Http\Controllers\Web\DashboardController;
-use App\Http\Controllers\Web\TableroController;
-use App\Http\Controllers\Web\TableroAnualController;
-use App\Http\Controllers\Web\GlobalSearchController;
-use App\Http\Controllers\Web\PerfilController;
-use App\Http\Controllers\Web\CotizacionController;
-use App\Http\Controllers\Web\ClienteController;
-use App\Http\Controllers\Web\ClienteContactoController;
-use App\Http\Controllers\Web\ClienteDireccionEntregaController;
-use App\Http\Controllers\Web\ProductoController;
+use App\Http\Controllers\Web\CancelacionAdministrativaController;
 use App\Http\Controllers\Web\CatalogoOnlineController;
-use App\Http\Controllers\Web\ProductoProveedorController;
-use App\Http\Controllers\Web\CategoriaProductoController;
-use App\Http\Controllers\Web\FacturaController;
-use App\Http\Controllers\Web\CuentaPorCobrarController;
-use App\Http\Controllers\Web\EstadoCuentaController;
-use App\Http\Controllers\Web\ComplementoPagoController;
-use App\Http\Controllers\Web\DevolucionController;
-use App\Http\Controllers\Web\NotaCreditoController;
-use App\Http\Controllers\Web\EmpresaController;
-use App\Http\Controllers\Web\CotizacionCompraController;
-use App\Http\Controllers\Web\OrdenCompraController;
-use App\Http\Controllers\Web\CompraController;
-use App\Http\Controllers\Web\ProveedorController;
-use App\Http\Controllers\Web\CuentaPorPagarController;
-use App\Http\Controllers\Web\RemisionController;
-use App\Http\Controllers\Web\SugerenciaController;
-use App\Http\Controllers\Web\UsuarioController;
-use App\Http\Controllers\Web\RoleController;
-use App\Http\Controllers\Web\InventarioController;
 use App\Http\Controllers\Web\CatalogosSatController;
-use App\Http\Controllers\Web\RegimenFiscalController;
-use App\Http\Controllers\Web\UsoCfdiController;
-use App\Http\Controllers\Web\FormaPagoController;
-use App\Http\Controllers\Web\MetodoPagoController;
-use App\Http\Controllers\Web\MonedaController;
-use App\Http\Controllers\Web\UnidadMedidaSatController;
+use App\Http\Controllers\Web\CategoriaProductoController;
 use App\Http\Controllers\Web\ClaveProdServicioController;
+use App\Http\Controllers\Web\ClienteContactoController;
+use App\Http\Controllers\Web\ClienteController;
+use App\Http\Controllers\Web\ClienteDireccionEntregaController;
+use App\Http\Controllers\Web\ComplementoPagoController;
+use App\Http\Controllers\Web\CompraController;
+use App\Http\Controllers\Web\CotizacionCompraController;
+use App\Http\Controllers\Web\CotizacionController;
+use App\Http\Controllers\Web\CuentaPorCobrarController;
+use App\Http\Controllers\Web\CuentaPorPagarController;
+use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\DevolucionController;
+use App\Http\Controllers\Web\EmpresaController;
+use App\Http\Controllers\Web\EstadoCuentaController;
+use App\Http\Controllers\Web\FacturaController;
+use App\Http\Controllers\Web\FormaPagoController;
+use App\Http\Controllers\Web\GlobalSearchController;
+use App\Http\Controllers\Web\ImportadorCfdiController;
+use App\Http\Controllers\Web\InventarioController;
 use App\Http\Controllers\Web\IsrResicoController;
 use App\Http\Controllers\Web\ListaPrecioController;
+use App\Http\Controllers\Web\LogisticaController;
+use App\Http\Controllers\Web\MetodoPagoController;
+use App\Http\Controllers\Web\MonedaController;
+use App\Http\Controllers\Web\NotaCreditoController;
+use App\Http\Controllers\Web\OrdenCompraController;
+use App\Http\Controllers\Web\PerfilController;
+use App\Http\Controllers\Web\ProductoController;
+use App\Http\Controllers\Web\ProductoProveedorController;
+use App\Http\Controllers\Web\ProveedorController;
+use App\Http\Controllers\Web\RegimenFiscalController;
+use App\Http\Controllers\Web\RemisionController;
 use App\Http\Controllers\Web\ReporteController;
-use App\Http\Controllers\Web\ImportadorCfdiController;
-use App\Http\Controllers\Web\CancelacionAdministrativaController;
+use App\Http\Controllers\Web\RoleController;
+use App\Http\Controllers\Web\SugerenciaController;
+use App\Http\Controllers\Web\TableroAnualController;
+use App\Http\Controllers\Web\TableroController;
+use App\Http\Controllers\Web\UnidadMedidaSatController;
+use App\Http\Controllers\Web\UsoCfdiController;
+use App\Http\Controllers\Web\UsuarioController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -74,7 +75,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     // ───── LOGOUT (no requiere permiso) ─────
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-    
+
     // ───── DASHBOARD ─────
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/tablero', [TableroController::class, 'index'])->name('tablero.index');
@@ -98,11 +99,11 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::put('/configuracion', [EmpresaController::class, 'update'])->name('empresa.update');
     Route::post('/configuracion/probar-pac', [EmpresaController::class, 'probarPAC'])->name('empresa.probar-pac');
     Route::post('/configuracion/verificar-certificados', [EmpresaController::class, 'verificarCertificados'])->name('empresa.verificar-certificados');
-    
+
     // ========================================
     // COTIZACIONES
     // ========================================
-    
+
     // Rutas específicas PRIMERO (antes de las rutas con parámetros)
     Route::get('/cotizaciones/crear', [CotizacionController::class, 'create'])->name('cotizaciones.create');
     Route::get('/cotizaciones/estadisticas', [CotizacionController::class, 'estadisticas'])->name('cotizaciones.estadisticas');
@@ -110,15 +111,15 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/cotizaciones/buscar-productos', [CotizacionController::class, 'buscarProductos'])->name('cotizaciones.buscar-productos');
     Route::get('/cotizaciones/listas-precios-cliente', [CotizacionController::class, 'listasPreciosCliente'])->name('cotizaciones.listas-precios-cliente');
     Route::get('/cotizaciones/productos-lista-precio', [CotizacionController::class, 'productosListaPrecio'])->name('cotizaciones.productos-lista-precio');
-    
+
     // Listado y guardar
     Route::get('/cotizaciones', [CotizacionController::class, 'index'])->name('cotizaciones.index');
     Route::post('/cotizaciones', [CotizacionController::class, 'store'])->name('cotizaciones.store');
-    
+
     // Rutas con parámetro {cotizacion}
     Route::get('/cotizaciones/{cotizacion}', [CotizacionController::class, 'show'])->name('cotizaciones.show');
     Route::delete('/cotizaciones/{cotizacion}', [CotizacionController::class, 'destroy'])->name('cotizaciones.destroy');
-    
+
     // Acciones específicas
     Route::post('/cotizaciones/{cotizacion}/aceptar', [CotizacionController::class, 'aceptar'])->name('cotizaciones.aceptar');
     Route::post('/cotizaciones/{cotizacion}/enviar', [CotizacionController::class, 'enviar'])->name('cotizaciones.enviar');
@@ -126,7 +127,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/cotizaciones/{cotizacion}/crear-productos-manuales', [CotizacionController::class, 'crearProductosDesdeManuales'])->name('cotizaciones.crear-productos-manuales');
     Route::post('/cotizaciones/{cotizacion}/detalles/{detalle}/asignar-producto', [CotizacionController::class, 'asignarProductoDetalle'])
         ->name('cotizaciones.detalles.asignar-producto');
-    
+
     // PDFs
     Route::get('/cotizaciones/{cotizacion}/generar-pdf', [CotizacionController::class, 'generarPDF'])->name('cotizaciones.generar-pdf');
     Route::get('/cotizaciones/{cotizacion}/descargar-pdf', [CotizacionController::class, 'descargarPDF'])->name('cotizaciones.descargar-pdf');
@@ -213,6 +214,23 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/remisiones/{remision}/ver-pdf', [RemisionController::class, 'verPDF'])->name('remisiones.ver-pdf');
     Route::get('/remisiones/{remision}/descargar-pdf', [RemisionController::class, 'descargarPDF'])->name('remisiones.descargar-pdf');
 
+    // ========================================
+    // LOGÍSTICA (envíos, seguimiento factura / remisión)
+    // ========================================
+    Route::get('/logistica/buscar-facturas', [LogisticaController::class, 'buscarFacturas'])->name('logistica.buscar-facturas');
+    Route::get('/logistica/buscar-remisiones', [LogisticaController::class, 'buscarRemisiones'])->name('logistica.buscar-remisiones');
+    Route::get('/logistica/cliente/{cliente}/direcciones-entrega', [LogisticaController::class, 'direccionesCliente'])->name('logistica.cliente-direcciones');
+    Route::get('/logistica/factura/{factura}/lineas', [LogisticaController::class, 'lineasFactura'])->name('logistica.factura-lineas');
+    Route::get('/logistica/remision/{remision}/lineas', [LogisticaController::class, 'lineasRemision'])->name('logistica.remision-lineas');
+    Route::get('/logistica/elegir-origen', [LogisticaController::class, 'elegirOrigen'])->name('logistica.elegir-origen');
+    Route::get('/logistica/crear', [LogisticaController::class, 'create'])->name('logistica.create');
+    Route::post('/logistica', [LogisticaController::class, 'store'])->name('logistica.store');
+    Route::get('/logistica', [LogisticaController::class, 'index'])->name('logistica.index');
+    Route::get('/logistica/{envio}/ver-pdf', [LogisticaController::class, 'verPdf'])->name('logistica.ver-pdf');
+    Route::get('/logistica/{envio}/descargar-pdf', [LogisticaController::class, 'descargarPdf'])->name('logistica.descargar-pdf');
+    Route::get('/logistica/{envio}', [LogisticaController::class, 'show'])->name('logistica.show');
+    Route::put('/logistica/{envio}', [LogisticaController::class, 'update'])->name('logistica.update');
+
     // ───── CLIENTES ───── ✅
     Route::resource('clientes', ClienteController::class);
     Route::resource('clientes.contactos', ClienteContactoController::class)->parameters(['contactos' => 'contacto']);
@@ -224,7 +242,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('clientes.direcciones-entrega.destroy');
     Route::get('/clientes/{cliente}/direcciones-entrega', [ClienteDireccionEntregaController::class, 'index'])
         ->name('clientes.direcciones-entrega.index');
-    
+
     // ───── PRODUCTOS ───── ✅
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
     Route::get('/catalogo-online', [CatalogoOnlineController::class, 'index'])->name('catalogo-online.index');
@@ -251,7 +269,6 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/sugerencias/buscar', [SugerenciaController::class, 'buscar'])->name('sugerencias.buscar');
     Route::resource('sugerencias', SugerenciaController::class)->parameters(['sugerencias' => 'sugerencia']);
 
-    
     // ───── FACTURAS ───── ✅
     Route::get('/facturas-para-relacion/listar', [FacturaController::class, 'listarParaRelacion'])->name('facturas.listar-para-relacion');
     Route::resource('facturas', FacturaController::class);
@@ -294,7 +311,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::resource('catalogos-sat/claves-producto-servicio', ClaveProdServicioController::class)->parameters(['claves_producto_servicio' => 'claves_producto_servicio'])->names('catalogos-sat.claves-producto-servicio')->except(['show']);
     Route::get('/catalogos-sat/isr-resico', [IsrResicoController::class, 'index'])->name('catalogos-sat.isr-resico.index');
     Route::put('/catalogos-sat/isr-resico', [IsrResicoController::class, 'update'])->name('catalogos-sat.isr-resico.update');
-    
+
     // ───── CUENTAS POR COBRAR ───── ✅
     Route::get('/cuentas-cobrar', [CuentaPorCobrarController::class, 'index'])->name('cuentas-cobrar.index');
     Route::get('/cuentas-cobrar/{cuentaPorCobrar}', [CuentaPorCobrarController::class, 'show'])->name('cuentas-cobrar.show');
@@ -303,7 +320,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/estado-cuenta', [EstadoCuentaController::class, 'index'])->name('estado-cuenta.index');
     Route::get('/estado-cuenta/ver', [EstadoCuentaController::class, 'ver'])->name('estado-cuenta.ver');
     Route::get('/estado-cuenta/pdf', [EstadoCuentaController::class, 'pdf'])->name('estado-cuenta.pdf');
-    
+
     // ───── COMPLEMENTOS DE PAGO ───── ✅
     // IMPORTANTE: Rutas específicas ANTES de rutas con parámetros
     Route::get('/complementos/crear', [ComplementoPagoController::class, 'create'])->name('complementos.create');
@@ -343,7 +360,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/notas-credito/{notaCredito}/ver-pdf', [NotaCreditoController::class, 'verPDF'])->name('notas-credito.ver-pdf');
     Route::get('/notas-credito/{notaCredito}/descargar-pdf', [NotaCreditoController::class, 'descargarPDF'])->name('notas-credito.descargar-pdf');
     Route::get('/notas-credito/{notaCredito}/descargar-xml', [NotaCreditoController::class, 'descargarXML'])->name('notas-credito.descargar-xml');
-    
+
     // ───── BUSCADOR GLOBAL ─────
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');
 

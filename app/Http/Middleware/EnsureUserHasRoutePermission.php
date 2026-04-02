@@ -24,6 +24,7 @@ class EnsureUserHasRoutePermission
         'catalogos-sat' => 'catalogos_sat.ver',
         'complementos' => 'complementos.ver',
         'remisiones' => 'remisiones.ver',
+        'logistica' => 'logistica.ver',
         'devoluciones' => 'devoluciones.ver',
         'notas-credito' => 'notas_credito.ver',
         'productos' => 'productos.ver',
@@ -47,7 +48,7 @@ class EnsureUserHasRoutePermission
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return redirect()->route('login');
         }
 
@@ -56,12 +57,12 @@ class EnsureUserHasRoutePermission
         }
 
         $routeName = $request->route()?->getName();
-        if (!$routeName) {
+        if (! $routeName) {
             return $next($request);
         }
 
         $segment = explode('.', $routeName)[0] ?? null;
-        if (!$segment) {
+        if (! $segment) {
             return $next($request);
         }
 
@@ -70,7 +71,7 @@ class EnsureUserHasRoutePermission
             return $next($request);
         }
 
-        if (!$user->hasPermission($permission)) {
+        if (! $user->hasPermission($permission)) {
             // Vendedor sin dashboard/reportes: redirigir a Facturación (cotizaciones)
             if ($user->isVendedor() && in_array($permission, ['dashboard.ver', 'reportes.ver'], true)) {
                 return redirect()->route('cotizaciones.index');

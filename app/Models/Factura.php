@@ -85,6 +85,7 @@ class Factura extends Model
             return max(0, (float) $this->cuentaPorCobrar->saldo_pendiente_real);
         }
         $ncTotal = (float) NotaCredito::where('factura_id', $this->id)->where('estado', 'timbrada')->sum('total');
+
         return max(0, (float) $this->total - $ncTotal);
     }
 
@@ -123,7 +124,7 @@ class Factura extends Model
     }
 
     /**
-     * Remisión que originó esta factura (si aplica). El inventario ya se descontó al entregar la remisión.
+     * Remisión que originó esta factura (si aplica). El inventario ya se descontó al marcar la remisión como enviada.
      */
     public function remisionVinculada()
     {
@@ -131,11 +132,102 @@ class Factura extends Model
     }
 
     /**
+     * Permite registrar un envío de logística tomando esta factura como documento origen.
+     * Misma regla que {@see Remision::permiteNuevoEnvioDesdeElegirOrigen} considerando envíos
+     * de esta factura y de la remisión vinculada: sin envíos activos → sí; con envíos activos → solo
+     * si hay partidas pendientes en destino y hubo entrega parcial o marcas de entregado en destino.
+     * No aplica si la remisión vinculada ya está entregada (trazabilidad por remisión).
+     */
+    public function permiteNuevoEnvioLogistica(): bool
+    {
+        $remision = $this->relationLoaded('remisionVinculada')
+            ? $this->remisionVinculada
+            : $this->remisionVinculada()->first();
+
+        if ($remision && $remision->estado === 'entregada') {
+            return false;
+        }
+
+        $this->loadMissing('logisticaEnvios');
+        $envios = $this->relationLoaded('logisticaEnvios')
+            ? $this->logisticaEnvios
+            : $this->logisticaEnvios()->get();
+
+        if ($remision) {
+            $remision->loadMissing('logisticaEnvios');
+            $envios = $envios->concat($remision->logisticaEnvios);
+        }
+
+        $enviosActivos = $envios->unique('id')->filter(fn ($e) => $e->estado !== 'cancelado');
+
+        if ($enviosActivos->isEmpty()) {
+            return true;
+        }
+
+        if (! $this->tienePartidasPendientesDeEnvioLogistica()) {
+            return false;
+        }
+
+        if ($enviosActivos->contains('estado', 'entrega_parcial')) {
+            return true;
+        }
+
+        foreach ($enviosActivos as $envio) {
+            $items = $envio->relationLoaded('items')
+                ? $envio->items
+                : $envio->items()->get(['id', 'linea_entregada']);
+            if ($items->contains('linea_entregada', true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * True si alguna línea tiene cantidad aún sin entregar en destino (según checks de logística).
+     */
+    public function tienePartidasPendientesDeEnvioLogistica(): bool
+    {
+        $this->loadMissing('detalles');
+
+        foreach ($this->detalles as $d) {
+            if (LogisticaEnvio::cantidadPendienteEntregaFacturaDetalle((int) $d->id) > 1e-6) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Envío a enlazar como "Ver envío" cuando no aplica un envío nuevo (remisión o factura con envío cerrado).
+     */
+    public function envioLogisticaParaAccionVer(): ?LogisticaEnvio
+    {
+        $remision = $this->relationLoaded('remisionVinculada')
+            ? $this->remisionVinculada
+            : $this->remisionVinculada()->first();
+
+        if ($remision?->logisticaEnvio) {
+            return $remision->logisticaEnvio;
+        }
+
+        $query = $this->relationLoaded('logisticaEnvios')
+            ? $this->logisticaEnvios->sortByDesc('id')->values()
+            : $this->logisticaEnvios()->orderByDesc('id')->get();
+
+        $entregado = $query->firstWhere('estado', 'entregado');
+
+        return $entregado ?? $query->first();
+    }
+
+    /**
      * Indica si no debe moverse inventario al timbrar/cancelar (salida ya registrada en la remisión).
      */
     public function inventarioDescontadoEnRemision(): bool
     {
-        // Se descontó el inventario al entregar la remisión.
+        // Se descontó el inventario al enviar la remisión (salida de almacén).
         // Para trazabilidad, una remisión puede conservar una factura cancelada
         // en `remisiones.factura_id_cancelada`, por lo que aquí se valida ambos casos.
         return Remision::where('factura_id', $this->id)
@@ -149,6 +241,11 @@ class Factura extends Model
     public function detalles()
     {
         return $this->hasMany(FacturaDetalle::class);
+    }
+
+    public function logisticaEnvios()
+    {
+        return $this->hasMany(LogisticaEnvio::class);
     }
 
     /**
@@ -212,7 +309,7 @@ class Factura extends Model
      */
     public function estaTimbrada(): bool
     {
-        return $this->estado === 'timbrada' && !empty($this->uuid);
+        return $this->estado === 'timbrada' && ! empty($this->uuid);
     }
 
     /**
@@ -245,7 +342,7 @@ class Factura extends Model
      */
     public function puedeCancelar(): bool
     {
-        return $this->estado === 'timbrada' && !$this->tieneDocumentosRelacionados();
+        return $this->estado === 'timbrada' && ! $this->tieneDocumentosRelacionados();
     }
 
     /**
@@ -285,6 +382,7 @@ class Factura extends Model
                 ? '1 devolución registrada'
                 : "{$count} devoluciones registradas";
         }
+
         return $detalle;
     }
 
@@ -301,7 +399,7 @@ class Factura extends Model
      */
     public function getFolioCompletoAttribute(): string
     {
-        return $this->serie . '-' . str_pad($this->folio, 4, '0', STR_PAD_LEFT);
+        return $this->serie.'-'.str_pad($this->folio, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -316,6 +414,7 @@ class Factura extends Model
             return (float) $iva;
         }
         $baseIva = $this->subtotal - $this->descuento;
+
         return round($baseIva * 0.16, 2);
     }
 
@@ -334,9 +433,9 @@ class Factura extends Model
     {
         $mes = $mes ?? now()->month;
         $anio = $anio ?? now()->year;
-        
+
         return $query->whereMonth('fecha_emision', $mes)
-                    ->whereYear('fecha_emision', $anio);
+            ->whereYear('fecha_emision', $anio);
     }
 
     /**
@@ -351,8 +450,9 @@ class Factura extends Model
         if ($this->estado === 'timbrada') {
             $cod = $this->codigo_estatus_cancelacion;
             if ($cod && (str_starts_with($cod, 'R') || str_starts_with($cod, 'Rechazada'))) {
-                return 'Timbrada (' . self::descripcionCodigoCancelacion($cod) . ')';
+                return 'Timbrada ('.self::descripcionCodigoCancelacion($cod).')';
             }
+
             return 'Timbrada';
         }
         if ($this->estado === 'cancelada') {
@@ -361,10 +461,12 @@ class Factura extends Model
             }
             $cod = $this->codigo_estatus_cancelacion;
             if ($cod && $cod !== 'ADM') {
-                return 'Cancelada (' . $cod . ')';
+                return 'Cancelada ('.$cod.')';
             }
+
             return 'Cancelada';
         }
+
         return $this->estado ?? '—';
     }
 
@@ -380,6 +482,7 @@ class Factura extends Model
         if ($cod === null || $cod === '') {
             return null;
         }
+
         return self::descripcionCodigoCancelacion($cod);
     }
 
@@ -404,11 +507,13 @@ class Factura extends Model
         $cod = (string) $codigo;
         if (str_starts_with($cod, 'R-')) {
             $num = substr($cod, 2);
-            return ($map[$num] ?? $num) . ' (Rechazada)';
+
+            return ($map[$num] ?? $num).' (Rechazada)';
         }
         if (str_starts_with($cod, 'R') || str_starts_with($cod, 'Rechazada')) {
             return 'Rechazada';
         }
+
         return $map[$cod] ?? $codigo ?? '—';
     }
 
@@ -417,12 +522,12 @@ class Factura extends Model
      */
     public function scopeBuscar($query, $search)
     {
-        return $query->where(function($q) use ($search) {
+        return $query->where(function ($q) use ($search) {
             $q->where('folio', 'like', "%{$search}%")
-              ->orWhere('serie', 'like', "%{$search}%")
-              ->orWhere('uuid', 'like', "%{$search}%")
-              ->orWhere('nombre_receptor', 'like', "%{$search}%")
-              ->orWhere('rfc_receptor', 'like', "%{$search}%");
+                ->orWhere('serie', 'like', "%{$search}%")
+                ->orWhere('uuid', 'like', "%{$search}%")
+                ->orWhere('nombre_receptor', 'like', "%{$search}%")
+                ->orWhere('rfc_receptor', 'like', "%{$search}%");
         });
     }
 }

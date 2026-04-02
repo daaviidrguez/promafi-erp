@@ -55,6 +55,8 @@ class Empresa extends Model
         'folio_cotizacion',
         'serie_remision',
         'folio_remision',
+        'serie_logistica',
+        'folio_logistica',
         'pac_nombre',
         'pac_api_key',
         'pac_endpoint',
@@ -78,6 +80,7 @@ class Empresa extends Model
         'folio_complemento' => 'integer',
         'folio_cotizacion' => 'integer',
         'folio_remision' => 'integer',
+        'folio_logistica' => 'integer',
     ];
 
     protected $hidden = [
@@ -103,7 +106,8 @@ class Empresa extends Model
     {
         $serie = $this->serie_factura ?? 'FA';
         $folio = (int) ($this->folio_factura ?? 1);
-        return $serie . '-' . str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
+
+        return $serie.'-'.str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -121,7 +125,8 @@ class Empresa extends Model
     {
         $serie = $this->serie_factura_credito ?? 'FB';
         $folio = (int) ($this->folio_factura_credito ?? 1);
-        return $serie . '-' . str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
+
+        return $serie.'-'.str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -137,7 +142,7 @@ class Empresa extends Model
      */
     public function obtenerSiguienteFolioComplemento(): string
     {
-        return $this->serie_complemento . '-' . str_pad($this->folio_complemento, 4, '0', STR_PAD_LEFT);
+        return $this->serie_complemento.'-'.str_pad($this->folio_complemento, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -153,7 +158,7 @@ class Empresa extends Model
      */
     public function obtenerSiguienteFolioCotizacion(): string
     {
-        return $this->serie_cotizacion . '-' . str_pad((string) $this->folio_cotizacion, 4, '0', STR_PAD_LEFT);
+        return $this->serie_cotizacion.'-'.str_pad((string) $this->folio_cotizacion, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -169,7 +174,7 @@ class Empresa extends Model
      */
     public function obtenerSiguienteFolioRemision(): string
     {
-        return $this->serie_remision . '-' . str_pad((string) $this->folio_remision, 4, '0', STR_PAD_LEFT);
+        return $this->serie_remision.'-'.str_pad((string) $this->folio_remision, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -180,14 +185,27 @@ class Empresa extends Model
         $this->increment('folio_remision');
     }
 
+    public function obtenerSiguienteFolioLogistica(): string
+    {
+        $serie = $this->serie_logistica ?? 'LOG';
+        $folio = (int) ($this->folio_logistica ?? 1);
+
+        return $serie.'-'.str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
+    }
+
+    public function incrementarFolioLogistica(): void
+    {
+        $this->increment('folio_logistica');
+    }
+
     /**
      * Verificar si tiene certificados configurados
      */
     public function tieneCertificados(): bool
     {
-        return !empty($this->certificado_cer) && 
-               !empty($this->certificado_key) && 
-               !empty($this->certificado_password);
+        return ! empty($this->certificado_cer) &&
+               ! empty($this->certificado_key) &&
+               ! empty($this->certificado_password);
     }
 
     /**
@@ -197,9 +215,11 @@ class Empresa extends Model
     {
         if (in_array($this->pac_provider ?? 'facturama_sandbox', ['facturama_sandbox', 'facturama_production'], true)) {
             [$user, $pass] = $this->getFacturamaCredentials();
-            return !empty($user) && !empty($pass);
+
+            return ! empty($user) && ! empty($pass);
         }
-        return !empty($this->pac_nombre) && !empty($this->pac_api_key) && !empty($this->pac_endpoint);
+
+        return ! empty($this->pac_nombre) && ! empty($this->pac_api_key) && ! empty($this->pac_endpoint);
     }
 
     /**
@@ -213,15 +233,18 @@ class Empresa extends Model
         if ($provider === 'facturama_sandbox') {
             $user = trim((string) ($this->pac_facturama_user_sandbox ?? $this->pac_facturama_user ?? ''));
             $pass = trim((string) ($this->getRawOriginal('pac_facturama_password_sandbox') ?? $this->getRawOriginal('pac_facturama_password') ?? ''));
+
             return [$user, $pass];
         }
         if ($provider === 'facturama_production') {
             $user = trim((string) ($this->pac_facturama_user_production ?? $this->pac_facturama_user ?? ''));
             $pass = trim((string) ($this->getRawOriginal('pac_facturama_password_production') ?? $this->getRawOriginal('pac_facturama_password') ?? ''));
+
             return [$user, $pass];
         }
         $user = trim((string) ($this->pac_facturama_user ?? ''));
         $pass = trim((string) ($this->getRawOriginal('pac_facturama_password') ?? ''));
+
         return [$user, $pass];
     }
 
@@ -231,6 +254,7 @@ class Empresa extends Model
     public function getFacturamaBaseUrlAttribute(): ?string
     {
         $provider = $this->pac_provider ?? 'facturama_sandbox';
+
         return match ($provider) {
             'facturama_sandbox' => 'https://apisandbox.facturama.mx',
             'facturama_production' => 'https://api.facturama.mx',
@@ -243,10 +267,10 @@ class Empresa extends Model
      */
     public function certificadoVigente(): bool
     {
-        if (!$this->certificado_vigencia) {
+        if (! $this->certificado_vigencia) {
             return false;
         }
-        
+
         return $this->certificado_vigencia->isFuture();
     }
 
@@ -255,17 +279,17 @@ class Empresa extends Model
      */
     public function getDomicilioCompletoAttribute(): string
     {
-        $domicilio = $this->calle . ' ' . $this->numero_exterior;
-        
+        $domicilio = $this->calle.' '.$this->numero_exterior;
+
         if ($this->numero_interior) {
-            $domicilio .= ' Int. ' . $this->numero_interior;
+            $domicilio .= ' Int. '.$this->numero_interior;
         }
-        
-        $domicilio .= ', ' . $this->colonia;
-        $domicilio .= ', ' . $this->ciudad;
-        $domicilio .= ', ' . $this->estado;
-        $domicilio .= ' CP ' . $this->codigo_postal;
-        
+
+        $domicilio .= ', '.$this->colonia;
+        $domicilio .= ', '.$this->ciudad;
+        $domicilio .= ', '.$this->estado;
+        $domicilio .= ' CP '.$this->codigo_postal;
+
         return $domicilio;
     }
 }

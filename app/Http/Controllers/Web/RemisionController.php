@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\Empresa;
+use App\Models\InventarioMovimiento;
+use App\Models\Producto;
 use App\Models\Remision;
 use App\Models\RemisionDetalle;
-use App\Models\Cliente;
-use App\Models\Producto;
-use App\Models\Empresa;
+use App\Services\LogisticaRemisionSyncService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,9 +67,18 @@ class RemisionController extends Controller
 
     public function index(Request $request)
     {
-        $query = Remision::with(['cliente', 'usuario', 'factura', 'facturaCancelada']);
+        $query = Remision::with(['cliente', 'usuario', 'factura', 'facturaCancelada', 'logisticaEnvio']);
         if ($request->filled('estado')) {
-            $query->where('estado', $request->estado);
+            $estado = $request->estado;
+            if ($estado === 'en_ruta') {
+                $query->where('estado', 'enviada')
+                    ->whereHas('logisticaEnvios', fn ($q) => $q->where('estado', 'en_ruta'));
+            } elseif ($estado === 'entrega_parcial') {
+                $query->where('estado', 'enviada')
+                    ->whereHas('logisticaEnvios', fn ($q) => $q->where('estado', 'entrega_parcial'));
+            } else {
+                $query->where('estado', $estado);
+            }
         }
         if ($request->filled('search')) {
             $query->buscar($request->search);
@@ -79,16 +90,18 @@ class RemisionController extends Controller
             'entregada' => Remision::where('estado', 'entregada')->count(),
             'cancelada' => Remision::where('estado', 'cancelada')->count(),
         ];
+
         return view('remisiones.index', compact('remisiones', 'estadisticas'));
     }
 
     public function create()
     {
         $empresa = Empresa::principal();
-        if (!$empresa) {
+        if (! $empresa) {
             return redirect()->route('dashboard')->with('error', 'Configura la empresa primero');
         }
         $folio = $empresa ? $empresa->obtenerSiguienteFolioRemision() : 'REM-0001';
+
         return view('remisiones.create', compact('folio'));
     }
 
@@ -114,7 +127,7 @@ class RemisionController extends Controller
             $cliente = Cliente::findOrFail($validated['cliente_id']);
             $empresa = Empresa::principal();
 
-            $remision = new Remision();
+            $remision = new Remision;
             $remision->folio = Remision::generarFolio();
             $remision->estado = 'borrador';
             $remision->cliente_id = $cliente->id;
@@ -158,33 +171,37 @@ class RemisionController extends Controller
                 ]);
             }
             DB::commit();
+
             return redirect()->route('remisiones.show', $remision->id)->with('success', 'Remisión creada correctamente');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withInput()->with('error', $e->getMessage());
         }
     }
 
     public function show(Remision $remision)
     {
-        $remision->load(['cliente', 'detalles.producto', 'factura', 'facturaCancelada', 'usuario']);
+        $remision->load(['cliente', 'detalles.producto', 'factura', 'facturaCancelada', 'usuario', 'logisticaEnvio']);
         $this->asegurarSnapshotDetalles($remision);
+
         return view('remisiones.show', compact('remision'));
     }
 
     public function edit(Remision $remision)
     {
-        if (!$remision->puedeEditarse()) {
+        if (! $remision->puedeEditarse()) {
             return redirect()->route('remisiones.show', $remision->id)->with('error', 'Solo se pueden editar remisiones en borrador');
         }
         $remision->load(['cliente.direccionesEntrega', 'detalles.producto']);
         $this->asegurarSnapshotDetalles($remision);
+
         return view('remisiones.edit', compact('remision'));
     }
 
     public function update(Request $request, Remision $remision)
     {
-        if (!$remision->puedeEditarse()) {
+        if (! $remision->puedeEditarse()) {
             return redirect()->route('remisiones.show', $remision->id)->with('error', 'Solo se pueden editar remisiones en borrador');
         }
 
@@ -241,43 +258,40 @@ class RemisionController extends Controller
                 ]);
             }
             DB::commit();
+
             return redirect()->route('remisiones.show', $remision->id)->with('success', 'Remisión actualizada');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withInput()->with('error', $e->getMessage());
         }
     }
 
     public function destroy(Remision $remision)
     {
-        if (!$remision->puedeEditarse()) {
+        if (! $remision->puedeEditarse()) {
             return redirect()->route('remisiones.index')->with('error', 'Solo se pueden eliminar remisiones en borrador');
         }
         $remision->delete();
+
         return redirect()->route('remisiones.index')->with('success', 'Remisión eliminada');
     }
 
     public function enviar(Remision $remision)
     {
-        if (!$remision->puedeEnviarse()) {
+        if (! $remision->puedeEnviarse()) {
             return back()->with('error', 'Solo se puede enviar una remisión en borrador');
         }
-        $remision->update(['estado' => 'enviada']);
-        return back()->with('success', 'Remisión marcada como enviada');
-    }
 
-    public function entregar(Remision $remision)
-    {
-        if (!$remision->puedeEntregarse()) {
-            return back()->with('error', 'Solo se puede marcar como entregada una remisión enviada');
-        }
-        \DB::beginTransaction();
+        $remision->loadMissing(['detalles.producto']);
+
+        DB::beginTransaction();
         try {
             foreach ($remision->detalles as $detalle) {
                 if ($detalle->producto_id && $detalle->producto && $detalle->producto->controla_inventario) {
-                    \App\Models\InventarioMovimiento::registrar(
+                    InventarioMovimiento::registrar(
                         $detalle->producto,
-                        \App\Models\InventarioMovimiento::TIPO_SALIDA_REMISION,
+                        InventarioMovimiento::TIPO_SALIDA_REMISION,
                         (float) $detalle->cantidad,
                         auth()->id(),
                         null,
@@ -287,13 +301,30 @@ class RemisionController extends Controller
                     );
                 }
             }
-            $remision->update(['estado' => 'entregada', 'fecha_entrega' => now()]);
-            \DB::commit();
-            return back()->with('success', 'Remisión marcada como entregada. Se registró la salida de inventario.');
-        } catch (\Exception $e) {
-            \DB::rollBack();
+
+            $remision->update(['estado' => 'enviada']);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
             return back()->with('error', $e->getMessage());
         }
+
+        app(LogisticaRemisionSyncService::class)->syncFromRemision($remision->fresh());
+
+        return back()->with('success', 'Remisión marcada como enviada. Se descontó el inventario de los productos que lo controlan.');
+    }
+
+    public function entregar(Remision $remision)
+    {
+        if (! $remision->puedeEntregarse()) {
+            return back()->with('error', 'Solo se puede marcar como entregada una remisión enviada');
+        }
+
+        $remision->update(['estado' => 'entregada', 'fecha_entrega' => now()]);
+        app(LogisticaRemisionSyncService::class)->syncFromRemision($remision->fresh());
+
+        return back()->with('success', 'Remisión marcada como entregada. (El inventario ya se había descontado al enviarla.)');
     }
 
     public function cancelar(Remision $remision)
@@ -304,22 +335,22 @@ class RemisionController extends Controller
             return back()->with('error', 'Esta remisión ya está cancelada.');
         }
 
-        // Cancelación de remisión entregada: revierte inventario, pero se bloquea si
-        // existe una factura timbrada vinculada (seguridad).
-        if ($remision->estado === 'entregada') {
-            $facturaTimbrada = ($remision->factura && $remision->factura->estado === 'timbrada')
-                || ($remision->facturaCancelada && $remision->facturaCancelada->estado === 'timbrada');
-            if ($facturaTimbrada) {
+        $facturaTimbradaVinculada = ($remision->factura && $remision->factura->estado === 'timbrada')
+            || ($remision->facturaCancelada && $remision->facturaCancelada->estado === 'timbrada');
+
+        // Envío físico registrado: el inventario se descontó al marcar "enviada".
+        if (in_array($remision->estado, ['enviada', 'entregada'], true)) {
+            if ($facturaTimbradaVinculada) {
                 return back()->with('error', 'No se puede cancelar: existe una factura timbrada vinculada a esta remisión.');
             }
 
-            \DB::beginTransaction();
+            DB::beginTransaction();
             try {
                 foreach ($remision->detalles as $detalle) {
                     if ($detalle->producto_id && $detalle->producto && $detalle->producto->controla_inventario) {
-                        \App\Models\InventarioMovimiento::registrar(
+                        InventarioMovimiento::registrar(
                             $detalle->producto,
-                            \App\Models\InventarioMovimiento::TIPO_ENTRADA_REMISION,
+                            InventarioMovimiento::TIPO_ENTRADA_REMISION,
                             (float) $detalle->cantidad,
                             auth()->id(),
                             null,
@@ -331,25 +362,27 @@ class RemisionController extends Controller
                     }
                 }
 
-                $remision->update([
-                    'estado' => 'cancelada',
-                ]);
+                $remision->update(['estado' => 'cancelada']);
 
-                \DB::commit();
-                return back()->with('success', 'Remisión cancelada y productos reversados.');
+                DB::commit();
+                app(LogisticaRemisionSyncService::class)->syncFromRemision($remision->fresh());
+
+                return back()->with('success', 'Remisión cancelada y se revirtió el inventario.');
             } catch (\Exception $e) {
-                \DB::rollBack();
-                return back()->with('error', 'Error al cancelar la remisión: ' . $e->getMessage());
+                DB::rollBack();
+
+                return back()->with('error', 'Error al cancelar la remisión: '.$e->getMessage());
             }
         }
 
-        // Cancelación normal (borrador/enviada) - sin reversa de inventario.
-        if (!$remision->puedeCancelarse()) {
-            return back()->with('error', 'No se puede cancelar esta remisión');
+        if ($remision->estado === 'borrador') {
+            $remision->update(['estado' => 'cancelada']);
+            app(LogisticaRemisionSyncService::class)->syncFromRemision($remision->fresh());
+
+            return back()->with('success', 'Remisión cancelada');
         }
 
-        $remision->update(['estado' => 'cancelada']);
-        return back()->with('success', 'Remisión cancelada');
+        return back()->with('error', 'No se puede cancelar esta remisión');
     }
 
     /**
@@ -360,7 +393,8 @@ class RemisionController extends Controller
         $remision->loadMissing(['detalles.producto', 'cliente', 'empresa']);
         $this->asegurarSnapshotDetalles($remision);
         $pdfPath = app(PDFService::class)->generarRemisionPDF($remision);
-        return response()->file(storage_path('app/' . $pdfPath));
+
+        return response()->file(storage_path('app/'.$pdfPath));
     }
 
     /**
@@ -371,8 +405,9 @@ class RemisionController extends Controller
         $remision->loadMissing(['detalles.producto', 'cliente', 'empresa']);
         $this->asegurarSnapshotDetalles($remision);
         $pdfPath = app(PDFService::class)->generarRemisionPDF($remision);
-        $filename = 'Remision_' . $remision->folio . '.pdf';
-        return response()->download(storage_path('app/' . $pdfPath), $filename);
+        $filename = 'Remision_'.$remision->folio.'.pdf';
+
+        return response()->download(storage_path('app/'.$pdfPath), $filename);
     }
 
     public function buscarClientes(Request $request)
@@ -386,6 +421,7 @@ class RemisionController extends Controller
             })
             ->limit(10)
             ->get(['id', 'nombre', 'rfc', 'codigo']);
+
         return response()->json($clientes);
     }
 
@@ -399,6 +435,7 @@ class RemisionController extends Controller
             })
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva']);
+
         return response()->json($productos->map(fn ($p) => [
             'id' => $p->id,
             'codigo' => $p->codigo,

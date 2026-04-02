@@ -13,6 +13,8 @@ $breadcrumbs = [
 
 @section('content')
 
+<div class="tablero-anual-page">
+
 <div class="card mb-4">
     <div class="card-body d-flex flex-wrap gap-3 align-items-center">
         <label for="año" class="mb-0 fw-semibold">Año:</label>
@@ -27,51 +29,49 @@ $breadcrumbs = [
     </div>
 </div>
 
-<div class="tablero-anual-grid">
+<div class="tablero-anual-meses-grid">
     @foreach($meses as $num => $datos)
-    <div class="card tablero-anual-card">
-        <div class="card-header py-2">
-            <div class="card-title mb-0">{{ $datos['nombre'] }}</div>
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">{{ $datos['nombre'] }}</div>
         </div>
-        <div class="card-body py-3">
-            <table class="table table-sm table-borderless mb-0 tablero-anual-tabla">
-                <tr>
-                    <td class="text-muted small">Total ventas</td>
-                    <td class="text-end fw-semibold">${{ number_format($datos['total_ventas'], 2, '.', ',') }}</td>
-                </tr>
-                <tr>
-                    <td class="text-muted small">Subtotal</td>
-                    <td class="text-end">${{ number_format($datos['subtotal'], 2, '.', ',') }}</td>
-                </tr>
-                <tr>
-                    <td class="text-muted small">Ingresos cobrados @if($aplicaResico)<span class="text-muted" style="font-size: 0.85em;">(base ISR)</span>@endif</td>
-                    <td class="text-end">${{ number_format($datos['ventas_sin_iva'], 2, '.', ',') }}</td>
-                </tr>
-                <tr>
-                    <td class="text-muted small">IVA traslado</td>
-                    <td class="text-end">${{ number_format($datos['iva_traslado'], 2, '.', ',') }}</td>
-                </tr>
-                <tr>
-                    <td class="text-muted small">IVA acreditable</td>
-                    <td class="text-end">${{ number_format($datos['iva_acreditable'], 2, '.', ',') }}</td>
-                </tr>
-                <tr>
-                    <td class="text-muted small">IVA a pagar</td>
-                    <td class="text-end">${{ number_format($datos['iva_a_pagar'], 2, '.', ',') }}</td>
-                </tr>
+        <div class="card-body">
+            <ul class="tablero-anual-list">
+                <li>
+                    <span class="tablero-anual-list-label">Total ventas</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['total_ventas'], 2, '.', ',') }}</span>
+                </li>
+                <li>
+                    <span class="tablero-anual-list-label">Subtotal</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['subtotal'], 2, '.', ',') }}</span>
+                </li>
+                <li>
+                    <span class="tablero-anual-list-label">Ingresos cobrados @if($aplicaResico)<span class="text-muted" style="font-size: 12px;">(base ISR)</span>@endif</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['ventas_sin_iva'], 2, '.', ',') }}</span>
+                </li>
+                <li>
+                    <span class="tablero-anual-list-label">IVA traslado</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['iva_traslado'], 2, '.', ',') }}</span>
+                </li>
+                <li>
+                    <span class="tablero-anual-list-label">IVA acreditable</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['iva_acreditable'], 2, '.', ',') }}</span>
+                </li>
+                <li>
+                    <span class="tablero-anual-list-label">IVA a pagar</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['iva_a_pagar'], 2, '.', ',') }}</span>
+                </li>
                 @if($aplicaResico)
-                <tr>
-                    <td class="text-muted small">ISR estimado RESICO</td>
-                    <td class="text-end">${{ number_format($datos['isr_estimado_resico'], 2, '.', ',') }}</td>
-                </tr>
+                <li>
+                    <span class="tablero-anual-list-label">ISR estimado RESICO</span>
+                    <span class="tablero-anual-list-value text-mono">${{ number_format($datos['isr_estimado_resico'], 2, '.', ',') }}</span>
+                </li>
                 @endif
-                <tr>
-                    <td class="text-muted small">Utilidad</td>
-                    <td class="text-end fw-semibold {{ $datos['utilidad'] >= 0 ? 'text-success' : 'text-danger' }}">
-                        ${{ number_format($datos['utilidad'], 2, '.', ',') }}
-                    </td>
-                </tr>
-            </table>
+                <li>
+                    <span class="tablero-anual-list-label">Utilidad</span>
+                    <span class="tablero-anual-list-value text-mono" style="color: {{ $datos['utilidad'] >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">${{ number_format($datos['utilidad'], 2, '.', ',') }}</span>
+                </li>
+            </ul>
         </div>
     </div>
     @endforeach
@@ -87,28 +87,6 @@ $breadcrumbs = [
 </p>
 @endif
 
-<style>
-.tablero-anual-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-}
-.tablero-anual-card {
-    min-width: 0;
-}
-.tablero-anual-tabla td {
-    padding: 0.2rem 0;
-    font-size: 0.9rem;
-}
-@media (max-width: 1200px) {
-    .tablero-anual-grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 768px) {
-    .tablero-anual-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 480px) {
-    .tablero-anual-grid { grid-template-columns: 1fr; }
-}
-</style>
+</div>
 
 @endsection

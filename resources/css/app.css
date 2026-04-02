@@ -1051,3 +1051,80 @@ body.sidebar-collapsed .main-content {
 .search-item:hover {
     background: #f3f4f6;
 }
+
+/* ========== Tablero anual ========== */
+.tablero-anual-page .tablero-anual-meses-grid {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 481px) {
+    .tablero-anual-page .tablero-anual-meses-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 769px) {
+    .tablero-anual-page .tablero-anual-meses-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* PC / portátil ancho: 4 tarjetas por fila */
+@media (min-width: 1024px) {
+    .tablero-anual-page .tablero-anual-meses-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.tablero-anual-page .tablero-anual-meses-grid > .card {
+    min-width: 0;
+}
+
+/* Lista tipo dashboard, solo dentro del tablero anual (no altera el dashboard) */
+.tablero-anual-page .tablero-anual-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tablero-anual-page .tablero-anual-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-gray-100);
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.tablero-anual-page .tablero-anual-list li:last-child {
+    border-bottom: none;
+}
+
+.tablero-anual-page .tablero-anual-list-label {
+    color: var(--color-gray-600);
+    font-size: 13px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tablero-anual-page .tablero-anual-list-value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+@media (min-width: 769px) {
+    .content-wrapper:has(.tablero-anual-page) {
+        overflow-x: visible;
+    }
+}
+
+@media (max-width: 768px) {
+    .content-wrapper:has(.tablero-anual-page) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}

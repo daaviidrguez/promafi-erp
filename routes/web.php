@@ -364,6 +364,11 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── BUSCADOR GLOBAL ─────
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');
 
+    // ───── NOTIFICACIONES (Admin) ─────
+    Route::get('/notificaciones/admin', [\App\Http\Controllers\Web\NotificacionesController::class, 'admin'])
+        ->name('notificaciones.admin')
+        ->middleware('can:notificaciones.ver');
+
     // ───── SISTEMA: Usuarios, Roles, Importador CFDI, Cancelaciones administrativas ─────
     Route::middleware('can:cancelaciones_administrativas.administrar')->group(function () {
         Route::get('/cancelaciones-administrativas', [CancelacionAdministrativaController::class, 'index'])->name('cancelaciones-administrativas.index');

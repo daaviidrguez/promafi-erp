@@ -369,6 +369,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('notificaciones.admin')
         ->middleware('can:notificaciones.ver');
 
+    Route::post('/notificaciones/admin/leer', [\App\Http\Controllers\Web\NotificacionesController::class, 'leer'])
+        ->name('notificaciones.admin.leer')
+        ->middleware('can:notificaciones.ver');
+
     // ───── SISTEMA: Usuarios, Roles, Importador CFDI, Cancelaciones administrativas ─────
     Route::middleware('can:cancelaciones_administrativas.administrar')->group(function () {
         Route::get('/cancelaciones-administrativas', [CancelacionAdministrativaController::class, 'index'])->name('cancelaciones-administrativas.index');

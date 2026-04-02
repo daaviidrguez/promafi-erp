@@ -17,6 +17,8 @@ class NotificacionesController extends Controller
     public function admin(Request $request)
     {
         $hoy = Carbon::today();
+        $user = $request->user();
+        $uid = $user?->id ?? 'anon';
 
         // ───────── 1) Crédito excedente ─────────
         // Tomamos el cliente con mayor (saldo_actual - limite_credito) usando saldo_actual en DB
@@ -96,11 +98,26 @@ class NotificacionesController extends Controller
             ->values()
             ->all();
 
-        // El admin debe ver la notificación cada vez que entra al sistema.
-        $tieneAlguna = true;
+        $tieneAlguna = (bool) ($creditoExcedente || $cuentasVencidasCount > 0);
+
+        // Mostrar el toast SOLO 1 vez por sesión (cuando entra al sistema).
+        $toastKey = "notifs_admin_toast_shown_{$uid}";
+        $readKey = "notifs_admin_read_{$uid}";
+
+        $toastShown = (bool) $request->session()->get($toastKey, false);
+        $alreadyRead = (bool) $request->session()->get($readKey, false);
+
+        $showToast = $tieneAlguna && !$toastShown && !$alreadyRead;
+        $unreadCount = $tieneAlguna && !$alreadyRead ? 1 : 0;
+
+        if ($showToast) {
+            $request->session()->put($toastKey, true);
+        }
 
         return response()->json([
             'has_notifications' => $tieneAlguna,
+            'show_toast' => $showToast,
+            'unread_count' => $unreadCount,
             'credito_excedente' => $creditoExcedente,
             'vencidas' => [
                 'cuentas_vencidas' => $cuentasVencidasCount,
@@ -109,6 +126,20 @@ class NotificacionesController extends Controller
                 'hoy' => $hoy->format('d/m/Y'),
             ],
         ]);
+    }
+
+    /**
+     * Marcar notificaciones de admin como leídas para esta sesión.
+     */
+    public function leer(Request $request)
+    {
+        $user = $request->user();
+        $uid = $user?->id ?? 'anon';
+        $readKey = "notifs_admin_read_{$uid}";
+
+        $request->session()->put($readKey, true);
+
+        return response()->json(['ok' => true]);
     }
 }
 

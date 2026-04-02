@@ -32,7 +32,10 @@
         {{-- Notificaciones --}}
         <button class="header-icon-btn" title="Notificaciones" id="notificationsButton" onclick="toggleNotifications()">
             🔔
-            <span id="notificationsBadgeDot" class="badge-dot" style="display:none;"></span>
+            <span id="notificationsBadgeDot"
+                  class="badge-dot"
+                  style="display:none; width:18px; height:18px; border-radius:50%; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#fff; line-height:18px;">
+            </span>
         </button>
 
         {{-- Usuario --}}
@@ -199,8 +202,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const dd = document.getElementById('notificationsDropdown');
     const ddInner = document.getElementById('notificationsDropdownInner');
     const badge = document.getElementById('notificationsBadgeDot');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     if (!btn || !dd || !ddInner || !badge) return;
+
+    let unreadCount = 0;
 
     function escapeHtml(str) {
         return String(str ?? '').replace(/[&<>"']/g, (m) => ({
@@ -273,10 +279,30 @@ document.addEventListener("DOMContentLoaded", function () {
         `;
     }
 
-    window.toggleNotifications = function () {
-        // Si no hay permiso (o elementos), no hagas nada.
+    window.toggleNotifications = async function () {
         if (!dd || !ddInner || !badge) return;
         dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+
+        // Al hacer clic, marcar como leídas SOLO para esta sesión (y ocultar el badge).
+        if (unreadCount > 0) {
+            try {
+                await fetch('{{ route('notificaciones.admin.leer') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                });
+
+                unreadCount = 0;
+                badge.style.display = 'none';
+                badge.textContent = '';
+                btn.classList.remove('notifications-bell-pulse');
+            } catch (e) {
+                // Si falla el marcado, no rompemos la UX: mantenemos el badge.
+            }
+        }
     };
 
     document.addEventListener('click', function (e) {
@@ -295,11 +321,14 @@ document.addEventListener("DOMContentLoaded", function () {
             const html = buildMarkup(data || {});
             ddInner.innerHTML = html;
 
-            const has = Boolean(data?.has_notifications);
-            badge.style.display = has ? 'block' : 'none';
+            unreadCount = Number(data?.unread_count ?? 0) || 0;
+            const showToast = Boolean(data?.show_toast);
+            badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+            badge.textContent = unreadCount > 0 ? String(unreadCount) : '';
+            btn.classList.toggle('notifications-bell-pulse', unreadCount > 0);
 
             // Toast (aparece al entrar al sistema).
-            if (has) {
+            if (showToast) {
                 const toastId = 'notificationsToast';
                 let toast = document.getElementById(toastId);
                 if (!toast) {
@@ -342,13 +371,29 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 @endcan
 
+{{-- Animación mínima de la campanita (solo se aplica si hay alertas) --}}
+<style>
+    @keyframes notificationsPulse {
+        0% { transform: rotate(0deg) scale(1); }
+        20% { transform: rotate(-8deg) scale(1.05); }
+        40% { transform: rotate(8deg) scale(1.05); }
+        60% { transform: rotate(-4deg) scale(1.03); }
+        80% { transform: rotate(4deg) scale(1.03); }
+        100% { transform: rotate(0deg) scale(1); }
+    }
+    .notifications-bell-pulse { animation: notificationsPulse 1.6s ease-in-out infinite; }
+</style>
+
 {{-- Fallback: evita errores JS cuando el usuario NO tiene permiso --}}
 <script>
-    function toggleNotifications() {
-        const dd = document.getElementById('notificationsDropdown');
-        if (!dd) return;
-        dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
-    }
+    (function () {
+        if (typeof window.toggleNotifications === 'function') return;
+        window.toggleNotifications = function () {
+            const dd = document.getElementById('notificationsDropdown');
+            if (!dd) return;
+            dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+        };
+    })();
 </script>
 
 @endpush

@@ -25,6 +25,9 @@ class CuentaPorCobrarController extends Controller
             ->when($estado, function($query) use ($estado) {
                 if ($estado === 'vencidas') {
                     $query->vencidas();
+                } elseif ($estado === 'pendiente') {
+                    // Misma noción que el badge "Pendiente": sin vencer por fecha (no mezclar con vencidas)
+                    $query->pendienteAlCorriente();
                 } else {
                     $query->where('estado', $estado);
                 }

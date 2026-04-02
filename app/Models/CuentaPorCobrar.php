@@ -197,12 +197,40 @@ class CuentaPorCobrar extends Model
     }
 
     /**
-     * Scope para cuentas vencidas
+     * Scope para cuentas vencidas (cobranza).
+     * Incluye filas con estado vencida en BD y las que siguen pendiente/parcial pero
+     * ya superaron fecha_vencimiento — coherente con estado_display y calcularDiasVencido()
+     * (el estado en BD no se actualiza a vencida hasta el próximo save).
      */
     public function scopeVencidas($query)
     {
-        return $query->where('estado', 'vencida')
-                    ->where('monto_pendiente', '>', 0);
+        $hoy = Carbon::today()->toDateString();
+
+        return $query
+            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+            ->where('monto_pendiente', '>', 0)
+            ->where(function ($q) use ($hoy) {
+                $q->where('estado', 'vencida')
+                    ->orWhere(function ($q2) use ($hoy) {
+                        $q2->whereNotNull('fecha_vencimiento')
+                            ->whereDate('fecha_vencimiento', '<', $hoy);
+                    });
+            });
+    }
+
+    /**
+     * Cuentas al corriente: estado pendiente en BD y aún no vencidas por calendario.
+     */
+    public function scopePendienteAlCorriente($query)
+    {
+        $hoy = Carbon::today()->toDateString();
+
+        return $query
+            ->where('estado', 'pendiente')
+            ->where(function ($q) use ($hoy) {
+                $q->whereNull('fecha_vencimiento')
+                    ->orWhereDate('fecha_vencimiento', '>=', $hoy);
+            });
     }
 
     /**

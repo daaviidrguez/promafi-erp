@@ -424,7 +424,7 @@ class ReporteController extends Controller
 
     /**
      * @return array{
-     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float}>,
+     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float, margen_pct: float}>,
      *   totalIngreso: float,
      *   totalCosto: float,
      *   totalUtilidad: float,
@@ -475,6 +475,7 @@ class ReporteController extends Controller
                 $costo = $d->cantidad * $costoUnitario;
             }
             $utilidad = $ingreso - $costo;
+            $margenPct = $ingreso > 0 ? ($utilidad / $ingreso) * 100 : 0.0;
             $totalIngreso += $ingreso;
             $totalCosto += $costo;
 
@@ -483,6 +484,7 @@ class ReporteController extends Controller
                 'ingreso' => $ingreso,
                 'costo' => $costo,
                 'utilidad' => $utilidad,
+                'margen_pct' => $margenPct,
             ];
         }
 
@@ -530,8 +532,8 @@ class ReporteController extends Controller
     }
 
     /**
-     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float}>  $filas
-     * @return array<int, array{factura: string, fecha: string, cliente: string, concepto: string, cantidad: float, ingreso: float, costo: float, utilidad: float, entregado_destino: string, pagada: string}>
+     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, costo: float, utilidad: float, margen_pct: float}>  $filas
+     * @return array<int, array{factura: string, oc: string, fecha: string, cliente: string, concepto: string, cantidad: float, costo: float, ingreso: float, margen_pct: float, utilidad: float, entregado_destino: string, pagada: string}>
      */
     private function lineasExportablesUtilidad(array $filas): array
     {
@@ -540,6 +542,7 @@ class ReporteController extends Controller
             $d = $fila['detalle'];
             $factura = $d->factura;
             $folio = $factura->folio_completo ?? trim(($factura->serie ?? '').'-'.$factura->folio);
+            $oc = trim((string) ($factura->orden_compra ?? ''));
             if ($d->producto) {
                 $concepto = ($d->producto->codigo ? $d->producto->codigo.' - ' : '')
                     .($d->descripcion ?? $d->producto->nombre);
@@ -549,12 +552,14 @@ class ReporteController extends Controller
 
             $lineas[] = [
                 'factura' => $folio,
+                'oc' => $oc !== '' ? $oc : '—',
                 'fecha' => $factura->fecha_emision->format('d/m/Y'),
                 'cliente' => optional($factura->cliente)->nombre ?? (string) ($factura->nombre_receptor ?? ''),
                 'concepto' => $concepto,
                 'cantidad' => (float) $d->cantidad,
-                'ingreso' => $fila['ingreso'],
                 'costo' => $fila['costo'],
+                'ingreso' => $fila['ingreso'],
+                'margen_pct' => (float) ($fila['margen_pct'] ?? 0),
                 'utilidad' => $fila['utilidad'],
                 'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
                 'pagada' => $this->etiquetaPagadaFactura($factura),

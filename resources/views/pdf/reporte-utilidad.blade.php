@@ -37,6 +37,7 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
     <thead>
         <tr>
             <th>Factura</th>
+            <th>OC</th>
             <th>Fecha</th>
             <th>Cliente</th>
             <th class="right">Cant.</th>
@@ -51,6 +52,7 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
         @forelse($lineas as $l)
         <tr>
             <td>{{ $l['factura'] }}</td>
+            <td>{{ $l['oc'] ?? '—' }}</td>
             <td>{{ $l['fecha'] }}</td>
             <td>{{ $l['cliente'] }}</td>
             <td class="right">{{ number_format($l['cantidad'], 2, '.', ',') }}</td>
@@ -62,7 +64,7 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
         </tr>
         @empty
         <tr>
-            <td colspan="9" style="text-align:center;padding:16px;color:#6B7280;">Sin datos con los filtros aplicados.</td>
+            <td colspan="10" style="text-align:center;padding:16px;color:#6B7280;">Sin datos con los filtros aplicados.</td>
         </tr>
         @endforelse
     </tbody>
@@ -77,7 +79,7 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
 
 <p class="note">
     El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
-    <strong>Entregado:</strong> mismo criterio que logística: cantidad entregada en destino para la línea de factura igual o mayor a la facturada (Sí); si aún hay pendiente por entregar en destino (No).
+    <strong>OC:</strong> orden de compra capturada en la factura (campo libre). <strong>Entregado:</strong> mismo criterio que logística: cantidad entregada en destino para la línea de factura igual o mayor a la facturada (Sí); si aún hay pendiente por entregar en destino (No).
     <strong>Estado de pago:</strong> columna <em>Pagada</em>: PUE (contado) figura como Pagada; PPD según saldo de la cuenta por cobrar (complementos de pago y notas de crédito). Si aún hay saldo, figura como Pendiente.
 </p>
 

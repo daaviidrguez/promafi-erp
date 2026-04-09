@@ -105,12 +105,14 @@ $breadcrumbs = [
                 <thead>
                     <tr>
                         <th>Factura</th>
+                        <th>OC</th>
                         <th>Fecha</th>
                         <th>Cliente</th>
                         <th>Producto / Concepto</th>
                         <th class="td-center">Cant.</th>
-                        <th class="td-right">Ingreso</th>
                         <th class="td-right">Costo</th>
+                        <th class="td-right">Ingreso</th>
+                        <th class="td-right">Margen %</th>
                         <th class="td-right">Utilidad</th>
                     </tr>
                 </thead>
@@ -122,6 +124,7 @@ $breadcrumbs = [
                                 {{ $fila['detalle']->factura->folio_completo ?? $fila['detalle']->factura->serie . '-' . $fila['detalle']->factura->folio }}
                             </a>
                         </td>
+                        <td class="text-mono" style="font-size: 12px;">{{ $fila['detalle']->factura->orden_compra ? Str::limit($fila['detalle']->factura->orden_compra, 32) : '—' }}</td>
                         <td>{{ $fila['detalle']->factura->fecha_emision->format('d/m/Y') }}</td>
                         <td>{{ optional($fila['detalle']->factura->cliente)->nombre ?? $fila['detalle']->factura->nombre_receptor ?? '—' }}</td>
                         <td>
@@ -132,15 +135,16 @@ $breadcrumbs = [
                             @endif
                         </td>
                         <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
-                        <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">{{ number_format($fila['margen_pct'] ?? 0, 2) }}%</td>
                         <td class="td-right text-mono fw-600" style="color: {{ $fila['utilidad'] >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
                             ${{ number_format($fila['utilidad'], 2, '.', ',') }}
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
+                        <td colspan="10" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
                     </tr>
                     @endforelse
                 </tbody>

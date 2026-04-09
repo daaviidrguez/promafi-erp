@@ -182,6 +182,7 @@ $breadcrumbs = [
 <p class="text-muted small mt-2">
     <strong>Nota:</strong> El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
     <strong>Venta unit.</strong> es el precio unitario de venta de la línea. <strong>IVA acreditable:</strong> 16% sobre costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
+    <strong>Utilidad unit.</strong> = Venta unit. − Costo unit. <strong>Margen %</strong> = (Venta unit. − Costo unit.) ÷ Venta unit. × 100 (si venta unit. es 0, margen 0%).
     <strong>Venta:</strong> subtotal de la línea. <strong>IVA x pagar:</strong> 16% sobre venta. <strong>ISR:</strong> −1,25% sobre venta. <strong>Monto total Venta</strong> = venta + IVA x pagar + ISR. <strong>Ganancia</strong> = monto total Venta − total costo c/IVA.
 </p>
 

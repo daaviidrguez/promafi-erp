@@ -505,10 +505,11 @@ class ReporteController extends Controller
             $isrReten = round(-$ingreso * self::TASA_ISR_RETENCION_SOBRE_VENTA, 2);
             $montoTotalVenta = round($ingreso + $ivaXPagar + $isrReten, 2);
             $ganancia = round($montoTotalVenta - $costoConIva, 2);
-            $margenPct = $ingreso > 0 ? ($ganancia / $ingreso) * 100 : 0.0;
-            $utilidadUnitaria = $cantidad > 0
-                ? ($ganancia / $cantidad)
-                : $ganancia;
+            // Margen % y utilidad unit.: sobre precio unitario de venta vs costo unitario (coherente con columnas Venta unit. / Costo unit.).
+            $utilidadUnitaria = $ingresoUnitario - $costoUnitario;
+            $margenPct = $ingresoUnitario > 0
+                ? (($ingresoUnitario - $costoUnitario) / $ingresoUnitario) * 100
+                : 0.0;
             $totalIngreso += $ingreso;
             $totalCosto += $costo;
 

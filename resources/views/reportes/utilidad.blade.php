@@ -74,12 +74,16 @@ $breadcrumbs = [
     <div class="card-body">
         <table class="table" style="max-width: 520px;">
             <tr>
-                <td><strong>Total facturado</strong></td>
-                <td class="text-end text-mono">${{ number_format($totalFacturado ?? (($totalIngreso ?? 0) + ($totalIvaXPagar ?? 0)), 2, '.', ',') }}</td>
+                <td><strong>Total facturado</strong> <span class="text-muted small">(subtotal + IVA x pagar + ISR)</span></td>
+                <td class="text-end text-mono">${{ number_format($totalFacturado ?? (($totalIngreso ?? 0) + ($totalIvaXPagar ?? 0) + ($totalIsrReten ?? 0)), 2, '.', ',') }}</td>
             </tr>
             <tr>
                 <td><strong>Subtotal</strong></td>
                 <td class="text-end text-mono">${{ number_format($totalIngreso ?? 0, 2, '.', ',') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Imp. IVA x pagar. (16%)</strong></td>
+                <td class="text-end text-mono">${{ number_format($totalIvaXPagar ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
                 <td><strong>Total IVA</strong> <span class="text-muted small">(Imp. IVA acred. 16%)</span></td>

@@ -537,7 +537,8 @@ class ReporteController extends Controller
         $totalIvaXPagar = (float) collect($filas)->sum(fn (array $f) => $f['iva_x_pagar']);
         $totalIsrReten = (float) collect($filas)->sum(fn (array $f) => $f['isr_reten']);
         $totalMontoVenta = (float) collect($filas)->sum(fn (array $f) => $f['monto_total_venta']);
-        $totalFacturado = $totalIngreso + $totalIvaXPagar;
+        // Subtotal + IVA trasladado + retención ISR (esta última va negativa en línea, reduce el total).
+        $totalFacturado = $totalIngreso + $totalIvaXPagar + $totalIsrReten;
         // Mismo criterio que la columna Margen % por línea: (Venta unit. − Costo unit.) / Venta unit. → agregado (subtotal − costo) / subtotal.
         $margen = $totalIngreso > 0 ? (($totalIngreso - $totalCosto) / $totalIngreso) * 100 : 0;
 

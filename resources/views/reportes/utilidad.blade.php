@@ -164,11 +164,11 @@ $breadcrumbs = [
                                 {{ Str::limit($fila['detalle']->descripcion ?? 'Concepto', 35) }}
                             @endif
                         </td>
-                        <td class="td-right text-mono">${{ number_format($fila['costo_unitario'] ?? 0, 4, '.', ',') }}</td>
-                        <td class="td-right text-mono">${{ number_format($fila['ingreso_unitario'] ?? 0, 4, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['costo_unitario'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['ingreso_unitario'] ?? 0, 2, '.', ',') }}</td>
                         <td class="td-right text-mono">{{ number_format($fila['margen_pct'] ?? 0, 2) }}%</td>
                         <td class="td-right text-mono fw-600" style="color: {{ ($fila['utilidad_unitaria'] ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
-                            ${{ number_format($fila['utilidad_unitaria'] ?? 0, 4, '.', ',') }}
+                            ${{ number_format($fila['utilidad_unitaria'] ?? 0, 2, '.', ',') }}
                         </td>
                         <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>

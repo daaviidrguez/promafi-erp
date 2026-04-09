@@ -65,11 +65,11 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 6.5pt; color: #1F
             <td>{{ $l['fecha'] }}</td>
             <td>{{ Str::limit($l['cliente'], 22) }}</td>
             <td>{{ Str::limit($l['concepto'], 26) }}</td>
-            <td class="right">${{ number_format($l['costo_unitario'] ?? 0, 4, '.', ',') }}</td>
-            <td class="right">${{ number_format($l['ingreso_unitario'] ?? 0, 4, '.', ',') }}</td>
-            <td class="right">{{ number_format($l['margen_pct'] ?? 0, 1) }}%</td>
+            <td class="right">${{ number_format($l['costo_unitario'] ?? 0, 2, '.', ',') }}</td>
+            <td class="right">${{ number_format($l['ingreso_unitario'] ?? 0, 2, '.', ',') }}</td>
+            <td class="right">{{ number_format($l['margen_pct'] ?? 0, 2) }}%</td>
             @php $uu = (float) ($l['utilidad_unitaria'] ?? 0); @endphp
-            <td class="right" style="color: {{ $uu >= 0 ? '#15803d' : '#b91c1c' }};">${{ number_format($uu, 4, '.', ',') }}</td>
+            <td class="right" style="color: {{ $uu >= 0 ? '#15803d' : '#b91c1c' }};">${{ number_format($uu, 2, '.', ',') }}</td>
             <td class="right">{{ number_format($l['cantidad'], 2, '.', ',') }}</td>
             <td class="right">${{ number_format($l['costo'], 2, '.', ',') }}</td>
             <td class="right">${{ number_format($l['iva_acreditable'] ?? 0, 2, '.', ',') }}</td>

@@ -117,6 +117,8 @@ $breadcrumbs = [
                         <th class="td-right">Margen %</th>
                         <th class="td-right">Utilidad unit.</th>
                         <th class="td-right">Utilidad</th>
+                        <th class="td-right">Imp. IVA acred. (16%)</th>
+                        <th class="td-right">Total costo c/IVA</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -147,10 +149,12 @@ $breadcrumbs = [
                         <td class="td-right text-mono fw-600" style="color: {{ $fila['utilidad'] >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
                             ${{ number_format($fila['utilidad'], 2, '.', ',') }}
                         </td>
+                        <td class="td-right text-mono">${{ number_format($fila['iva_acreditable'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['costo_con_iva'] ?? 0, 2, '.', ',') }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="13" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
+                        <td colspan="15" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -161,6 +165,7 @@ $breadcrumbs = [
 
 <p class="text-muted small mt-2">
     <strong>Nota:</strong> El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
+    <strong>IVA acreditable:</strong> 16% sobre el importe de costo de la línea; <strong>total costo c/IVA</strong> = costo + IVA acreditable (misma lógica que en Excel: costo × 0,16 y suma).
 </p>
 
 <div id="modalExportUtilidad" class="modal">

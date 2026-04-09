@@ -23,6 +23,9 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReporteController extends Controller
 {
+    /** IVA acreditable estimado sobre el importe de costo de cada línea (tasa general México 16%). */
+    private const TASA_IVA_ACREDITABLE_SOBRE_COSTO = 0.16;
+
     /**
      * Reporte fiscal mensual: ingresos cobrados (sin IVA), IVA trasladado, IVA acreditable, IVA a pagar, ISR RESICO.
      * Los ingresos cobrados son la base gravable (subtotal - descuento); el IVA no forma parte por ser trasladado al cliente.
@@ -389,7 +392,9 @@ class ReporteController extends Controller
                     $core['totalIngreso'],
                     $core['totalCosto'],
                     $core['totalUtilidad'],
-                    $core['margen']
+                    $core['margen'],
+                    $core['totalIvaAcreditable'],
+                    $core['totalCostoConIva']
                 ),
                 $slug.'.xlsx'
             );
@@ -424,10 +429,12 @@ class ReporteController extends Controller
 
     /**
      * @return array{
-     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float}>,
+     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float, iva_acreditable: float, costo_con_iva: float}>,
      *   totalIngreso: float,
      *   totalCosto: float,
      *   totalUtilidad: float,
+     *   totalIvaAcreditable: float,
+     *   totalCostoConIva: float,
      *   margen: float,
      *   fechaDesde: string,
      *   fechaHasta: string,
@@ -482,6 +489,8 @@ class ReporteController extends Controller
                 ? ($utilidad / $cantidad)
                 : ($ingresoUnitario - $costoUnitario);
             $margenPct = $ingreso > 0 ? ($utilidad / $ingreso) * 100 : 0.0;
+            $ivaAcreditable = round($costo * self::TASA_IVA_ACREDITABLE_SOBRE_COSTO, 2);
+            $costoConIva = round($costo + $ivaAcreditable, 2);
             $totalIngreso += $ingreso;
             $totalCosto += $costo;
 
@@ -494,17 +503,23 @@ class ReporteController extends Controller
                 'utilidad' => $utilidad,
                 'utilidad_unitaria' => $utilidadUnitaria,
                 'margen_pct' => $margenPct,
+                'iva_acreditable' => $ivaAcreditable,
+                'costo_con_iva' => $costoConIva,
             ];
         }
 
         $totalUtilidad = $totalIngreso - $totalCosto;
         $margen = $totalIngreso > 0 ? ($totalUtilidad / $totalIngreso) * 100 : 0;
+        $totalIvaAcreditable = (float) collect($filas)->sum(fn (array $f) => $f['iva_acreditable']);
+        $totalCostoConIva = (float) collect($filas)->sum(fn (array $f) => $f['costo_con_iva']);
 
         return [
             'filas' => $filas,
             'totalIngreso' => $totalIngreso,
             'totalCosto' => $totalCosto,
             'totalUtilidad' => $totalUtilidad,
+            'totalIvaAcreditable' => $totalIvaAcreditable,
+            'totalCostoConIva' => $totalCostoConIva,
             'margen' => $margen,
             'fechaDesde' => $fechaDesde,
             'fechaHasta' => $fechaHasta,
@@ -541,8 +556,8 @@ class ReporteController extends Controller
     }
 
     /**
-     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float}>  $filas
-     * @return array<int, array{factura: string, oc: string, fecha: string, cliente: string, concepto: string, cantidad: float, costo_unitario: float, costo: float, ingreso_unitario: float, ingreso: float, margen_pct: float, utilidad_unitaria: float, utilidad: float, entregado_destino: string, pagada: string}>
+     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float, iva_acreditable: float, costo_con_iva: float}>  $filas
+     * @return array<int, array{factura: string, oc: string, fecha: string, cliente: string, concepto: string, cantidad: float, costo_unitario: float, costo: float, ingreso_unitario: float, ingreso: float, margen_pct: float, utilidad_unitaria: float, utilidad: float, iva_acreditable: float, costo_con_iva: float, entregado_destino: string, pagada: string}>
      */
     private function lineasExportablesUtilidad(array $filas): array
     {
@@ -573,6 +588,8 @@ class ReporteController extends Controller
                 'margen_pct' => (float) ($fila['margen_pct'] ?? 0),
                 'utilidad_unitaria' => (float) ($fila['utilidad_unitaria'] ?? 0),
                 'utilidad' => $fila['utilidad'],
+                'iva_acreditable' => (float) ($fila['iva_acreditable'] ?? 0),
+                'costo_con_iva' => (float) ($fila['costo_con_iva'] ?? 0),
                 'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
                 'pagada' => $this->etiquetaPagadaFactura($factura),
             ];

@@ -12,7 +12,9 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
         protected float $totalIngreso,
         protected float $totalCosto,
         protected float $totalUtilidad,
-        protected float $margen
+        protected float $margen,
+        protected float $totalIvaAcreditable,
+        protected float $totalCostoConIva
     ) {}
 
     public function headings(): array
@@ -31,6 +33,8 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             'Margen %',
             'Utilidad unit.',
             'Utilidad',
+            'Imp. IVA acred. (16%)',
+            'Total costo c/IVA',
             'Entregado',
             'Pagada',
         ];
@@ -52,11 +56,13 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             round($l['margen_pct'] ?? 0, 2),
             round($l['utilidad_unitaria'] ?? 0, 4),
             round($l['utilidad'], 2),
+            round($l['iva_acreditable'] ?? 0, 2),
+            round($l['costo_con_iva'] ?? 0, 2),
             $l['entregado_destino'] ?? 'No',
             $l['pagada'],
         ])->all();
 
-        $empty = array_fill(0, 15, '');
+        $empty = array_fill(0, 17, '');
         $rows[] = $empty;
         $rows[] = [
             '', '', '', '', '', 'Totales', '',
@@ -66,6 +72,8 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             round($this->margen, 2),
             '',
             round($this->totalUtilidad, 2),
+            round($this->totalIvaAcreditable, 2),
+            round($this->totalCostoConIva, 2),
             '', '',
         ];
 

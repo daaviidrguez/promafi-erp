@@ -424,7 +424,7 @@ class ReporteController extends Controller
 
     /**
      * @return array{
-     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, costo_unitario: float, costo: float, utilidad: float, margen_pct: float}>,
+     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, margen_pct: float}>,
      *   totalIngreso: float,
      *   totalCosto: float,
      *   totalUtilidad: float,
@@ -469,6 +469,8 @@ class ReporteController extends Controller
 
         foreach ($detalles as $d) {
             $ingreso = (float) $d->importe;
+            $cantidad = (float) $d->cantidad;
+            $ingresoUnitario = $cantidad > 0 ? $ingreso / $cantidad : (float) ($d->valor_unitario ?? 0);
             $costoUnitario = 0.0;
             $costo = 0.0;
             if ($d->producto_id && $d->producto) {
@@ -483,6 +485,7 @@ class ReporteController extends Controller
             $filas[] = [
                 'detalle' => $d,
                 'ingreso' => $ingreso,
+                'ingreso_unitario' => $ingresoUnitario,
                 'costo_unitario' => $costoUnitario,
                 'costo' => $costo,
                 'utilidad' => $utilidad,
@@ -534,8 +537,8 @@ class ReporteController extends Controller
     }
 
     /**
-     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, costo_unitario: float, costo: float, utilidad: float, margen_pct: float}>  $filas
-     * @return array<int, array{factura: string, oc: string, fecha: string, cliente: string, concepto: string, cantidad: float, costo_unitario: float, costo: float, ingreso: float, margen_pct: float, utilidad: float, entregado_destino: string, pagada: string}>
+     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, margen_pct: float}>  $filas
+     * @return array<int, array{factura: string, oc: string, fecha: string, cliente: string, concepto: string, cantidad: float, costo_unitario: float, costo: float, ingreso_unitario: float, ingreso: float, margen_pct: float, utilidad: float, entregado_destino: string, pagada: string}>
      */
     private function lineasExportablesUtilidad(array $filas): array
     {
@@ -561,6 +564,7 @@ class ReporteController extends Controller
                 'cantidad' => (float) $d->cantidad,
                 'costo_unitario' => (float) ($fila['costo_unitario'] ?? 0),
                 'costo' => $fila['costo'],
+                'ingreso_unitario' => (float) ($fila['ingreso_unitario'] ?? 0),
                 'ingreso' => $fila['ingreso'],
                 'margen_pct' => (float) ($fila['margen_pct'] ?? 0),
                 'utilidad' => $fila['utilidad'],

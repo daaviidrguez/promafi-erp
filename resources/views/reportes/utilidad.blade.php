@@ -112,6 +112,7 @@ $breadcrumbs = [
                         <th class="td-center">Cant.</th>
                         <th class="td-right">Costo unit.</th>
                         <th class="td-right">Costo</th>
+                        <th class="td-right">Ingreso unit.</th>
                         <th class="td-right">Ingreso</th>
                         <th class="td-right">Margen %</th>
                         <th class="td-right">Utilidad</th>
@@ -138,6 +139,7 @@ $breadcrumbs = [
                         <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo_unitario'] ?? 0, 4, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['ingreso_unitario'] ?? 0, 4, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">{{ number_format($fila['margen_pct'] ?? 0, 2) }}%</td>
                         <td class="td-right text-mono fw-600" style="color: {{ $fila['utilidad'] >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
@@ -146,7 +148,7 @@ $breadcrumbs = [
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="11" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
+                        <td colspan="12" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
                     </tr>
                     @endforelse
                 </tbody>

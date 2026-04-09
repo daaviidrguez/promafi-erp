@@ -110,6 +110,7 @@ $breadcrumbs = [
                         <th>Cliente</th>
                         <th>Producto / Concepto</th>
                         <th class="td-center">Cant.</th>
+                        <th class="td-right">Costo unit.</th>
                         <th class="td-right">Costo</th>
                         <th class="td-right">Ingreso</th>
                         <th class="td-right">Margen %</th>
@@ -135,6 +136,7 @@ $breadcrumbs = [
                             @endif
                         </td>
                         <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['costo_unitario'] ?? 0, 4, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">{{ number_format($fila['margen_pct'] ?? 0, 2) }}%</td>
@@ -144,7 +146,7 @@ $breadcrumbs = [
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="10" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
+                        <td colspan="11" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
                     </tr>
                     @endforelse
                 </tbody>

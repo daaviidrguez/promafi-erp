@@ -24,6 +24,7 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             'Cliente',
             'Producto / concepto',
             'Cantidad',
+            'Costo unit.',
             'Costo',
             'Ingreso',
             'Margen %',
@@ -42,6 +43,7 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             $l['cliente'],
             $l['concepto'],
             $l['cantidad'],
+            round($l['costo_unitario'] ?? 0, 4),
             round($l['costo'], 2),
             round($l['ingreso'], 2),
             round($l['margen_pct'] ?? 0, 2),
@@ -50,10 +52,10 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             $l['pagada'],
         ])->all();
 
-        $empty = ['', '', '', '', '', '', '', '', '', '', '', ''];
+        $empty = ['', '', '', '', '', '', '', '', '', '', '', '', ''];
         $rows[] = $empty;
         $rows[] = [
-            '', '', '', '', '', 'Totales',
+            '', '', '', '', '', 'Totales', '',
             round($this->totalCosto, 2),
             round($this->totalIngreso, 2),
             round($this->margen, 2),

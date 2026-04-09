@@ -104,32 +104,34 @@ $breadcrumbs = [
             <table>
                 <thead>
                     <tr>
+                        <th>Pedido</th>
                         <th>Factura</th>
-                        <th>OC</th>
-                        <th>Fecha</th>
+                        <th>Fecha factura</th>
                         <th>Cliente</th>
                         <th>Producto / Concepto</th>
-                        <th class="td-center">Cant.</th>
                         <th class="td-right">Costo unit.</th>
-                        <th class="td-right">Costo</th>
-                        <th class="td-right">Ingreso unit.</th>
-                        <th class="td-right">Ingreso</th>
+                        <th class="td-right">Venta unit.</th>
                         <th class="td-right">Margen %</th>
                         <th class="td-right">Utilidad unit.</th>
-                        <th class="td-right">Utilidad</th>
+                        <th class="td-center">Cant.</th>
+                        <th class="td-right">Costo</th>
                         <th class="td-right">Imp. IVA acred. (16%)</th>
                         <th class="td-right">Total costo c/IVA</th>
+                        <th class="td-right">Ingreso</th>
+                        <th class="td-right">Utilidad</th>
+                        <th class="td-center">Entregado</th>
+                        <th class="td-center">Pagada</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($filas ?? [] as $fila)
                     <tr>
+                        <td class="text-mono" style="font-size: 12px;">{{ $fila['detalle']->factura->orden_compra ? Str::limit($fila['detalle']->factura->orden_compra, 32) : '—' }}</td>
                         <td>
                             <a href="{{ route('facturas.show', $fila['detalle']->factura_id) }}" class="text-mono" style="color: var(--color-primary);">
                                 {{ $fila['detalle']->factura->folio_completo ?? $fila['detalle']->factura->serie . '-' . $fila['detalle']->factura->folio }}
                             </a>
                         </td>
-                        <td class="text-mono" style="font-size: 12px;">{{ $fila['detalle']->factura->orden_compra ? Str::limit($fila['detalle']->factura->orden_compra, 32) : '—' }}</td>
                         <td>{{ $fila['detalle']->factura->fecha_emision->format('d/m/Y') }}</td>
                         <td>{{ optional($fila['detalle']->factura->cliente)->nombre ?? $fila['detalle']->factura->nombre_receptor ?? '—' }}</td>
                         <td>
@@ -139,22 +141,24 @@ $breadcrumbs = [
                                 {{ Str::limit($fila['detalle']->descripcion ?? 'Concepto', 35) }}
                             @endif
                         </td>
-                        <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo_unitario'] ?? 0, 4, '.', ',') }}</td>
-                        <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['ingreso_unitario'] ?? 0, 4, '.', ',') }}</td>
-                        <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">{{ number_format($fila['margen_pct'] ?? 0, 2) }}%</td>
                         <td class="td-right text-mono">${{ number_format($fila['utilidad_unitaria'] ?? 0, 4, '.', ',') }}</td>
+                        <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['iva_acreditable'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['costo_con_iva'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono fw-600" style="color: {{ $fila['utilidad'] >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
                             ${{ number_format($fila['utilidad'], 2, '.', ',') }}
                         </td>
-                        <td class="td-right text-mono">${{ number_format($fila['iva_acreditable'] ?? 0, 2, '.', ',') }}</td>
-                        <td class="td-right text-mono">${{ number_format($fila['costo_con_iva'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-center">{{ $fila['entregado_destino'] ?? '—' }}</td>
+                        <td class="td-center">{{ $fila['pagada'] ?? '—' }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="15" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
+                        <td colspan="17" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -165,7 +169,7 @@ $breadcrumbs = [
 
 <p class="text-muted small mt-2">
     <strong>Nota:</strong> El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
-    <strong>IVA acreditable:</strong> 16% sobre el importe de costo de la línea; <strong>total costo c/IVA</strong> = costo + IVA acreditable (misma lógica que en Excel: costo × 0,16 y suma).
+    <strong>Venta unit.</strong> es el precio unitario de venta de la línea. <strong>IVA acreditable:</strong> 16% sobre el importe de costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
 </p>
 
 <div id="modalExportUtilidad" class="modal">

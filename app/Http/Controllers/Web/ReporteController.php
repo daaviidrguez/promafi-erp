@@ -429,7 +429,7 @@ class ReporteController extends Controller
 
     /**
      * @return array{
-     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float, iva_acreditable: float, costo_con_iva: float}>,
+     *   filas: array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float, iva_acreditable: float, costo_con_iva: float, entregado_destino: string, pagada: string}>,
      *   totalIngreso: float,
      *   totalCosto: float,
      *   totalUtilidad: float,
@@ -505,6 +505,8 @@ class ReporteController extends Controller
                 'margen_pct' => $margenPct,
                 'iva_acreditable' => $ivaAcreditable,
                 'costo_con_iva' => $costoConIva,
+                'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
+                'pagada' => $this->etiquetaPagadaFactura($d->factura),
             ];
         }
 
@@ -556,7 +558,7 @@ class ReporteController extends Controller
     }
 
     /**
-     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float, iva_acreditable: float, costo_con_iva: float}>  $filas
+     * @param  array<int, array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, utilidad: float, utilidad_unitaria: float, margen_pct: float, iva_acreditable: float, costo_con_iva: float, entregado_destino: string, pagada: string}>  $filas
      * @return array<int, array{factura: string, oc: string, fecha: string, cliente: string, concepto: string, cantidad: float, costo_unitario: float, costo: float, ingreso_unitario: float, ingreso: float, margen_pct: float, utilidad_unitaria: float, utilidad: float, iva_acreditable: float, costo_con_iva: float, entregado_destino: string, pagada: string}>
      */
     private function lineasExportablesUtilidad(array $filas): array
@@ -590,8 +592,8 @@ class ReporteController extends Controller
                 'utilidad' => $fila['utilidad'],
                 'iva_acreditable' => (float) ($fila['iva_acreditable'] ?? 0),
                 'costo_con_iva' => (float) ($fila['costo_con_iva'] ?? 0),
-                'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
-                'pagada' => $this->etiquetaPagadaFactura($factura),
+                'entregado_destino' => (string) ($fila['entregado_destino'] ?? $this->etiquetaEntregadoDestinoFacturaLinea($d)),
+                'pagada' => (string) ($fila['pagada'] ?? $this->etiquetaPagadaFactura($factura)),
             ];
         }
 

@@ -758,8 +758,12 @@ class FacturaController extends Controller
                 'xml_content' => $resultado['xml'] ?? null,
             ]);
 
-            // Descontar inventario al timbrar (no en borrador), salvo si la mercancía ya salió por remisión
             $factura->load(['detalles.producto', 'remisionVinculada']);
+            foreach ($factura->detalles as $detalle) {
+                $detalle->aplicarSnapshotCostoAlTimbrado();
+            }
+
+            // Descontar inventario al timbrar (no en borrador), salvo si la mercancía ya salió por remisión
             if (! $factura->inventarioDescontadoEnRemision()) {
                 foreach ($factura->detalles as $detalle) {
                     $producto = $detalle->producto;

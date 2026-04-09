@@ -343,6 +343,11 @@ class ImportadorCfdiService
                 }
             }
 
+            $factura->load('detalles.producto');
+            foreach ($factura->detalles as $detalle) {
+                $detalle->aplicarSnapshotCostoAlTimbrado();
+            }
+
             if ($factura->metodo_pago === 'PPD') {
                 $diasCredito = (int) ($cliente->dias_credito ?? 30);
                 $fechaVencimiento = $fechaEmision->copy()->addDays($diasCredito);

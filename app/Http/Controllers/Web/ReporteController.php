@@ -416,9 +416,11 @@ class ReporteController extends Controller
             'totalIngreso' => $core['totalIngreso'],
             'totalCosto' => $core['totalCosto'],
             'totalGanancia' => $core['totalGanancia'],
+            'totalIvaAcreditable' => $core['totalIvaAcreditable'],
             'totalIvaXPagar' => $core['totalIvaXPagar'],
             'totalIsrReten' => $core['totalIsrReten'],
             'totalMontoVenta' => $core['totalMontoVenta'],
+            'totalFacturado' => $core['totalFacturado'],
             'margen' => $core['margen'],
             'fechaDesde' => $core['fechaDesde'],
             'fechaHasta' => $core['fechaHasta'],
@@ -450,6 +452,7 @@ class ReporteController extends Controller
      *   totalIvaXPagar: float,
      *   totalIsrReten: float,
      *   totalMontoVenta: float,
+     *   totalFacturado: float,
      *   margen: float,
      *   fechaDesde: string,
      *   fechaHasta: string,
@@ -493,12 +496,8 @@ class ReporteController extends Controller
             $ingreso = (float) $d->importe;
             $cantidad = (float) $d->cantidad;
             $ingresoUnitario = $cantidad > 0 ? $ingreso / $cantidad : (float) ($d->valor_unitario ?? 0);
-            $costoUnitario = 0.0;
-            $costo = 0.0;
-            if ($d->producto_id && $d->producto) {
-                $costoUnitario = (float) ($d->producto->costo ?? $d->producto->costo_promedio ?? 0);
-                $costo = $d->cantidad * $costoUnitario;
-            }
+            $costoUnitario = $d->costoUnitarioParaReporteUtilidad();
+            $costo = (float) $d->cantidad * $costoUnitario;
             $ivaAcreditable = round($costo * self::TASA_IVA_ACREDITABLE_SOBRE_COSTO, 2);
             $costoConIva = round($costo + $ivaAcreditable, 2);
             $ivaXPagar = round($ingreso * self::TASA_IVA_X_PAGAR_SOBRE_VENTA, 2);
@@ -533,12 +532,14 @@ class ReporteController extends Controller
         }
 
         $totalGanancia = (float) collect($filas)->sum(fn (array $f) => $f['ganancia']);
-        $margen = $totalIngreso > 0 ? ($totalGanancia / $totalIngreso) * 100 : 0;
         $totalIvaAcreditable = (float) collect($filas)->sum(fn (array $f) => $f['iva_acreditable']);
         $totalCostoConIva = (float) collect($filas)->sum(fn (array $f) => $f['costo_con_iva']);
         $totalIvaXPagar = (float) collect($filas)->sum(fn (array $f) => $f['iva_x_pagar']);
         $totalIsrReten = (float) collect($filas)->sum(fn (array $f) => $f['isr_reten']);
         $totalMontoVenta = (float) collect($filas)->sum(fn (array $f) => $f['monto_total_venta']);
+        $totalFacturado = $totalIngreso + $totalIvaXPagar;
+        // Mismo criterio que la columna Margen % por línea: (Venta unit. − Costo unit.) / Venta unit. → agregado (subtotal − costo) / subtotal.
+        $margen = $totalIngreso > 0 ? (($totalIngreso - $totalCosto) / $totalIngreso) * 100 : 0;
 
         return [
             'filas' => $filas,
@@ -550,6 +551,7 @@ class ReporteController extends Controller
             'totalIvaXPagar' => $totalIvaXPagar,
             'totalIsrReten' => $totalIsrReten,
             'totalMontoVenta' => $totalMontoVenta,
+            'totalFacturado' => $totalFacturado,
             'margen' => $margen,
             'fechaDesde' => $fechaDesde,
             'fechaHasta' => $fechaHasta,

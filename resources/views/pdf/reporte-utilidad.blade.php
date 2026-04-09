@@ -92,11 +92,14 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 6.5pt; color: #1F
 </table>
 
 <div class="totals">
-    <div><strong>Total venta (subtotal):</strong> ${{ number_format($totalIngreso, 2, '.', ',') }}</div>
+    <div><strong>Total facturado:</strong> ${{ number_format($totalFacturado ?? ($totalIngreso + ($totalIvaXPagar ?? 0)), 2, '.', ',') }}</div>
+    <div><strong>Subtotal:</strong> ${{ number_format($totalIngreso, 2, '.', ',') }}</div>
+    <div><strong>Total IVA (acred. 16%):</strong> ${{ number_format($totalIvaAcreditable ?? 0, 2, '.', ',') }}</div>
     <div><strong>Total costos:</strong> ${{ number_format($totalCosto, 2, '.', ',') }}</div>
     <div><strong>Total monto venta:</strong> ${{ number_format($totalMontoVenta ?? 0, 2, '.', ',') }}</div>
-    <div><strong>Ganancia:</strong> ${{ number_format($totalGanancia ?? 0, 2, '.', ',') }}</div>
-    <div><strong>Margen:</strong> {{ number_format($margen, 1) }}%</div>
+    <div><strong>Total Imp. Reten ISR 1,25%:</strong> ${{ number_format($totalIsrReten ?? 0, 2, '.', ',') }}</div>
+    <div><strong>Total ganancia:</strong> ${{ number_format($totalGanancia ?? 0, 2, '.', ',') }}</div>
+    <div><strong>Margen %:</strong> {{ number_format($margen, 2) }}%</div>
 </div>
 
 <p class="note">

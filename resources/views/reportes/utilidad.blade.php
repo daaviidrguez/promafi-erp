@@ -72,10 +72,18 @@ $breadcrumbs = [
         <div class="card-title">Resumen</div>
     </div>
     <div class="card-body">
-        <table class="table" style="max-width: 480px;">
+        <table class="table" style="max-width: 520px;">
             <tr>
-                <td><strong>Total venta (subtotal)</strong></td>
+                <td><strong>Total facturado</strong></td>
+                <td class="text-end text-mono">${{ number_format($totalFacturado ?? (($totalIngreso ?? 0) + ($totalIvaXPagar ?? 0)), 2, '.', ',') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Subtotal</strong></td>
                 <td class="text-end text-mono">${{ number_format($totalIngreso ?? 0, 2, '.', ',') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Total IVA</strong> <span class="text-muted small">(Imp. IVA acred. 16%)</span></td>
+                <td class="text-end text-mono">${{ number_format($totalIvaAcreditable ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
                 <td><strong>Total costos</strong></td>
@@ -86,14 +94,18 @@ $breadcrumbs = [
                 <td class="text-end text-mono">${{ number_format($totalMontoVenta ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td><strong>Ganancia</strong></td>
+                <td><strong>Total Imp. Reten ISR 1,25%</strong></td>
+                <td class="text-end text-mono" style="color: {{ ($totalIsrReten ?? 0) <= 0 ? 'var(--color-danger)' : 'inherit' }};">${{ number_format($totalIsrReten ?? 0, 2, '.', ',') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Total ganancia</strong></td>
                 <td class="text-end text-mono fw-600" style="color: {{ ($totalGanancia ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
                     ${{ number_format($totalGanancia ?? 0, 2, '.', ',') }}
                 </td>
             </tr>
             <tr>
                 <td><strong>Margen %</strong></td>
-                <td class="text-end text-mono">{{ number_format($margen ?? 0, 1) }}%</td>
+                <td class="text-end text-mono">{{ number_format($margen ?? 0, 2) }}%</td>
             </tr>
         </table>
     </div>
@@ -180,7 +192,7 @@ $breadcrumbs = [
 </div>
 
 <p class="text-muted small mt-2">
-    <strong>Nota:</strong> El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
+    <strong>Nota:</strong> En facturas timbradas tras esta mejora, el <strong>costo unitario queda guardado en la línea al timbrar</strong> (mismo criterio que antes: costo del producto o costo promedio). Facturas antiguas sin ese dato siguen usando el catálogo actual. Conceptos sin producto: costo 0 al timbrar.
     <strong>Venta unit.</strong> es el precio unitario de venta de la línea. <strong>IVA acreditable:</strong> 16% sobre costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
     <strong>Utilidad unit.</strong> = Venta unit. − Costo unit. <strong>Margen %</strong> = (Venta unit. − Costo unit.) ÷ Venta unit. × 100 (si venta unit. es 0, margen 0%).
     <strong>Venta:</strong> subtotal de la línea. <strong>IVA x pagar:</strong> 16% sobre venta. <strong>ISR:</strong> −1,25% sobre venta. <strong>Monto total Venta</strong> = venta + IVA x pagar + ISR. <strong>Ganancia</strong> = monto total Venta − total costo c/IVA.

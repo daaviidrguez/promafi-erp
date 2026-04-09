@@ -85,6 +85,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::redirect('/reportes', '/reportes/fiscal', 301)->name('reportes.index');
     Route::get('/reportes/fiscal', [ReporteController::class, 'fiscal'])->name('reportes.fiscal');
     Route::get('/reportes/ventas', [ReporteController::class, 'ventas'])->name('reportes.ventas');
+    Route::get('/reportes/ventas/export', [ReporteController::class, 'ventasExport'])->name('reportes.ventas.export');
     Route::get('/reportes/compras', [ReporteController::class, 'compras'])->name('reportes.compras');
     Route::get('/reportes/utilidad', [ReporteController::class, 'utilidad'])->name('reportes.utilidad');
     Route::get('/reportes/utilidad/export', [ReporteController::class, 'utilidadExport'])->name('reportes.utilidad.export');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Exports\ReporteUtilidadExport;
+use App\Exports\ReporteVentasMensualesExport;
 use App\Helpers\IsrResicoHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
@@ -142,7 +143,87 @@ class ReporteController extends Controller
     {
         $mes = (int) ($request->get('mes') ?? now()->month);
         $año = (int) ($request->get('año') ?? now()->year);
+        $datos = $this->construirDatosReporteVentasMensuales($mes, $año);
 
+        return view('reportes.ventas', $datos);
+    }
+
+    /**
+     * Exportar ventas mensuales (PDF o Excel), mismo período que los filtros de la vista.
+     */
+    public function ventasExport(Request $request)
+    {
+        $validated = $request->validate([
+            'formato' => 'required|in:pdf,xlsx',
+            'mes' => 'required|integer|min:1|max:12',
+            'año' => 'required|integer|min:2000|max:2100',
+        ]);
+
+        $datos = $this->construirDatosReporteVentasMensuales(
+            (int) $validated['mes'],
+            (int) $validated['año']
+        );
+
+        $lineas = $this->lineasExportablesVentasMensuales($datos['facturas']);
+        $mesNombre = $datos['mesNombre'];
+        $slug = 'ventas-mensuales_'.$validated['año'].'-'.str_pad((string) $validated['mes'], 2, '0', STR_PAD_LEFT).'_'.now()->format('His');
+
+        if ($validated['formato'] === 'xlsx') {
+            return Excel::download(
+                new ReporteVentasMensualesExport(
+                    $lineas,
+                    $datos['facturas']->count(),
+                    $datos['subtotalVentas'],
+                    $datos['ivaVentas'],
+                    $datos['isrRetenidoVentas'],
+                    $datos['totalVentas'],
+                ),
+                $slug.'.xlsx'
+            );
+        }
+
+        $empresa = Empresa::principal();
+        $html = view('pdf.reporte-ventas-mensuales', [
+            'empresa' => $empresa,
+            'mesNombre' => $mesNombre,
+            'año' => $datos['año'],
+            'lineas' => $lineas,
+            'numFacturas' => $datos['facturas']->count(),
+            'subtotalVentas' => $datos['subtotalVentas'],
+            'ivaVentas' => $datos['ivaVentas'],
+            'isrRetenidoVentas' => $datos['isrRetenidoVentas'],
+            'totalVentas' => $datos['totalVentas'],
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'landscape');
+        $dompdf->render();
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$slug.'.pdf"',
+        ]);
+    }
+
+    /**
+     * @return array{
+     *   mes: int,
+     *   año: int,
+     *   mesNombre: string,
+     *   facturas: \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection,
+     *   totalVentas: float,
+     *   subtotalVentas: float,
+     *   ivaVentas: float,
+     *   isrRetenidoVentas: float
+     * }
+     */
+    private function construirDatosReporteVentasMensuales(int $mes, int $año): array
+    {
+        $mes = max(1, min(12, $mes));
         $inicio = Carbon::create($año, $mes, 1)->startOfDay();
         $fin = $inicio->copy()->endOfMonth();
 
@@ -161,15 +242,41 @@ class ReporteController extends Controller
             $isrRetenidoVentas += $f->desgloseTotalesCfdi()['totalRetenciones'];
         }
 
-        return view('reportes.ventas', compact(
-            'mes',
-            'año',
-            'facturas',
-            'totalVentas',
-            'subtotalVentas',
-            'ivaVentas',
-            'isrRetenidoVentas'
-        ));
+        $mesNombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        return [
+            'mes' => $mes,
+            'año' => $año,
+            'mesNombre' => $mesNombres[$mes] ?? (string) $mes,
+            'facturas' => $facturas,
+            'totalVentas' => $totalVentas,
+            'subtotalVentas' => $subtotalVentas,
+            'ivaVentas' => $ivaVentas,
+            'isrRetenidoVentas' => $isrRetenidoVentas,
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection<int, Factura>  $facturas
+     * @return array<int, array{factura: string, fecha: string, cliente: string, subtotal: float, iva: float, isr_retenido: float, total: float}>
+     */
+    private function lineasExportablesVentasMensuales($facturas): array
+    {
+        $lineas = [];
+        foreach ($facturas as $f) {
+            $folio = trim(($f->serie ?? '').' '.$f->folio);
+            $lineas[] = [
+                'factura' => $folio,
+                'fecha' => $f->fecha_emision->format('d/m/Y'),
+                'cliente' => $f->cliente->nombre ?? $f->nombre_receptor ?? '-',
+                'subtotal' => (float) $f->subtotal,
+                'iva' => $this->ivaTrasladadoFactura($f),
+                'isr_retenido' => $f->desgloseTotalesCfdi()['totalRetenciones'],
+                'total' => (float) $f->total,
+            ];
+        }
+
+        return $lineas;
     }
 
     /**

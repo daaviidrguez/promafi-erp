@@ -9,15 +9,31 @@ $breadcrumbs = [
     ['title' => 'Reportes', 'url' => route('reportes.fiscal')],
     ['title' => 'Ventas mensuales']
 ];
-$mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][$mes ?? 1];
 @endphp
 
 @section('content')
 
+{{-- Misma línea compacta que reporte Compras: período a la izquierda, selects + acciones a la derecha --}}
 <div class="card">
     <div class="card-body" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-        <div><strong>{{ $mesNombre }} {{ $año ?? now()->year }}</strong></div>
-        @include('reportes.partials.filtro-mes', ['action' => route('reportes.ventas')])
+        <div><strong>{{ $mesNombre ?? '' }} {{ $año ?? now()->year }}</strong></div>
+        <form id="formFiltrosVentas" method="GET" action="{{ route('reportes.ventas') }}" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <select name="mes" class="form-control" style="width: auto; min-width: 0;">
+                @foreach([
+                    1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
+                    7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+                ] as $m => $nombre)
+                    <option value="{{ $m }}" {{ ($mes ?? now()->month) == $m ? 'selected' : '' }}>{{ $nombre }}</option>
+                @endforeach
+            </select>
+            <select name="año" class="form-control" style="width: auto; min-width: 0;">
+                @for($y = now()->year; $y >= now()->year - 5; $y--)
+                    <option value="{{ $y }}" {{ ($año ?? now()->year) == $y ? 'selected' : '' }}>{{ $y }}</option>
+                @endfor
+            </select>
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('modalExportVentas').classList.add('show')">Exportar</button>
+        </form>
     </div>
 </div>
 
@@ -75,5 +91,51 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
         </tbody>
     </table>
 </div>
+
+<div id="modalExportVentas" class="modal">
+    <div class="modal-box" style="max-width: 420px;">
+        <div class="modal-header">
+            <div class="modal-title">Exportar reporte</div>
+            <button type="button" class="modal-close" onclick="document.getElementById('modalExportVentas').classList.remove('show')" aria-label="Cerrar">✕</button>
+        </div>
+        <form id="formExportVentas" method="GET" action="{{ route('reportes.ventas.export') }}">
+            <input type="hidden" name="mes" value="">
+            <input type="hidden" name="año" value="">
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Formato</label>
+                    <select name="formato" id="exportVentasFormato" class="form-control" required>
+                        <option value="pdf">PDF</option>
+                        <option value="xlsx">Excel</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="document.getElementById('modalExportVentas').classList.remove('show')">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Descargar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function () {
+    var formFiltros = document.getElementById('formFiltrosVentas');
+    var formExport = document.getElementById('formExportVentas');
+    if (!formFiltros || !formExport) return;
+
+    function val(name) {
+        var el = formFiltros.querySelector('[name="' + name + '"]');
+        return el ? el.value : '';
+    }
+
+    formExport.addEventListener('submit', function () {
+        formExport.querySelector('[name="mes"]').value = val('mes');
+        formExport.querySelector('[name="año"]').value = val('año');
+    });
+})();
+</script>
+@endpush
 
 @endsection

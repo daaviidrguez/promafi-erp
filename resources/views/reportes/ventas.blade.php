@@ -26,10 +26,10 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
         <div class="card-title">Resumen</div>
     </div>
     <div class="card-body">
-        <table class="table" style="max-width: 400px;">
+        <table class="table" style="max-width: 440px;">
             <tr>
-                <td><strong>Total ventas</strong></td>
-                <td class="text-end">${{ number_format($totalVentas ?? 0, 2, '.', ',') }}</td>
+                <td>Facturas</td>
+                <td class="text-end fw-600">{{ $facturas->count() ?? 0 }}</td>
             </tr>
             <tr>
                 <td>Subtotal</td>
@@ -40,8 +40,12 @@ $mesNombre = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio'
                 <td class="text-end">${{ number_format($ivaVentas ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td>Facturas</td>
-                <td class="text-end">{{ $facturas->count() ?? 0 }}</td>
+                <td>ISR retenido</td>
+                <td class="text-end">${{ number_format($isrRetenidoVentas ?? 0, 2, '.', ',') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Total ventas</strong></td>
+                <td class="text-end"><strong>${{ number_format($totalVentas ?? 0, 2, '.', ',') }}</strong></td>
             </tr>
         </table>
     </div>

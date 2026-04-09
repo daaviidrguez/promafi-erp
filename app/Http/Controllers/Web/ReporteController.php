@@ -148,18 +148,28 @@ class ReporteController extends Controller
 
         $facturas = Factura::where('estado', 'timbrada')
             ->whereBetween('fecha_emision', [$inicio, $fin])
-            ->with(['cliente'])
+            ->with(['cliente', 'detalles.impuestos'])
             ->orderBy('fecha_emision')
             ->get();
 
         $totalVentas = $facturas->sum(fn ($f) => (float) $f->total);
         $subtotalVentas = $facturas->sum(fn ($f) => (float) $f->subtotal);
         $ivaVentas = 0.0;
+        $isrRetenidoVentas = 0.0;
         foreach ($facturas as $f) {
             $ivaVentas += $this->ivaTrasladadoFactura($f);
+            $isrRetenidoVentas += $f->desgloseTotalesCfdi()['totalRetenciones'];
         }
 
-        return view('reportes.ventas', compact('mes', 'año', 'facturas', 'totalVentas', 'subtotalVentas', 'ivaVentas'));
+        return view('reportes.ventas', compact(
+            'mes',
+            'año',
+            'facturas',
+            'totalVentas',
+            'subtotalVentas',
+            'ivaVentas',
+            'isrRetenidoVentas'
+        ));
     }
 
     /**

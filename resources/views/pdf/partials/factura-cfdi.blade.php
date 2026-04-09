@@ -2,26 +2,10 @@
 @php
     $f = $doc;
     $e = $empresa;
-    $totalIva = 0;
-    $totalRetenciones = 0;
-    $impuestosPorTasa = []; // [tasa => ['base' => x, 'importe' => y, 'nombre' => 'IVA 16%']]
-    foreach ($f->detalles ?? [] as $d) {
-        foreach ($d->impuestos ?? [] as $imp) {
-            if ($imp->tipo === 'traslado') {
-                $totalIva += (float) $imp->importe;
-                $tasa = (float) ($imp->tasa_o_cuota ?? 0);
-                $key = (string) $tasa;
-                if (!isset($impuestosPorTasa[$key])) {
-                    $pct = $tasa >= 1 ? $tasa : ($tasa * 100);
-                    $impuestosPorTasa[$key] = ['base' => 0, 'importe' => 0, 'nombre' => ($imp->nombre_impuesto ?? 'IVA') . ' ' . number_format($pct, 0) . '%'];
-                }
-                $impuestosPorTasa[$key]['base'] += (float) ($imp->base ?? 0);
-                $impuestosPorTasa[$key]['importe'] += (float) $imp->importe;
-            } else {
-                $totalRetenciones += (float) $imp->importe;
-            }
-        }
-    }
+    $_cfdiDesglose = $f->desgloseTotalesCfdi();
+    $totalIva = $_cfdiDesglose['totalIva'];
+    $totalRetenciones = $_cfdiDesglose['totalRetenciones'];
+    $impuestosPorTasa = $_cfdiDesglose['impuestosPorTasa'];
     $fechaEmision = $f->fecha_emision ? \Carbon\Carbon::parse($f->fecha_emision) : null;
     $fechaTimbrado = $f->fecha_timbrado ? \Carbon\Carbon::parse($f->fecha_timbrado) : null;
     // Si la hora está en ceros, usar hora real (created_at / updated_at) para no mostrar 00:00:00

@@ -4,12 +4,14 @@ namespace App\Models;
 
 // UBICACIÓN: app/Models/Factura.php
 
+use App\Models\Concerns\HasDesgloseTotalesCfdi;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Factura extends Model
 {
+    use HasDesgloseTotalesCfdi;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -403,12 +405,14 @@ class Factura extends Model
     }
 
     /**
-     * Calcular IVA (desde impuestos traslado por línea, o estimado si no hay)
+     * Calcular solo IVA (traslados); no incluye retenciones (ISR, etc.).
      */
     public function calcularIVA(): float
     {
         $iva = $this->detalles->sum(function ($d) {
-            return $d->impuestos->sum(fn ($i) => $i->importe ?? 0);
+            return $d->impuestos->sum(function ($i) {
+                return ($i->tipo ?? '') === 'traslado' ? (float) ($i->importe ?? 0) : 0.0;
+            });
         });
         if ($iva > 0 || $this->detalles->count() === 0) {
             return (float) $iva;

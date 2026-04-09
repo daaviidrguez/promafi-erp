@@ -29,4 +29,18 @@ class NotaCreditoImpuesto extends Model
     {
         return $this->belongsTo(NotaCreditoDetalle::class);
     }
+
+    /**
+     * Nombre del impuesto para desglose (coherente con FacturaImpuesto).
+     */
+    public function getNombreImpuestoAttribute(): string
+    {
+        $nombres = config('impuestos_sat.nombres_display', [
+            '001' => 'ISR',
+            '002' => 'IVA',
+            '003' => 'IEPS',
+        ]);
+
+        return $nombres[$this->impuesto] ?? $this->impuesto;
+    }
 }

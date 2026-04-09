@@ -91,7 +91,13 @@ $breadcrumbs = [
                 </table>
             </div>
 
-            {{-- Totales --}}
+            {{-- Totales (mismo desglose que PDF CFDI: traslados por tasa + retenciones) --}}
+            @php
+                $cfdiTot = $factura->desgloseTotalesCfdi();
+                $impuestosPorTasaShow = $cfdiTot['impuestosPorTasa'];
+                $totalIvaShow = $cfdiTot['totalIva'];
+                $totalRetencionesShow = $cfdiTot['totalRetenciones'];
+            @endphp
             <div class="card-body" style="display: flex; justify-content: flex-end;">
                 <div class="totales-panel" style="min-width: 280px;">
                     <div class="totales-row">
@@ -104,10 +110,26 @@ $breadcrumbs = [
                         <span class="monto">−${{ number_format($factura->descuento, 2, '.', ',') }}</span>
                     </div>
                     @endif
+                    @foreach($impuestosPorTasaShow as $datos)
+                        @if($datos['importe'] > 0)
+                        <div class="totales-row">
+                            <span>{{ $datos['nombre'] }}</span>
+                            <span class="monto">${{ number_format($datos['importe'], 2, '.', ',') }}</span>
+                        </div>
+                        @endif
+                    @endforeach
+                    @if(empty($impuestosPorTasaShow) && $totalIvaShow > 0)
                     <div class="totales-row">
-                        <span>IVA</span>
-                        <span class="monto">${{ number_format($factura->calcularIVA(), 2, '.', ',') }}</span>
+                        <span>IVA (traslados)</span>
+                        <span class="monto">${{ number_format($totalIvaShow, 2, '.', ',') }}</span>
                     </div>
+                    @endif
+                    @if($totalRetencionesShow != 0)
+                    <div class="totales-row descuento">
+                        <span>ISR retenido</span>
+                        <span class="monto">−${{ number_format($totalRetencionesShow, 2, '.', ',') }}</span>
+                    </div>
+                    @endif
                     <div class="totales-row grand">
                         <span>TOTAL</span>
                         <span class="monto">${{ number_format($factura->total, 2, '.', ',') }}</span>

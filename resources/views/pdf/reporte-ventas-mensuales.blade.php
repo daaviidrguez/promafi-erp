@@ -29,6 +29,9 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
         <strong>{{ $empresa->nombre_comercial ?? $empresa->razon_social }}</strong><br>
     @endif
     Período: {{ $mesNombre }} {{ $año }}<br>
+    @if(!empty($clienteNombreFiltro))
+        Cliente: {{ $clienteNombreFiltro }}<br>
+    @endif
     Generado: {{ now()->format('d/m/Y H:i')}}
 </div>
 

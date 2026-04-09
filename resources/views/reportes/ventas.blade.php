@@ -31,6 +31,15 @@ $breadcrumbs = [
                     <option value="{{ $y }}" {{ ($año ?? now()->year) == $y ? 'selected' : '' }}>{{ $y }}</option>
                 @endfor
             </select>
+            <label class="text-muted" style="font-size: 12px; font-weight: 600; align-self: center; margin: 0;">👤 Cliente</label>
+            <select name="cliente_id" class="form-control" style="width: auto; min-width: 160px; max-width: min(280px, 100vw);">
+                <option value="">Todos</option>
+                @foreach($clientes ?? [] as $c)
+                    <option value="{{ $c->id }}" {{ (string)($clienteId ?? '') === (string)$c->id ? 'selected' : '' }}>
+                        {{ \Illuminate\Support\Str::limit($c->nombre, 48) }}
+                    </option>
+                @endforeach
+            </select>
             <button type="submit" class="btn btn-primary">Filtrar</button>
             <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('modalExportVentas').classList.add('show')">Exportar</button>
         </form>
@@ -101,6 +110,7 @@ $breadcrumbs = [
         <form id="formExportVentas" method="GET" action="{{ route('reportes.ventas.export') }}">
             <input type="hidden" name="mes" value="">
             <input type="hidden" name="año" value="">
+            <input type="hidden" name="cliente_id" value="">
             <div class="modal-body">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Formato</label>
@@ -133,6 +143,7 @@ $breadcrumbs = [
     formExport.addEventListener('submit', function () {
         formExport.querySelector('[name="mes"]').value = val('mes');
         formExport.querySelector('[name="año"]').value = val('año');
+        formExport.querySelector('[name="cliente_id"]').value = val('cliente_id');
     });
 })();
 </script>

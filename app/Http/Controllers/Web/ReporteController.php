@@ -143,7 +143,9 @@ class ReporteController extends Controller
     {
         $mes = (int) ($request->get('mes') ?? now()->month);
         $año = (int) ($request->get('año') ?? now()->year);
-        $datos = $this->construirDatosReporteVentasMensuales($mes, $año);
+        $clienteId = $request->filled('cliente_id') ? (int) $request->get('cliente_id') : null;
+        $datos = $this->construirDatosReporteVentasMensuales($mes, $año, $clienteId);
+        $datos['clientes'] = Cliente::activos()->orderBy('nombre')->get();
 
         return view('reportes.ventas', $datos);
     }
@@ -153,15 +155,23 @@ class ReporteController extends Controller
      */
     public function ventasExport(Request $request)
     {
+        if ($request->input('cliente_id') === '' || $request->input('cliente_id') === null) {
+            $request->merge(['cliente_id' => null]);
+        }
+
         $validated = $request->validate([
             'formato' => 'required|in:pdf,xlsx',
             'mes' => 'required|integer|min:1|max:12',
             'año' => 'required|integer|min:2000|max:2100',
+            'cliente_id' => 'nullable|exists:clientes,id',
         ]);
+
+        $clienteId = isset($validated['cliente_id']) ? (int) $validated['cliente_id'] : null;
 
         $datos = $this->construirDatosReporteVentasMensuales(
             (int) $validated['mes'],
-            (int) $validated['año']
+            (int) $validated['año'],
+            $clienteId
         );
 
         $lineas = $this->lineasExportablesVentasMensuales($datos['facturas']);
@@ -187,6 +197,7 @@ class ReporteController extends Controller
             'empresa' => $empresa,
             'mesNombre' => $mesNombre,
             'año' => $datos['año'],
+            'clienteNombreFiltro' => $datos['clienteNombreFiltro'] ?? null,
             'lineas' => $lineas,
             'numFacturas' => $datos['facturas']->count(),
             'subtotalVentas' => $datos['subtotalVentas'],
@@ -214,6 +225,8 @@ class ReporteController extends Controller
      *   mes: int,
      *   año: int,
      *   mesNombre: string,
+     *   clienteId: int|null,
+     *   clienteNombreFiltro: string|null,
      *   facturas: \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection,
      *   totalVentas: float,
      *   subtotalVentas: float,
@@ -221,7 +234,7 @@ class ReporteController extends Controller
      *   isrRetenidoVentas: float
      * }
      */
-    private function construirDatosReporteVentasMensuales(int $mes, int $año): array
+    private function construirDatosReporteVentasMensuales(int $mes, int $año, ?int $clienteId = null): array
     {
         $mes = max(1, min(12, $mes));
         $inicio = Carbon::create($año, $mes, 1)->startOfDay();
@@ -229,6 +242,7 @@ class ReporteController extends Controller
 
         $facturas = Factura::where('estado', 'timbrada')
             ->whereBetween('fecha_emision', [$inicio, $fin])
+            ->when($clienteId, fn ($q) => $q->where('cliente_id', $clienteId))
             ->with(['cliente', 'detalles.impuestos'])
             ->orderBy('fecha_emision')
             ->get();
@@ -244,10 +258,17 @@ class ReporteController extends Controller
 
         $mesNombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+        $clienteNombreFiltro = null;
+        if ($clienteId) {
+            $clienteNombreFiltro = Cliente::where('id', $clienteId)->value('nombre');
+        }
+
         return [
             'mes' => $mes,
             'año' => $año,
             'mesNombre' => $mesNombres[$mes] ?? (string) $mes,
+            'clienteId' => $clienteId,
+            'clienteNombreFiltro' => $clienteNombreFiltro,
             'facturas' => $facturas,
             'totalVentas' => $totalVentas,
             'subtotalVentas' => $subtotalVentas,

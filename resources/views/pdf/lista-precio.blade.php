@@ -5,11 +5,6 @@
 <style>
 @page { margin: 15mm 20mm 25mm 20mm; size: letter; }
 body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
-.header { border-bottom: 2px solid #0B3C5D; padding-bottom: 10px; margin-bottom: 15px; display: table; width: 100%; }
-.header-left { display: table-cell; vertical-align: middle; width: 70%; }
-.header-right { display: table-cell; vertical-align: middle; width: 30%; text-align: right; }
-.nombre-comercial { font-size: 14pt; font-weight: bold; color: #0B3C5D; }
-.titulo-lista { font-size: 11pt; font-weight: bold; margin-top: 8px; }
 .productos-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
 .productos-table thead { background: #0B3C5D; color: white; }
 .productos-table th, .productos-table td { padding: 6px 10px; font-size: 8pt; border-bottom: 1px solid #E5E7EB; }
@@ -21,29 +16,10 @@ body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
 </head>
 <body>
 
-@php
-    $logoDataUri = null;
-    $empresa = \App\Models\Empresa::principal() ?? (object)['nombre_comercial'=>'','razon_social'=>'EMPRESA','logo_path'=>null];
-    if (($empresa->logo_path ?? null)) {
-        $logoPath = storage_path('app/public/' . $empresa->logo_path);
-        if (!file_exists($logoPath)) { $logoPath = public_path('storage/' . $empresa->logo_path); }
-        if ($logoPath && file_exists($logoPath)) {
-            $logoDataUri = 'data:' . mime_content_type($logoPath) . ';base64,' . base64_encode(file_get_contents($logoPath));
-        }
-    }
-@endphp
-
-<div class="header">
-    <div class="header-left">
-        <div class="nombre-comercial">{{ strtoupper($empresa->nombre_comercial ?? $empresa->razon_social ?? 'EMPRESA') }}</div>
-        <div class="titulo-lista">Lista de Precios: {{ $listaPrecio->nombre }}</div>
-    </div>
-    <div class="header-right">
-        @if($logoDataUri)
-        <img src="{{ $logoDataUri }}" style="max-height:50px; max-width:120px;">
-        @endif
-    </div>
-</div>
+@include('pdf.partials.header-empresa-logo', [
+    'empresa' => null,
+    'titulo' => 'Lista de Precios: '.$listaPrecio->nombre,
+])
 
 <table class="productos-table">
     <thead>

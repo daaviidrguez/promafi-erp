@@ -6,7 +6,6 @@
 <style>
 @page { margin: 7mm 8mm; size: letter landscape; }
 body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 6.5pt; color: #1F2937; }
-h1 { font-size: 10pt; color: #0B3C5D; margin: 0 0 6px 0; }
 .meta { font-size: 6.5pt; color: #4B5563; margin-bottom: 8px; line-height: 1.35; }
 .tbl { width: 100%; border-collapse: collapse; margin-top: 6px; table-layout: fixed; }
 .tbl thead { background: #0B3C5D; color: #fff; }
@@ -21,11 +20,11 @@ h1 { font-size: 10pt; color: #0B3C5D; margin: 0 0 6px 0; }
 </head>
 <body>
 
-<h1>Reporte de utilidad</h1>
+@include('pdf.partials.header-empresa-logo', [
+    'empresa' => $empresa ?? null,
+    'titulo' => 'Reporte de utilidad',
+])
 <div class="meta">
-    @if($empresa)
-        <strong>{{ $empresa->nombre_comercial ?? $empresa->razon_social }}</strong><br>
-    @endif
     Período: {{ \Carbon\Carbon::parse($fechaDesde)->format('d/m/Y') }} – {{ \Carbon\Carbon::parse($fechaHasta)->format('d/m/Y') }}
     @if(!empty($etiquetaFiltros))
         <br>Filtros: {{ $etiquetaFiltros }}

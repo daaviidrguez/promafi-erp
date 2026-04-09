@@ -6,7 +6,6 @@
 <style>
 @page { margin: 15mm 20mm 15mm 20mm; size: letter portrait; }
 body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
-.header { border-bottom: 3px solid #0B3C5D; padding-bottom: 10px; margin-bottom: 15px; }
 .section-title { font-weight: bold; border-bottom: 2px solid #0B3C5D; margin-bottom: 6px; padding-bottom: 2px; }
 .info-box { border: 1px solid #E5E7EB; padding: 10px; margin-bottom: 12px; font-size: 8pt; }
 .tbl { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -16,43 +15,14 @@ body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #1F2937; }
 .tbl td.right { font-variant-numeric: tabular-nums; }
 .totales { margin-top: 15px; padding-top: 12px; border-top: 2px solid #0B3C5D; text-align: right; font-weight: bold; }
 .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #E5E7EB; font-size: 8pt; color: #6B7280; }
-.header-wrap { border-bottom: 3px solid #0B3C5D; padding-bottom: 10px; margin-bottom: 15px; }
 </style>
 </head>
 <body>
 
-@php
-    $logoDataUri = null;
-    if ($empresa->logo_path ?? null) {
-        $logoPath = storage_path('app/public/' . $empresa->logo_path);
-        if (!file_exists($logoPath)) {
-            $logoPath = public_path('storage/' . $empresa->logo_path);
-        }
-        if ($logoPath && file_exists($logoPath)) {
-            $logoDataUri = 'data:' . mime_content_type($logoPath) . ';base64,' . base64_encode(file_get_contents($logoPath));
-        }
-    }
-@endphp
-
-<div class="header-wrap">
-    <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-            <td width="58%" valign="middle" style="padding-right: 12px;">
-                <div style="font-size: 10.5pt; font-weight: bold; color: #0B3C5D;">
-                    {{ strtoupper($empresa->nombre_comercial ?? $empresa->razon_social ?? 'PROMAFI - SOLUCIONES INDUSTRIALES') }}
-                </div>
-            </td>
-            <td width="42%" valign="middle" style="text-align: right;">
-                @if($logoDataUri)
-                <img src="{{ $logoDataUri }}" style="max-height: 45px; display: block; margin-left: auto;">
-                @endif
-            </td>
-        </tr>
-    </table>
-    <div style="margin-top: 8px; font-size: 10pt;">
-        {{ $es_reporte_cobranza ? 'Reporte de Cobranza' : 'Estado de Cuenta' }}
-    </div>
-</div>
+@include('pdf.partials.header-empresa-logo', [
+    'empresa' => $empresa,
+    'titulo' => $es_reporte_cobranza ? 'Reporte de Cobranza' : 'Estado de Cuenta',
+])
 
 <div class="section-title">Cliente</div>
 <div class="info-box">

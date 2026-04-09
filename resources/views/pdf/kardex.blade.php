@@ -20,13 +20,11 @@ body { font-family: Arial, sans-serif; font-size: 8pt; color: #1F2937; margin: 0
 </head>
 <body>
 
-<div class="header">
-    <h1>Kardex de inventario</h1>
-    <div class="sub">
-        @if($empresa)
-            {{ $empresa->nombre_comercial ?? $empresa->razon_social ?? 'Empresa' }}
-        @endif
-    </div>
+@include('pdf.partials.header-empresa-logo', [
+    'empresa' => $empresa ?? null,
+    'titulo' => 'Kardex de inventario',
+])
+<div class="header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 4px;">
     <div class="sub">
         Producto: <strong>{{ $producto->codigo ?? '' }}</strong> — {{ $producto->nombre ?? '' }}
         &nbsp;|&nbsp;

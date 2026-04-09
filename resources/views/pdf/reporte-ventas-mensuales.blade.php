@@ -6,7 +6,6 @@
 <style>
 @page { margin: 10mm 12mm; size: letter; }
 body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8pt; color: #1F2937; }
-h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
 .meta { font-size: 8pt; color: #4B5563; margin-bottom: 10px; line-height: 1.35; }
 .tbl { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .tbl thead { background: #0B3C5D; color: #fff; }
@@ -23,11 +22,11 @@ h1 { font-size: 12pt; color: #0B3C5D; margin: 0 0 6px 0; }
 </head>
 <body>
 
-<h1>Ventas mensuales</h1>
+@include('pdf.partials.header-empresa-logo', [
+    'empresa' => $empresa ?? null,
+    'titulo' => 'Ventas mensuales',
+])
 <div class="meta">
-    @if($empresa)
-        <strong>{{ $empresa->nombre_comercial ?? $empresa->razon_social }}</strong><br>
-    @endif
     Período: {{ $mesNombre }} {{ $año }}<br>
     @if(!empty($clienteNombreFiltro))
         Cliente: {{ $clienteNombreFiltro }}<br>

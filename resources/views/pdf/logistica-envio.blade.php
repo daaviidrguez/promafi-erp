@@ -5,9 +5,6 @@
 <style>
 @page { margin: 10mm 12mm; size: letter; }
 body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 9pt; color: #1F2937; margin: 0; }
-.header { border-bottom: 3px solid #0B3C5D; padding-bottom: 6px; margin-bottom: 10px; }
-.header h1 { margin: 0; font-size: 14pt; color: #0B3C5D; }
-.header .sub { font-size: 9pt; color: #6B7280; margin-top: 2px; }
 .section-title { font-size: 10pt; font-weight: bold; border-bottom: 2px solid #0B3C5D; margin: 12px 0 6px; padding-bottom: 2px; }
 .box { border: 1px solid #E5E7EB; padding: 8px 10px; margin-bottom: 8px; font-size: 9pt; line-height: 1.35; }
 table.items { width: 100%; border-collapse: collapse; margin-top: 6px; }
@@ -23,9 +20,12 @@ td.center { text-align: center; }
 </head>
 <body>
 
-<div class="header">
-    <h1>Comprobante de envío / entrega</h1>
-    <div class="sub">{{ $empresa->nombre_comercial ?? $empresa->razon_social ?? 'Empresa' }} · Folio logística: <strong>{{ $envio->folio }}</strong></div>
+@include('pdf.partials.header-empresa-logo', [
+    'empresa' => $empresa ?? null,
+    'titulo' => 'Comprobante de envío / entrega',
+])
+<div class="sub" style="font-size: 9pt; color: #6B7280; margin-bottom: 10px;">
+    Folio logística: <strong>{{ $envio->folio }}</strong>
 </div>
 
 <div class="section-title">Envío</div>

@@ -74,7 +74,7 @@ $breadcrumbs = [
     <div class="card-body">
         <table class="table" style="max-width: 480px;">
             <tr>
-                <td><strong>Total ingresos</strong></td>
+                <td><strong>Total venta (subtotal)</strong></td>
                 <td class="text-end text-mono">${{ number_format($totalIngreso ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
@@ -82,9 +82,13 @@ $breadcrumbs = [
                 <td class="text-end text-mono">${{ number_format($totalCosto ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td><strong>Utilidad</strong></td>
-                <td class="text-end text-mono fw-600" style="color: {{ ($totalUtilidad ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
-                    ${{ number_format($totalUtilidad ?? 0, 2, '.', ',') }}
+                <td><strong>Total monto venta</strong></td>
+                <td class="text-end text-mono">${{ number_format($totalMontoVenta ?? 0, 2, '.', ',') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Ganancia</strong></td>
+                <td class="text-end text-mono fw-600" style="color: {{ ($totalGanancia ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
+                    ${{ number_format($totalGanancia ?? 0, 2, '.', ',') }}
                 </td>
             </tr>
             <tr>
@@ -117,8 +121,11 @@ $breadcrumbs = [
                         <th class="td-right">Costo</th>
                         <th class="td-right">Imp. IVA acred. (16%)</th>
                         <th class="td-right">Total costo c/IVA</th>
-                        <th class="td-right">Ingreso</th>
-                        <th class="td-right">Utilidad</th>
+                        <th class="td-right">Venta</th>
+                        <th class="td-right">Imp. IVA x pagar. (16%)</th>
+                        <th class="td-right">Imp. Reten ISR 1.25%</th>
+                        <th class="td-right">Monto total Venta</th>
+                        <th class="td-right">Ganancia</th>
                         <th class="td-center">Entregado</th>
                         <th class="td-center">Pagada</th>
                     </tr>
@@ -144,21 +151,26 @@ $breadcrumbs = [
                         <td class="td-right text-mono">${{ number_format($fila['costo_unitario'] ?? 0, 4, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['ingreso_unitario'] ?? 0, 4, '.', ',') }}</td>
                         <td class="td-right text-mono">{{ number_format($fila['margen_pct'] ?? 0, 2) }}%</td>
-                        <td class="td-right text-mono">${{ number_format($fila['utilidad_unitaria'] ?? 0, 4, '.', ',') }}</td>
+                        <td class="td-right text-mono fw-600" style="color: {{ ($fila['utilidad_unitaria'] ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
+                            ${{ number_format($fila['utilidad_unitaria'] ?? 0, 4, '.', ',') }}
+                        </td>
                         <td class="td-center text-mono">{{ number_format($fila['detalle']->cantidad, 2) }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo'], 2, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['iva_acreditable'] ?? 0, 2, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['costo_con_iva'] ?? 0, 2, '.', ',') }}</td>
                         <td class="td-right text-mono">${{ number_format($fila['ingreso'], 2, '.', ',') }}</td>
-                        <td class="td-right text-mono fw-600" style="color: {{ $fila['utilidad'] >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
-                            ${{ number_format($fila['utilidad'], 2, '.', ',') }}
+                        <td class="td-right text-mono">${{ number_format($fila['iva_x_pagar'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['isr_reten'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono">${{ number_format($fila['monto_total_venta'] ?? 0, 2, '.', ',') }}</td>
+                        <td class="td-right text-mono fw-600" style="color: {{ ($fila['ganancia'] ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }};">
+                            ${{ number_format($fila['ganancia'] ?? 0, 2, '.', ',') }}
                         </td>
                         <td class="td-center">{{ $fila['entregado_destino'] ?? '—' }}</td>
                         <td class="td-center">{{ $fila['pagada'] ?? '—' }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="17" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
+                        <td colspan="20" class="text-center text-muted" style="padding: 40px;">No hay datos con los filtros aplicados.</td>
                     </tr>
                     @endforelse
                 </tbody>
@@ -169,7 +181,8 @@ $breadcrumbs = [
 
 <p class="text-muted small mt-2">
     <strong>Nota:</strong> El costo se obtiene del producto (costo o costo promedio). Conceptos sin producto asignado tienen costo cero.
-    <strong>Venta unit.</strong> es el precio unitario de venta de la línea. <strong>IVA acreditable:</strong> 16% sobre el importe de costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
+    <strong>Venta unit.</strong> es el precio unitario de venta de la línea. <strong>IVA acreditable:</strong> 16% sobre costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
+    <strong>Venta:</strong> subtotal de la línea. <strong>IVA x pagar:</strong> 16% sobre venta. <strong>ISR:</strong> −1,25% sobre venta. <strong>Monto total Venta</strong> = venta + IVA x pagar + ISR. <strong>Ganancia</strong> = monto total Venta − total costo c/IVA.
 </p>
 
 <div id="modalExportUtilidad" class="modal">

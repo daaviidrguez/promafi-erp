@@ -11,10 +11,13 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
         protected array $lineas,
         protected float $totalIngreso,
         protected float $totalCosto,
-        protected float $totalUtilidad,
+        protected float $totalGanancia,
         protected float $margen,
         protected float $totalIvaAcreditable,
-        protected float $totalCostoConIva
+        protected float $totalCostoConIva,
+        protected float $totalIvaXPagar,
+        protected float $totalIsrReten,
+        protected float $totalMontoVenta
     ) {}
 
     public function headings(): array
@@ -33,8 +36,11 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             'Costo',
             'Imp. IVA acred. (16%)',
             'Total costo c/IVA',
-            'Ingreso',
-            'Utilidad',
+            'Venta',
+            'Imp. IVA x pagar. (16%)',
+            'Imp. Reten ISR 1.25%',
+            'Monto total Venta',
+            'Ganancia',
             'Entregado',
             'Pagada',
         ];
@@ -57,12 +63,15 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             round($l['iva_acreditable'] ?? 0, 2),
             round($l['costo_con_iva'] ?? 0, 2),
             round($l['ingreso'], 2),
-            round($l['utilidad'], 2),
+            round($l['iva_x_pagar'] ?? 0, 2),
+            round($l['isr_reten'] ?? 0, 2),
+            round($l['monto_total_venta'] ?? 0, 2),
+            round($l['ganancia'] ?? 0, 2),
             $l['entregado_destino'] ?? 'No',
             $l['pagada'],
         ])->all();
 
-        $empty = array_fill(0, 17, '');
+        $empty = array_fill(0, 20, '');
         $rows[] = $empty;
         $rows[] = [
             '', '', '', '', 'Totales',
@@ -72,7 +81,10 @@ class ReporteUtilidadExport implements FromArray, WithHeadings
             round($this->totalIvaAcreditable, 2),
             round($this->totalCostoConIva, 2),
             round($this->totalIngreso, 2),
-            round($this->totalUtilidad, 2),
+            round($this->totalIvaXPagar, 2),
+            round($this->totalIsrReten, 2),
+            round($this->totalMontoVenta, 2),
+            round($this->totalGanancia, 2),
             '', '',
         ];
 

@@ -81,6 +81,45 @@ class FacturaDetalle extends Model
     }
 
     /**
+     * Suma importes de traslado IVA (002) persistidos en la línea (CFDI / facturación).
+     */
+    public function importeIvaTrasladadoPersistido(): float
+    {
+        $this->loadMissing('impuestos');
+
+        return (float) $this->impuestos
+            ->where('tipo', 'traslado')
+            ->where('impuesto', '002')
+            ->sum('importe');
+    }
+
+    /**
+     * Suma importes de retención ISR (001) persistidos en la línea.
+     */
+    public function importeIsrRetenidoPersistido(): float
+    {
+        $this->loadMissing('impuestos');
+
+        return (float) $this->impuestos
+            ->where('tipo', 'retencion')
+            ->where('impuesto', '001')
+            ->sum('importe');
+    }
+
+    /**
+     * Importe neto de la línea según lo timbrado: base gravable + traslados − retenciones (sin recalcular tasas).
+     */
+    public function montoTotalLineaTimbrada(): float
+    {
+        $this->loadMissing('impuestos');
+        $base = (float) $this->base_impuesto;
+        $traslados = (float) $this->impuestos->where('tipo', 'traslado')->sum('importe');
+        $retenciones = (float) $this->impuestos->where('tipo', 'retencion')->sum('importe');
+
+        return round($base + $traslados - $retenciones, 2);
+    }
+
+    /**
      * Persiste el costo unitario vigente del producto (o 0 sin producto) una sola vez al timbrar.
      */
     public function aplicarSnapshotCostoAlTimbrado(): void

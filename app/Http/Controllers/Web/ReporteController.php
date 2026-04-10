@@ -26,12 +26,6 @@ class ReporteController extends Controller
     /** IVA acreditable estimado sobre el importe de costo de cada línea (tasa general México 16%). */
     private const TASA_IVA_ACREDITABLE_SOBRE_COSTO = 0.16;
 
-    /** IVA por pagar (trasladado) sobre el subtotal de venta de la línea. */
-    private const TASA_IVA_X_PAGAR_SOBRE_VENTA = 0.16;
-
-    /** Retención ISR sobre el subtotal de venta de la línea (valor negativo en importe). */
-    private const TASA_ISR_RETENCION_SOBRE_VENTA = 0.0125;
-
     /**
      * Reporte fiscal mensual: ingresos cobrados (sin IVA), IVA trasladado, IVA acreditable, IVA a pagar, ISR RESICO.
      * Los ingresos cobrados son la base gravable (subtotal - descuento); el IVA no forma parte por ser trasladado al cliente.
@@ -469,7 +463,7 @@ class ReporteController extends Controller
         $productoId = $request->get('producto_id');
         $facturaId = $request->get('factura_id');
 
-        $query = FacturaDetalle::with(['factura.cliente', 'factura.cuentaPorCobrar', 'producto'])
+        $query = FacturaDetalle::with(['factura.cliente', 'factura.cuentaPorCobrar', 'producto', 'impuestos'])
             ->whereHas('factura', function ($q) use ($fechaDesde, $fechaHasta, $clienteId, $facturaId) {
                 $q->where('estado', 'timbrada')
                     ->whereDate('fecha_emision', '>=', $fechaDesde)
@@ -493,16 +487,20 @@ class ReporteController extends Controller
         $filas = [];
 
         foreach ($detalles as $d) {
-            $ingreso = (float) $d->importe;
+            // Subtotal línea = base gravable timbrada (importe − descuento de línea), alineada con CFDI.
+            $ingreso = (float) $d->base_impuesto;
             $cantidad = (float) $d->cantidad;
             $ingresoUnitario = $cantidad > 0 ? $ingreso / $cantidad : (float) ($d->valor_unitario ?? 0);
             $costoUnitario = $d->costoUnitarioParaReporteUtilidad();
             $costo = (float) $d->cantidad * $costoUnitario;
+            // IVA acreditable sobre costo: no viene del CFDI de venta; estimación interna (sin tocar facturación).
             $ivaAcreditable = round($costo * self::TASA_IVA_ACREDITABLE_SOBRE_COSTO, 2);
             $costoConIva = round($costo + $ivaAcreditable, 2);
-            $ivaXPagar = round($ingreso * self::TASA_IVA_X_PAGAR_SOBRE_VENTA, 2);
-            $isrReten = round(-$ingreso * self::TASA_ISR_RETENCION_SOBRE_VENTA, 2);
-            $montoTotalVenta = round($ingreso + $ivaXPagar + $isrReten, 2);
+            // Impuestos de venta: solo lectura de facturas_impuestos (lo timbrado).
+            $ivaXPagar = $d->importeIvaTrasladadoPersistido();
+            $isrRetenPositivo = $d->importeIsrRetenidoPersistido();
+            $isrReten = $isrRetenPositivo > 0 ? -$isrRetenPositivo : 0.0;
+            $montoTotalVenta = $d->montoTotalLineaTimbrada();
             $ganancia = round($montoTotalVenta - $costoConIva, 2);
             // Margen % y utilidad unit.: sobre precio unitario de venta vs costo unitario (coherente con columnas Venta unit. / Costo unit.).
             $utilidadUnitaria = $ingresoUnitario - $costoUnitario;
@@ -537,8 +535,8 @@ class ReporteController extends Controller
         $totalIvaXPagar = (float) collect($filas)->sum(fn (array $f) => $f['iva_x_pagar']);
         $totalIsrReten = (float) collect($filas)->sum(fn (array $f) => $f['isr_reten']);
         $totalMontoVenta = (float) collect($filas)->sum(fn (array $f) => $f['monto_total_venta']);
-        // Subtotal + IVA trasladado + retención ISR (esta última va negativa en línea, reduce el total).
-        $totalFacturado = $totalIngreso + $totalIvaXPagar + $totalIsrReten;
+        // Igual a la suma de montos netos por línea timbrada (base + traslados − retenciones).
+        $totalFacturado = $totalMontoVenta;
         // Mismo criterio que la columna Margen % por línea: (Venta unit. − Costo unit.) / Venta unit. → agregado (subtotal − costo) / subtotal.
         $margen = $totalIngreso > 0 ? (($totalIngreso - $totalCosto) / $totalIngreso) * 100 : 0;
 

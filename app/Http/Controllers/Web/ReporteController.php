@@ -8,6 +8,7 @@ use App\Helpers\IsrResicoHelper;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\ComplementoPago;
+use App\Models\DocumentoRelacionadoPago;
 use App\Models\Empresa;
 use App\Models\Factura;
 use App\Models\FacturaCompra;
@@ -343,6 +344,12 @@ class ReporteController extends Controller
      */
     public function utilidad(Request $request)
     {
+        foreach (['cliente_id', 'producto_id', 'factura_id', 'complemento_pago_id'] as $clave) {
+            if ($request->input($clave) === '' || $request->input($clave) === null) {
+                $request->merge([$clave => null]);
+            }
+        }
+
         $core = $this->construirDatosReporteUtilidad($request);
 
         $clientes = Cliente::activos()->orderBy('nombre')->get(['id', 'nombre']);
@@ -354,8 +361,14 @@ class ReporteController extends Controller
             ->orderBy('fecha_emision', 'desc')
             ->get(['id', 'serie', 'folio', 'fecha_emision', 'cliente_id']);
 
+        $complementosPago = ComplementoPago::where('estado', 'timbrado')
+            ->orderByDesc('fecha_timbrado')
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get(['id', 'serie', 'folio', 'fecha_timbrado', 'monto_total', 'uuid']);
+
         return view('reportes.utilidad', array_merge($core, compact(
-            'clientes', 'productos', 'facturas'
+            'clientes', 'productos', 'facturas', 'complementosPago'
         )));
     }
 
@@ -364,7 +377,7 @@ class ReporteController extends Controller
      */
     public function utilidadExport(Request $request)
     {
-        foreach (['cliente_id', 'producto_id', 'factura_id'] as $clave) {
+        foreach (['cliente_id', 'producto_id', 'factura_id', 'complemento_pago_id'] as $clave) {
             if ($request->input($clave) === '' || $request->input($clave) === null) {
                 $request->merge([$clave => null]);
             }
@@ -377,6 +390,8 @@ class ReporteController extends Controller
             'cliente_id' => 'nullable|exists:clientes,id',
             'producto_id' => 'nullable|exists:productos,id',
             'factura_id' => 'nullable|exists:facturas,id',
+            'modo' => 'nullable|in:facturado,cobrado',
+            'complemento_pago_id' => 'nullable|exists:complementos_pago,id',
         ]);
 
         $core = $this->construirDatosReporteUtilidad($request);
@@ -419,6 +434,7 @@ class ReporteController extends Controller
             'fechaDesde' => $core['fechaDesde'],
             'fechaHasta' => $core['fechaHasta'],
             'etiquetaFiltros' => $etiquetaFiltros,
+            'modoUtilidad' => $core['modoUtilidad'] ?? 'facturado',
         ])->render();
 
         $options = new Options;
@@ -452,7 +468,9 @@ class ReporteController extends Controller
      *   fechaHasta: string,
      *   clienteId: mixed,
      *   productoId: mixed,
-     *   facturaId: mixed
+     *   facturaId: mixed,
+     *   modoUtilidad: string,
+     *   complementoPagoId: int|null
      * }
      */
     private function construirDatosReporteUtilidad(Request $request): array
@@ -462,19 +480,53 @@ class ReporteController extends Controller
         $clienteId = $request->get('cliente_id');
         $productoId = $request->get('producto_id');
         $facturaId = $request->get('factura_id');
+        $modoUtilidad = $request->get('modo', 'facturado') === 'cobrado' ? 'cobrado' : 'facturado';
+        $complementoPagoId = $request->get('complemento_pago_id');
+        $complementoPagoId = $complementoPagoId !== null && $complementoPagoId !== ''
+            ? (int) $complementoPagoId
+            : null;
 
-        $query = FacturaDetalle::with(['factura.cliente', 'factura.cuentaPorCobrar', 'producto', 'impuestos'])
-            ->whereHas('factura', function ($q) use ($fechaDesde, $fechaHasta, $clienteId, $facturaId) {
-                $q->where('estado', 'timbrada')
-                    ->whereDate('fecha_emision', '>=', $fechaDesde)
-                    ->whereDate('fecha_emision', '<=', $fechaHasta);
-                if ($clienteId) {
-                    $q->where('cliente_id', $clienteId);
-                }
-                if ($facturaId) {
-                    $q->where('id', $facturaId);
-                }
-            });
+        $with = ['factura.cliente', 'factura.cuentaPorCobrar', 'producto', 'impuestos'];
+        $mapaProporcion = [];
+
+        if ($modoUtilidad === 'cobrado') {
+            $mapaProporcion = $this->mapaProporcionUtilidadCobrada(
+                $fechaDesde,
+                $fechaHasta,
+                $clienteId ? (int) $clienteId : null,
+                $facturaId ? (int) $facturaId : null,
+                $complementoPagoId
+            );
+            $facturaIdsConCobro = array_keys(array_filter(
+                $mapaProporcion,
+                static fn (float $p): bool => $p > 1e-9
+            ));
+
+            $query = FacturaDetalle::with($with)
+                ->whereIn('factura_id', $facturaIdsConCobro ?: [0])
+                ->whereHas('factura', function ($q) use ($clienteId, $facturaId) {
+                    $q->where('estado', 'timbrada');
+                    if ($clienteId) {
+                        $q->where('cliente_id', $clienteId);
+                    }
+                    if ($facturaId) {
+                        $q->where('id', $facturaId);
+                    }
+                });
+        } else {
+            $query = FacturaDetalle::with($with)
+                ->whereHas('factura', function ($q) use ($fechaDesde, $fechaHasta, $clienteId, $facturaId) {
+                    $q->where('estado', 'timbrada')
+                        ->whereDate('fecha_emision', '>=', $fechaDesde)
+                        ->whereDate('fecha_emision', '<=', $fechaHasta);
+                    if ($clienteId) {
+                        $q->where('cliente_id', $clienteId);
+                    }
+                    if ($facturaId) {
+                        $q->where('id', $facturaId);
+                    }
+                });
+        }
 
         if ($productoId) {
             $query->where('producto_id', $productoId);
@@ -482,51 +534,22 @@ class ReporteController extends Controller
 
         $detalles = $query->get()->sortBy('factura.fecha_emision')->values();
 
+        $filas = [];
         $totalIngreso = 0.0;
         $totalCosto = 0.0;
-        $filas = [];
 
         foreach ($detalles as $d) {
-            // Subtotal línea = base gravable timbrada (importe − descuento de línea), alineada con CFDI.
-            $ingreso = (float) $d->base_impuesto;
-            $cantidad = (float) $d->cantidad;
-            $ingresoUnitario = $cantidad > 0 ? $ingreso / $cantidad : (float) ($d->valor_unitario ?? 0);
-            $costoUnitario = $d->costoUnitarioParaReporteUtilidad();
-            $costo = (float) $d->cantidad * $costoUnitario;
-            // IVA acreditable sobre costo: no viene del CFDI de venta; estimación interna (sin tocar facturación).
-            $ivaAcreditable = round($costo * self::TASA_IVA_ACREDITABLE_SOBRE_COSTO, 2);
-            $costoConIva = round($costo + $ivaAcreditable, 2);
-            // Impuestos de venta: solo lectura de facturas_impuestos (lo timbrado).
-            $ivaXPagar = $d->importeIvaTrasladadoPersistido();
-            $isrRetenPositivo = $d->importeIsrRetenidoPersistido();
-            $isrReten = $isrRetenPositivo > 0 ? -$isrRetenPositivo : 0.0;
-            $montoTotalVenta = $d->montoTotalLineaTimbrada();
-            $ganancia = round($montoTotalVenta - $costoConIva, 2);
-            // Margen % y utilidad unit.: sobre precio unitario de venta vs costo unitario (coherente con columnas Venta unit. / Costo unit.).
-            $utilidadUnitaria = $ingresoUnitario - $costoUnitario;
-            $margenPct = $ingresoUnitario > 0
-                ? (($ingresoUnitario - $costoUnitario) / $ingresoUnitario) * 100
-                : 0.0;
-            $totalIngreso += $ingreso;
-            $totalCosto += $costo;
+            $p = $modoUtilidad === 'cobrado'
+                ? (float) ($mapaProporcion[(int) $d->factura_id] ?? 0.0)
+                : 1.0;
+            if ($modoUtilidad === 'cobrado' && $p <= 1e-9) {
+                continue;
+            }
 
-            $filas[] = [
-                'detalle' => $d,
-                'ingreso' => $ingreso,
-                'ingreso_unitario' => $ingresoUnitario,
-                'costo_unitario' => $costoUnitario,
-                'costo' => $costo,
-                'utilidad_unitaria' => $utilidadUnitaria,
-                'margen_pct' => $margenPct,
-                'iva_acreditable' => $ivaAcreditable,
-                'costo_con_iva' => $costoConIva,
-                'iva_x_pagar' => $ivaXPagar,
-                'isr_reten' => $isrReten,
-                'monto_total_venta' => $montoTotalVenta,
-                'ganancia' => $ganancia,
-                'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
-                'pagada' => $this->etiquetaPagadaFactura($d->factura),
-            ];
+            $fila = $this->armarFilaReporteUtilidad($d, $p);
+            $totalIngreso += $fila['ingreso'];
+            $totalCosto += $fila['costo'];
+            $filas[] = $fila;
         }
 
         $totalGanancia = (float) collect($filas)->sum(fn (array $f) => $f['ganancia']);
@@ -535,9 +558,7 @@ class ReporteController extends Controller
         $totalIvaXPagar = (float) collect($filas)->sum(fn (array $f) => $f['iva_x_pagar']);
         $totalIsrReten = (float) collect($filas)->sum(fn (array $f) => $f['isr_reten']);
         $totalMontoVenta = (float) collect($filas)->sum(fn (array $f) => $f['monto_total_venta']);
-        // Igual a la suma de montos netos por línea timbrada (base + traslados − retenciones).
         $totalFacturado = $totalMontoVenta;
-        // Mismo criterio que la columna Margen % por línea: (Venta unit. − Costo unit.) / Venta unit. → agregado (subtotal − costo) / subtotal.
         $margen = $totalIngreso > 0 ? (($totalIngreso - $totalCosto) / $totalIngreso) * 100 : 0;
 
         return [
@@ -557,6 +578,186 @@ class ReporteController extends Controller
             'clienteId' => $clienteId,
             'productoId' => $productoId,
             'facturaId' => $facturaId,
+            'modoUtilidad' => $modoUtilidad,
+            'complementoPagoId' => $complementoPagoId,
+        ];
+    }
+
+    /**
+     * Proporción cobrada por factura: Σ monto_pagado (complementos timbrados) / total factura, tope 1.
+     * Sin complemento_pago_id: agrupa todos los documentos relacionados de complementos timbrados en el rango de fecha_timbrado,
+     * más facturas PUE timbradas en el rango de fecha_emision (cobro al timbrar).
+     * Con complemento_pago_id: solo ese complemento timbrado.
+     *
+     * @return array<int, float> factura_id => proporción en (0,1]
+     */
+    private function mapaProporcionUtilidadCobrada(
+        string $fechaDesde,
+        string $fechaHasta,
+        ?int $clienteId,
+        ?int $facturaId,
+        ?int $complementoPagoId
+    ): array {
+        $montosAcumulados = [];
+        $pueIds = [];
+
+        if ($complementoPagoId !== null) {
+            $comp = ComplementoPago::whereKey($complementoPagoId)->where('estado', 'timbrado')->first();
+            if (! $comp) {
+                return [];
+            }
+
+            $docs = DocumentoRelacionadoPago::query()
+                ->whereHas('pagoRecibido', static fn ($q) => $q->where('complemento_pago_id', $complementoPagoId))
+                ->with(['factura'])
+                ->get();
+
+            foreach ($docs as $doc) {
+                $f = $doc->factura;
+                if (! $f || $f->estado !== 'timbrada') {
+                    continue;
+                }
+                if ($clienteId !== null && (int) $f->cliente_id !== $clienteId) {
+                    continue;
+                }
+                if ($facturaId !== null && (int) $f->id !== $facturaId) {
+                    continue;
+                }
+                $fid = (int) $f->id;
+                $montosAcumulados[$fid] = ($montosAcumulados[$fid] ?? 0.0) + (float) $doc->monto_pagado;
+            }
+        } else {
+            $docs = DocumentoRelacionadoPago::query()
+                ->whereHas('pagoRecibido.complementoPago', function ($q) use ($fechaDesde, $fechaHasta) {
+                    $q->where('estado', 'timbrado')
+                        ->whereNotNull('fecha_timbrado')
+                        ->whereDate('fecha_timbrado', '>=', $fechaDesde)
+                        ->whereDate('fecha_timbrado', '<=', $fechaHasta);
+                })
+                ->with(['factura'])
+                ->get();
+
+            foreach ($docs as $doc) {
+                $f = $doc->factura;
+                if (! $f || $f->estado !== 'timbrada') {
+                    continue;
+                }
+                if ($clienteId !== null && (int) $f->cliente_id !== $clienteId) {
+                    continue;
+                }
+                if ($facturaId !== null && (int) $f->id !== $facturaId) {
+                    continue;
+                }
+                $fid = (int) $f->id;
+                $montosAcumulados[$fid] = ($montosAcumulados[$fid] ?? 0.0) + (float) $doc->monto_pagado;
+            }
+
+            $pueQuery = Factura::query()
+                ->where('estado', 'timbrada')
+                ->where('metodo_pago', 'PUE')
+                ->whereDate('fecha_emision', '>=', $fechaDesde)
+                ->whereDate('fecha_emision', '<=', $fechaHasta);
+            if ($clienteId !== null) {
+                $pueQuery->where('cliente_id', $clienteId);
+            }
+            if ($facturaId !== null) {
+                $pueQuery->where('id', $facturaId);
+            }
+            $pueIds = $pueQuery->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        }
+
+        $idsDesdePagos = array_keys($montosAcumulados);
+        $idsPue = $complementoPagoId !== null ? [] : $pueIds;
+        $todosIds = array_values(array_unique(array_merge($idsDesdePagos, $idsPue)));
+        if ($todosIds === []) {
+            return [];
+        }
+
+        $facturas = Factura::whereIn('id', $todosIds)->get()->keyBy('id');
+
+        $resultado = [];
+        foreach ($montosAcumulados as $fid => $sumPagado) {
+            $f = $facturas[$fid] ?? null;
+            if (! $f || (float) $f->total <= 0) {
+                continue;
+            }
+            $resultado[$fid] = min(1.0, $sumPagado / (float) $f->total);
+        }
+
+        if ($complementoPagoId === null) {
+            foreach ($idsPue as $fid) {
+                $f = $facturas[$fid] ?? null;
+                if (! $f) {
+                    continue;
+                }
+                $resultado[$fid] = 1.0;
+            }
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Una fila del reporte: montos desde CFDI persistidos, escalados por proporción de cobro (1 = facturado completo).
+     *
+     * @return array{detalle: FacturaDetalle, ingreso: float, ingreso_unitario: float, costo_unitario: float, costo: float, iva_acreditable: float, costo_con_iva: float, iva_x_pagar: float, isr_reten: float, monto_total_venta: float, ganancia: float, utilidad_unitaria: float, margen_pct: float, entregado_destino: string, pagada: string}
+     */
+    private function armarFilaReporteUtilidad(FacturaDetalle $d, float $proporcion): array
+    {
+        $p = max(0.0, min(1.0, $proporcion));
+        $base = (float) $d->base_impuesto;
+        $ivaTrasladado = $d->importeIvaTrasladadoPersistido();
+        $isrRetenidoPos = $d->importeIsrRetenidoPersistido();
+        $montoLineaTimbrada = $d->montoTotalLineaTimbrada();
+
+        $ingreso = round($base * $p, 2);
+        $cantidad = (float) $d->cantidad;
+        $ingresoUnitarioBase = $cantidad > 0 ? $base / $cantidad : (float) ($d->valor_unitario ?? 0);
+        $esFacturadoCompleto = abs($p - 1.0) < 1e-9;
+        $ingresoUnitario = $esFacturadoCompleto
+            ? $ingresoUnitarioBase
+            : ($cantidad > 0 ? round($ingreso / $cantidad, 6) : round((float) ($d->valor_unitario ?? 0) * $p, 6));
+
+        $costoUnitario = $d->costoUnitarioParaReporteUtilidad();
+        $costoLinea = (float) $d->cantidad * $costoUnitario;
+        $costo = round($costoLinea * $p, 2);
+
+        $ivaAcreditable = round($costo * self::TASA_IVA_ACREDITABLE_SOBRE_COSTO, 2);
+        $costoConIva = round($costo + $ivaAcreditable, 2);
+
+        $ivaXPagar = round($ivaTrasladado * $p, 2);
+        $isrReten = $isrRetenidoPos > 0 ? -round($isrRetenidoPos * $p, 2) : 0.0;
+        $montoTotalVenta = round($montoLineaTimbrada * $p, 2);
+        $ganancia = round($montoTotalVenta - $costoConIva, 2);
+
+        if ($esFacturadoCompleto) {
+            $utilidadUnitaria = $ingresoUnitarioBase - $costoUnitario;
+            $margenPct = $ingresoUnitarioBase > 0
+                ? (($ingresoUnitarioBase - $costoUnitario) / $ingresoUnitarioBase) * 100
+                : 0.0;
+        } else {
+            $utilidadUnitaria = round($ingresoUnitario - $costoUnitario * $p, 2);
+            $margenPct = $ingresoUnitario > 0
+                ? (($ingresoUnitario - $costoUnitario * $p) / $ingresoUnitario) * 100
+                : 0.0;
+        }
+
+        return [
+            'detalle' => $d,
+            'ingreso' => $ingreso,
+            'ingreso_unitario' => $ingresoUnitario,
+            'costo_unitario' => $costoUnitario,
+            'costo' => $costo,
+            'utilidad_unitaria' => $utilidadUnitaria,
+            'margen_pct' => $margenPct,
+            'iva_acreditable' => $ivaAcreditable,
+            'costo_con_iva' => $costoConIva,
+            'iva_x_pagar' => $ivaXPagar,
+            'isr_reten' => $isrReten,
+            'monto_total_venta' => $montoTotalVenta,
+            'ganancia' => $ganancia,
+            'entregado_destino' => $this->etiquetaEntregadoDestinoFacturaLinea($d),
+            'pagada' => $this->etiquetaPagadaFactura($d->factura),
         ];
     }
 
@@ -635,6 +836,14 @@ class ReporteController extends Controller
     private function etiquetaFiltrosUtilidad(array $core): string
     {
         $partes = [];
+        $modo = $core['modoUtilidad'] ?? 'facturado';
+        $partes[] = $modo === 'cobrado' ? 'Modo: Cobrado' : 'Modo: Facturado';
+        if ($modo === 'cobrado' && ! empty($core['complementoPagoId'])) {
+            $cp = ComplementoPago::find($core['complementoPagoId']);
+            if ($cp) {
+                $partes[] = 'Complemento: '.($cp->folio_completo ?? $cp->id);
+            }
+        }
         if (! empty($core['clienteId'])) {
             $c = Cliente::find($core['clienteId']);
             if ($c) {

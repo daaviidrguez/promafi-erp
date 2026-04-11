@@ -92,20 +92,24 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 6.5pt; color: #1F
 </table>
 
 <div class="totals">
-    <div><strong>Total facturado</strong> <span style="font-weight:normal;color:#6B7280;">(subtotal + IVA x pagar + ISR)</span><strong>:</strong> ${{ number_format($totalFacturado ?? ($totalIngreso + ($totalIvaXPagar ?? 0) + ($totalIsrReten ?? 0)), 2, '.', ',') }}</div>
+    <div><strong>{{ ($modoUtilidad ?? 'facturado') === 'cobrado' ? 'Total cobrado (proporc.)' : 'Total facturado' }}</strong> <span style="font-weight:normal;color:#6B7280;">(suma monto venta línea)</span><strong>:</strong> ${{ number_format($totalFacturado ?? ($totalIngreso + ($totalIvaXPagar ?? 0) + ($totalIsrReten ?? 0)), 2, '.', ',') }}</div>
     <div><strong>Subtotal:</strong> ${{ number_format($totalIngreso, 2, '.', ',') }}</div>
-    <div><strong>Imp. IVA x pagar. (16%):</strong> ${{ number_format($totalIvaXPagar ?? 0, 2, '.', ',') }}</div>
+    <div><strong>IVA trasladado:</strong> ${{ number_format($totalIvaXPagar ?? 0, 2, '.', ',') }}</div>
     <div><strong>Total IVA (acred. 16%):</strong> ${{ number_format($totalIvaAcreditable ?? 0, 2, '.', ',') }}</div>
     <div><strong>Total costos:</strong> ${{ number_format($totalCosto, 2, '.', ',') }}</div>
     <div><strong>Total monto venta:</strong> ${{ number_format($totalMontoVenta ?? 0, 2, '.', ',') }}</div>
-    <div><strong>Total Imp. Reten ISR 1,25%:</strong> ${{ number_format($totalIsrReten ?? 0, 2, '.', ',') }}</div>
+    <div><strong>ISR retenido:</strong> ${{ number_format($totalIsrReten ?? 0, 2, '.', ',') }}</div>
     <div><strong>Total ganancia:</strong> ${{ number_format($totalGanancia ?? 0, 2, '.', ',') }}</div>
     <div><strong>Margen %:</strong> {{ number_format($margen, 2) }}%</div>
 </div>
 
 <p class="note">
-    <strong>Venta:</strong> subtotal línea. <strong>IVA pp:</strong> 16% sobre venta. <strong>ISR:</strong> −1,25% sobre venta. <strong>Mto.Vta:</strong> venta + IVA + ISR. <strong>Ganancia:</strong> Mto.Vta − costo c/IVA.
-    Costo desde producto; sin producto costo cero. <strong>Entreg. / Pago:</strong> mismos criterios que en el sistema.
+    @if(($modoUtilidad ?? 'facturado') === 'cobrado')
+        <strong>Cobrado:</strong> montos por línea × (monto pagado complemento ÷ total factura); IVA/ISR desde timbrado. PUE en período = 100%. <strong>Ganancia:</strong> Mto.Vta prop. − costo c/IVA prop.
+    @else
+        <strong>Venta:</strong> base gravable línea. <strong>IVA/ISR:</strong> persistidos (facturas_impuestos). <strong>Mto.Vta:</strong> según CFDI. <strong>Ganancia:</strong> Mto.Vta − costo c/IVA.
+    @endif
+    Costo unit.: snapshot al timbrar si existe. <strong>Entreg. / Pago:</strong> mismos criterios que en el sistema.
 </p>
 
 </body>

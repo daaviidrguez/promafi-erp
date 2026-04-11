@@ -2,7 +2,7 @@
 
 @section('title', 'Reporte de utilidad')
 @section('page-title', '📈 Reporte de utilidad')
-@section('page-subtitle', 'Ingresos, costos y utilidad por ventas')
+@section('page-subtitle', 'Ingresos, costos y utilidad por ventas (facturado o cobrado)')
 
 @php
 $breadcrumbs = [
@@ -57,6 +57,28 @@ $breadcrumbs = [
                 </select>
             </div>
             <div class="form-group">
+                <label class="form-label">📊 Tipo de utilidad</label>
+                <select name="modo" class="form-control">
+                    <option value="facturado" {{ ($modoUtilidad ?? 'facturado') === 'facturado' ? 'selected' : '' }}>Facturado</option>
+                    <option value="cobrado" {{ ($modoUtilidad ?? '') === 'cobrado' ? 'selected' : '' }}>Cobrado (pagos / complementos)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">💳 Complemento de pago <span class="text-muted small">(opcional)</span></label>
+                <select name="complemento_pago_id" class="form-control">
+                    <option value="">Todos los pagos del período (acumulado)</option>
+                    @foreach($complementosPago ?? [] as $cp)
+                        <option value="{{ $cp->id }}" {{ (string)($complementoPagoId ?? '') === (string)$cp->id ? 'selected' : '' }}>
+                            {{ $cp->folio_completo }}
+                            @if($cp->fecha_timbrado)
+                                — {{ $cp->fecha_timbrado->format('d/m/Y') }}
+                            @endif
+                            — ${{ number_format((float)$cp->monto_total, 2, '.', ',') }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="form-group">
                 <label class="form-label" style="visibility: hidden; user-select: none;" aria-hidden="true">Acciones</label>
                 <div style="display: flex; gap: 10px; flex-wrap: nowrap; align-items: center;">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -74,7 +96,10 @@ $breadcrumbs = [
     <div class="card-body">
         <table class="table" style="max-width: 520px;">
             <tr>
-                <td><strong>Total facturado</strong> <span class="text-muted small">(subtotal + IVA x pagar + ISR)</span></td>
+                <td>
+                    <strong>{{ ($modoUtilidad ?? 'facturado') === 'cobrado' ? 'Total cobrado (proporcional)' : 'Total facturado' }}</strong>
+                    <span class="text-muted small">(suma monto total venta por línea)</span>
+                </td>
                 <td class="text-end text-mono">${{ number_format($totalFacturado ?? (($totalIngreso ?? 0) + ($totalIvaXPagar ?? 0) + ($totalIsrReten ?? 0)), 2, '.', ',') }}</td>
             </tr>
             <tr>
@@ -82,7 +107,7 @@ $breadcrumbs = [
                 <td class="text-end text-mono">${{ number_format($totalIngreso ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td><strong>Imp. IVA x pagar. (16%)</strong></td>
+                <td><strong>IVA trasladado (línea)</strong></td>
                 <td class="text-end text-mono">${{ number_format($totalIvaXPagar ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
@@ -98,7 +123,7 @@ $breadcrumbs = [
                 <td class="text-end text-mono">${{ number_format($totalMontoVenta ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
-                <td><strong>Total Imp. Reten ISR 1,25%</strong></td>
+                <td><strong>ISR retenido (línea)</strong></td>
                 <td class="text-end text-mono" style="color: {{ ($totalIsrReten ?? 0) <= 0 ? 'var(--color-danger)' : 'inherit' }};">${{ number_format($totalIsrReten ?? 0, 2, '.', ',') }}</td>
             </tr>
             <tr>
@@ -138,8 +163,8 @@ $breadcrumbs = [
                         <th class="td-right">Imp. IVA acred. (16%)</th>
                         <th class="td-right">Total costo c/IVA</th>
                         <th class="td-right">Venta</th>
-                        <th class="td-right">Imp. IVA x pagar. (16%)</th>
-                        <th class="td-right">Imp. Reten ISR 1.25%</th>
+                        <th class="td-right">IVA trasladado</th>
+                        <th class="td-right">ISR retenido</th>
                         <th class="td-right">Monto total Venta</th>
                         <th class="td-right">Ganancia</th>
                         <th class="td-center">Entregado</th>
@@ -197,9 +222,14 @@ $breadcrumbs = [
 
 <p class="text-muted small mt-2">
     <strong>Nota:</strong> En facturas timbradas tras esta mejora, el <strong>costo unitario queda guardado en la línea al timbrar</strong> (mismo criterio que antes: costo del producto o costo promedio). Facturas antiguas sin ese dato siguen usando el catálogo actual. Conceptos sin producto: costo 0 al timbrar.
-    <strong>Venta unit.</strong> es el precio unitario de venta de la línea. <strong>IVA acreditable:</strong> 16% sobre costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
-    <strong>Utilidad unit.</strong> = Venta unit. − Costo unit. <strong>Margen %</strong> = (Venta unit. − Costo unit.) ÷ Venta unit. × 100 (si venta unit. es 0, margen 0%).
-    <strong>Venta:</strong> subtotal de la línea. <strong>IVA x pagar:</strong> 16% sobre venta. <strong>ISR:</strong> −1,25% sobre venta. <strong>Monto total Venta</strong> = venta + IVA x pagar + ISR. <strong>Ganancia</strong> = monto total Venta − total costo c/IVA.
+    <strong>IVA x pagar e ISR</strong> provienen de <strong>facturas_impuestos</strong> (timbrado), no de tasas fijas en el reporte.
+    @if(($modoUtilidad ?? 'facturado') === 'cobrado')
+        <strong>Modo cobrado:</strong> cada línea se escala con <code>monto pagado ÷ total factura</code> (complementos timbrados; sin complemento elegido se acumulan pagos por <code>fecha_timbrado</code> del complemento). Las facturas <strong>PUE</strong> en el período cuentan como cobro 100% al timbrar. <strong>Ganancia</strong> = monto total venta proporcional − costo c/IVA proporcional.
+    @else
+        <strong>Venta unit.</strong> es el precio unitario de venta de la línea (base gravable / cantidad). <strong>IVA acreditable:</strong> 16% sobre costo; <strong>total costo c/IVA</strong> = costo + IVA acreditable.
+        <strong>Utilidad unit.</strong> = Venta unit. − Costo unit. <strong>Margen %</strong> = (Venta unit. − Costo unit.) ÷ Venta unit. × 100 (si venta unit. es 0, margen 0%).
+        <strong>Venta:</strong> base gravable de la línea. <strong>Monto total Venta</strong> según CFDI (base + traslados − retenciones). <strong>Ganancia</strong> = monto total Venta − total costo c/IVA.
+    @endif
 </p>
 
 <div id="modalExportUtilidad" class="modal">
@@ -214,6 +244,8 @@ $breadcrumbs = [
             <input type="hidden" name="cliente_id" value="">
             <input type="hidden" name="producto_id" value="">
             <input type="hidden" name="factura_id" value="">
+            <input type="hidden" name="modo" value="">
+            <input type="hidden" name="complemento_pago_id" value="">
             <div class="modal-body">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Formato</label>
@@ -249,6 +281,8 @@ $breadcrumbs = [
         formExport.querySelector('[name="cliente_id"]').value = val('cliente_id');
         formExport.querySelector('[name="producto_id"]').value = val('producto_id');
         formExport.querySelector('[name="factura_id"]').value = val('factura_id');
+        formExport.querySelector('[name="modo"]').value = val('modo');
+        formExport.querySelector('[name="complemento_pago_id"]').value = val('complemento_pago_id');
     });
 })();
 </script>

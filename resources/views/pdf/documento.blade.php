@@ -210,6 +210,9 @@ body {
             @endif
 
             <div style="display:table-cell; vertical-align:top; font-size:6.5pt; line-height:1.2;">
+                @if($esOrdenCompra ?? false)
+                <strong>Razón social:</strong> {{ $empresa->razon_social ?? '—' }}<br>
+                @endif
                 <strong>RFC:</strong> {{ $empresa->rfc }}<br>
                 <strong>Regimen Fiscal:</strong> {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}<br>
                 {{ $empresa->calle ?? '' }} {{ $empresa->numero_exterior ?? '' }}{{ $empresa->numero_interior ? ' Int. ' . $empresa->numero_interior : '' }}<br>

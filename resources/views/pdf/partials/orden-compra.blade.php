@@ -26,6 +26,19 @@
 </tr>
 </table>
 
+@if(!empty($doc->observaciones))
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 2px;">
+<tr>
+<td width="100%" valign="top">
+    <div class="info-box" style="margin-bottom: 2px;">
+        <div class="section-title">OBSERVACIONES</div>
+        {!! nl2br(e($doc->observaciones)) !!}
+    </div>
+</td>
+</tr>
+</table>
+@endif
+
 <table class="productos-table">
 <thead>
 <tr>

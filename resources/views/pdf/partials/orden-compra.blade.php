@@ -26,6 +26,18 @@
             —
         @endif
         <br>
+    </div>
+</td>
+<td width="4%"></td>
+<td width="48%" valign="top">
+    <div class="info-box">
+        <div class="section-title">INFORMACIÓN</div>
+        Fecha: {{ \Carbon\Carbon::parse($doc->fecha)->format('d/m/Y') }}<br>
+        Folio: {{ $doc->folio }}<br>
+        @if($doc->fecha_entrega_estimada)
+        Entrega estimada: {{ \Carbon\Carbon::parse($doc->fecha_entrega_estimada)->format('d/m/Y') }}<br>
+        @endif
+        Moneda: {{ $doc->moneda ?? 'MXN' }}<br>
         Uso CFDI:
         @if($usoCfdiClave)
             {{ $usoCfdiClave }}{{ $usoCfdiDesc ? ' - ' . $usoCfdiDesc : '' }}
@@ -44,18 +56,6 @@
             </span>
         @endif
         <br>
-    </div>
-</td>
-<td width="4%"></td>
-<td width="48%" valign="top">
-    <div class="info-box">
-        <div class="section-title">INFORMACIÓN</div>
-        Fecha: {{ \Carbon\Carbon::parse($doc->fecha)->format('d/m/Y') }}<br>
-        Folio: {{ $doc->folio }}<br>
-        @if($doc->fecha_entrega_estimada)
-        Entrega estimada: {{ \Carbon\Carbon::parse($doc->fecha_entrega_estimada)->format('d/m/Y') }}<br>
-        @endif
-        Moneda: {{ $doc->moneda ?? 'MXN' }}<br>
         @if(($doc->dias_credito ?? 0) > 0)
         Días de crédito: {{ $doc->dias_credito }}
         @endif

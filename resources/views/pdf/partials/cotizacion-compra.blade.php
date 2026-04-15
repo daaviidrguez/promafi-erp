@@ -26,6 +26,20 @@
             —
         @endif
         <br>
+        @if($doc->proveedor_email) Email: {{ $doc->proveedor_email }}<br>@endif
+        @if($doc->proveedor_telefono) Tel: {{ $doc->proveedor_telefono }}<br>@endif
+    </div>
+</td>
+<td width="4%"></td>
+<td width="48%" valign="top">
+    <div class="info-box">
+        <div class="section-title">INFORMACIÓN</div>
+        Fecha: {{ \Carbon\Carbon::parse($doc->fecha)->format('d/m/Y') }}<br>
+        Folio: {{ $doc->folio }}<br>
+        @if($doc->fecha_vencimiento)
+        Válida hasta: {{ \Carbon\Carbon::parse($doc->fecha_vencimiento)->format('d/m/Y') }}<br>
+        @endif
+        Moneda: {{ $doc->moneda ?? 'MXN' }}<br>
         Uso CFDI:
         @if($usoCfdiClave)
             {{ $usoCfdiClave }}{{ $usoCfdiDesc ? ' - ' . $usoCfdiDesc : '' }}
@@ -44,20 +58,6 @@
             </span>
         @endif
         <br>
-        @if($doc->proveedor_email) Email: {{ $doc->proveedor_email }}<br>@endif
-        @if($doc->proveedor_telefono) Tel: {{ $doc->proveedor_telefono }}<br>@endif
-    </div>
-</td>
-<td width="4%"></td>
-<td width="48%" valign="top">
-    <div class="info-box">
-        <div class="section-title">INFORMACIÓN</div>
-        Fecha: {{ \Carbon\Carbon::parse($doc->fecha)->format('d/m/Y') }}<br>
-        Folio: {{ $doc->folio }}<br>
-        @if($doc->fecha_vencimiento)
-        Válida hasta: {{ \Carbon\Carbon::parse($doc->fecha_vencimiento)->format('d/m/Y') }}<br>
-        @endif
-        Moneda: {{ $doc->moneda ?? 'MXN' }}<br>
     </div>
 </td>
 </tr>

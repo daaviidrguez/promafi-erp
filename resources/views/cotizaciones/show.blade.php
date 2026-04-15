@@ -324,12 +324,18 @@ $breadcrumbs = [
                 @endif
 
                 @if($cotizacion->puedeAceptarse())
-                <form method="POST" action="{{ route('cotizaciones.aceptar', $cotizacion->id) }}">
+                <form id="formAceptarCotizacion" method="POST" action="{{ route('cotizaciones.aceptar', $cotizacion->id) }}">
                     @csrf
-                    <button type="submit" class="btn btn-success w-full"
-                            onclick="return confirm('¿Marcar esta cotización como aceptada?')">
-                        ✅ Aceptar
-                    </button>
+                    @if($cotizacion->estado === 'vencida')
+                        <button type="button" class="btn btn-success w-full" onclick="abrirModalAceptarVencida()">
+                            ✅ Aceptar
+                        </button>
+                    @else
+                        <button type="submit" class="btn btn-success w-full"
+                                onclick="return confirm('¿Marcar esta cotización como aceptada?')">
+                            ✅ Aceptar
+                        </button>
+                    @endif
                 </form>
                 @endif
 
@@ -364,6 +370,30 @@ $breadcrumbs = [
 
     </div>
 </div>
+
+{{-- Modal: Confirmar aceptación de cotización vencida --}}
+@if($cotizacion->estado === 'vencida')
+<div id="modalAceptarCotizacionVencida" class="modal">
+    <div class="modal-box" style="max-width:560px;">
+        <div class="modal-header">
+            <div class="modal-title">⚠️ Cotización vencida</div>
+            <button type="button" class="modal-close" onclick="cerrarModalAceptarVencida()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom:8px;">
+                Esta cotización está vencida. Antes de aceptarla, verifique que los precios sigan siendo válidos.
+            </p>
+            <p class="text-muted" style="margin-bottom:0;">
+                Si continúa, la cotización pasará a estado <strong>aceptada</strong> y el flujo seguirá de forma normal.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="cerrarModalAceptarVencida()">Cancelar</button>
+            <button type="button" class="btn btn-success" onclick="confirmarAceptarCotizacionVencida()">Aceptar cotización</button>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Modal: Asignar productos (instrucciones) --}}
 <div id="modalAsignarProductosCotizacion" class="modal">
@@ -407,6 +437,21 @@ $breadcrumbs = [
 @push('scripts')
 <script>
 (function() {
+    window.abrirModalAceptarVencida = function() {
+        const modal = document.getElementById('modalAceptarCotizacionVencida');
+        if (modal) modal.classList.add('show');
+    };
+
+    window.cerrarModalAceptarVencida = function() {
+        const modal = document.getElementById('modalAceptarCotizacionVencida');
+        if (modal) modal.classList.remove('show');
+    };
+
+    window.confirmarAceptarCotizacionVencida = function() {
+        const form = document.getElementById('formAceptarCotizacion');
+        if (form) form.submit();
+    };
+
     const listarUrl = '{{ route("cotizaciones.buscar-productos") }}';
     const asignarUrlTpl = '{{ route("cotizaciones.detalles.asignar-producto", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';

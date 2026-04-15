@@ -167,7 +167,7 @@ class Cotizacion extends Model
      */
     public function puedeAceptarse(): bool
     {
-        return $this->estado === 'borrador';
+        return in_array($this->estado, ['borrador', 'vencida'], true);
     }
 
     /**

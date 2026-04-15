@@ -23,6 +23,8 @@ class OrdenCompra extends Model
         'empresa_id',
         'proveedor_nombre',
         'proveedor_rfc',
+        'proveedor_regimen_fiscal',
+        'proveedor_uso_cfdi',
         'fecha',
         'fecha_entrega_estimada',
         'fecha_recepcion',

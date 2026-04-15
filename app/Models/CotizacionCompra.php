@@ -21,6 +21,8 @@ class CotizacionCompra extends Model
         'empresa_id',
         'proveedor_nombre',
         'proveedor_rfc',
+        'proveedor_regimen_fiscal',
+        'proveedor_uso_cfdi',
         'proveedor_email',
         'proveedor_telefono',
         'fecha',

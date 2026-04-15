@@ -19,6 +19,7 @@ class Proveedor extends Model
         'nombre_comercial',
         'rfc',
         'regimen_fiscal',
+        'uso_cfdi',
         'calle',
         'numero_exterior',
         'numero_interior',

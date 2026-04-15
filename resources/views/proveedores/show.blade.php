@@ -18,6 +18,8 @@
                     <div class="info-row"><div class="info-label">Nombre</div><div class="info-value">{{ $proveedor->nombre }}</div></div>
                     <div class="info-row"><div class="info-label">Código</div><div class="info-value text-mono">{{ $proveedor->codigo ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">RFC</div><div class="info-value text-mono">{{ $proveedor->rfc ?? '—' }}</div></div>
+                    <div class="info-row"><div class="info-label">Régimen Fiscal</div><div class="info-value">{{ $regimenEtiqueta ?? '—' }}</div></div>
+                    <div class="info-row"><div class="info-label">Uso de CFDI</div><div class="info-value">{{ $usoCfdiEtiqueta ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">Días crédito</div><div class="info-value">{{ $proveedor->dias_credito ? $proveedor->dias_credito . ' días' : 'Contado' }}</div></div>
                     @if($proveedor->email)<div class="info-row"><div class="info-label">Email</div><div class="info-value">{{ $proveedor->email }}</div></div>@endif
                     @if($proveedor->telefono)<div class="info-row"><div class="info-label">Teléfono</div><div class="info-value">{{ $proveedor->telefono }}</div></div>@endif

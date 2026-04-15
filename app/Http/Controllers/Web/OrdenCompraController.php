@@ -57,7 +57,7 @@ class OrdenCompraController extends Controller
         if ($request->filled('proveedor_id')) {
             $p = Proveedor::find($request->proveedor_id);
             if ($p) {
-                $proveedorPrecargado = $p->only(['id', 'codigo', 'nombre', 'rfc', 'dias_credito']);
+                $proveedorPrecargado = $p->only(['id', 'codigo', 'nombre', 'rfc', 'dias_credito', 'regimen_fiscal', 'uso_cfdi']);
             }
         }
         return view('ordenes-compra.create', compact('empresa', 'folio', 'orden', 'cotizacionCompra', 'proveedorPrecargado'));
@@ -101,6 +101,8 @@ class OrdenCompraController extends Controller
             $orden->empresa_id = $empresa->id;
             $orden->proveedor_nombre = $proveedor->nombre;
             $orden->proveedor_rfc = $proveedor->rfc;
+            $orden->proveedor_regimen_fiscal = $proveedor->regimen_fiscal;
+            $orden->proveedor_uso_cfdi = $proveedor->uso_cfdi;
             $orden->fecha = $validated['fecha'];
             $orden->fecha_entrega_estimada = $validated['fecha_entrega_estimada'] ?? null;
             $orden->moneda = 'MXN';
@@ -305,6 +307,8 @@ class OrdenCompraController extends Controller
                 'fecha_entrega_estimada' => $validated['fecha_entrega_estimada'] ?? null,
                 'dias_credito' => (int) ($validated['dias_credito'] ?? 0),
                 'observaciones' => $validated['observaciones'] ?? null,
+                'proveedor_regimen_fiscal' => $ordenCompra->proveedor->regimen_fiscal ?? $ordenCompra->proveedor_regimen_fiscal,
+                'proveedor_uso_cfdi' => $ordenCompra->proveedor->uso_cfdi ?? $ordenCompra->proveedor_uso_cfdi,
                 'subtotal' => $subtotal,
                 'descuento' => $descuento,
                 'iva' => $iva,

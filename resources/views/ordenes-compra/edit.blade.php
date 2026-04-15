@@ -13,6 +13,8 @@ $proveedorPrecargado = [
     'id' => $ordenCompra->proveedor_id,
     'nombre' => $ordenCompra->proveedor_nombre,
     'rfc' => $ordenCompra->proveedor_rfc ?? '',
+    'regimen_fiscal' => $ordenCompra->proveedor_regimen_fiscal ?? '',
+    'uso_cfdi' => $ordenCompra->proveedor_uso_cfdi ?? '',
     'dias_credito' => $ordenCompra->dias_credito ?? 0,
 ];
 $productosIniciales = $ordenCompra->detalles->map(function ($d) {
@@ -65,6 +67,9 @@ $productosIniciales = $ordenCompra->detalles->map(function ($d) {
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
                         <span class="fw-600" id="proveedorNombre">{{ $ordenCompra->proveedor_nombre }}</span>
                         <span class="text-muted" id="proveedorRfc">@if($ordenCompra->proveedor_rfc) RFC: {{ $ordenCompra->proveedor_rfc }} @endif</span>
+                    </div>
+                    <div class="text-muted" style="margin-top: 6px; font-size: 13px;">
+                        Régimen Fiscal: {{ $ordenCompra->proveedor_regimen_fiscal ?? '—' }} · Uso CFDI: {{ $ordenCompra->proveedor_uso_cfdi ?? '—' }}
                     </div>
                     <div style="margin-top:12px;">
                         <label class="form-label">Días de crédito</label>

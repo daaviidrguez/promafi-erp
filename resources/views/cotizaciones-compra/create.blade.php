@@ -122,6 +122,8 @@ $breadcrumbs = [
                         <div>
                             <div class="fw-bold" id="proveedorNombre" style="font-size:14px;"></div>
                             <div class="text-muted mt-4" id="proveedorRfc" style="font-size:13px;"></div>
+                            <div class="text-muted mt-4" id="proveedorRegimen" style="font-size:13px;"></div>
+                            <div class="text-muted mt-4" id="proveedorUsoCfdi" style="font-size:13px;"></div>
                         </div>
                         <button type="button" onclick="limpiarProveedor()" class="btn btn-light btn-sm">
                             Cambiar
@@ -294,6 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('proveedorInfo').style.display = 'block';
     document.getElementById('proveedorNombre').textContent = '{{ $cotizacion->proveedor->nombre }}';
     document.getElementById('proveedorRfc').textContent = 'RFC: {{ $cotizacion->proveedor->rfc }}';
+    document.getElementById('proveedorRegimen').textContent = 'Régimen Fiscal: {{ $cotizacion->proveedor_regimen_fiscal ?? '—' }}';
+    document.getElementById('proveedorUsoCfdi').textContent = 'Uso CFDI: {{ $cotizacion->proveedor_uso_cfdi ?? '—' }}';
     @endif
 });
 
@@ -326,6 +330,8 @@ function seleccionarProveedor(provider) {
     document.getElementById('buscarProveedor').value = provider.nombre;
     document.getElementById('proveedorNombre').textContent = provider.nombre;
     document.getElementById('proveedorRfc').textContent = 'RFC: ' + (provider.rfc || '');
+    document.getElementById('proveedorRegimen').textContent = 'Régimen Fiscal: ' + (provider.regimen_fiscal_etiqueta || provider.regimen_fiscal || '—');
+    document.getElementById('proveedorUsoCfdi').textContent = 'Uso CFDI: ' + (provider.uso_cfdi_etiqueta || provider.uso_cfdi || '—');
     document.getElementById('proveedorInfo').style.display = 'block';
     closeDropdown('proveedorResults');
 }
@@ -334,6 +340,8 @@ function limpiarProveedor() {
     document.getElementById('proveedor_id').value = '';
     document.getElementById('buscarProveedor').value = '';
     document.getElementById('proveedorInfo').style.display = 'none';
+    document.getElementById('proveedorRegimen').textContent = '';
+    document.getElementById('proveedorUsoCfdi').textContent = '';
     document.getElementById('buscarProveedor').focus();
 }
 

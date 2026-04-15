@@ -1,4 +1,17 @@
 {{-- Cotización de Compra: proveedor, detalle productos, totales --}}
+@php
+    $regimenClave = $doc->proveedor_regimen_fiscal ?? ($doc->proveedor->regimen_fiscal ?? null);
+    $usoCfdiClave = $doc->proveedor_uso_cfdi ?? ($doc->proveedor->uso_cfdi ?? null);
+    $regimenDesc = $regimenClave
+        ? (\App\Models\RegimenFiscal::where('clave', $regimenClave)->value('descripcion') ?? null)
+        : null;
+    $usoCfdiDesc = $usoCfdiClave
+        ? (\App\Models\UsoCfdi::where('clave', $usoCfdiClave)->value('descripcion') ?? null)
+        : null;
+    $diasCredito = (int) ($doc->proveedor->dias_credito ?? 0);
+    $esCredito = $diasCredito > 0;
+@endphp
+
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
 <td width="48%" valign="top">
@@ -6,6 +19,31 @@
         <div class="section-title">PROVEEDOR</div>
         <strong>{{ $doc->proveedor_nombre ?? '—' }}</strong><br>
         RFC: {{ $doc->proveedor_rfc ?? '—' }}<br>
+        Régimen Fiscal:
+        @if($regimenClave)
+            {{ $regimenClave }}{{ $regimenDesc ? ' - ' . $regimenDesc : '' }}
+        @else
+            —
+        @endif
+        <br>
+        Uso CFDI:
+        @if($usoCfdiClave)
+            {{ $usoCfdiClave }}{{ $usoCfdiDesc ? ' - ' . $usoCfdiDesc : '' }}
+        @else
+            —
+        @endif
+        <br>
+        Condición de compra:
+        @if($esCredito)
+            <span style="display:inline-block; padding:1px 7px; border-radius:999px; background:#FEF3C7; color:#92400E; font-weight:bold;">
+                CRÉDITO ({{ $diasCredito }} días)
+            </span>
+        @else
+            <span style="display:inline-block; padding:1px 7px; border-radius:999px; background:#DCFCE7; color:#166534; font-weight:bold;">
+                CONTADO
+            </span>
+        @endif
+        <br>
         @if($doc->proveedor_email) Email: {{ $doc->proveedor_email }}<br>@endif
         @if($doc->proveedor_telefono) Tel: {{ $doc->proveedor_telefono }}<br>@endif
     </div>

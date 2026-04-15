@@ -8,6 +8,8 @@ $breadcrumbs = [
     ['title' => 'Órdenes de Compra', 'url' => route('ordenes-compra.index')],
     ['title' => $ordenCompra->folio],
 ];
+$diasCreditoOrden = (int) ($ordenCompra->dias_credito ?? 0);
+$esCreditoOrden = $diasCreditoOrden > 0;
 @endphp
 
 @section('content')
@@ -23,6 +25,18 @@ $breadcrumbs = [
                 <div class="info-grid-2">
                     <div class="info-row"><div class="info-label">Razón Social</div><div class="info-value">{{ $ordenCompra->proveedor_nombre }}</div></div>
                     <div class="info-row"><div class="info-label">RFC</div><div class="info-value text-mono">{{ $ordenCompra->proveedor_rfc ?? '—' }}</div></div>
+                    <div class="info-row"><div class="info-label">Régimen Fiscal</div><div class="info-value text-mono">{{ $ordenCompra->proveedor_regimen_fiscal ?? '—' }}</div></div>
+                    <div class="info-row"><div class="info-label">Uso CFDI</div><div class="info-value text-mono">{{ $ordenCompra->proveedor_uso_cfdi ?? '—' }}</div></div>
+                    <div class="info-row">
+                        <div class="info-label">Condición de compra</div>
+                        <div class="info-value">
+                            @if($esCreditoOrden)
+                                <span class="badge badge-warning">💳 Crédito ({{ $diasCreditoOrden }} días)</span>
+                            @else
+                                <span class="badge badge-success">💵 Contado</span>
+                            @endif
+                        </div>
+                    </div>
                     <div class="info-row"><div class="info-label">Fecha</div><div class="info-value">{{ $ordenCompra->fecha->format('d/m/Y') }}</div></div>
                     @if($ordenCompra->fecha_recepcion)<div class="info-row"><div class="info-label">Fecha recepción</div><div class="info-value">{{ $ordenCompra->fecha_recepcion->format('d/m/Y') }}</div></div>@endif
                 </div>

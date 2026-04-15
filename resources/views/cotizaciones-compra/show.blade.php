@@ -8,6 +8,8 @@ $breadcrumbs = [
     ['title' => 'Cotizaciones de Compra', 'url' => route('cotizaciones-compra.index')],
     ['title' => $cotizacionCompra->folio],
 ];
+$diasCreditoProveedor = (int) ($cotizacionCompra->proveedor->dias_credito ?? 0);
+$esCreditoProveedor = $diasCreditoProveedor > 0;
 @endphp
 
 @section('content')
@@ -22,6 +24,18 @@ $breadcrumbs = [
                 <div class="info-grid-2">
                     <div class="info-row"><div class="info-label">Razón Social</div><div class="info-value">{{ $cotizacionCompra->proveedor_nombre }}</div></div>
                     <div class="info-row"><div class="info-label">RFC</div><div class="info-value text-mono">{{ $cotizacionCompra->proveedor_rfc ?? '—' }}</div></div>
+                    <div class="info-row"><div class="info-label">Régimen Fiscal</div><div class="info-value text-mono">{{ $cotizacionCompra->proveedor_regimen_fiscal ?? '—' }}</div></div>
+                    <div class="info-row"><div class="info-label">Uso CFDI</div><div class="info-value text-mono">{{ $cotizacionCompra->proveedor_uso_cfdi ?? '—' }}</div></div>
+                    <div class="info-row">
+                        <div class="info-label">Condición de compra</div>
+                        <div class="info-value">
+                            @if($esCreditoProveedor)
+                                <span class="badge badge-warning">💳 Crédito ({{ $diasCreditoProveedor }} días)</span>
+                            @else
+                                <span class="badge badge-success">💵 Contado</span>
+                            @endif
+                        </div>
+                    </div>
                     @if($cotizacionCompra->proveedor_email)<div class="info-row"><div class="info-label">Email</div><div class="info-value">{{ $cotizacionCompra->proveedor_email }}</div></div>@endif
                     @if($cotizacionCompra->proveedor_telefono)<div class="info-row"><div class="info-label">Teléfono</div><div class="info-value">{{ $cotizacionCompra->proveedor_telefono }}</div></div>@endif
                 </div>

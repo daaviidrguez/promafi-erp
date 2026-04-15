@@ -54,6 +54,8 @@ $breadcrumbs = [
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
                         <span class="fw-600" id="proveedorNombre"></span>
                         <span class="text-muted" id="proveedorRfc"></span>
+                        <span class="text-muted" id="proveedorRegimen"></span>
+                        <span class="text-muted" id="proveedorUsoCfdi"></span>
                         <span class="badge" id="proveedorTipoCredito"></span>
                         <button type="button" onclick="limpiarProveedor()" class="btn btn-light btn-sm">Cambiar</button>
                     </div>
@@ -173,6 +175,8 @@ function seleccionarProveedor(p) {
     document.getElementById('buscarProveedor').value = p.nombre;
     document.getElementById('proveedorNombre').textContent = p.nombre;
     document.getElementById('proveedorRfc').textContent = p.rfc ? ' RFC: ' + p.rfc : '';
+    document.getElementById('proveedorRegimen').textContent = p.regimen_fiscal_etiqueta ? ' · Régimen: ' + p.regimen_fiscal_etiqueta : '';
+    document.getElementById('proveedorUsoCfdi').textContent = p.uso_cfdi_etiqueta ? ' · Uso CFDI: ' + p.uso_cfdi_etiqueta : '';
     var dias = p.dias_credito != null ? parseInt(p.dias_credito, 10) : 0;
     if (isNaN(dias)) dias = 0;
     document.getElementById('dias_credito').value = dias;
@@ -193,6 +197,8 @@ function limpiarProveedor() {
     document.getElementById('buscarProveedor').value = '';
     document.getElementById('proveedorInfo').style.display = 'none';
     document.getElementById('dias_credito').value = '0';
+    document.getElementById('proveedorRegimen').textContent = '';
+    document.getElementById('proveedorUsoCfdi').textContent = '';
 }
 
 async function buscarProductos(q) {

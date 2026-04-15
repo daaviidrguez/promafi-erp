@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Proveedor;
+use App\Models\RegimenFiscal;
+use App\Models\UsoCfdi;
 use Illuminate\Http\Request;
 
 class ProveedorController extends Controller
@@ -20,7 +22,10 @@ class ProveedorController extends Controller
 
     public function create()
     {
-        return view('proveedores.create');
+        $regimenes = RegimenFiscal::activos()->get();
+        $usosCfdi = UsoCfdi::activos()->get();
+
+        return view('proveedores.create', compact('regimenes', 'usosCfdi'));
     }
 
     public function store(Request $request)
@@ -29,6 +34,8 @@ class ProveedorController extends Controller
             'nombre' => 'required|string|max:255',
             'codigo' => 'nullable|string|max:20|unique:proveedores,codigo',
             'rfc' => 'nullable|string|max:13',
+            'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
+            'uso_cfdi' => 'nullable|string|exists:usos_cfdi,clave',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:20',
             'dias_credito' => 'nullable|integer|min:0',
@@ -44,6 +51,13 @@ class ProveedorController extends Controller
 
     public function show(Proveedor $proveedor)
     {
+        $regimenEtiqueta = $proveedor->regimen_fiscal
+            ? (optional(RegimenFiscal::where('clave', $proveedor->regimen_fiscal)->first())->etiqueta ?? $proveedor->regimen_fiscal)
+            : null;
+        $usoCfdiEtiqueta = $proveedor->uso_cfdi
+            ? (optional(UsoCfdi::where('clave', $proveedor->uso_cfdi)->first())->etiqueta ?? $proveedor->uso_cfdi)
+            : null;
+
         $proveedor->load([
             'ordenesCompra' => fn ($q) => $q->latest()->limit(10),
             'cuentasPorPagar',
@@ -58,12 +72,15 @@ class ProveedorController extends Controller
             'cuentas_pendientes' => $proveedor->cuentasPorPagar()->whereIn('estado', ['pendiente', 'parcial', 'vencida'])->count(),
             'monto_pendiente' => (float) $proveedor->cuentasPorPagar()->whereIn('estado', ['pendiente', 'parcial', 'vencida'])->sum('monto_pendiente'),
         ];
-        return view('proveedores.show', compact('proveedor', 'estadisticas'));
+        return view('proveedores.show', compact('proveedor', 'estadisticas', 'regimenEtiqueta', 'usoCfdiEtiqueta'));
     }
 
     public function edit(Proveedor $proveedor)
     {
-        return view('proveedores.edit', compact('proveedor'));
+        $regimenes = RegimenFiscal::activos()->get();
+        $usosCfdi = UsoCfdi::activos()->get();
+
+        return view('proveedores.edit', compact('proveedor', 'regimenes', 'usosCfdi'));
     }
 
     public function update(Request $request, Proveedor $proveedor)
@@ -72,6 +89,8 @@ class ProveedorController extends Controller
             'nombre' => 'required|string|max:255',
             'codigo' => 'nullable|string|max:20|unique:proveedores,codigo,' . $proveedor->id,
             'rfc' => 'nullable|string|max:13',
+            'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
+            'uso_cfdi' => 'nullable|string|exists:usos_cfdi,clave',
             'email' => 'nullable|email',
             'telefono' => 'nullable|string|max:20',
             'dias_credito' => 'nullable|integer|min:0',

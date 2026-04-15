@@ -35,6 +35,26 @@
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                 <div class="form-group">
+                    <label class="form-label">Régimen Fiscal</label>
+                    <select name="regimen_fiscal" class="form-control">
+                        <option value="">Seleccionar...</option>
+                        @foreach($regimenes ?? [] as $r)
+                            <option value="{{ $r->clave }}" {{ old('regimen_fiscal', $proveedor->regimen_fiscal) == $r->clave ? 'selected' : '' }}>{{ $r->etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Uso de CFDI</label>
+                    <select name="uso_cfdi" class="form-control">
+                        <option value="">Seleccionar...</option>
+                        @foreach($usosCfdi ?? [] as $u)
+                            <option value="{{ $u->clave }}" {{ old('uso_cfdi', $proveedor->uso_cfdi) == $u->clave ? 'selected' : '' }}>{{ $u->etiqueta }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div class="form-group">
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-control" value="{{ old('email', $proveedor->email) }}">
                 </div>

@@ -10,6 +10,8 @@ use App\Models\OrdenCompraDetalle;
 use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Empresa;
+use App\Models\RegimenFiscal;
+use App\Models\UsoCfdi;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -102,6 +104,8 @@ class CotizacionCompraController extends Controller
                 'empresa_id' => $empresa->id,
                 'proveedor_nombre' => $proveedor->nombre,
                 'proveedor_rfc' => $proveedor->rfc,
+                'proveedor_regimen_fiscal' => $proveedor->regimen_fiscal,
+                'proveedor_uso_cfdi' => $proveedor->uso_cfdi,
                 'proveedor_email' => $proveedor->email,
                 'proveedor_telefono' => $proveedor->telefono,
                 'fecha' => $validated['fecha'],
@@ -171,6 +175,8 @@ class CotizacionCompraController extends Controller
             $orden->empresa_id = $cotizacionCompra->empresa_id;
             $orden->proveedor_nombre = $cotizacionCompra->proveedor_nombre;
             $orden->proveedor_rfc = $cotizacionCompra->proveedor_rfc;
+            $orden->proveedor_regimen_fiscal = $cotizacionCompra->proveedor_regimen_fiscal;
+            $orden->proveedor_uso_cfdi = $cotizacionCompra->proveedor_uso_cfdi;
             $orden->fecha = $cotizacionCompra->fecha;
             $orden->moneda = $cotizacionCompra->moneda;
             $orden->tipo_cambio = $cotizacionCompra->tipo_cambio;
@@ -217,8 +223,30 @@ class CotizacionCompraController extends Controller
         $list = Proveedor::activos()
             ->where(fn ($query) => $query->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%"))
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'rfc', 'dias_credito']);
-        return response()->json($list);
+            ->get(['id', 'codigo', 'nombre', 'rfc', 'dias_credito', 'regimen_fiscal', 'uso_cfdi']);
+
+        $regimenes = RegimenFiscal::activos()->pluck('descripcion', 'clave');
+        $usosCfdi = UsoCfdi::activos()->pluck('descripcion', 'clave');
+
+        $payload = $list->map(function (Proveedor $p) use ($regimenes, $usosCfdi) {
+            return [
+                'id' => (int) $p->id,
+                'codigo' => $p->codigo,
+                'nombre' => $p->nombre,
+                'rfc' => $p->rfc,
+                'dias_credito' => $p->dias_credito,
+                'regimen_fiscal' => $p->regimen_fiscal,
+                'uso_cfdi' => $p->uso_cfdi,
+                'regimen_fiscal_etiqueta' => $p->regimen_fiscal
+                    ? ($p->regimen_fiscal . ' - ' . ($regimenes[$p->regimen_fiscal] ?? $p->regimen_fiscal))
+                    : null,
+                'uso_cfdi_etiqueta' => $p->uso_cfdi
+                    ? ($p->uso_cfdi . ' - ' . ($usosCfdi[$p->uso_cfdi] ?? $p->uso_cfdi))
+                    : null,
+            ];
+        });
+
+        return response()->json($payload);
     }
 
     public function verPDF(CotizacionCompra $cotizacionCompra)

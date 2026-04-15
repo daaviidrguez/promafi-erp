@@ -17,7 +17,7 @@
 <td width="48%" valign="top">
     <div class="info-box">
         <div class="section-title">PROVEEDOR</div>
-        <strong>{{ $doc->proveedor_nombre ?? '—' }}</strong><br>
+        <strong>Razón social:</strong> {{ $doc->proveedor_nombre ?? '—' }}<br>
         RFC: {{ $doc->proveedor_rfc ?? '—' }}<br>
         Régimen Fiscal:
         @if($regimenClave)

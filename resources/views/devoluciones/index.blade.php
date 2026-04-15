@@ -11,6 +11,7 @@
             <option value="borrador" {{ ($estado ?? '') == 'borrador' ? 'selected' : '' }}>Borrador</option>
             <option value="autorizada" {{ ($estado ?? '') == 'autorizada' ? 'selected' : '' }}>Autorizada</option>
             <option value="cerrada" {{ ($estado ?? '') == 'cerrada' ? 'selected' : '' }}>Cerrada</option>
+            <option value="cancelada" {{ ($estado ?? '') == 'cancelada' ? 'selected' : '' }}>Cancelada</option>
         </select>
         <button type="submit" class="btn btn-primary">Filtrar</button>
     </form>
@@ -27,7 +28,17 @@
     <td>{{ $dev->cliente->nombre ?? '' }}</td>
     <td>{{ $dev->fecha_devolucion->format('d/m/Y') }}</td>
     <td class="td-right text-mono">${{ number_format($dev->total_devuelto, 2, '.', ',') }}</td>
-    <td class="td-center">@if($dev->estado === 'borrador')<span class="badge badge-warning">Borrador</span>@elseif($dev->estado === 'autorizada')<span class="badge badge-success">Autorizada</span>@else<span class="badge badge-secondary">Cerrada</span>@endif</td>
+    <td class="td-center">
+        @if($dev->estado === 'borrador')
+            <span class="badge badge-warning">Borrador</span>
+        @elseif($dev->estado === 'autorizada')
+            <span class="badge badge-success">Autorizada</span>
+        @elseif($dev->estado === 'cancelada')
+            <span class="badge badge-danger">Cancelada</span>
+        @else
+            <span class="badge badge-secondary">Cerrada</span>
+        @endif
+    </td>
     <td class="td-actions"><a href="{{ route('devoluciones.show', $dev->id) }}" class="btn btn-info btn-sm">Ver</a></td>
 </tr>
 @endforeach

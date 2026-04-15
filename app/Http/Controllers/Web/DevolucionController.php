@@ -40,7 +40,7 @@ class DevolucionController extends Controller
 
         // Cantidades ya devueltas por factura_detalle_id (para límite y visibilidad)
         $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
-            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id)->where('estado', '!=', 'cancelada'))
             ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
             ->groupBy('factura_detalle_id')
             ->pluck('total_devuelto', 'factura_detalle_id')
@@ -73,7 +73,7 @@ class DevolucionController extends Controller
         }
 
         $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
-            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id)->where('estado', '!=', 'cancelada'))
             ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
             ->groupBy('factura_detalle_id')
             ->pluck('total_devuelto', 'factura_detalle_id')
@@ -136,5 +136,18 @@ class DevolucionController extends Controller
         }
         $devolucion->update(['estado' => 'autorizada']);
         return back()->with('success', 'Devolución autorizada. Ya puedes generar la nota de crédito.');
+    }
+
+    public function cancelar(Devolucion $devolucion)
+    {
+        $devolucion->loadMissing('notasCredito');
+
+        if (! $devolucion->puedeCancelar()) {
+            return back()->with('error', 'Solo se pueden cancelar devoluciones autorizadas sin nota de crédito generada.');
+        }
+
+        $devolucion->update(['estado' => 'cancelada']);
+
+        return back()->with('success', 'Devolución cancelada correctamente. Se liberó la factura para su flujo de cancelación.');
     }
 }

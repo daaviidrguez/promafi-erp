@@ -65,4 +65,13 @@ class Devolucion extends Model
     {
         return $this->estado === 'autorizada' && $this->detalles->isNotEmpty();
     }
+
+    public function puedeCancelar(): bool
+    {
+        if ($this->estado !== 'autorizada') {
+            return false;
+        }
+
+        return ! $this->notasCredito()->exists();
+    }
 }

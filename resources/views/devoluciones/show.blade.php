@@ -97,6 +97,15 @@ $breadcrumbs = [
                     @if($devolucion->puedeGenerarNotaCredito())
                         <a href="{{ route('notas-credito.create', ['devolucion_id' => $devolucion->id]) }}" class="btn btn-primary w-full mt-3">Generar nota de crédito</a>
                     @endif
+                    @if($devolucion->puedeCancelar())
+                        <form method="POST" action="{{ route('devoluciones.cancelar', $devolucion->id) }}" class="mt-2" onsubmit="return confirm('¿Cancelar esta devolución? No se eliminará, solo cambiará a estado cancelado.');">
+                            @csrf
+                            <button type="submit" class="btn btn-danger w-full">Cancelar devolución</button>
+                        </form>
+                    @endif
+                @elseif($devolucion->estado === 'cancelada')
+                    <span class="badge badge-danger">Cancelada</span>
+                    <p class="mt-2 text-muted" style="font-size: 13px;">Se conserva para trazabilidad. No afecta la factura para cancelación CFDI.</p>
                 @else
                     <span class="badge badge-secondary">Cerrada</span>
                 @endif

@@ -348,6 +348,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/devoluciones', [DevolucionController::class, 'store'])->name('devoluciones.store');
     Route::get('/devoluciones/{devolucion}', [DevolucionController::class, 'show'])->name('devoluciones.show');
     Route::post('/devoluciones/{devolucion}/autorizar', [DevolucionController::class, 'autorizar'])->name('devoluciones.autorizar');
+    Route::post('/devoluciones/{devolucion}/cancelar', [DevolucionController::class, 'cancelar'])->name('devoluciones.cancelar');
 
     // ───── NOTAS DE CRÉDITO ─────
     Route::get('/notas-credito', [NotaCreditoController::class, 'index'])->name('notas-credito.index');

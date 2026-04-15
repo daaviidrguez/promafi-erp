@@ -133,7 +133,7 @@ class NotaCreditoController extends Controller
 
         // Cantidades disponibles (coherente con devoluciones: cant facturada - devoluciones - NCs sin devolución)
         $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
-            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id)->where('estado', '!=', 'cancelada'))
             ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
             ->groupBy('factura_detalle_id')
             ->pluck('total_devuelto', 'factura_detalle_id')
@@ -197,7 +197,7 @@ class NotaCreditoController extends Controller
             $cantidadesAcreditadas = collect();
         } else {
             $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
-                ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+                ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id)->where('estado', '!=', 'cancelada'))
                 ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
                 ->groupBy('factura_detalle_id')
                 ->pluck('total_devuelto', 'factura_detalle_id')
@@ -383,7 +383,7 @@ class NotaCreditoController extends Controller
         $devolucionesAnteriores = collect();
         if ($devolucion) {
             $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
-                ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+                ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id)->where('estado', '!=', 'cancelada'))
                 ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
                 ->groupBy('factura_detalle_id')
                 ->pluck('total_devuelto', 'factura_detalle_id')
@@ -430,7 +430,7 @@ class NotaCreditoController extends Controller
         $factura = $notaCredito->factura()->with(['detalles.impuestos', 'cliente', 'empresa', 'cuentaPorCobrar'])->firstOrFail();
 
         $cantidadesDevueltas = DevolucionDetalle::whereIn('factura_detalle_id', $factura->detalles->pluck('id'))
-            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id))
+            ->whereHas('devolucion', fn ($q) => $q->where('factura_id', $factura->id)->where('estado', '!=', 'cancelada'))
             ->selectRaw('factura_detalle_id, SUM(cantidad_devuelta) as total_devuelto')
             ->groupBy('factura_detalle_id')
             ->pluck('total_devuelto', 'factura_detalle_id')

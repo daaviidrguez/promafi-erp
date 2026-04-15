@@ -57,14 +57,21 @@ class FacturaController extends Controller
     }
 
     /**
-     * Listado de facturas timbradas para selección en modal (UUID sustituto en cancelación motivo 01,
-     * o CFDI a sustituir al crear factura con relación).
+     * Listado de facturas para selección en modal (UUID sustituto en cancelación motivo 01,
+     * o CFDI a sustituir al crear factura con relación): timbradas y canceladas solo en ERP (pendiente PAC).
      */
     public function listarParaRelacion(Request $request)
     {
         $query = Factura::with('cliente:id,nombre')
-            ->where('estado', 'timbrada')
             ->whereNotNull('uuid')
+            ->where(function ($q) {
+                $q->where('estado', 'timbrada')
+                    ->orWhere(function ($q2) {
+                        $q2->where('estado', 'cancelada')
+                            ->where('cancelacion_administrativa', true)
+                            ->where('codigo_estatus_cancelacion', 'ADM');
+                    });
+            })
             ->orderBy('fecha_emision', 'desc')
             ->limit(200);
 
@@ -842,35 +849,44 @@ class FacturaController extends Controller
                 throw new \Exception($resultado['message']);
             }
 
-            // Actualizar factura (incluye código SAT del acuse)
-            $factura->update([
+            $fueCancelacionAdministrativaPrev = (bool) $factura->cancelacion_administrativa;
+
+            // Actualizar factura (incluye código SAT del acuse). No se toca timbrado ni XML originales.
+            $updates = [
                 'estado' => 'cancelada',
                 'motivo_cancelacion' => $validated['motivo_cancelacion'],
-                'fecha_cancelacion' => now(),
                 'acuse_cancelacion' => $resultado['acuse'] ?? null,
                 'codigo_estatus_cancelacion' => $resultado['codigo_estatus'] ?? '201',
-            ]);
+            ];
+            if (! $fueCancelacionAdministrativaPrev) {
+                $updates['fecha_cancelacion'] = now();
+            } else {
+                $updates['fecha_cancelacion_pac'] = now();
+            }
+            $factura->update($updates);
 
             // Regenerar PDF para que muestre "CANCELADA"
             $pdfPath = $this->pdfService->generarFacturaPDF($factura);
             $factura->update(['pdf_path' => $pdfPath]);
 
-            // Devolver productos al inventario solo si se había descontado al timbrar (no aplica si salió por remisión)
-            $factura->load('remisionVinculada');
-            if (! $factura->inventarioDescontadoEnRemision()) {
-                foreach ($factura->detalles as $detalle) {
-                    if ($detalle->producto && $detalle->producto->controla_inventario) {
-                        InventarioMovimiento::registrar(
-                            $detalle->producto,
-                            InventarioMovimiento::TIPO_DEVOLUCION_FACTURA,
-                            (float) $detalle->cantidad,
-                            auth()->id(),
-                            $factura->id,
-                            null,
-                            null,
-                            null,
-                            'Factura cancelada'
-                        );
+            // Inventario: si ya se revirtió en cancelación administrativa, no duplicar movimientos.
+            if (! $fueCancelacionAdministrativaPrev) {
+                $factura->load('remisionVinculada');
+                if (! $factura->inventarioDescontadoEnRemision()) {
+                    foreach ($factura->detalles as $detalle) {
+                        if ($detalle->producto && $detalle->producto->controla_inventario) {
+                            InventarioMovimiento::registrar(
+                                $detalle->producto,
+                                InventarioMovimiento::TIPO_DEVOLUCION_FACTURA,
+                                (float) $detalle->cantidad,
+                                auth()->id(),
+                                $factura->id,
+                                null,
+                                null,
+                                null,
+                                'Factura cancelada'
+                            );
+                        }
                     }
                 }
             }
@@ -886,14 +902,22 @@ class FacturaController extends Controller
 
             DB::commit();
 
+            $mensajeExito = $fueCancelacionAdministrativaPrev
+                ? 'CFDI cancelado ante el PAC/SAT correctamente (la factura ya estaba cancelada en el ERP).'
+                : 'Factura cancelada exitosamente';
+
             return redirect()->route('facturas.show', $factura->id)
-                ->with('success', 'Factura cancelada exitosamente');
+                ->with('success', $mensajeExito);
 
         } catch (\Exception $e) {
             DB::rollBack();
             $msg = $e->getMessage();
             $codigo = $this->extraerCodigoErrorCancelacion($msg);
-            $factura->update(['codigo_estatus_cancelacion' => $codigo]);
+            $factura->refresh();
+            // No sobrescribir ADM si sigue pendiente la cancelación fiscal tras error del PAC.
+            if (! $factura->pendienteCancelacionAntePac()) {
+                $factura->update(['codigo_estatus_cancelacion' => $codigo]);
+            }
 
             return back()->with('error', 'Error al cancelar: '.$msg);
         }

@@ -178,7 +178,14 @@
 @if(($f->estado ?? '') === 'cancelada')
 <div style="margin-top:4px; padding:4px; border:2px solid #DC2626; background:#FEE2E2; text-align:center;">
     <strong style="color:#DC2626; font-size:10pt;">ESTE COMPROBANTE HA SIDO CANCELADO</strong>
-    @if($f->fecha_cancelacion)
+    @if($f->cancelacion_administrativa ?? false)
+        @if($f->fecha_cancelacion)
+        <br><span style="font-size:8pt;">Cancelación administrativa (ERP): {{ \Carbon\Carbon::parse($f->fecha_cancelacion)->format('d/m/Y H:i') }}</span>
+        @endif
+        @if($f->fecha_cancelacion_pac ?? null)
+        <br><span style="font-size:8pt;">Cancelación ante PAC/SAT: {{ \Carbon\Carbon::parse($f->fecha_cancelacion_pac)->format('d/m/Y H:i') }}</span>
+        @endif
+    @elseif($f->fecha_cancelacion)
     <br><span style="font-size:8pt;">Fecha de cancelación: {{ \Carbon\Carbon::parse($f->fecha_cancelacion)->format('d/m/Y H:i') }}</span>
     @endif
 </div>

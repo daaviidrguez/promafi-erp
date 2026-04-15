@@ -51,6 +51,7 @@ class Factura extends Model
         'pdf_path',
         'motivo_cancelacion',
         'fecha_cancelacion',
+        'fecha_cancelacion_pac',
         'acuse_cancelacion',
         'codigo_estatus_cancelacion',
         'cotizacion_id',
@@ -68,6 +69,7 @@ class Factura extends Model
         'fecha_emision' => 'datetime',
         'fecha_timbrado' => 'datetime',
         'fecha_cancelacion' => 'datetime',
+        'fecha_cancelacion_pac' => 'datetime',
         'cancelacion_administrativa' => 'boolean',
         'cancelacion_administrativa_at' => 'datetime',
         'tipo_cambio' => 'decimal:6',
@@ -339,12 +341,32 @@ class Factura extends Model
     }
 
     /**
-     * Verificar si puede ser cancelada (sin documentos relacionados).
-     * Se volverá a activar en flujo castada.
+     * Timbrada en el PAC pero cancelada solo en ERP; falta la cancelación ante el PAC/SAT.
+     * El inventario y saldo ya se revirtieron en cancelación administrativa.
+     */
+    public function pendienteCancelacionAntePac(): bool
+    {
+        return $this->estado === 'cancelada'
+            && $this->cancelacion_administrativa
+            && ! empty($this->uuid)
+            && (string) ($this->codigo_estatus_cancelacion ?? '') === 'ADM';
+    }
+
+    /**
+     * Verificar si puede ser cancelada ante el PAC (timbrada, o cancelada administrativamente pendiente de PAC).
+     * Sin documentos relacionados que bloqueen (misma regla que flujo castada).
      */
     public function puedeCancelar(): bool
     {
-        return $this->estado === 'timbrada' && ! $this->tieneDocumentosRelacionados();
+        if ($this->tieneDocumentosRelacionados()) {
+            return false;
+        }
+
+        if ($this->estado === 'timbrada') {
+            return true;
+        }
+
+        return $this->pendienteCancelacionAntePac();
     }
 
     /**
@@ -460,8 +482,11 @@ class Factura extends Model
             return 'Timbrada';
         }
         if ($this->estado === 'cancelada') {
-            if ($this->cancelacion_administrativa) {
+            if ($this->pendienteCancelacionAntePac()) {
                 return 'Cancelada (Administrativa — ERP)';
+            }
+            if ($this->cancelacion_administrativa) {
+                return 'Cancelada (Administrativa en ERP y ante el PAC/SAT)';
             }
             $cod = $this->codigo_estatus_cancelacion;
             if ($cod && $cod !== 'ADM') {
@@ -497,6 +522,7 @@ class Factura extends Model
     public static function descripcionCodigoCancelacion(?string $codigo): string
     {
         $map = [
+            'ADM' => 'Cancelación administrativa en ERP (pendiente ante PAC/SAT)',
             '201' => 'Solicitud procesada',
             '202' => 'UUID previamente enviado',
             '203' => 'UUID no corresponde al emisor',

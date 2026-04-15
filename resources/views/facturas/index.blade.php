@@ -98,7 +98,20 @@ $breadcrumbs = [
                     @elseif($factura->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        <span class="badge badge-danger" title="{{ $factura->fecha_cancelacion ? $factura->fecha_cancelacion->format('d/m/Y H:i') : '' }}">✗ Cancelada</span>
+                        @php
+                            $tituloCancelFechas = '';
+                            if ($factura->cancelacion_administrativa ?? false) {
+                                if ($factura->fecha_cancelacion) {
+                                    $tituloCancelFechas = 'Administrativa (ERP): '.$factura->fecha_cancelacion->format('d/m/Y H:i');
+                                }
+                                if ($factura->fecha_cancelacion_pac ?? null) {
+                                    $tituloCancelFechas .= ($tituloCancelFechas ? ' | ' : '').'PAC/SAT: '.$factura->fecha_cancelacion_pac->format('d/m/Y H:i');
+                                }
+                            } elseif ($factura->fecha_cancelacion) {
+                                $tituloCancelFechas = $factura->fecha_cancelacion->format('d/m/Y H:i');
+                            }
+                        @endphp
+                        <span class="badge badge-danger" title="{{ $tituloCancelFechas }}">✗ Cancelada</span>
                         @if($factura->codigo_estatus_cancelacion)
                             <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);" title="Estatus de la solicitud (paso a paso)">
                                 {{ $factura->codigo_estatus_cancelacion }} — {{ $factura->estatus_solicitud_label }}

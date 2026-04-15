@@ -6,6 +6,7 @@
 
 @php
 $breadcrumbs = [
+    ['title' => 'Facturación', 'url' => route('facturas.index')],
     ['title' => 'Cancelaciones administrativas'],
 ];
 $baseUrlCancelAdmin = url('/cancelaciones-administrativas');

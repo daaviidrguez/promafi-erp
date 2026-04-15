@@ -220,12 +220,29 @@ $breadcrumbs = [
                             <span class="badge badge-warning">📝 Borrador</span>
                         @else
                             <span class="badge badge-danger">✗ {{ $factura->estado_etiqueta }}</span>
-                            @if($factura->fecha_cancelacion)
+                            @if($factura->estado === 'cancelada' && ($factura->cancelacion_administrativa ?? false))
+                                @if($factura->fecha_cancelacion)
+                                    <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                        <strong>Administrativa (ERP):</strong> {{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}
+                                    </div>
+                                @endif
+                                @if($factura->fecha_cancelacion_pac)
+                                    <div class="text-muted" style="font-size: 11px; margin-top: 2px;">
+                                        <strong>Ante PAC/SAT:</strong> {{ $factura->fecha_cancelacion_pac->format('d/m/Y H:i') }}
+                                    </div>
+                                @endif
+                            @elseif($factura->fecha_cancelacion)
                                 <div class="text-muted" style="font-size: 11px; margin-top: 4px;">{{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}</div>
                             @endif
                             @if($factura->cancelacion_administrativa ?? false)
-                                <div class="alert alert-warning" style="margin-top: 10px; margin-bottom: 0; text-align: left; font-size: 13px;">
-                                    <strong>Cancelación administrativa (solo ERP).</strong> No cancela el CFDI ante el SAT.
+                                <div class="alert {{ $factura->pendienteCancelacionAntePac() ? 'alert-warning' : 'alert-info' }}" style="margin-top: 10px; margin-bottom: 0; text-align: left; font-size: 13px;">
+                                    @if($factura->pendienteCancelacionAntePac())
+                                        <strong>Cancelación administrativa (solo ERP).</strong> No cancela el CFDI ante el SAT.
+                                        <div style="margin-top: 8px;">El CFDI sigue vigente ante el SAT hasta que use <strong>«Cancelar factura»</strong> en acciones (cancelación ante el PAC). El inventario y el saldo ya se revirtieron en el ERP.</div>
+                                    @else
+                                        <div><strong>Cancelación administrativa (solo ERP).</strong></div>
+                                        <div style="margin-top: 8px;"><strong>Cancelación ante el PAC/SAT.</strong></div>
+                                    @endif
                                     @if($factura->cancelacion_administrativa_motivo)
                                         <div style="margin-top: 4px;">Motivo: {{ $factura->cancelacion_administrativa_motivo }}</div>
                                     @endif
@@ -305,7 +322,8 @@ $breadcrumbs = [
                 @endcan
                 @endif
 
-                @if($factura->estaTimbrada())
+                @php $cfdiTimbradoAcciones = $factura->estaTimbrada() || $factura->pendienteCancelacionAntePac(); @endphp
+                @if($cfdiTimbradoAcciones)
                     @if($factura->xml_path)
                     <a href="{{ route('facturas.descargar-xml', $factura->id) }}"
                        class="btn btn-success w-full">📄 Descargar XML</a>
@@ -341,6 +359,10 @@ $breadcrumbs = [
                     @if(!empty($factura->acuse_cancelacion))
                     <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">📄 XML cancelado</a>
+                    @elseif($factura->pendienteCancelacionAntePac())
+                    <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                        El XML de cancelación estará disponible después de cancelar el CFDI ante el PAC (acción «Cancelar factura»).
+                    </div>
                     @else
                     <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">📄 Obtener XML cancelado</a>
@@ -420,8 +442,8 @@ $breadcrumbs = [
     </div>
 </div>
 
-{{-- Modal Cancelar (solo si no hay documentos relacionados) --}}
-@if($factura->estaTimbrada() && $factura->puedeCancelar())
+{{-- Modal Cancelar (timbrada o cancelada administrativamente pendiente de PAC) --}}
+@if($factura->puedeCancelar())
 <div id="modalCancelar" class="modal">
     <div class="modal-box">
         <div class="modal-header">
@@ -433,6 +455,11 @@ $breadcrumbs = [
             @csrf
             @method('DELETE')
             <div class="modal-body">
+                @if($factura->pendienteCancelacionAntePac())
+                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
+                    Esta factura ya fue <strong>cancelada administrativamente en el ERP</strong> (inventario y saldo revertidos). Al confirmar, solo se enviará la <strong>cancelación ante el PAC/SAT</strong>. No se volverán a registrar movimientos de inventario.
+                </div>
+                @endif
                 <p class="text-muted" style="margin-bottom: 20px;">
                     ¿Estás seguro de cancelar esta factura? Esta acción es irreversible.
                 </p>
@@ -476,7 +503,7 @@ $breadcrumbs = [
             <button class="modal-close" onclick="cerrarModalSeleccionarSustituto()">✕</button>
         </div>
         <div class="modal-body">
-            <p class="text-muted" style="margin-bottom: 12px;">Elija la factura timbrada que reemplaza a la que se va a cancelar (UUID sustituto).</p>
+            <p class="text-muted" style="margin-bottom: 12px;">Elija la factura timbrada (o cancelada solo en ERP) que reemplaza a la que se va a cancelar (UUID sustituto).</p>
             <div class="table-container" style="max-height: 320px; overflow-y: auto;">
                 <table>
                     <thead>
@@ -492,7 +519,7 @@ $breadcrumbs = [
                 </table>
             </div>
             <div id="cargandoSustituto" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando facturas...</div>
-            <div id="sinFacturasSustituto" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas timbradas para seleccionar.</div>
+            <div id="sinFacturasSustituto" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas disponibles para seleccionar (timbradas o canceladas administrativamente pendientes de PAC).</div>
         </div>
     </div>
 </div>

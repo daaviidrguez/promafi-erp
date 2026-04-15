@@ -71,9 +71,9 @@
 
         {{-- Facturación (dropdown) --}}
         @php
-            $factHasActive = request()->routeIs('catalogos-sat.*') || request()->routeIs('facturas.*') || request()->routeIs('cotizaciones.*') || request()->routeIs('listas-precios.*') || request()->routeIs('complementos.*') || request()->routeIs('remisiones.*') || request()->routeIs('devoluciones.*') || request()->routeIs('notas-credito.*');
+            $factHasActive = request()->routeIs('catalogos-sat.*') || request()->routeIs('facturas.*') || request()->routeIs('cotizaciones.*') || request()->routeIs('listas-precios.*') || request()->routeIs('complementos.*') || request()->routeIs('remisiones.*') || request()->routeIs('devoluciones.*') || request()->routeIs('notas-credito.*') || request()->routeIs('cancelaciones-administrativas.*');
         @endphp
-        @if(auth()->user()->can('catalogos_sat.ver') || auth()->user()->can('facturas.ver') || auth()->user()->can('cotizaciones.ver') || auth()->user()->can('listas_precios.ver') || auth()->user()->can('complementos.ver') || auth()->user()->can('remisiones.ver') || auth()->user()->can('devoluciones.ver') || auth()->user()->can('notas_credito.ver'))
+        @if(auth()->user()->can('catalogos_sat.ver') || auth()->user()->can('facturas.ver') || auth()->user()->can('cotizaciones.ver') || auth()->user()->can('listas_precios.ver') || auth()->user()->can('complementos.ver') || auth()->user()->can('remisiones.ver') || auth()->user()->can('devoluciones.ver') || auth()->user()->can('notas_credito.ver') || auth()->user()->can('cancelaciones_administrativas.administrar'))
         <div class="sidebar-dropdown {{ $factHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $factHasActive ? 'active' : '' }}" data-dropdown="facturacion" title="Facturación">
                 <span class="sidebar-menu-icon">🧾</span>
@@ -83,6 +83,7 @@
             <ul class="sidebar-dropdown-menu">
                 @can('catalogos_sat.ver')<li><a href="{{ route('catalogos-sat.index') }}" class="sidebar-menu-link {{ request()->routeIs('catalogos-sat.*') ? 'active' : '' }}" title="Catálogos SAT"><span class="sidebar-menu-icon">📑</span><span class="sidebar-menu-text">Catálogos SAT</span></a></li>@endcan
                 @can('facturas.ver')<li><a href="{{ route('facturas.index') }}" class="sidebar-menu-link {{ request()->routeIs('facturas.*') ? 'active' : '' }}" title="Facturas CFDI"><span class="sidebar-menu-icon">📄</span><span class="sidebar-menu-text">Facturas CFDI</span></a></li>@endcan
+                @can('cancelaciones_administrativas.administrar')<li><a href="{{ route('cancelaciones-administrativas.index') }}" class="sidebar-menu-link {{ request()->routeIs('cancelaciones-administrativas.*') ? 'active' : '' }}" title="Cancelaciones administrativas"><span class="sidebar-menu-icon">🛑</span><span class="sidebar-menu-text">Cancelaciones administrativas</span></a></li>@endcan
                 @can('cotizaciones.ver')<li><a href="{{ route('cotizaciones.index') }}" class="sidebar-menu-link {{ request()->routeIs('cotizaciones.*') ? 'active' : '' }}" title="Cotizaciones"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Cotizaciones</span></a></li>@endcan
                 @can('listas_precios.ver')<li><a href="{{ route('listas-precios.index') }}" class="sidebar-menu-link {{ request()->routeIs('listas-precios.*') ? 'active' : '' }}" title="Listas de Precios"><span class="sidebar-menu-icon">💰</span><span class="sidebar-menu-text">Listas de Precios</span></a></li>@endcan
                 @can('complementos.ver')<li><a href="{{ route('complementos.index') }}" class="sidebar-menu-link {{ request()->routeIs('complementos.*') ? 'active' : '' }}" title="Complementos Pago"><span class="sidebar-menu-icon">💳</span><span class="sidebar-menu-text">Complementos Pago</span></a></li>@endcan
@@ -187,9 +188,9 @@
 
         {{-- Sistema (dropdown) --}}
         @php
-            $sisHasActive = request()->routeIs('usuarios.*') || request()->routeIs('roles.*') || request()->routeIs('empresa.*') || request()->routeIs('importador-cfdi.*') || request()->routeIs('cancelaciones-administrativas.*');
+            $sisHasActive = request()->routeIs('usuarios.*') || request()->routeIs('roles.*') || request()->routeIs('empresa.*') || request()->routeIs('importador-cfdi.*');
         @endphp
-        @if(auth()->user()->can('usuarios.ver') || auth()->user()->can('roles.ver') || auth()->user()->can('configuracion.editar') || auth()->user()->can('importador_cfdi.ver') || auth()->user()->can('cancelaciones_administrativas.administrar'))
+        @if(auth()->user()->can('usuarios.ver') || auth()->user()->can('roles.ver') || auth()->user()->can('configuracion.editar') || auth()->user()->can('importador_cfdi.ver'))
         <div class="sidebar-dropdown {{ $sisHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $sisHasActive ? 'active' : '' }}" data-dropdown="sistema" title="Sistema">
                 <span class="sidebar-menu-icon">⚙️</span>
@@ -199,7 +200,6 @@
             <ul class="sidebar-dropdown-menu">
                 @can('usuarios.ver')<li><a href="{{ route('usuarios.index') }}" class="sidebar-menu-link {{ request()->routeIs('usuarios.*') ? 'active' : '' }}" title="Usuarios"><span class="sidebar-menu-icon">👤</span><span class="sidebar-menu-text">Usuarios</span></a></li>@endcan
                 @can('roles.ver')<li><a href="{{ route('roles.index') }}" class="sidebar-menu-link {{ request()->routeIs('roles.*') ? 'active' : '' }}" title="Roles y permisos"><span class="sidebar-menu-icon">🔐</span><span class="sidebar-menu-text">Roles y permisos</span></a></li>@endcan
-                @can('cancelaciones_administrativas.administrar')<li><a href="{{ route('cancelaciones-administrativas.index') }}" class="sidebar-menu-link {{ request()->routeIs('cancelaciones-administrativas.*') ? 'active' : '' }}" title="Cancelaciones administrativas"><span class="sidebar-menu-icon">🛑</span><span class="sidebar-menu-text">Cancelaciones administrativas</span></a></li>@endcan
                 @can('importador_cfdi.ver')<li><a href="{{ route('importador-cfdi.index') }}" class="sidebar-menu-link {{ request()->routeIs('importador-cfdi.*') ? 'active' : '' }}" title="Importador CFDI"><span class="sidebar-menu-icon">📥</span><span class="sidebar-menu-text">Importador CFDI</span></a></li>@endcan
                 @can('configuracion.editar')<li><a href="{{ route('empresa.edit') }}" class="sidebar-menu-link {{ request()->routeIs('empresa.*') ? 'active' : '' }}" title="Configuración"><span class="sidebar-menu-icon">⚙️</span><span class="sidebar-menu-text">Configuración</span></a></li>@endcan
             </ul>

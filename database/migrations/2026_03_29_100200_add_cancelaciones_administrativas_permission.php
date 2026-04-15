@@ -14,7 +14,7 @@ return new class extends Migration
         $id = DB::table('permissions')->insertGetId([
             'key' => 'cancelaciones_administrativas.administrar',
             'name' => 'Cancelaciones administrativas (facturas)',
-            'module' => 'Sistema',
+            'module' => 'Facturación',
             'created_at' => $now,
             'updated_at' => $now,
         ]);

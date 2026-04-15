@@ -496,7 +496,7 @@ function limpiarCfdiSustituir() {
                 </table>
             </div>
             <div id="cargandoCfdiSustituir" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando facturas...</div>
-            <div id="sinFacturasCfdiSustituir" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas timbradas para seleccionar.</div>
+            <div id="sinFacturasCfdiSustituir" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas disponibles (timbradas o canceladas administrativamente pendientes de PAC).</div>
         </div>
     </div>
 </div>

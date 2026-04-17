@@ -230,6 +230,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function buildMarkup(data) {
         const credito = data.credito_excedente;
         const vencidas = data.vencidas || {};
+        const logistica = data.logistica || {};
 
         const creditoDisponible = credito
             ? -Math.abs(Number(credito.saldo_excedente ?? 0))
@@ -270,11 +271,35 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
             `;
 
+        const enviosRuta = Number(logistica.envios_factura_en_ruta ?? 0) || 0;
+        const logisticaUrl = logistica.url ? String(logistica.url) : '';
+        const logisticaLink = logisticaUrl
+            ? `<div style="margin-top: 8px;"><a href="${escapeHtml(logisticaUrl)}" style="font-size: 13px; font-weight: 700; color: var(--color-primary); text-decoration: underline;">Ver en logística</a></div>`
+            : '';
+
+        const logisticaHtml = enviosRuta > 0
+            ? `
+                <div style="font-family: var(--font-display); font-weight: 800; color: var(--color-primary); font-size: 13.5px; margin-bottom: 4px;">
+                    🚚 Facturas en ruta (logística)
+                </div>
+                <div style="font-size: 13.5px; color: var(--color-gray-600);">
+                    <div><span style="font-weight: 700; color: var(--color-gray-700);">Envíos con factura en estado «En ruta»:</span> ${escapeHtml(enviosRuta)}</div>
+                    ${logisticaLink}
+                </div>
+            `
+            : `
+                <div style="font-size: 13.5px; color: var(--color-gray-500);">
+                    No hay envíos de facturas en ruta.
+                </div>
+            `;
+
         return `
             <div style="padding: 10px 12px;">
                 ${creditoHtml}
                 <div style="height:1px; background: var(--color-gray-100); margin: 10px 0;"></div>
                 ${vencidasHtml}
+                <div style="height:1px; background: var(--color-gray-100); margin: 10px 0;"></div>
+                ${logisticaHtml}
             </div>
         `;
     }

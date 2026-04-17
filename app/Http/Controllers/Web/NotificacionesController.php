@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\CuentaPorCobrar;
+use App\Models\LogisticaEnvio;
 use App\Models\NotaCredito;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -98,7 +99,13 @@ class NotificacionesController extends Controller
             ->values()
             ->all();
 
-        $tieneAlguna = (bool) ($creditoExcedente || $cuentasVencidasCount > 0);
+        // ───────── 3) Logística: facturas con envío en ruta ─────────
+        $enviosFacturaEnRuta = LogisticaEnvio::query()
+            ->whereNotNull('factura_id')
+            ->where('estado', 'en_ruta')
+            ->count();
+
+        $tieneAlguna = (bool) ($creditoExcedente || $cuentasVencidasCount > 0 || $enviosFacturaEnRuta > 0);
 
         // Mostrar el toast SOLO 1 vez por sesión (cuando entra al sistema).
         $toastKey = "notifs_admin_toast_shown_{$uid}";
@@ -107,8 +114,8 @@ class NotificacionesController extends Controller
         $toastShown = (bool) $request->session()->get($toastKey, false);
         $alreadyRead = (bool) $request->session()->get($readKey, false);
 
-        $showToast = $tieneAlguna && !$toastShown && !$alreadyRead;
-        $unreadCount = $tieneAlguna && !$alreadyRead ? 1 : 0;
+        $showToast = $tieneAlguna && ! $toastShown && ! $alreadyRead;
+        $unreadCount = $tieneAlguna && ! $alreadyRead ? 1 : 0;
 
         if ($showToast) {
             $request->session()->put($toastKey, true);
@@ -124,6 +131,10 @@ class NotificacionesController extends Controller
                 'monto_vencido' => $montoVencido,
                 'primeras_fechas' => $primeras3,
                 'hoy' => $hoy->format('d/m/Y'),
+            ],
+            'logistica' => [
+                'envios_factura_en_ruta' => $enviosFacturaEnRuta,
+                'url' => $user?->can('logistica.ver') ? route('logistica.index', ['estado' => 'en_ruta']) : null,
             ],
         ]);
     }
@@ -142,4 +153,3 @@ class NotificacionesController extends Controller
         return response()->json(['ok' => true]);
     }
 }
-

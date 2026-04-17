@@ -343,7 +343,8 @@ class CompraController extends Controller
     }
 
     /**
-     * Comprueba si la descripción del CFDI es muy similar (>80%) al nombre o descripción de algún producto activo.
+     * Comprueba si la descripción del CFDI es muy similar (>80%) y casi idéntica al nombre o descripción de algún producto activo
+     * (no bloquea variantes con varias diferencias p. ej. otra talla, aunque similar_text sea alto).
      */
     public function verificarSimilitudDescripcionCfdi(Request $request)
     {
@@ -388,7 +389,7 @@ class CompraController extends Controller
     }
 
     /**
-     * @return string|null nombre del producto activo si similar_text > 80% con nombre o descripción del producto
+     * @return string|null nombre del producto activo si similar_text > 80% y además el texto es casi el mismo (no aplica a variantes tipo otra talla/medida).
      */
     private function nombreProductoActivoSiDescripcionSuperaSimilitud(string $descripcionCfdi): ?string
     {
@@ -408,13 +409,55 @@ class CompraController extends Controller
                 }
                 $percent = 0.0;
                 similar_text($desc, $cmp, $percent);
-                if ($percent > 80) {
+                if ($percent > 80 && $this->sonDescripcionesCasiIdenticasParaBloqueoSimilitud($desc, $cmp)) {
                     return (string) $p->nombre;
                 }
             }
         }
 
         return null;
+    }
+
+    /**
+     * Misma referencia comercial salvo errores mínimos de tecleo (pocas ediciones vs longitud).
+     * Si difiere más (p. ej. otra talla), aunque similar_text sea alto, no bloquea la creación desde CFDI.
+     */
+    private function sonDescripcionesCasiIdenticasParaBloqueoSimilitud(string $desc, string $cmp): bool
+    {
+        $a = mb_strtoupper(preg_replace('/\s+/u', ' ', trim($desc)));
+        $b = mb_strtoupper(preg_replace('/\s+/u', ' ', trim($cmp)));
+        if ($a === $b) {
+            return true;
+        }
+
+        $aNorm = $this->asciiParaDistanciaEdicion($a);
+        $bNorm = $this->asciiParaDistanciaEdicion($b);
+        $maxLen = max(strlen($aNorm), strlen($bNorm));
+        if ($maxLen < 10) {
+            return $aNorm === $bNorm;
+        }
+        if ($maxLen > 255) {
+            $aNorm = substr($aNorm, 0, 255);
+            $bNorm = substr($bNorm, 0, 255);
+            $maxLen = 255;
+        }
+
+        $dist = levenshtein($aNorm, $bNorm);
+        if ($dist < 0) {
+            return false;
+        }
+
+        // Máximo de ediciones permitidas para considerar "el mismo" texto: ~2% de la longitud (mín. 1).
+        $maxEdiciones = max(1, (int) floor($maxLen * 0.02));
+
+        return $dist <= $maxEdiciones;
+    }
+
+    private function asciiParaDistanciaEdicion(string $s): string
+    {
+        $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
+
+        return (is_string($t) && $t !== '') ? $t : preg_replace('/[^\x20-\x7E]/u', '', $s);
     }
 
     /**

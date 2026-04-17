@@ -182,6 +182,7 @@ $conceptosCount = count($conceptos);
     @csrf
     <input type="hidden" name="proveedor_id" id="crear_linea_proveedor_id" value="">
     <input type="hidden" name="concepto_index" id="crear_linea_concepto_index" value="">
+    <input type="hidden" name="forzar_sin_validacion_similitud" id="crear_linea_forzar" value="0">
 </form>
 
 {{-- Modal seleccionar producto --}}
@@ -250,15 +251,20 @@ $conceptosCount = count($conceptos);
         <form method="POST" action="{{ route('compras.crear-desde-cfdi.crear-productos') }}" id="formCrearProductosCfdi">
             @csrf
             <input type="hidden" name="proveedor_id" id="crear_productos_proveedor_id" value="{{ $proveedor?->id ?? '' }}">
+            <input type="hidden" name="forzar_sin_validacion_similitud" id="crear_productos_forzar" value="0">
             <div class="modal-body">
                 <p class="text-muted" style="margin-bottom:16px;">
                     No se pudo relacionar producto ya que no existe código de proveedor relacionado al producto.<br>
                     Verifica si el producto existe y está relacionado con la lupita. Si no existe deseas crear el producto?
                 </p>
+                <p class="text-muted small" style="margin-bottom:0;">
+                    Si el sistema advierte de similitud con el catálogo y usted confirma que es <strong>otra referencia</strong> (p. ej. otra talla), use <strong>Crear productos de todas formas</strong> para omitir esa comprobación y crear igualmente con los datos del CFDI.
+                </p>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" style="flex-wrap:wrap; gap:8px; justify-content:flex-end;">
                 <button type="button" class="btn btn-light" onclick="cerrarModalCrearProductosCfdi()">Cancelar</button>
-                <button type="submit" class="btn btn-primary">Sí, crear productos</button>
+                <button type="button" class="btn btn-primary" onclick="confirmarCrearProductosCfdiNormal()">Sí, crear productos</button>
+                <button type="button" class="btn btn-warning" onclick="confirmarCrearProductosCfdiForzado()">Sí, crear productos de todas formas</button>
             </div>
         </form>
     </div>
@@ -276,10 +282,14 @@ $conceptosCount = count($conceptos);
                 No se pudo relacionar producto ya que no existe código de proveedor relacionado al producto.<br>
                 Verifica si el producto existe y está relacionado con la lupita. Si no existe deseas crear el producto?
             </p>
+            <p class="text-muted small" style="margin-bottom:0;">
+                Si aparece el aviso de similitud con el catálogo y es <strong>otra pieza o variante</strong>, use <strong>Crear producto de todas formas</strong>: se creará con la descripción del CFDI, folio <span class="text-mono">PSI-…</span> consecutivo y relación con el proveedor cuando haya <span class="text-mono">NoIdentificación</span>.
+            </p>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="flex-wrap:wrap; gap:8px; justify-content:flex-end;">
             <button type="button" class="btn btn-light" onclick="cerrarModalCrearProductoLineaCfdi()">Cancelar</button>
             <button type="button" class="btn btn-primary" onclick="confirmarCrearProductoLineaCfdi()">Sí, crear producto</button>
+            <button type="button" class="btn btn-warning" onclick="confirmarCrearProductoLineaCfdiForzado()">Crear producto de todas formas</button>
         </div>
     </div>
 </div>
@@ -316,6 +326,8 @@ $conceptosCount = count($conceptos);
             return;
         }
         window.CFDI_IDX_LINEA_A_CREAR = idx;
+        var forzarInp = document.getElementById('crear_linea_forzar');
+        if (forzarInp) forzarInp.value = '0';
         document.getElementById('modalCrearProductoLineaCfdi').classList.add('show');
     };
 
@@ -363,6 +375,7 @@ $conceptosCount = count($conceptos);
                     alert(data.message);
                     return;
                 }
+                document.getElementById('crear_linea_forzar').value = '0';
                 document.getElementById('crear_linea_proveedor_id').value = pid;
                 document.getElementById('crear_linea_concepto_index').value = idx;
                 document.getElementById('modalCrearProductoLineaCfdi').classList.remove('show');
@@ -373,14 +386,32 @@ $conceptosCount = count($conceptos);
             });
     };
 
-    document.getElementById('formCrearProductosCfdi').addEventListener('submit', function(e) {
-        e.preventDefault();
+    window.confirmarCrearProductoLineaCfdiForzado = function() {
+        var idx = window.CFDI_IDX_LINEA_A_CREAR;
+        if (idx === null || idx === undefined) return;
+        var pid = document.getElementById('proveedor_id').value;
+        if (!pid || String(pid).trim() === '') {
+            alert('Indique o cree el proveedor primero.');
+            return;
+        }
+        if (!confirm('Se creará el producto con los datos leídos del CFDI (código PSI consecutivo y relación con el proveedor si aplica). Se omite la comprobación de similitud con el catálogo. ¿Desea continuar?')) {
+            return;
+        }
+        document.getElementById('crear_linea_forzar').value = '1';
+        document.getElementById('crear_linea_proveedor_id').value = pid;
+        document.getElementById('crear_linea_concepto_index').value = idx;
+        document.getElementById('modalCrearProductoLineaCfdi').classList.remove('show');
+        document.getElementById('formCrearProductoLineaCfdi').submit();
+    };
+
+    window.confirmarCrearProductosCfdiNormal = function() {
         var proveedorId = document.getElementById('proveedor_id').value;
         if (!proveedorId || String(proveedorId).trim() === '') {
             alert('Indique o cree el proveedor primero.');
             return;
         }
         document.getElementById('crear_productos_proveedor_id').value = proveedorId;
+        document.getElementById('crear_productos_forzar').value = '0';
         var list = window.CFDI_DESCRIPCIONES_CON_NOIDENT || [];
         fetch(urlVerificarSimilitud, {
             method: 'POST',
@@ -398,12 +429,28 @@ $conceptosCount = count($conceptos);
                     alert(data.message);
                     return;
                 }
+                document.getElementById('modalCrearProductosCfdi').classList.remove('show');
                 document.getElementById('formCrearProductosCfdi').submit();
             })
             .catch(function() {
                 alert('No se pudo verificar similitud con el catálogo. Intente de nuevo.');
             });
-    });
+    };
+
+    window.confirmarCrearProductosCfdiForzado = function() {
+        var proveedorId = document.getElementById('proveedor_id').value;
+        if (!proveedorId || String(proveedorId).trim() === '') {
+            alert('Indique o cree el proveedor primero.');
+            return;
+        }
+        if (!confirm('Se crearán los productos faltantes con los datos del CFDI (códigos PSI consecutivos y relación proveedor por NoIdentificación). Se omite la comprobación de similitud con el catálogo. ¿Desea continuar?')) {
+            return;
+        }
+        document.getElementById('crear_productos_proveedor_id').value = proveedorId;
+        document.getElementById('crear_productos_forzar').value = '1';
+        document.getElementById('modalCrearProductosCfdi').classList.remove('show');
+        document.getElementById('formCrearProductosCfdi').submit();
+    };
 
     document.getElementById('modalBuscarProducto').addEventListener('input', function() {
         clearTimeout(timerModal);
@@ -498,6 +545,8 @@ $conceptosCount = count($conceptos);
 
             if (faltaProductoConNoIdent) {
                 document.getElementById('crear_productos_proveedor_id').value = proveedorId;
+                var fp = document.getElementById('crear_productos_forzar');
+                if (fp) fp.value = '0';
                 document.getElementById('modalCrearProductosCfdi').classList.add('show');
                 return;
             }

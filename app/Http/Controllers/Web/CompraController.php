@@ -681,6 +681,7 @@ class CompraController extends Controller
         $validated = $request->validate([
             'proveedor_id' => 'required|exists:proveedores,id',
             'concepto_index' => 'required|integer|min:0',
+            'forzar_sin_validacion_similitud' => 'nullable|boolean',
         ]);
 
         $conceptos = $datos['conceptos'] ?? [];
@@ -711,9 +712,12 @@ class CompraController extends Controller
             }
         }
 
-        $similar = $this->nombreProductoActivoSiDescripcionSuperaSimilitud((string) ($concepto['descripcion'] ?? ''));
-        if ($similar !== null) {
-            return redirect()->route('compras.crear-desde-cfdi')->with('error', $this->mensajeSimilitudDescripcionProducto($similar));
+        $forzar = $request->boolean('forzar_sin_validacion_similitud');
+        if (! $forzar) {
+            $similar = $this->nombreProductoActivoSiDescripcionSuperaSimilitud((string) ($concepto['descripcion'] ?? ''));
+            if ($similar !== null) {
+                return redirect()->route('compras.crear-desde-cfdi')->with('error', $this->mensajeSimilitudDescripcionProducto($similar));
+            }
         }
 
         DB::beginTransaction();
@@ -782,7 +786,12 @@ class CompraController extends Controller
 
             DB::commit();
 
-            return redirect()->route('compras.crear-desde-cfdi')->with('success', 'Producto creado: ' . $producto->codigo . '. Ya puede guardar la compra si todas las líneas están vinculadas.');
+            $msgOk = 'Producto creado: ' . $producto->codigo . '. Ya puede guardar la compra si todas las líneas están vinculadas.';
+            if ($forzar) {
+                $msgOk .= ' (Creación autorizada omitiendo aviso de similitud con el catálogo.)';
+            }
+
+            return redirect()->route('compras.crear-desde-cfdi')->with('success', $msgOk);
         } catch (\Throwable $e) {
             DB::rollBack();
 
@@ -802,8 +811,10 @@ class CompraController extends Controller
 
         $validated = $request->validate([
             'proveedor_id' => 'required|exists:proveedores,id',
+            'forzar_sin_validacion_similitud' => 'nullable|boolean',
         ]);
 
+        $forzar = $request->boolean('forzar_sin_validacion_similitud');
         $proveedor = Proveedor::findOrFail($validated['proveedor_id']);
         $conceptos = $datos['conceptos'] ?? [];
         if (empty($conceptos)) {
@@ -835,11 +846,13 @@ class CompraController extends Controller
                     continue; // Ya existe el producto relacionado para este proveedor.
                 }
 
-                $similar = $this->nombreProductoActivoSiDescripcionSuperaSimilitud((string) ($concepto['descripcion'] ?? ''));
-                if ($similar !== null) {
-                    DB::rollBack();
+                if (! $forzar) {
+                    $similar = $this->nombreProductoActivoSiDescripcionSuperaSimilitud((string) ($concepto['descripcion'] ?? ''));
+                    if ($similar !== null) {
+                        DB::rollBack();
 
-                    return redirect()->route('compras.crear-desde-cfdi')->with('error', $this->mensajeSimilitudDescripcionProducto($similar));
+                        return redirect()->route('compras.crear-desde-cfdi')->with('error', $this->mensajeSimilitudDescripcionProducto($similar));
+                    }
                 }
 
                 // Crear producto
@@ -908,7 +921,12 @@ class CompraController extends Controller
 
             DB::commit();
 
-            return redirect()->route('compras.crear-desde-cfdi')->with('success', 'Productos creados y relacionados desde el CFDI: ' . $creados . '.');
+            $msgOk = 'Productos creados y relacionados desde el CFDI: ' . $creados . '.';
+            if ($forzar && $creados > 0) {
+                $msgOk .= ' (Creación autorizada omitiendo aviso de similitud con el catálogo.)';
+            }
+
+            return redirect()->route('compras.crear-desde-cfdi')->with('success', $msgOk);
         } catch (\Throwable $e) {
             DB::rollBack();
             return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Error al crear productos: ' . $e->getMessage());

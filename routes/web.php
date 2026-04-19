@@ -37,6 +37,7 @@ use App\Http\Controllers\Web\OrdenCompraController;
 use App\Http\Controllers\Web\PerfilController;
 use App\Http\Controllers\Web\ProductoController;
 use App\Http\Controllers\Web\ProductoProveedorController;
+use App\Http\Controllers\Web\ProductoRevisionPrecioController;
 use App\Http\Controllers\Web\ProveedorController;
 use App\Http\Controllers\Web\RegimenFiscalController;
 use App\Http\Controllers\Web\RemisionController;
@@ -182,6 +183,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/compras/{compra}/ver-pdf', [CompraController::class, 'verPDF'])->name('compras.ver-pdf');
     Route::get('/compras/{compra}/descargar-pdf', [CompraController::class, 'descargarPDF'])->name('compras.descargar-pdf');
     Route::post('/compras/{compra}/recibir', [CompraController::class, 'recibir'])->name('compras.recibir');
+    Route::post('/compras/{compra}/dismiss-revision-precios', [CompraController::class, 'dismissRevisionPrecios'])->name('compras.dismiss-revision-precios');
 
     // ========================================
     // PROVEEDORES
@@ -245,6 +247,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('clientes.direcciones-entrega.index');
 
     // ───── PRODUCTOS ───── ✅
+    Route::get('/productos/revision-precios', [ProductoRevisionPrecioController::class, 'index'])->name('productos.revision-precios');
+    Route::post('/productos/revision-precios/aplicar', [ProductoRevisionPrecioController::class, 'aplicar'])->name('productos.revision-precios.aplicar');
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
     Route::get('/catalogo-online', [CatalogoOnlineController::class, 'index'])->name('catalogo-online.index');
     Route::put('/catalogo-online/productos/{producto}', [CatalogoOnlineController::class, 'updateProducto'])->name('catalogo-online.productos.update');

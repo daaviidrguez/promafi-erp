@@ -12,6 +12,27 @@ $breadcrumbs = [
 
 @section('content')
 
+@if(!empty($revisionPreciosBanner))
+<div class="card" style="margin-bottom:20px;border-left:4px solid #d97706;background:#fffbeb;">
+    <div class="card-body" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;">
+        <div style="font-size:14px;color:var(--color-gray-800);">
+            <strong>⚠️ {{ $revisionPreciosBanner }} producto(s)</strong> requieren revisión de precio de venta tras esta compra (CFDI).
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+            @can('productos.ver')
+            <a href="{{ route('productos.revision-precios', ['compra_id' => $compra->id]) }}" class="btn btn-primary btn-sm">Revisar ahora</a>
+            @else
+            <span style="font-size:13px;color:var(--color-gray-600);">Se requiere permiso «Ver productos» para abrir la revisión.</span>
+            @endcan
+            <form method="POST" action="{{ route('compras.dismiss-revision-precios', $compra) }}" style="margin:0;">
+                @csrf
+                <button type="submit" class="btn btn-light btn-sm">Después</button>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
     <div>
         <div class="card">
@@ -141,6 +162,13 @@ $breadcrumbs = [
                 <a href="{{ route('compras.descargar-pdf', $compra->id) }}"
                    class="btn btn-outline w-full">📄 Descargar PDF</a>
 
+                @if($revisionPreciosAccionCount > 0)
+                @can('productos.ver')
+                <a href="{{ route('productos.revision-precios', ['compra_id' => $compra->id]) }}"
+                   class="btn w-full btn-revision-precios-accion">⚠️ Revisión de precios ({{ $revisionPreciosAccionCount }})</a>
+                @endcan
+                @endif
+
                 @if($compra->puedeRecibirse())
                 <form method="POST" action="{{ route('compras.recibir', $compra->id) }}" style="margin:0;">
                     @csrf
@@ -158,4 +186,21 @@ $breadcrumbs = [
     </div>
 </div>
 
+@push('styles')
+<style>
+    .btn-revision-precios-accion {
+        background: #fffbeb !important;
+        border: 1px solid #fde68a !important;
+        border-left: 4px solid #d97706 !important;
+        color: #92400e !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+        text-decoration: none !important;
+    }
+    .btn-revision-precios-accion:hover {
+        background: #fef3c7 !important;
+        color: #78350f !important;
+    }
+</style>
+@endpush
 @endsection

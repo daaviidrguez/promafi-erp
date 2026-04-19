@@ -2,17 +2,18 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Events\FacturaCompraDesdeCfdiRegistrada;
 use App\Http\Controllers\Controller;
+use App\Models\CotizacionCompraDetalle;
+use App\Models\CuentaPorPagar;
+use App\Models\Empresa;
 use App\Models\FacturaCompra;
 use App\Models\FacturaCompraDetalle;
 use App\Models\FacturaCompraImpuesto;
-use App\Models\Proveedor;
-use App\Models\Producto;
-use App\Models\Empresa;
-use App\Models\CotizacionCompraDetalle;
-use App\Models\CuentaPorPagar;
 use App\Models\InventarioMovimiento;
+use App\Models\Producto;
 use App\Models\ProductoProveedor;
+use App\Models\Proveedor;
 use App\Services\FacturaCompraCfdiService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
@@ -31,13 +32,14 @@ class CompraController extends Controller
                 ->orWhere('rfc_emisor', 'like', "%{$s}%"));
         }
         $compras = $query->orderBy('fecha_emision', 'desc')->paginate(20);
+
         return view('compras.index', compact('compras'));
     }
 
     public function create(Request $request)
     {
         $empresa = Empresa::principal();
-        if (!$empresa) {
+        if (! $empresa) {
             return redirect()->route('dashboard')->with('error', 'Configura la empresa primero');
         }
         $folio = FacturaCompra::generarFolioInterno();
@@ -104,7 +106,7 @@ class CompraController extends Controller
             ]);
 
             foreach ($validated['productos'] as $index => $item) {
-                $producto = !empty($item['producto_id']) ? Producto::find($item['producto_id']) : null;
+                $producto = ! empty($item['producto_id']) ? Producto::find($item['producto_id']) : null;
                 $imp = CotizacionCompraDetalle::calcularImportes($item);
                 $detalle = FacturaCompraDetalle::create([
                     'factura_compra_id' => $fc->id,
@@ -154,9 +156,11 @@ class CompraController extends Controller
             }
 
             DB::commit();
+
             return redirect()->route('compras.show', $fc->id)->with('success', 'Compra registrada correctamente');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->withInput()->with('error', $e->getMessage());
         }
     }
@@ -165,7 +169,35 @@ class CompraController extends Controller
     {
         $compra->load(['proveedor', 'detalles.producto', 'detalles.impuestos', 'cuentaPorPagar', 'usuario']);
         $usoCfdi = $this->extraerUsoCfdiDeXml($compra->xml_content);
-        return view('compras.show', compact('compra', 'usoCfdi'));
+
+        $revisionPreciosBanner = null;
+        $revisionPreciosAccionCount = 0;
+        $sessionRevision = session('revision_precio_post_compra');
+        if (is_array($sessionRevision)
+            && (int) ($sessionRevision['factura_compra_id'] ?? 0) === (int) $compra->id
+            && (int) ($sessionRevision['count'] ?? 0) > 0) {
+            $revisionPreciosAccionCount = (int) $sessionRevision['count'];
+            if (empty($sessionRevision['banner_dismissed'])) {
+                $revisionPreciosBanner = $revisionPreciosAccionCount;
+            }
+        }
+
+        return view('compras.show', compact('compra', 'usoCfdi', 'revisionPreciosBanner', 'revisionPreciosAccionCount'));
+    }
+
+    /**
+     * Oculta el aviso de revisión de precios en la compra (no borra la sesión de trabajo en la pantalla de revisión).
+     */
+    public function dismissRevisionPrecios(Request $request, FacturaCompra $compra)
+    {
+        $payload = session('revision_precio_post_compra');
+        if (is_array($payload) && (int) ($payload['factura_compra_id'] ?? 0) === (int) $compra->id) {
+            $payload['banner_dismissed'] = true;
+            session(['revision_precio_post_compra' => $payload]);
+        }
+
+        return redirect()->route('compras.show', $compra->id)
+            ->with('info', 'De acuerdo. Use «Revisión de precios» en la tarjeta Acciones cuando quiera; los datos siguen disponibles mientras la sesión esté activa.');
     }
 
     /**
@@ -182,18 +214,18 @@ class CompraController extends Controller
             $dom = new \DOMDocument('1.0', 'UTF-8');
             $loaded = $dom->loadXML($xmlContent);
             libxml_clear_errors();
-            if (!$loaded) {
+            if (! $loaded) {
                 return null;
             }
 
             $xpath = new \DOMXPath($dom);
             $nodos = $xpath->query('//*[local-name()="Receptor"]');
-            if (!$nodos || $nodos->length === 0) {
+            if (! $nodos || $nodos->length === 0) {
                 return null;
             }
 
             foreach ($nodos as $node) {
-                if (!($node instanceof \DOMElement)) {
+                if (! ($node instanceof \DOMElement)) {
                     continue;
                 }
                 $val = trim((string) $node->getAttribute('UsoCFDI'));
@@ -212,13 +244,13 @@ class CompraController extends Controller
 
     public function recibir(FacturaCompra $compra)
     {
-        if (!$compra->puedeRecibirse()) {
+        if (! $compra->puedeRecibirse()) {
             return back()->with('error', 'Solo se puede recibir mercancía en compras registradas');
         }
         DB::beginTransaction();
         try {
             foreach ($compra->detalles as $detalle) {
-                if (!$detalle->producto_id || !$detalle->producto || !$detalle->producto->controla_inventario) {
+                if (! $detalle->producto_id || ! $detalle->producto || ! $detalle->producto->controla_inventario) {
                     continue;
                 }
                 $producto = $detalle->producto;
@@ -245,9 +277,11 @@ class CompraController extends Controller
             }
             $compra->update(['estado' => 'recibida', 'fecha_recepcion' => now()]);
             DB::commit();
+
             return back()->with('success', 'Mercancía recibida. Se registró la entrada de inventario y el costo promedio por producto.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return back()->with('error', $e->getMessage());
         }
     }
@@ -264,7 +298,7 @@ class CompraController extends Controller
                         $ext = strtolower($value->getClientOriginalExtension());
                         $mime = $value->getMimeType();
                         $xmlMimes = ['text/xml', 'application/xml', 'application/x-xml', 'text/plain'];
-                        if ($ext !== 'xml' && !in_array($mime, $xmlMimes, true)) {
+                        if ($ext !== 'xml' && ! in_array($mime, $xmlMimes, true)) {
                             $fail('El archivo debe ser XML (.xml).');
                         }
                     },
@@ -276,10 +310,13 @@ class CompraController extends Controller
             if ($result['success']) {
                 $request->session()->put('compras_cfdi_precarga', $result['datos']);
                 $request->session()->forget('compras_cfdi_linea_producto');
+
                 return redirect()->route('compras.crear-desde-cfdi');
             }
+
             return back()->with('error', $result['message']);
         }
+
         return view('compras.upload-cfdi');
     }
 
@@ -289,11 +326,11 @@ class CompraController extends Controller
     public function crearDesdeCfdi(Request $request)
     {
         $datos = $request->session()->get('compras_cfdi_precarga');
-        if (!$datos) {
+        if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
         }
         $empresa = Empresa::principal();
-        $proveedor = !empty($datos['rfc_emisor'])
+        $proveedor = ! empty($datos['rfc_emisor'])
             ? Proveedor::whereRaw('UPPER(rfc) = UPPER(?)', [$datos['rfc_emisor']])->first()
             : null;
 
@@ -303,7 +340,7 @@ class CompraController extends Controller
             $productoProveedorMap = ProductoProveedor::with('producto')
                 ->where('proveedor_id', $proveedor->id)
                 ->get()
-                ->filter(fn ($pp) => !empty($pp->codigo) && $pp->producto)
+                ->filter(fn ($pp) => ! empty($pp->codigo) && $pp->producto)
                 ->mapWithKeys(function ($pp) {
                     return [strtoupper(trim((string) $pp->codigo)) => $pp->producto];
                 })
@@ -350,7 +387,7 @@ class CompraController extends Controller
     {
         if ($request->filled('descripciones') && is_array($request->input('descripciones'))) {
             $list = $request->input('descripciones');
-            if (!is_array($list)) {
+            if (! is_array($list)) {
                 return response()->json(['similar' => false]);
             }
             foreach ($list as $d) {
@@ -385,7 +422,7 @@ class CompraController extends Controller
     {
         $n = mb_substr(trim($nombreProductoCoincidente), 0, 200);
 
-        return 'El texto de la descripción coincide en más de un 80% con un producto en la base («' . $n . '»). Por favor busque en la lupita si el producto existe.';
+        return 'El texto de la descripción coincide en más de un 80% con un producto en la base («'.$n.'»). Por favor busque en la lupita si el producto existe.';
     }
 
     /**
@@ -400,7 +437,7 @@ class CompraController extends Controller
 
         foreach (Producto::query()->where('activo', true)->select(['id', 'nombre', 'descripcion'])->cursor() as $p) {
             foreach ([$p->nombre, $p->descripcion] as $campo) {
-                if (!is_string($campo) || trim($campo) === '') {
+                if (! is_string($campo) || trim($campo) === '') {
                     continue;
                 }
                 $cmp = mb_strtoupper(trim($campo));
@@ -466,7 +503,7 @@ class CompraController extends Controller
     public function storeDesdeCfdi(Request $request)
     {
         $datos = $request->session()->get('compras_cfdi_precarga');
-        if (!$datos) {
+        if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'Sesión de CFDI expirada. Sube el XML de nuevo.');
         }
 
@@ -491,7 +528,7 @@ class CompraController extends Controller
         $conceptos = $datos['conceptos'] ?? [];
         foreach ($validated['productos'] as $p) {
             $idx = (int) $p['concepto_index'];
-            if (!isset($conceptos[$idx])) {
+            if (! isset($conceptos[$idx])) {
                 return back()->with('error', 'Datos de detalle inválidos.');
             }
         }
@@ -537,7 +574,7 @@ class CompraController extends Controller
                 'descuento' => $descuento,
                 'total' => $total,
                 'uuid' => $datos['uuid'] ?? null,
-                'fecha_timbrado' => !empty($datos['fecha_timbrado']) ? $datos['fecha_timbrado'] : null,
+                'fecha_timbrado' => ! empty($datos['fecha_timbrado']) ? $datos['fecha_timbrado'] : null,
                 'no_certificado_sat' => $datos['no_certificado_sat'] ?? null,
                 'xml_content' => $datos['xml_content'] ?? null,
                 'usuario_id' => auth()->id(),
@@ -545,7 +582,7 @@ class CompraController extends Controller
 
             foreach ($validated['productos'] as $index => $p) {
                 $concepto = $conceptos[(int) $p['concepto_index']];
-                $producto = !empty($p['producto_id']) ? Producto::find($p['producto_id']) : null;
+                $producto = ! empty($p['producto_id']) ? Producto::find($p['producto_id']) : null;
                 $detalle = FacturaCompraDetalle::create([
                     'factura_compra_id' => $fc->id,
                     'producto_id' => $producto?->id,
@@ -595,10 +632,15 @@ class CompraController extends Controller
 
             $request->session()->forget(['compras_cfdi_precarga', 'compras_cfdi_linea_producto']);
             DB::commit();
-            return redirect()->route('compras.show', $fc->id)->with('success', 'Compra guardada. Use "Recibir mercancía" para registrar la entrada en inventario.');
+
+            event(new FacturaCompraDesdeCfdiRegistrada($fc->fresh(['detalles.producto'])));
+
+            return redirect()->route('compras.show', $fc->id)
+                ->with('success', 'Compra guardada. Use "Recibir mercancía" para registrar la entrada en inventario.');
         } catch (\Throwable $e) {
             DB::rollBack();
-            return back()->with('error', 'Error al guardar: ' . $e->getMessage());
+
+            return back()->with('error', 'Error al guardar: '.$e->getMessage());
         }
     }
 
@@ -616,7 +658,7 @@ class CompraController extends Controller
         // Si viene con slashes, tomamos el primer segmento.
         if (str_contains($s, '/')) {
             $parts = array_filter(explode('/', $s), fn ($p) => trim((string) $p) !== '');
-            if (!empty($parts)) {
+            if (! empty($parts)) {
                 $s = (string) $parts[0];
             }
         }
@@ -634,7 +676,7 @@ class CompraController extends Controller
     public function agregarProveedorDesdeCfdi(Request $request)
     {
         $datos = $request->session()->get('compras_cfdi_precarga');
-        if (!$datos) {
+        if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
         }
 
@@ -674,7 +716,7 @@ class CompraController extends Controller
     public function crearProductoLineaDesdeCfdi(Request $request)
     {
         $datos = $request->session()->get('compras_cfdi_precarga');
-        if (!$datos) {
+        if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
         }
 
@@ -686,12 +728,12 @@ class CompraController extends Controller
 
         $conceptos = $datos['conceptos'] ?? [];
         $idx = (int) $validated['concepto_index'];
-        if (!isset($conceptos[$idx]) || !is_array($conceptos[$idx])) {
+        if (! isset($conceptos[$idx]) || ! is_array($conceptos[$idx])) {
             return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Partida del CFDI no válida.');
         }
 
         $linea = (array) $request->session()->get('compras_cfdi_linea_producto', []);
-        if (!empty($linea[$idx])) {
+        if (! empty($linea[$idx])) {
             return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Esta línea ya tiene un producto agregado. Use la lupa si desea cambiarlo.');
         }
 
@@ -744,10 +786,10 @@ class CompraController extends Controller
             $nombreProducto = (string) ($concepto['descripcion'] ?? '') ?: 'Concepto';
 
             $psiNum = $this->obtenerSiguientePsiNumDesde(1);
-            $codigoPsi = 'PSI-' . $psiNum;
+            $codigoPsi = 'PSI-'.$psiNum;
             while (Producto::where('codigo', $codigoPsi)->exists()) {
                 $psiNum++;
-                $codigoPsi = 'PSI-' . $psiNum;
+                $codigoPsi = 'PSI-'.$psiNum;
             }
 
             $producto = Producto::create([
@@ -765,6 +807,7 @@ class CompraController extends Controller
                 'precio_venta' => $precioUnitarioSinIva,
                 'costo' => $precioUnitarioSinIva,
                 'costo_promedio' => $precioUnitarioSinIva,
+                'requiere_revision_precio' => true,
                 'stock_minimo' => 0,
                 'stock_maximo' => 0,
                 'controla_inventario' => true,
@@ -786,7 +829,7 @@ class CompraController extends Controller
 
             DB::commit();
 
-            $msgOk = 'Producto creado: ' . $producto->codigo . '. Ya puede guardar la compra si todas las líneas están vinculadas.';
+            $msgOk = 'Producto creado: '.$producto->codigo.'. Ya puede guardar la compra si todas las líneas están vinculadas.';
             if ($forzar) {
                 $msgOk .= ' (Creación autorizada omitiendo aviso de similitud con el catálogo.)';
             }
@@ -795,7 +838,7 @@ class CompraController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
 
-            return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Error al crear producto: ' . $e->getMessage());
+            return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Error al crear producto: '.$e->getMessage());
         }
     }
 
@@ -805,7 +848,7 @@ class CompraController extends Controller
     public function crearProductosDesdeCfdi(Request $request)
     {
         $datos = $request->session()->get('compras_cfdi_precarga');
-        if (!$datos) {
+        if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
         }
 
@@ -827,7 +870,7 @@ class CompraController extends Controller
             $existentes = ProductoProveedor::with('producto')
                 ->where('proveedor_id', $proveedor->id)
                 ->get()
-                ->filter(fn ($pp) => !empty($pp->codigo) && $pp->producto)
+                ->filter(fn ($pp) => ! empty($pp->codigo) && $pp->producto)
                 ->mapWithKeys(function ($pp) {
                     return [strtoupper(trim((string) $pp->codigo)) => $pp->producto];
                 })
@@ -878,11 +921,11 @@ class CompraController extends Controller
                 $precioUnitarioSinIva = (float) ($concepto['valor_unitario'] ?? 0);
                 $nombreProducto = (string) ($concepto['descripcion'] ?? '') ?: 'Concepto';
 
-                $codigoPsi = 'PSI-' . $psiNum;
+                $codigoPsi = 'PSI-'.$psiNum;
                 // Evita colisiones inesperadas: si ya existe, avanzamos.
                 while (Producto::where('codigo', $codigoPsi)->exists()) {
                     $psiNum++;
-                    $codigoPsi = 'PSI-' . $psiNum;
+                    $codigoPsi = 'PSI-'.$psiNum;
                 }
 
                 $producto = Producto::create([
@@ -900,6 +943,7 @@ class CompraController extends Controller
                     'precio_venta' => $precioUnitarioSinIva,
                     'costo' => $precioUnitarioSinIva,
                     'costo_promedio' => $precioUnitarioSinIva,
+                    'requiere_revision_precio' => true,
                     'stock_minimo' => 0,
                     'stock_maximo' => 0,
                     'controla_inventario' => true,
@@ -921,7 +965,7 @@ class CompraController extends Controller
 
             DB::commit();
 
-            $msgOk = 'Productos creados y relacionados desde el CFDI: ' . $creados . '.';
+            $msgOk = 'Productos creados y relacionados desde el CFDI: '.$creados.'.';
             if ($forzar && $creados > 0) {
                 $msgOk .= ' (Creación autorizada omitiendo aviso de similitud con el catálogo.)';
             }
@@ -929,7 +973,8 @@ class CompraController extends Controller
             return redirect()->route('compras.crear-desde-cfdi')->with('success', $msgOk);
         } catch (\Throwable $e) {
             DB::rollBack();
-            return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Error al crear productos: ' . $e->getMessage());
+
+            return redirect()->route('compras.crear-desde-cfdi')->with('error', 'Error al crear productos: '.$e->getMessage());
         }
     }
 
@@ -942,12 +987,13 @@ class CompraController extends Controller
             ->where('codigo', 'like', 'PSI-%')
             ->pluck('codigo')
             ->map(function ($codigo) {
-                if (!is_string($codigo)) {
+                if (! is_string($codigo)) {
                     return null;
                 }
                 if (preg_match('/^PSI-(\d+)$/', $codigo, $m)) {
                     return (int) $m[1];
                 }
+
                 return null;
             })
             ->filter(fn ($n) => $n !== null)
@@ -970,9 +1016,10 @@ class CompraController extends Controller
         try {
             $compra->load(['detalles.producto', 'proveedor', 'empresa']);
             $pdfPath = app(PDFService::class)->generarFacturaCompraPDF($compra);
-            return response()->file(storage_path('app/' . $pdfPath));
+
+            return response()->file(storage_path('app/'.$pdfPath));
         } catch (\Exception $e) {
-            return back()->with('error', 'Error al generar PDF: ' . $e->getMessage());
+            return back()->with('error', 'Error al generar PDF: '.$e->getMessage());
         }
     }
 
@@ -981,14 +1028,14 @@ class CompraController extends Controller
         try {
             $compra->load(['detalles.producto', 'proveedor', 'empresa']);
             $pdfPath = app(PDFService::class)->generarFacturaCompraPDF($compra);
-            $nombreArchivo = 'Compra_' . preg_replace('/[^a-zA-Z0-9._-]+/', '_', $compra->folio_completo) . '.pdf';
+            $nombreArchivo = 'Compra_'.preg_replace('/[^a-zA-Z0-9._-]+/', '_', $compra->folio_completo).'.pdf';
 
             return response()->download(
-                storage_path('app/' . $pdfPath),
+                storage_path('app/'.$pdfPath),
                 $nombreArchivo
             );
         } catch (\Exception $e) {
-            return back()->with('error', 'Error al descargar PDF: ' . $e->getMessage());
+            return back()->with('error', 'Error al descargar PDF: '.$e->getMessage());
         }
     }
 
@@ -998,6 +1045,7 @@ class CompraController extends Controller
         if (strlen($q) < 2) {
             return response()->json([]);
         }
+
         return response()->json(
             Proveedor::activos()
                 ->Buscar($q)
@@ -1018,6 +1066,7 @@ class CompraController extends Controller
         if (strlen($q) < 2) {
             return response()->json([]);
         }
+
         return response()->json(
             Producto::where('activo', true)
                 ->where(fn ($qb) => $qb->where('nombre', 'like', "%{$q}%")

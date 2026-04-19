@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Storage;
  * Elimina datos transaccionales de la BD.
  * Mantiene: empresas, clientes, cliente_contactos, categorias_productos, productos,
  * proveedores, producto_proveedores, clientes_direcciones_entrega, users, roles,
- * permissions, permission_role, catálogos SAT, permisos de logística (no se borran).
+ * permissions, permission_role, catálogos SAT, isr_resico_tasas.
+ *
+ * Además reinicia en productos los flags de revisión de precios (post-compra CFDI).
  */
 class LimpiarDatosTransaccionalesCommand extends Command
 {
@@ -113,6 +115,21 @@ class LimpiarDatosTransaccionalesCommand extends Command
             $this->line('  ✓ clientes.saldo_actual puesto a 0');
         }
 
+        // Tras borrar compras / movimientos, los avisos de revisión de precio ya no aplican
+        if (Schema::hasTable('productos')) {
+            $resetProductos = [];
+            if (Schema::hasColumn('productos', 'requiere_revision_precio')) {
+                $resetProductos['requiere_revision_precio'] = false;
+            }
+            if (Schema::hasColumn('productos', 'ultimo_costo')) {
+                $resetProductos['ultimo_costo'] = null;
+            }
+            if ($resetProductos !== []) {
+                DB::table('productos')->update($resetProductos);
+                $this->line('  ✓ productos: revisión de precios (flags) reiniciados');
+            }
+        }
+
         // Resetear folios, series por defecto, credenciales Facturama y certificados en empresas
         if (Schema::hasTable('empresas')) {
             $folios = ['folio_factura', 'folio_factura_credito', 'folio_nota_credito', 'folio_nota_debito', 'folio_complemento', 'folio_cotizacion', 'folio_remision', 'folio_logistica'];
@@ -206,7 +223,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
         $this->line('  ✓ route:clear');
 
         $this->newLine();
-        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Folios y series de empresa reseteados. Documentos (PDF/XML) en storage limpiados. Caché, config, vistas y rutas limpiadas. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
+        $this->info("Listo. Se vaciaron {$limpiadas} tablas. Saldos de clientes en 0. Flags de revisión de precios en productos reiniciados. Folios y series de empresa reseteados. Documentos (PDF/XML) en storage limpiados. Caché, config, vistas y rutas limpiadas. Configuración, clientes, productos, proveedores, usuarios y roles se mantuvieron.");
 
         return self::SUCCESS;
     }

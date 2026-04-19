@@ -25,6 +25,8 @@ class Producto extends Model
         'tipo_factor',
         'costo',
         'costo_promedio',
+        'requiere_revision_precio',
+        'ultimo_costo',
         'precio_venta',
         'precio_mayoreo',
         'precio_minimo',
@@ -47,6 +49,8 @@ class Producto extends Model
     protected $casts = [
         'costo' => 'decimal:2',
         'costo_promedio' => 'decimal:2',
+        'requiere_revision_precio' => 'boolean',
+        'ultimo_costo' => 'decimal:4',
         'precio_venta' => 'decimal:2',
         'precio_mayoreo' => 'decimal:2',
         'precio_minimo' => 'decimal:2',
@@ -137,10 +141,11 @@ class Producto extends Model
      */
     public function getPrecioConIvaAttribute(): float
     {
-        if ($this->tipo_factor === 'Exento' || !$this->aplica_iva) {
+        if ($this->tipo_factor === 'Exento' || ! $this->aplica_iva) {
             return (float) $this->precio_venta;
         }
         $tasa = (float) ($this->tasa_iva ?? 0);
+
         return (float) ($this->precio_venta * (1 + $tasa));
     }
 
@@ -149,10 +154,11 @@ class Producto extends Model
      */
     public function aplicaImpuestoTraslado(): bool
     {
-        if (!in_array($this->objeto_impuesto ?? '02', ['02', '03'], true)) {
+        if (! in_array($this->objeto_impuesto ?? '02', ['02', '03'], true)) {
             return false;
         }
-        return ($this->tipo_factor ?? 'Tasa') === 'Tasa' && (float)($this->tasa_iva ?? 0) > 0;
+
+        return ($this->tipo_factor ?? 'Tasa') === 'Tasa' && (float) ($this->tasa_iva ?? 0) > 0;
     }
 
     /**
@@ -172,7 +178,7 @@ class Producto extends Model
      */
     public function tieneStock(float $cantidad = 1): bool
     {
-        if (!$this->controla_inventario) {
+        if (! $this->controla_inventario) {
             return true;
         }
 
@@ -258,6 +264,7 @@ class Producto extends Model
         if ($sumCantidad <= 0) {
             return null;
         }
+
         return round($sumTotal / $sumCantidad, 2);
     }
 
@@ -269,6 +276,7 @@ class Producto extends Model
         if ($this->costo_promedio !== null && (float) $this->costo_promedio > 0) {
             return (float) $this->costo_promedio;
         }
+
         return $this->costo_promedio_calculado;
     }
 
@@ -286,7 +294,7 @@ class Producto extends Model
     public function scopeBajoStock($query)
     {
         return $query->where('controla_inventario', true)
-                    ->whereColumn('stock', '<=', 'stock_minimo');
+            ->whereColumn('stock', '<=', 'stock_minimo');
     }
 
     /**
@@ -294,11 +302,11 @@ class Producto extends Model
      */
     public function scopeBuscar($query, $search)
     {
-        return $query->where(function($q) use ($search) {
+        return $query->where(function ($q) use ($search) {
             $q->where('nombre', 'like', "%{$search}%")
-              ->orWhere('codigo', 'like', "%{$search}%")
-              ->orWhere('codigo_barras', 'like', "%{$search}%")
-              ->orWhere('clave_sat', 'like', "%{$search}%");
+                ->orWhere('codigo', 'like', "%{$search}%")
+                ->orWhere('codigo_barras', 'like', "%{$search}%")
+                ->orWhere('clave_sat', 'like', "%{$search}%");
         });
     }
 

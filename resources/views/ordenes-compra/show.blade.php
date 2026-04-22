@@ -10,6 +10,7 @@ $breadcrumbs = [
 ];
 $diasCreditoOrden = (int) ($ordenCompra->dias_credito ?? 0);
 $esCreditoOrden = $diasCreditoOrden > 0;
+$cuentaVinculada = $ordenCompra->cuentaPorPagar ?? $ordenCompra->facturaCompra?->cuentaPorPagar;
 @endphp
 
 @section('content')
@@ -91,10 +92,13 @@ $esCreditoOrden = $diasCreditoOrden > 0;
                 <p style="margin-top:12px;font-size:13px;">Al aceptar se creará la cuenta por pagar.</p>
                 @elseif($ordenCompra->estado === 'aceptada')
                 <span class="badge badge-info" style="font-size:14px;">Aceptada</span>
-                <p style="margin-top:12px;font-size:13px;">Recibe la mercancía para registrar la entrada de inventario.</p>
+                <p style="margin-top:12px;font-size:13px;">Convierta la orden en compra para continuar con inventario y cuentas por pagar desde el módulo de Compras.</p>
+                @elseif($ordenCompra->estado === 'convertida_compra')
+                <span class="badge badge-success" style="font-size:14px;">Convertida a compra</span>
+                <p style="margin-top:12px;font-size:13px;">Ya existe una compra asociada. Use la ficha de la compra para recibir mercancía o consultar el CFDI.</p>
                 @elseif($ordenCompra->estado === 'recibida')
                 <span class="badge badge-success" style="font-size:14px;">Recibida</span>
-                <p style="margin-top:12px;font-size:13px;">Entrada de inventario registrada.</p>
+                <p style="margin-top:12px;font-size:13px;">Entrada de inventario registrada (flujo anterior).</p>
                 @elseif($ordenCompra->estado === 'cancelada')
                 <span class="badge badge-danger" style="font-size:14px;">Cancelada</span>
                 <p style="margin-top:12px;font-size:13px;">Orden cancelada. La cuenta por pagar asociada también fue cancelada.</p>
@@ -121,21 +125,21 @@ $esCreditoOrden = $diasCreditoOrden > 0;
                     <button type="submit" class="btn btn-success w-full">✅ Aceptar (cargar a Cuentas por pagar)</button>
                 </form>
                 @endif
-                @if($ordenCompra->puedeRecibirse())
-                <form method="POST" action="{{ route('ordenes-compra.recibir', $ordenCompra->id) }}" style="margin:0;">
-                    @csrf
-                    <button type="submit" class="btn btn-primary w-full">📥 Recibir mercancía (entrada inventario)</button>
-                </form>
+                @if($ordenCompra->puedeConvertirseACompra())
+                <button type="button" class="btn btn-primary w-full" onclick="document.getElementById('modalConvertirCompra').classList.add('show')">🛒 Convertir a compra</button>
                 @endif
-                @if($ordenCompra->cuentaPorPagar && $ordenCompra->estado !== 'cancelada')
-                <a href="{{ route('cuentas-por-pagar.show', $ordenCompra->cuentaPorPagar->id) }}" class="btn btn-outline w-full">💳 Ver cuenta por pagar</a>
+                @if($ordenCompra->facturaCompra)
+                <a href="{{ route('compras.show', $ordenCompra->facturaCompra->id) }}" class="btn btn-outline w-full">🛒 Ver compra generada</a>
+                @endif
+                @if($cuentaVinculada && $ordenCompra->estado !== 'cancelada')
+                <a href="{{ route('cuentas-por-pagar.show', $cuentaVinculada->id) }}" class="btn btn-outline w-full">💳 Ver cuenta por pagar</a>
                 @endif
 
                 @if($ordenCompra->puedeCancelarse())
-                <form method="POST" action="{{ route('ordenes-compra.destroy', $ordenCompra->id) }}" style="margin:0;" onsubmit="return confirm('¿Cancelar esta orden de compra? Se cancelará la orden y la cuenta por pagar asociada.');">
+                <form method="POST" action="{{ route('ordenes-compra.destroy', $ordenCompra->id) }}" style="margin:0;" onsubmit="return confirm('¿Cancelar esta orden de compra? Si existe cuenta por pagar vinculada a la orden, también se cancelará.');">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-danger w-full">🗑️ Cancelar</button>
+                    <button type="submit" class="btn btn-danger w-full">🗑️ Cancelar orden de compra</button>
                 </form>
                 @endif
 
@@ -144,5 +148,29 @@ $esCreditoOrden = $diasCreditoOrden > 0;
         </div>
     </div>
 </div>
+
+@if($ordenCompra->puedeConvertirseACompra())
+<div id="modalConvertirCompra" class="modal" onclick="if(event.target===this)this.classList.remove('show')">
+    <div class="modal-box" style="max-width: 480px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title">Convertir orden en compra</div>
+            <button type="button" class="modal-close" onclick="document.getElementById('modalConvertirCompra').classList.remove('show')" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin:0;font-size:14px;line-height:1.45;">Elija cómo desea registrar la compra. En ambos casos se abrirá la ficha de la compra al finalizar para continuar el flujo.</p>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px;">
+                <form method="POST" action="{{ route('ordenes-compra.convertir-compra-normal', $ordenCompra->id) }}" style="margin:0;">
+                    @csrf
+                    <button type="submit" class="btn btn-primary w-full">A — Registrar compra normal</button>
+                </form>
+                <a href="{{ route('compras.upload-cfdi', ['orden_compra_id' => $ordenCompra->id]) }}" class="btn btn-outline w-full" style="text-align:center;text-decoration:none;" onclick="document.getElementById('modalConvertirCompra').classList.remove('show')">B — Registrar compra por CFDI</a>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="document.getElementById('modalConvertirCompra').classList.remove('show')">Cerrar</button>
+        </div>
+    </div>
+</div>
+@endif
 
 @endsection

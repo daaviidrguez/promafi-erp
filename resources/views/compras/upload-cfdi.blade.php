@@ -12,6 +12,14 @@ $breadcrumbs = [
 
 @section('content')
 
+@if(!empty($ordenOrigenConversion))
+<div class="card mb-3" style="max-width: 600px;border-left:4px solid var(--color-info);">
+    <div class="card-body" style="font-size:14px;">
+        <strong>Orden de compra {{ $ordenOrigenConversion->folio }}</strong> — Al guardar la compra desde este CFDI, la orden quedará vinculada y marcada como convertida (el total del XML debe coincidir con el de la orden).
+    </div>
+</div>
+@endif
+
 <div class="card" style="max-width: 600px;">
     <div class="card-header">
         <div class="card-title">Subir archivo XML</div>
@@ -19,7 +27,7 @@ $breadcrumbs = [
     <div class="card-body">
         <p class="text-muted mb-3">
             Sube el archivo XML del CFDI de la factura de compra emitida por tu proveedor.
-            El sistema leerá los datos y abrirá un formulario para que vincule cada línea del detalle a un producto (lupa en Código). Al guardar, podrá usar <strong>Recibir mercancía</strong> para registrar la entrada en inventario.
+            El sistema leerá los datos y abrirá un formulario para que vincule cada línea del detalle a un producto (lupa en Código). En la ficha de la compra podrá usar <strong>Recibir mercancía</strong> para registrar la entrada en inventario.
         </p>
         <form method="POST" action="{{ route('compras.upload-cfdi') }}" enctype="multipart/form-data">
             @csrf
@@ -33,7 +41,7 @@ $breadcrumbs = [
             @enderror
             <div class="form-group mt-3">
                 <button type="submit" class="btn btn-primary">📤 Procesar CFDI</button>
-                <a href="{{ route('compras.index') }}" class="btn btn-light">Cancelar</a>
+                <a href="{{ route('compras.descartar-vinculo-orden-oc') }}" class="btn btn-light">Cancelar</a>
             </div>
         </form>
     </div>

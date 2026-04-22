@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Guardar compra desde CFDI')
 @section('page-title', '📄 Compra desde CFDI')
-@section('page-subtitle', 'Vincule cada línea a un producto (lupa en Código) para que "Recibir mercancía" registre la entrada en inventario')
+@section('page-subtitle', 'Vincule cada línea a un producto (lupa en Código); en la ficha de la compra use «Recibir mercancía» para inventario')
 
 @php
 $breadcrumbs = [
@@ -21,6 +21,13 @@ $conceptosCount = count($conceptos);
 @endif
 @if(session('error'))
     <div class="alert alert-danger mb-3">{{ session('error') }}</div>
+@endif
+@if(!empty($ordenConversionCfdi))
+<div class="card mb-3" style="border-left:4px solid var(--color-info);">
+    <div class="card-body" style="font-size:14px;">
+        <strong>Conversión desde orden {{ $ordenConversionCfdi->folio }}</strong> — Al guardar, la compra se vinculará a esa orden (el total del CFDI debe coincidir con el total de la orden).
+    </div>
+</div>
 @endif
 
 <form action="{{ route('compras.store-desde-cfdi') }}" method="POST" id="formCfdiCompra" data-cfdi-concepto-indices='@json(array_keys($conceptos))'>

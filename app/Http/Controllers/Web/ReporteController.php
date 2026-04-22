@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Exports\ReporteComprasExport;
 use App\Exports\ReporteUtilidadExport;
 use App\Exports\ReporteVentasMensualesExport;
 use App\Helpers\IsrResicoHelper;
@@ -77,7 +78,7 @@ class ReporteController extends Controller
         }
 
         // IVA acreditable: de órdenes de compra y facturas de compra del mes
-        $ordenes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida'])
+        $ordenes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida', 'convertida_compra'])
             ->whereBetween('fecha', [$inicio, $fin])
             ->get();
         $facturasCompra = FacturaCompra::whereBetween('fecha_emision', [$inicio, $fin])
@@ -305,38 +306,133 @@ class ReporteController extends Controller
     }
 
     /**
-     * Reporte de compras
+     * Reporte de compras (solo facturas de compra; la OC queda referenciada en la factura si aplica).
      */
     public function compras(Request $request)
     {
         $mes = (int) ($request->get('mes') ?? now()->month);
         $año = (int) ($request->get('año') ?? now()->year);
 
+        $facturasCompra = $this->coleccionFacturasCompraReporte($mes, $año);
+
+        $totalCompras = $facturasCompra->sum(fn ($fc) => (float) $fc->total);
+        $subtotalCompras = $facturasCompra->sum(fn ($fc) => (float) ($fc->subtotal ?? 0));
+        $ivaCompras = $facturasCompra->sum(fn ($fc) => $this->ivaTrasladadoFacturaCompra($fc));
+
+        return view('reportes.compras', compact('mes', 'año', 'facturasCompra', 'totalCompras', 'subtotalCompras', 'ivaCompras'));
+    }
+
+    /**
+     * Exportar reporte de compras (PDF o Excel), mismo período que los filtros de la vista.
+     */
+    public function comprasExport(Request $request)
+    {
+        $validated = $request->validate([
+            'formato' => 'required|in:pdf,xlsx',
+            'mes' => 'required|integer|min:1|max:12',
+            'año' => 'required|integer|min:2000|max:2100',
+        ]);
+
+        $mes = (int) $validated['mes'];
+        $año = (int) $validated['año'];
+        $facturasCompra = $this->coleccionFacturasCompraReporte($mes, $año);
+
+        $subtotalCompras = $facturasCompra->sum(fn ($fc) => (float) ($fc->subtotal ?? 0));
+        $ivaCompras = $facturasCompra->sum(fn ($fc) => $this->ivaTrasladadoFacturaCompra($fc));
+        $totalCompras = $facturasCompra->sum(fn ($fc) => (float) $fc->total);
+
+        $lineas = $this->lineasExportablesComprasMensuales($facturasCompra);
+        $mesNombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        $mesNombre = $mesNombres[$mes] ?? (string) $mes;
+        $slug = 'compras_'.$año.'-'.str_pad((string) $mes, 2, '0', STR_PAD_LEFT).'_'.now()->format('His');
+
+        if ($validated['formato'] === 'xlsx') {
+            return Excel::download(
+                new ReporteComprasExport(
+                    $lineas,
+                    $facturasCompra->count(),
+                    $subtotalCompras,
+                    $ivaCompras,
+                    $totalCompras,
+                ),
+                $slug.'.xlsx'
+            );
+        }
+
+        $empresa = Empresa::principal();
+        $html = view('pdf.reporte-compras', [
+            'empresa' => $empresa,
+            'mesNombre' => $mesNombre,
+            'año' => $año,
+            'lineas' => $lineas,
+            'numFacturas' => $facturasCompra->count(),
+            'subtotalCompras' => $subtotalCompras,
+            'ivaCompras' => $ivaCompras,
+            'totalCompras' => $totalCompras,
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'landscape');
+        $dompdf->render();
+
+        return response($dompdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$slug.'.pdf"',
+        ]);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, FacturaCompra>
+     */
+    private function coleccionFacturasCompraReporte(int $mes, int $año)
+    {
+        $mes = max(1, min(12, $mes));
         $inicio = Carbon::create($año, $mes, 1)->startOfDay();
         $fin = $inicio->copy()->endOfMonth();
 
-        $ordenes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida'])
-            ->whereBetween('fecha', [$inicio, $fin])
-            ->with(['proveedor'])
-            ->orderBy('fecha')
-            ->get();
-
-        $facturasCompra = FacturaCompra::whereBetween('fecha_emision', [$inicio, $fin])
-            ->with(['proveedor', 'detalles.impuestos'])
+        return FacturaCompra::whereBetween('fecha_emision', [$inicio, $fin])
+            ->with(['proveedor', 'ordenCompra', 'detalles.impuestos'])
             ->orderBy('fecha_emision')
             ->get();
+    }
 
-        $totalCompras = $ordenes->sum(fn ($o) => (float) $o->total) + $facturasCompra->sum(fn ($fc) => (float) $fc->total);
-        $subtotalCompras = $ordenes->sum(fn ($o) => (float) $o->subtotal) + $facturasCompra->sum(fn ($fc) => (float) ($fc->subtotal ?? 0));
-        $ivaCompras = $ordenes->sum(fn ($o) => (float) ($o->iva ?? 0))
-            + $facturasCompra->sum(fn ($fc) => $fc->detalles->sum(fn ($d) => $d->impuestos->where('tipo', 'traslado')->where('impuesto', '002')->sum('importe')));
+    private function ivaTrasladadoFacturaCompra(FacturaCompra $fc): float
+    {
+        $total = 0.0;
+        foreach ($fc->detalles ?? [] as $d) {
+            foreach ($d->impuestos ?? [] as $imp) {
+                if (($imp->tipo ?? '') === 'traslado' && ($imp->impuesto ?? '') === '002') {
+                    $total += (float) $imp->importe;
+                }
+            }
+        }
 
-        $comprasMerge = collect()
-            ->concat($ordenes->map(fn ($o) => (object) ['tipo' => 'orden', 'folio' => $o->folio, 'fecha' => $o->fecha, 'proveedor' => $o->proveedor->nombre ?? $o->proveedor_nombre ?? '-', 'total' => (float) $o->total, 'id' => $o->id, 'route' => 'ordenes-compra.show']))
-            ->concat($facturasCompra->map(fn ($fc) => (object) ['tipo' => 'factura', 'folio' => $fc->folio_completo, 'fecha' => $fc->fecha_emision, 'proveedor' => $fc->proveedor->nombre ?? $fc->nombre_emisor ?? '-', 'total' => (float) ($fc->total ?? 0), 'id' => $fc->id, 'route' => 'compras.show']))
-            ->sortBy('fecha');
+        return $total;
+    }
 
-        return view('reportes.compras', compact('mes', 'año', 'ordenes', 'facturasCompra', 'comprasMerge', 'totalCompras', 'subtotalCompras', 'ivaCompras'));
+    /**
+     * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection<int, FacturaCompra>  $facturasCompra
+     * @return array<int, array{folio: string, fecha: string, proveedor: string, subtotal: float, iva: float, total: float}>
+     */
+    private function lineasExportablesComprasMensuales($facturasCompra): array
+    {
+        $lineas = [];
+        foreach ($facturasCompra as $fc) {
+            $lineas[] = [
+                'folio' => $fc->folioListadoReferencias(),
+                'fecha' => $fc->fecha_emision->format('d/m/Y'),
+                'proveedor' => $fc->proveedor->nombre ?? $fc->nombre_emisor ?? '-',
+                'subtotal' => (float) ($fc->subtotal ?? 0),
+                'iva' => $this->ivaTrasladadoFacturaCompra($fc),
+                'total' => (float) ($fc->total ?? 0),
+            ];
+        }
+
+        return $lineas;
     }
 
     /**

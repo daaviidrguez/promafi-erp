@@ -69,6 +69,7 @@ class ProveedorController extends Controller
             'ordenes_borrador' => $proveedor->ordenesCompra()->where('estado', 'borrador')->count(),
             'ordenes_aceptadas' => $proveedor->ordenesCompra()->where('estado', 'aceptada')->count(),
             'ordenes_recibidas' => $proveedor->ordenesCompra()->where('estado', 'recibida')->count(),
+            'ordenes_convertidas_compra' => $proveedor->ordenesCompra()->where('estado', 'convertida_compra')->count(),
             'cuentas_pendientes' => $proveedor->cuentasPorPagar()->whereIn('estado', ['pendiente', 'parcial', 'vencida'])->count(),
             'monto_pendiente' => (float) $proveedor->cuentasPorPagar()->whereIn('estado', ['pendiente', 'parcial', 'vencida'])->sum('monto_pendiente'),
         ];

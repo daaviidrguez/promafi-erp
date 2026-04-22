@@ -72,7 +72,7 @@ class TableroAnualController extends Controller
             }
 
             // IVA acreditable: órdenes y facturas de compra del mes
-            $ordenes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida'])
+            $ordenes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida', 'convertida_compra'])
                 ->whereBetween('fecha', [$inicio, $fin])
                 ->get();
             $facturasCompra = FacturaCompra::whereBetween('fecha_emision', [$inicio, $fin])

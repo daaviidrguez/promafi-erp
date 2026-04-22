@@ -130,13 +130,13 @@ class TableroController extends Controller
             ->get();
 
         // ─── 4. COMPRAS Y GASTOS (compras y servicios más importantes) ───
-        $comprasPorProveedor = OrdenCompra::whereIn('estado', ['aceptada', 'recibida'])
+        $comprasPorProveedor = OrdenCompra::whereIn('estado', ['aceptada', 'recibida', 'convertida_compra'])
             ->select('proveedor_id', 'proveedor_nombre', DB::raw('SUM(total) as total'))
             ->groupBy('proveedor_id', 'proveedor_nombre')
             ->orderByDesc('total')
             ->limit(10)
             ->get();
-        $comprasPorMes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida'])
+        $comprasPorMes = OrdenCompra::whereIn('estado', ['aceptada', 'recibida', 'convertida_compra'])
             ->whereYear('fecha', $añoActual)
             ->selectRaw('MONTH(fecha) as mes, SUM(total) as total')
             ->groupBy('mes')

@@ -88,6 +88,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/reportes/ventas', [ReporteController::class, 'ventas'])->name('reportes.ventas');
     Route::get('/reportes/ventas/export', [ReporteController::class, 'ventasExport'])->name('reportes.ventas.export');
     Route::get('/reportes/compras', [ReporteController::class, 'compras'])->name('reportes.compras');
+    Route::get('/reportes/compras/export', [ReporteController::class, 'comprasExport'])->name('reportes.compras.export');
     Route::get('/reportes/utilidad', [ReporteController::class, 'utilidad'])->name('reportes.utilidad');
     Route::get('/reportes/utilidad/export', [ReporteController::class, 'utilidadExport'])->name('reportes.utilidad.export');
 
@@ -162,12 +163,13 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/ordenes-compra/{ordenCompra}/ver-pdf', [OrdenCompraController::class, 'verPDF'])->name('ordenes-compra.ver-pdf');
     Route::get('/ordenes-compra/{ordenCompra}/descargar-pdf', [OrdenCompraController::class, 'descargarPDF'])->name('ordenes-compra.descargar-pdf');
     Route::post('/ordenes-compra/{ordenCompra}/aceptar', [OrdenCompraController::class, 'aceptar'])->name('ordenes-compra.aceptar');
-    Route::post('/ordenes-compra/{ordenCompra}/recibir', [OrdenCompraController::class, 'recibir'])->name('ordenes-compra.recibir');
+    Route::post('/ordenes-compra/{ordenCompra}/convertir-compra-normal', [OrdenCompraController::class, 'convertirACompraNormal'])->name('ordenes-compra.convertir-compra-normal');
 
     // ========================================
     // COMPRAS (facturas de compra directas / CFDI)
     // ========================================
     Route::get('/compras/crear', [CompraController::class, 'create'])->name('compras.create');
+    Route::get('/compras/descartar-vinculo-orden-oc', [CompraController::class, 'descartarVinculoOrdenOcCfdi'])->name('compras.descartar-vinculo-orden-oc');
     Route::match(['get', 'post'], '/compras/subir-cfdi', [CompraController::class, 'uploadCfdi'])->name('compras.upload-cfdi');
     Route::get('/compras/crear-desde-cfdi', [CompraController::class, 'crearDesdeCfdi'])->name('compras.crear-desde-cfdi');
     Route::post('/compras/guardar-desde-cfdi', [CompraController::class, 'storeDesdeCfdi'])->name('compras.store-desde-cfdi');

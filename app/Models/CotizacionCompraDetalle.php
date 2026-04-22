@@ -54,23 +54,30 @@ class CotizacionCompraDetalle extends Model
         return $this->belongsTo(Producto::class);
     }
 
+    /**
+     * Importes alineados con el criterio usual de CFDI / facturación: importe de partida
+     * = redondeo a 2 decimales de (cantidad × precio unitario), luego descuento, base e IVA
+     * redondeados por partida (misma idea que en notas de crédito y líneas de compra por XML).
+     */
     public static function calcularImportes(array $datos): array
     {
         $cantidad = floatval($datos['cantidad']);
         $precioUnitario = floatval($datos['precio_unitario']);
         $descuentoPorcentaje = floatval($datos['descuento_porcentaje'] ?? 0);
         $tasaIva = isset($datos['tasa_iva']) ? floatval($datos['tasa_iva']) : null;
-        $subtotal = $cantidad * $precioUnitario;
-        $descuentoMonto = $subtotal * ($descuentoPorcentaje / 100);
-        $baseImponible = $subtotal - $descuentoMonto;
-        $ivaMonto = $tasaIva !== null ? $baseImponible * $tasaIva : 0;
-        $total = $baseImponible + $ivaMonto;
+
+        $importePartida = round($cantidad * $precioUnitario, 2);
+        $descuentoMonto = round($importePartida * ($descuentoPorcentaje / 100), 2);
+        $baseImponible = round($importePartida - $descuentoMonto, 2);
+        $ivaMonto = $tasaIva !== null ? round($baseImponible * $tasaIva, 2) : 0.0;
+        $total = round($baseImponible + $ivaMonto, 2);
+
         return [
-            'subtotal' => round($subtotal, 2),
-            'descuento_monto' => round($descuentoMonto, 2),
-            'base_imponible' => round($baseImponible, 2),
-            'iva_monto' => round($ivaMonto, 2),
-            'total' => round($total, 2),
+            'subtotal' => $importePartida,
+            'descuento_monto' => $descuentoMonto,
+            'base_imponible' => $baseImponible,
+            'iva_monto' => $ivaMonto,
+            'total' => $total,
         ];
     }
 

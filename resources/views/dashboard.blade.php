@@ -111,7 +111,7 @@ $breadcrumbs = [
                 <li><span class="dashboard-list-label">Proveedores</span><span class="dashboard-list-value">{{ $totalProveedores ?? 0 }}</span> <span class="text-muted">({{ $proveedoresActivos ?? 0 }} activos)</span></li>
                 <li><span class="dashboard-list-label">Órdenes de compra (mes)</span><span class="dashboard-list-value">{{ $ordenesMes ?? 0 }}</span></li>
                 <li><span class="dashboard-list-label">OC borrador</span><span class="dashboard-list-value">{{ $ordenesBorrador ?? 0 }}</span></li>
-                <li><span class="dashboard-list-label">OC aceptadas / recibidas</span><span class="dashboard-list-value">{{ ($ordenesAceptadas ?? 0) + ($ordenesRecibidas ?? 0) }}</span></li>
+                <li><span class="dashboard-list-label">OC aceptadas / cerradas</span><span class="dashboard-list-value">{{ ($ordenesAceptadas ?? 0) + ($ordenesRecibidas ?? 0) + ($ordenesConvertidasCompra ?? 0) }}</span></li>
                 <li><span class="dashboard-list-label">Cotizaciones de compra</span><span class="dashboard-list-value">{{ $cotizacionesCompraTotal ?? 0 }}</span></li>
                 <li><span class="dashboard-list-label">Por pagar</span><span class="dashboard-list-value">${{ number_format($porPagar ?? 0, 2, '.', ',') }}</span></li>
             </ul>

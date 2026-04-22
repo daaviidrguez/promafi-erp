@@ -81,6 +81,11 @@ class OrdenCompra extends Model
         return $this->hasOne(CuentaPorPagar::class);
     }
 
+    public function facturaCompra(): HasOne
+    {
+        return $this->hasOne(FacturaCompra::class);
+    }
+
     public static function generarFolio(): string
     {
         $max = 0;
@@ -119,22 +124,17 @@ class OrdenCompra extends Model
         return $this->estado === 'borrador';
     }
 
-    public function puedeRecibirse(): bool
+    public function puedeConvertirseACompra(): bool
     {
-        return $this->estado === 'aceptada';
-    }
-
-    public function estaRecibida(): bool
-    {
-        return $this->estado === 'recibida';
+        return $this->estado === 'aceptada' && ! $this->facturaCompra()->exists();
     }
 
     /**
-     * Se puede cancelar después de aceptar (orden aceptada con cuenta por pagar).
-     * En borrador se edita o elimina; la cancelación aplica cuando ya está aceptada.
+     * Se puede cancelar en aceptada si aún no se generó la compra.
+     * Si hay cuenta por pagar asociada a la orden, también se cancela.
      */
     public function puedeCancelarse(): bool
     {
-        return $this->estado === 'aceptada' && $this->cuentaPorPagar;
+        return $this->estado === 'aceptada' && ! $this->facturaCompra()->exists();
     }
 }

@@ -11,10 +11,12 @@ use App\Models\FacturaCompra;
 use App\Models\FacturaCompraDetalle;
 use App\Models\FacturaCompraImpuesto;
 use App\Models\InventarioMovimiento;
+use App\Models\OrdenCompra;
 use App\Models\Producto;
 use App\Models\ProductoProveedor;
 use App\Models\Proveedor;
 use App\Services\FacturaCompraCfdiService;
+use App\Services\FacturaCompraDesdeOrdenCompraService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,13 +25,32 @@ class CompraController extends Controller
 {
     public function index(Request $request)
     {
-        $query = FacturaCompra::with(['proveedor', 'usuario']);
+        $query = FacturaCompra::with(['proveedor', 'usuario', 'ordenCompra']);
         if ($request->filled('search')) {
             $s = $request->search;
-            $query->where(fn ($q) => $q->where('folio', 'like', "%{$s}%")
-                ->orWhere('uuid', 'like', "%{$s}%")
-                ->orWhere('nombre_emisor', 'like', "%{$s}%")
-                ->orWhere('rfc_emisor', 'like', "%{$s}%"));
+            $query->where(function ($q) use ($s) {
+                $q->where('folio', 'like', "%{$s}%")
+                    ->orWhere('folio_interno', 'like', "%{$s}%")
+                    ->orWhere('uuid', 'like', "%{$s}%")
+                    ->orWhere('nombre_emisor', 'like', "%{$s}%")
+                    ->orWhere('rfc_emisor', 'like', "%{$s}%")
+                    ->orWhere('serie', 'like', "%{$s}%")
+                    ->orWhere(function ($q2) use ($s) {
+                        $driver = DB::connection()->getDriverName();
+                        if ($driver === 'mysql') {
+                            $q2->whereRaw(
+                                "TRIM(CONCAT(COALESCE(serie, ''), '/', COALESCE(folio, ''))) LIKE ?",
+                                ["%{$s}%"]
+                            );
+                        } else {
+                            $q2->whereRaw(
+                                "(TRIM(COALESCE(serie, '')) || '/' || TRIM(COALESCE(folio, ''))) LIKE ?",
+                                ["%{$s}%"]
+                            );
+                        }
+                    })
+                    ->orWhereHas('ordenCompra', fn ($qo) => $qo->where('folio', 'like', "%{$s}%"));
+            });
         }
         $compras = $query->orderBy('fecha_emision', 'desc')->paginate(20);
 
@@ -167,7 +188,7 @@ class CompraController extends Controller
 
     public function show(FacturaCompra $compra)
     {
-        $compra->load(['proveedor', 'detalles.producto', 'detalles.impuestos', 'cuentaPorPagar', 'usuario']);
+        $compra->load(['proveedor', 'detalles.producto', 'detalles.impuestos', 'cuentaPorPagar', 'usuario', 'ordenCompra.cotizacionCompra']);
         $usoCfdi = $this->extraerUsoCfdiDeXml($compra->xml_content);
 
         $revisionPreciosBanner = null;
@@ -286,6 +307,17 @@ class CompraController extends Controller
         }
     }
 
+    /**
+     * Limpia la sesión de conversión OC → CFDI (flujo botón B) y redirige al listado de compras.
+     */
+    public function descartarVinculoOrdenOcCfdi(Request $request)
+    {
+        $request->session()->forget('compras_desde_orden_compra_id');
+
+        return redirect()->route('compras.index')
+            ->with('info', 'Se descartó el vínculo con la orden de compra. Para volver a intentarlo, abra la orden y use «Convertir a compra».');
+    }
+
     public function uploadCfdi(Request $request)
     {
         if ($request->isMethod('post')) {
@@ -308,6 +340,15 @@ class CompraController extends Controller
             $service = app(FacturaCompraCfdiService::class);
             $result = $service->parsear($content);
             if ($result['success']) {
+                $idOrd = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
+                if ($idOrd > 0) {
+                    $oc = OrdenCompra::find($idOrd);
+                    $rfcXml = strtoupper(trim((string) ($result['datos']['rfc_emisor'] ?? '')));
+                    $rfcOrd = strtoupper(trim((string) ($oc->proveedor_rfc ?? '')));
+                    if (! $oc || $rfcOrd === '' || $rfcXml === '' || $rfcOrd !== $rfcXml) {
+                        $request->session()->forget('compras_desde_orden_compra_id');
+                    }
+                }
                 $request->session()->put('compras_cfdi_precarga', $result['datos']);
                 $request->session()->forget('compras_cfdi_linea_producto');
 
@@ -317,7 +358,20 @@ class CompraController extends Controller
             return back()->with('error', $result['message']);
         }
 
-        return view('compras.upload-cfdi');
+        // Sin ?orden_compra_id= en la URL (entrada normal a Leer CFDI): no debe persistir un vínculo abandonado del botón B.
+        $ordenOrigenConversion = null;
+        $svcOrden = app(FacturaCompraDesdeOrdenCompraService::class);
+        if (! $request->filled('orden_compra_id')) {
+            $request->session()->forget('compras_desde_orden_compra_id');
+        } else {
+            $oc = OrdenCompra::find($request->integer('orden_compra_id'));
+            if ($oc && $svcOrden->ordenPuedeConvertirse($oc)) {
+                $request->session()->put('compras_desde_orden_compra_id', $oc->id);
+                $ordenOrigenConversion = $oc;
+            }
+        }
+
+        return view('compras.upload-cfdi', compact('ordenOrigenConversion'));
     }
 
     /**
@@ -329,6 +383,18 @@ class CompraController extends Controller
         if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
         }
+
+        $ordenConversionCfdi = null;
+        $idOrdConv = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
+        if ($idOrdConv > 0) {
+            $oc = OrdenCompra::find($idOrdConv);
+            if ($oc && app(FacturaCompraDesdeOrdenCompraService::class)->ordenPuedeConvertirse($oc)) {
+                $ordenConversionCfdi = $oc;
+            } else {
+                $request->session()->forget('compras_desde_orden_compra_id');
+            }
+        }
+
         $empresa = Empresa::principal();
         $proveedor = ! empty($datos['rfc_emisor'])
             ? Proveedor::whereRaw('UPPER(rfc) = UPPER(?)', [$datos['rfc_emisor']])->first()
@@ -375,7 +441,8 @@ class CompraController extends Controller
             'productosPorLinea',
             'descripcionPorIndiceLineaCfdi',
             'descripcionesConNoIdentCfdi',
-            'folioInterno'
+            'folioInterno',
+            'ordenConversionCfdi'
         ));
     }
 
@@ -542,6 +609,21 @@ class CompraController extends Controller
 
         $empresa = Empresa::principal();
         $proveedor = Proveedor::findOrFail($validated['proveedor_id']);
+
+        $ordenCompraDesdeSesionId = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
+        $ordenCtx = null;
+        if ($ordenCompraDesdeSesionId > 0) {
+            $ordenCtx = OrdenCompra::with('cuentaPorPagar')->find($ordenCompraDesdeSesionId);
+            if (! $ordenCtx || ! app(FacturaCompraDesdeOrdenCompraService::class)->ordenPuedeConvertirse($ordenCtx)) {
+                $request->session()->forget('compras_desde_orden_compra_id');
+
+                return back()->with('error', 'La orden de compra ya no admite vincular este CFDI.');
+            }
+            if ((int) $ordenCtx->proveedor_id !== (int) $proveedor->id) {
+                return back()->with('error', 'El proveedor debe coincidir con la orden de compra de origen.');
+            }
+        }
+
         $subtotal = (float) ($datos['subtotal'] ?? 0);
         $descuento = (float) ($datos['descuento'] ?? 0);
         $total = (float) ($datos['total'] ?? 0);
@@ -614,7 +696,8 @@ class CompraController extends Controller
             }
 
             $diasCredito = (int) ($proveedor->dias_credito ?? 0);
-            if (($validated['metodo_pago'] ?? '') === 'PPD' && $diasCredito > 0) {
+            $omitirCuentaPorPagarNueva = $ordenCtx && $ordenCtx->cuentaPorPagar;
+            if (($validated['metodo_pago'] ?? '') === 'PPD' && $diasCredito > 0 && ! $omitirCuentaPorPagarNueva) {
                 $fechaEmision = \Carbon\Carbon::parse($fc->fecha_emision);
                 $fechaVencimiento = $fechaEmision->copy()->addDays($diasCredito);
                 CuentaPorPagar::create([
@@ -630,13 +713,17 @@ class CompraController extends Controller
                 ]);
             }
 
-            $request->session()->forget(['compras_cfdi_precarga', 'compras_cfdi_linea_producto']);
+            if ($ordenCtx) {
+                app(FacturaCompraDesdeOrdenCompraService::class)->vincularFacturaCreadaDesdeCfdi($ordenCtx, $fc);
+            }
+
+            $request->session()->forget(['compras_cfdi_precarga', 'compras_cfdi_linea_producto', 'compras_desde_orden_compra_id']);
             DB::commit();
 
             event(new FacturaCompraDesdeCfdiRegistrada($fc->fresh(['detalles.producto'])));
 
             return redirect()->route('compras.show', $fc->id)
-                ->with('success', 'Compra guardada. Use "Recibir mercancía" para registrar la entrada en inventario.');
+                ->with('success', 'Compra guardada. En la ficha de la compra puede usar «Recibir mercancía» para registrar la entrada en inventario.');
         } catch (\Throwable $e) {
             DB::rollBack();
 

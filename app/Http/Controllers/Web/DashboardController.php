@@ -96,6 +96,7 @@ class DashboardController extends Controller
         $ordenesBorrador = OrdenCompra::where('estado', 'borrador')->count();
         $ordenesAceptadas = OrdenCompra::where('estado', 'aceptada')->count();
         $ordenesRecibidas = OrdenCompra::where('estado', 'recibida')->count();
+        $ordenesConvertidasCompra = OrdenCompra::where('estado', 'convertida_compra')->count();
         $ordenesMes = OrdenCompra::whereMonth('fecha', $mes)->whereYear('fecha', $año)->count();
 
         $cotizacionesCompraTotal = CotizacionCompra::count();
@@ -131,6 +132,7 @@ class DashboardController extends Controller
             'ordenesBorrador',
             'ordenesAceptadas',
             'ordenesRecibidas',
+            'ordenesConvertidasCompra',
             'ordenesMes',
             'cotizacionesCompraTotal',
             'cotizacionesCompraMes',

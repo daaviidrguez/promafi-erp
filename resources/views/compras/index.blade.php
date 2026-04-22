@@ -16,7 +16,7 @@
         <form method="GET" action="{{ route('compras.index') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
             <div class="form-group" style="margin:0;">
                 <label class="form-label">Buscar</label>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Folio, UUID, proveedor, RFC..." class="form-control" style="min-width:220px;">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="EM-0001, folio proveedor, OC, UUID, proveedor, RFC…" class="form-control" style="min-width:220px;">
             </div>
             <button type="submit" class="btn btn-primary">Buscar</button>
         </form>
@@ -39,7 +39,13 @@
         <tbody>
             @foreach($compras as $c)
             <tr>
-                <td class="text-mono fw-600">{{ $c->folio_completo }}</td>
+                <td class="text-mono">
+                    @php $fol = $c->folioListadoReferencias(); $folPartes = explode(' · ', $fol); @endphp
+                    <span class="fw-600">{{ $folPartes[0] }}</span>
+                    @if(count($folPartes) > 1)
+                    <span class="text-muted" style="font-size:11px;font-weight:500;"> · {{ implode(' · ', array_slice($folPartes, 1)) }}</span>
+                    @endif
+                </td>
                 <td>
                     {{ $c->nombre_emisor }}
                     @if($c->uuid)<br><span class="text-muted" style="font-size:11px;">{{ \Illuminate\Support\Str::limit($c->uuid, 20) }}</span>@endif

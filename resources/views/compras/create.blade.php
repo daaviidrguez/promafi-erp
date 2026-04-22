@@ -16,6 +16,10 @@ $breadcrumbs = [
     Para cargar compras desde el CFDI XML del proveedor, usa <a href="{{ route('compras.upload-cfdi') }}"><strong>Leer CFDI</strong></a>.
     Aquí puedes registrar una compra manualmente.
 </p>
+<p class="text-muted" style="margin-bottom:16px;padding:12px 14px;background:var(--color-gray-50);border-radius:var(--radius-md);border-left:4px solid var(--color-info);font-size:14px;line-height:1.45;">
+    Para convertir una <strong>orden de compra aceptada</strong> en compra, ve a la orden de compra y usa el botón <strong>«Convertir a compra»</strong>.
+    Aquí puedes registrar una factura de compra directamente.
+</p>
 
 <form action="{{ route('compras.store') }}" method="POST" id="compraForm">
 @csrf

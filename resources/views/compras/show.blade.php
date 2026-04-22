@@ -82,6 +82,12 @@ $breadcrumbs = [
                     <div class="info-row"><div class="info-label">Forma de pago</div><div class="info-value">{{ optional(\App\Models\FormaPago::where('clave', $compra->forma_pago)->first())->etiqueta ?? $compra->forma_pago }}</div></div>
                     @endif
                     <div class="info-row"><div class="info-label">Método de pago</div><div class="info-value">{{ $compra->metodo_pago === 'PPD' ? 'PPD - Pago diferido' : 'PUE - Una exhibición' }}</div></div>
+                    @if($compra->ordenCompra)
+                    <div class="info-row"><div class="info-label">Orden de compra de origen</div><div class="info-value"><a href="{{ route('ordenes-compra.show', $compra->ordenCompra->id) }}" class="text-mono fw-600">{{ $compra->ordenCompra->folio }}</a></div></div>
+                    @endif
+                    @if($compra->ordenCompra?->cotizacionCompra)
+                    <div class="info-row"><div class="info-label">Cotización de compra de origen</div><div class="info-value"><a href="{{ route('cotizaciones-compra.show', $compra->ordenCompra->cotizacionCompra->id) }}" class="text-mono fw-600">{{ $compra->ordenCompra->cotizacionCompra->folio }}</a></div></div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -89,7 +95,11 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📦 Detalle</div>
-                @if($compra->uuid)<span class="badge badge-success">CFDI</span>@else<span class="badge badge-info">Manual</span>@endif
+                <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                    @if($compra->uuid)<span class="badge badge-success">CFDI</span>@else<span class="badge badge-info">Manual</span>@endif
+                    @if($compra->ordenCompra)<span class="badge badge-gray">Desde orden de compra {{ $compra->ordenCompra->folio }}</span>@endif
+                    @if($compra->ordenCompra?->cotizacionCompra)<span class="badge badge-info">Desde cotización {{ $compra->ordenCompra->cotizacionCompra->folio }}</span>@endif
+                </div>
             </div>
             <div class="table-container" style="border:none;box-shadow:none;margin-bottom:0;">
                 <table>

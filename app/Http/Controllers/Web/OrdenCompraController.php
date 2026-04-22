@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\InventarioMovimiento;
 use App\Models\OrdenCompra;
 use App\Models\OrdenCompraDetalle;
 use App\Models\CotizacionCompra;
@@ -12,6 +11,7 @@ use App\Models\Proveedor;
 use App\Models\Producto;
 use App\Models\Empresa;
 use App\Models\CuentaPorPagar;
+use App\Services\FacturaCompraDesdeOrdenCompraService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +33,7 @@ class OrdenCompraController extends Controller
             'borrador' => OrdenCompra::where('estado', 'borrador')->count(),
             'aceptada' => OrdenCompra::where('estado', 'aceptada')->count(),
             'recibida' => OrdenCompra::where('estado', 'recibida')->count(),
+            'convertida_compra' => OrdenCompra::where('estado', 'convertida_compra')->count(),
             'cancelada' => OrdenCompra::where('estado', 'cancelada')->count(),
         ];
         return view('ordenes-compra.index', compact('ordenes', 'estadisticas'));
@@ -146,7 +147,7 @@ class OrdenCompraController extends Controller
 
     public function show(OrdenCompra $ordenCompra)
     {
-        $ordenCompra->load(['proveedor', 'detalles.producto', 'cotizacionCompra', 'cuentaPorPagar', 'usuario']);
+        $ordenCompra->load(['proveedor', 'detalles.producto', 'cotizacionCompra', 'cuentaPorPagar', 'usuario', 'facturaCompra.cuentaPorPagar']);
         return view('ordenes-compra.show', compact('ordenCompra'));
     }
 
@@ -172,54 +173,27 @@ class OrdenCompraController extends Controller
                     'estado' => 'pendiente',
                 ]);
                 DB::commit();
-                return back()->with('success', 'Orden aceptada. Se creó la cuenta por pagar. Puedes recibir la mercancía.');
+                return back()->with('success', 'Orden aceptada. Se creó la cuenta por pagar. Puedes convertir la orden en compra cuando recibas la factura o la mercancía.');
             }
             DB::commit();
-            return back()->with('success', 'Orden aceptada. Compra de contado (0 días crédito), no se registró en Cuentas por Pagar. Puedes recibir la mercancía.');
+            return back()->with('success', 'Orden aceptada. Compra de contado (0 días crédito), no se registró en Cuentas por Pagar. Puedes convertir la orden en compra cuando corresponda.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', $e->getMessage());
         }
     }
 
-    public function recibir(OrdenCompra $ordenCompra)
+    public function convertirACompraNormal(OrdenCompra $ordenCompra, FacturaCompraDesdeOrdenCompraService $service)
     {
-        if (!$ordenCompra->puedeRecibirse()) {
-            return back()->with('error', 'Solo se puede recibir mercancía en órdenes aceptadas');
+        if (! $ordenCompra->puedeConvertirseACompra()) {
+            return back()->with('error', 'Solo se puede convertir una orden aceptada que aún no tenga compra asociada.');
         }
-        DB::beginTransaction();
         try {
-            foreach ($ordenCompra->detalles as $detalle) {
-                if (!$detalle->producto_id || !$detalle->producto || !$detalle->producto->controla_inventario) {
-                    continue;
-                }
-                $producto = $detalle->producto;
-                $cantidad = (float) $detalle->cantidad;
-                $costoUnitario = (float) $detalle->precio_unitario;
-                $stockAnterior = (float) $producto->stock;
-                $costoActual = (float) ($producto->costo_promedio ?? $producto->costo ?? 0);
-                $denominador = $stockAnterior + $cantidad;
-                if ($denominador > 0) {
-                    $nuevoCostoPromedio = round(($stockAnterior * $costoActual + $cantidad * $costoUnitario) / $denominador, 2);
-                    $producto->update(['costo_promedio' => $nuevoCostoPromedio]);
-                }
-                InventarioMovimiento::registrar(
-                    $producto,
-                    InventarioMovimiento::TIPO_ENTRADA_COMPRA,
-                    $cantidad,
-                    auth()->id(),
-                    null,
-                    null,
-                    $ordenCompra->id,
-                    null,
-                    null
-                );
-            }
-            $ordenCompra->update(['estado' => 'recibida', 'fecha_recepcion' => now()]);
-            DB::commit();
-            return back()->with('success', 'Mercancía recibida. Se registró la entrada de inventario y el costo promedio por producto.');
-        } catch (\Exception $e) {
-            DB::rollBack();
+            $fc = $service->crearRegistroDesdeOrden($ordenCompra);
+
+            return redirect()->route('compras.show', $fc->id)
+                ->with('success', 'Compra generada desde la orden '.$ordenCompra->folio.'. Continúe con la recepción de mercancía en la ficha de la compra si aplica.');
+        } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
     }
@@ -349,12 +323,14 @@ class OrdenCompraController extends Controller
      */
     public function destroy(OrdenCompra $ordenCompra)
     {
-        if (!$ordenCompra->puedeCancelarse()) {
-            return back()->with('error', 'Solo se pueden cancelar órdenes aceptadas con cuenta por pagar');
+        if (! $ordenCompra->puedeCancelarse()) {
+            return back()->with('error', 'Solo se pueden cancelar órdenes aceptadas que aún no se hayan convertido en compra.');
         }
         DB::beginTransaction();
         try {
-            $ordenCompra->cuentaPorPagar->update(['estado' => 'cancelada']);
+            if ($ordenCompra->cuentaPorPagar) {
+                $ordenCompra->cuentaPorPagar->update(['estado' => 'cancelada']);
+            }
             $ordenCompra->update(['estado' => 'cancelada']);
             DB::commit();
             return redirect()->route('ordenes-compra.index')->with('success', 'Orden cancelada');

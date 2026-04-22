@@ -106,6 +106,10 @@
                                     <span class="badge badge-info">✓ Aceptada</span>
                                 @elseif($orden->estado === 'recibida')
                                     <span class="badge badge-success">📦 Recibida</span>
+                                @elseif($orden->estado === 'convertida_compra')
+                                    <span class="badge badge-success">🛒 Convertida a compra</span>
+                                @elseif($orden->estado === 'cancelada')
+                                    <span class="badge badge-danger">Cancelada</span>
                                 @else
                                     <span class="badge badge-secondary">{{ $orden->estado }}</span>
                                 @endif
@@ -158,8 +162,12 @@
                     <div class="info-value">{{ $estadisticas['ordenes_aceptadas'] }}</div>
                 </div>
                 <div class="info-row">
-                    <div class="info-label">Recibidas</div>
+                    <div class="info-label">Recibidas (hist.)</div>
                     <div class="info-value">{{ $estadisticas['ordenes_recibidas'] }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Convertidas a compra</div>
+                    <div class="info-value">{{ $estadisticas['ordenes_convertidas_compra'] }}</div>
                 </div>
                 <div class="info-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-gray-200);">
                     <div class="info-label">Cuentas por pagar pendientes</div>

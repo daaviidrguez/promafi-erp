@@ -104,6 +104,28 @@ class FacturaCompra extends Model
     }
 
     /**
+     * Texto de folios para listados (índice de compras, reportes): EM-0001,
+     * EM-0001 · Serie/Folio CFDI, EM-0001 · OC-0001, o las tres partes si aplica.
+     */
+    public function folioListadoReferencias(): string
+    {
+        $em = $this->resolverFolioInterno();
+        $partes = [$em];
+        if (! empty($this->uuid)) {
+            $fiscal = $this->etiquetaFolioFiscalProveedor();
+            if ($fiscal !== '') {
+                $partes[] = $fiscal;
+            }
+        }
+        $folioOc = $this->ordenCompra?->folio;
+        if ($folioOc) {
+            $partes[] = $folioOc;
+        }
+
+        return implode(' · ', $partes);
+    }
+
+    /**
      * Serie/folio del CFDI (solo timbrado / con UUID), formato Serie/Folio.
      */
     public function etiquetaFolioFiscalProveedor(): string

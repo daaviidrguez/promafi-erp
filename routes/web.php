@@ -226,6 +226,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/logistica/factura/{factura}/lineas', [LogisticaController::class, 'lineasFactura'])->name('logistica.factura-lineas');
     Route::get('/logistica/remision/{remision}/lineas', [LogisticaController::class, 'lineasRemision'])->name('logistica.remision-lineas');
     Route::get('/logistica/elegir-origen', [LogisticaController::class, 'elegirOrigen'])->name('logistica.elegir-origen');
+    Route::match(['get', 'post'], '/logistica/elegir-origen-masivo', [LogisticaController::class, 'elegirOrigenMasivo'])->name('logistica.elegir-origen-masivo');
+    Route::post('/logistica/abandonar-cola-masiva', [LogisticaController::class, 'abandonarColaMasiva'])->name('logistica.abandonar-cola-masiva');
     Route::get('/logistica/crear', [LogisticaController::class, 'create'])->name('logistica.create');
     Route::post('/logistica', [LogisticaController::class, 'store'])->name('logistica.store');
     Route::get('/logistica', [LogisticaController::class, 'index'])->name('logistica.index');

@@ -11,6 +11,7 @@ use App\Models\LogisticaEnvioItem;
 use App\Models\Remision;
 use App\Models\RemisionDetalle;
 use App\Services\PDFService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -90,9 +91,108 @@ class LogisticaController extends Controller
         return view('logistica.elegir-origen', compact('facturas', 'remisiones', 'search'));
     }
 
+    /**
+     * Selección de varias facturas para encadenar altas de envío (una tras otra), sin cambiar reglas de negocio del alta individual.
+     */
+    public function elegirOrigenMasivo(Request $request)
+    {
+        abort_unless(auth()->user()?->can('logistica.crear'), 403);
+
+        if ($request->isMethod('post')) {
+            return $this->elegirOrigenMasivoConfirmar($request);
+        }
+
+        $search = $request->get('search');
+
+        $facturas = Factura::query()
+            ->where('estado', 'timbrada')
+            ->whereNotNull('uuid')
+            ->with([
+                'cliente:id,nombre,rfc',
+                'remisionVinculada:id,factura_id,estado',
+                'remisionVinculada.logisticaEnvio',
+                'remisionVinculada.logisticaEnvios:id,folio,remision_id,estado',
+                'remisionVinculada.logisticaEnvios.items:id,logistica_envio_id,linea_entregada',
+                'logisticaEnvios:id,factura_id,folio,estado',
+                'logisticaEnvios.items:id,logistica_envio_id,linea_entregada',
+                'detalles:id,factura_id,cantidad',
+            ])
+            ->when($search, fn ($qq) => $qq->buscar($search))
+            ->orderByDesc('fecha_emision')
+            ->paginate(25, ['*'], 'fp')
+            ->withQueryString();
+
+        return view('logistica.elegir-origen-masivo', compact('facturas', 'search'));
+    }
+
+    private function elegirOrigenMasivoConfirmar(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'factura_ids' => 'required|array|min:1|max:100',
+            'factura_ids.*' => 'integer|exists:facturas,id',
+        ]);
+
+        $idsOrdenados = array_values(array_unique(array_map('intval', $validated['factura_ids'])));
+        $idsPermitidos = [];
+
+        foreach ($idsOrdenados as $fid) {
+            $f = Factura::query()->with([
+                'remisionVinculada:id,factura_id,estado',
+                'remisionVinculada.logisticaEnvios:id,folio,remision_id,estado',
+                'remisionVinculada.logisticaEnvios.items:id,logistica_envio_id,linea_entregada',
+                'logisticaEnvios:id,factura_id,estado',
+                'logisticaEnvios.items:id,logistica_envio_id,linea_entregada',
+                'detalles:id,factura_id,cantidad',
+            ])->find($fid);
+            if (! $f || ! $f->estaTimbrada()) {
+                return back()->withInput()->with('error', 'La factura indicada no existe o no está timbrada.');
+            }
+            if (! $f->permiteNuevoEnvioLogistica()) {
+                return back()->withInput()->with('error', 'La factura '.$f->folio_completo.' no permite un envío nuevo en este momento (misma validación que en el listado individual).');
+            }
+            $idsPermitidos[] = $f->id;
+        }
+
+        if ($idsPermitidos === []) {
+            return back()->with('error', 'No hay facturas válidas para la cola masiva.');
+        }
+
+        $request->session()->put('logistica_masivo_factura_ids', $idsPermitidos);
+
+        return redirect()->route('logistica.create', [
+            'factura_id' => (int) $idsPermitidos[0],
+            'masivo' => 1,
+        ])->with('success', 'Cola masiva preparada: '.count($idsPermitidos).' factura(s). Registre el primer envío; al guardar se abrirá el siguiente.');
+    }
+
+    public function abandonarColaMasiva(Request $request)
+    {
+        abort_unless(auth()->user()?->can('logistica.crear'), 403);
+        $request->session()->forget('logistica_masivo_factura_ids');
+
+        return redirect()->route('logistica.elegir-origen-masivo')->with('info', 'Cola masiva cancelada.');
+    }
+
     public function create(Request $request)
     {
         abort_unless(auth()->user()?->can('logistica.crear'), 403);
+
+        $logisticaMasivoCola = array_values(array_map('intval', (array) $request->session()->get('logistica_masivo_factura_ids', [])));
+        $logisticaMasivoActivo = $request->boolean('masivo') && $logisticaMasivoCola !== [];
+
+        if ($logisticaMasivoActivo) {
+            $fidUrl = $request->integer('factura_id');
+            if ($fidUrl < 1 || ! in_array($fidUrl, $logisticaMasivoCola, true)) {
+                return redirect()->route('logistica.elegir-origen-masivo')
+                    ->with('error', 'La cola masiva no incluye ese documento o la sesión expiró. Vuelva a seleccionar las facturas.');
+            }
+            if ((int) ($logisticaMasivoCola[0] ?? 0) !== $fidUrl) {
+                return redirect()->route('logistica.create', [
+                    'factura_id' => (int) $logisticaMasivoCola[0],
+                    'masivo' => 1,
+                ])->with('info', 'Continúe con la siguiente factura de la cola masiva (orden fijo).');
+            }
+        }
 
         $motivoPrecargaInvalida = null;
         $precargaPayload = null;
@@ -141,7 +241,19 @@ class LogisticaController extends Controller
             }
         }
 
-        return view('logistica.create', compact('precargaPayload', 'motivoPrecargaInvalida'));
+        if ($logisticaMasivoActivo && ! empty($motivoPrecargaInvalida)) {
+            $request->session()->forget('logistica_masivo_factura_ids');
+
+            return redirect()->route('logistica.elegir-origen-masivo')
+                ->with('error', $motivoPrecargaInvalida.' Se canceló la cola masiva; vuelva a seleccionar las facturas.');
+        }
+
+        return view('logistica.create', compact(
+            'precargaPayload',
+            'motivoPrecargaInvalida',
+            'logisticaMasivoActivo',
+            'logisticaMasivoCola',
+        ));
     }
 
     public function store(Request $request)
@@ -150,6 +262,7 @@ class LogisticaController extends Controller
 
         $validated = $request->validate([
             'origen' => 'required|in:factura,remision',
+            'logistica_masivo' => 'nullable|boolean',
             'factura_id' => 'required_if:origen,factura|nullable|exists:facturas,id',
             'remision_id' => 'required_if:origen,remision|nullable|exists:remisiones,id',
             'cliente_id' => 'required|exists:clientes,id',
@@ -309,7 +422,59 @@ class LogisticaController extends Controller
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('logistica.show', $nuevoEnvioId)->with('success', 'Envío de logística registrado correctamente.');
+        return $this->respuestaTrasRegistrarEnvio($request, $validated, (int) $nuevoEnvioId);
+    }
+
+    /**
+     * Tras guardar un envío: si venía de cola masiva de facturas, redirige al siguiente alta o finaliza la cola.
+     */
+    private function respuestaTrasRegistrarEnvio(Request $request, array $validated, int $nuevoEnvioId): RedirectResponse
+    {
+        $msgOk = 'Envío de logística registrado correctamente.';
+
+        if (! $request->boolean('logistica_masivo')) {
+            return redirect()->route('logistica.show', $nuevoEnvioId)->with('success', $msgOk);
+        }
+
+        if (($validated['origen'] ?? '') !== 'factura') {
+            $request->session()->forget('logistica_masivo_factura_ids');
+
+            return redirect()->route('logistica.show', $nuevoEnvioId)
+                ->with('warning', $msgOk.' La cola masiva se canceló porque el origen no era factura.');
+        }
+
+        $cola = $request->session()->get('logistica_masivo_factura_ids', []);
+        if (! is_array($cola) || $cola === []) {
+            return redirect()->route('logistica.show', $nuevoEnvioId)->with('success', $msgOk);
+        }
+
+        $cola = array_values(array_map('intval', $cola));
+        $facturaProcesada = (int) ($validated['factura_id'] ?? 0);
+
+        if ((int) ($cola[0] ?? 0) !== $facturaProcesada) {
+            $request->session()->put('logistica_masivo_factura_ids', $cola);
+
+            return redirect()->route('logistica.create', [
+                'factura_id' => (int) $cola[0],
+                'masivo' => 1,
+            ])->with('warning', 'Siga el orden de la cola masiva. Pendiente el documento actual.');
+        }
+
+        array_shift($cola);
+        $cola = array_values(array_map('intval', $cola));
+
+        if ($cola !== []) {
+            $request->session()->put('logistica_masivo_factura_ids', $cola);
+
+            return redirect()->route('logistica.create', [
+                'factura_id' => (int) $cola[0],
+                'masivo' => 1,
+            ])->with('success', $msgOk.' Siguiente en cola masiva ('.count($cola).' pendiente(s)).');
+        }
+
+        $request->session()->forget('logistica_masivo_factura_ids');
+
+        return redirect()->route('logistica.show', $nuevoEnvioId)->with('success', $msgOk.' Cola masiva finalizada.');
     }
 
     public function show(LogisticaEnvio $envio)

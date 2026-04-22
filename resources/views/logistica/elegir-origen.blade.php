@@ -11,8 +11,13 @@ $breadcrumbs = [
 @endphp
 
 @section('page-actions')
-    <a href="{{ route('logistica.create') }}" class="btn btn-primary">➕ Nuevo envío (búsqueda libre)</a>
-    <a href="{{ route('logistica.index') }}" class="btn btn-light">← Envíos registrados</a>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <a href="{{ route('logistica.create') }}" class="btn btn-primary">➕ Nuevo envío (búsqueda libre)</a>
+        @can('logistica.crear')
+        <a href="{{ route('logistica.elegir-origen-masivo') }}" class="btn btn-outline">📋 Nuevo envío masivo</a>
+        @endcan
+        <a href="{{ route('logistica.index') }}" class="btn btn-light">← Envíos registrados</a>
+    </div>
 @endsection
 
 @section('content')

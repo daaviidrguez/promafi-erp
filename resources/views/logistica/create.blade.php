@@ -12,10 +12,27 @@ $breadcrumbs = [
 @endphp
 
 @section('page-actions')
-    <a href="{{ route('logistica.elegir-origen') }}" class="btn btn-light">← Elegir desde listado</a>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+        <a href="{{ route('logistica.elegir-origen') }}" class="btn btn-light">← Elegir desde listado</a>
+        @if(!empty($logisticaMasivoActivo))
+            <form method="POST" action="{{ route('logistica.abandonar-cola-masiva') }}" style="margin:0;" onsubmit="return confirm('¿Cancelar la cola masiva? Los envíos ya guardados no se borran.');">
+                @csrf
+                <button type="submit" class="btn btn-outline btn-sm">Salir de cola masiva</button>
+            </form>
+        @endif
+    </div>
 @endsection
 
 @section('content')
+
+@if(!empty($logisticaMasivoActivo))
+<div class="card" style="margin-bottom:16px;border-left:4px solid var(--color-primary);">
+    <div class="card-body" style="font-size:14px;">
+        <strong>Cola masiva activa:</strong> {{ count($logisticaMasivoCola) }} factura(s) en orden fijo.
+        Al guardar este envío se abrirá automáticamente el alta del siguiente documento.
+    </div>
+</div>
+@endif
 
 @if(!empty($motivoPrecargaInvalida))
 <div class="card" style="margin-bottom:16px;border-color:var(--color-warning);">
@@ -27,6 +44,9 @@ $breadcrumbs = [
 
 <form action="{{ route('logistica.store') }}" method="POST" id="logisticaForm">
 @csrf
+@if(!empty($logisticaMasivoActivo))
+<input type="hidden" name="logistica_masivo" value="1">
+@endif
 
 <input type="hidden" name="cliente_id" id="cliente_id" value="{{ old('cliente_id') }}" required>
 
@@ -40,9 +60,9 @@ $breadcrumbs = [
                         <input type="radio" name="origen" value="factura" {{ old('origen', 'factura') === 'factura' ? 'checked' : '' }} id="origen_factura">
                         <span>Factura timbrada</span>
                     </label>
-                    <label class="form-check" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                        <input type="radio" name="origen" value="remision" {{ old('origen') === 'remision' ? 'checked' : '' }} id="origen_remision">
-                        <span>Remisión (enviada / entregada, sin envío duplicado)</span>
+                    <label class="form-check" style="display:flex;align-items:center;gap:8px;cursor:pointer;{{ !empty($logisticaMasivoActivo) ? 'opacity:0.5;' : '' }}">
+                        <input type="radio" name="origen" value="remision" {{ old('origen') === 'remision' ? 'checked' : '' }} id="origen_remision" @if(!empty($logisticaMasivoActivo)) disabled @endif>
+                        <span>Remisión (enviada / entregada, sin envío duplicado)@if(!empty($logisticaMasivoActivo)) — no disponible en cola masiva @endif</span>
                     </label>
                 </div>
 

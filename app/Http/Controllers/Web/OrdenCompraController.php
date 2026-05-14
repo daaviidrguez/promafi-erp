@@ -9,6 +9,7 @@ use App\Models\CotizacionCompra;
 use App\Models\CotizacionCompraDetalle;
 use App\Models\Proveedor;
 use App\Models\Producto;
+use App\Models\ProductoProveedor;
 use App\Models\Empresa;
 use App\Models\CuentaPorPagar;
 use App\Services\FacturaCompraDesdeOrdenCompraService;
@@ -80,6 +81,7 @@ class OrdenCompraController extends Controller
             'productos.*.descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
+            'productos.*.codigo_proveedor' => 'nullable|string|max:100',
         ]);
 
         DB::beginTransaction();
@@ -120,10 +122,18 @@ class OrdenCompraController extends Controller
             foreach ($validated['productos'] as $index => $item) {
                 $producto = !empty($item['producto_id']) ? Producto::find($item['producto_id']) : null;
                 $imp = CotizacionCompraDetalle::calcularImportes($item);
+                $codigoProv = isset($item['codigo_proveedor']) ? trim((string) $item['codigo_proveedor']) : '';
+                $codigoProv = $codigoProv !== '' ? $codigoProv : null;
+                if ($codigoProv === null && $producto) {
+                    $codigoProv = ProductoProveedor::where('producto_id', $producto->id)
+                        ->where('proveedor_id', $proveedor->id)
+                        ->value('codigo');
+                }
                 OrdenCompraDetalle::create([
                     'orden_compra_id' => $orden->id,
                     'producto_id' => $producto?->id,
                     'codigo' => $producto?->codigo ?? 'MANUAL',
+                    'codigo_proveedor' => $codigoProv,
                     'descripcion' => $item['descripcion'],
                     'es_producto_manual' => $item['es_producto_manual'] ?? false,
                     'cantidad' => $item['cantidad'],
@@ -263,10 +273,12 @@ class OrdenCompraController extends Controller
             'productos.*.descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
+            'productos.*.codigo_proveedor' => 'nullable|string|max:100',
         ]);
 
         DB::beginTransaction();
         try {
+            $proveedor = $ordenCompra->proveedor;
             $subtotal = $descuento = $iva = 0;
             foreach ($validated['productos'] as $item) {
                 $imp = CotizacionCompraDetalle::calcularImportes($item);
@@ -293,10 +305,18 @@ class OrdenCompraController extends Controller
             foreach ($validated['productos'] as $index => $item) {
                 $producto = !empty($item['producto_id']) ? Producto::find($item['producto_id']) : null;
                 $imp = CotizacionCompraDetalle::calcularImportes($item);
+                $codigoProv = isset($item['codigo_proveedor']) ? trim((string) $item['codigo_proveedor']) : '';
+                $codigoProv = $codigoProv !== '' ? $codigoProv : null;
+                if ($codigoProv === null && $producto && $proveedor) {
+                    $codigoProv = ProductoProveedor::where('producto_id', $producto->id)
+                        ->where('proveedor_id', $proveedor->id)
+                        ->value('codigo');
+                }
                 OrdenCompraDetalle::create([
                     'orden_compra_id' => $ordenCompra->id,
                     'producto_id' => $producto?->id,
                     'codigo' => $producto?->codigo ?? 'MANUAL',
+                    'codigo_proveedor' => $codigoProv,
                     'descripcion' => $item['descripcion'],
                     'es_producto_manual' => $item['es_producto_manual'] ?? false,
                     'cantidad' => $item['cantidad'],

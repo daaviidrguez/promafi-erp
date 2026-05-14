@@ -9,6 +9,7 @@ use App\Models\OrdenCompra;
 use App\Models\OrdenCompraDetalle;
 use App\Models\Proveedor;
 use App\Models\Producto;
+use App\Models\ProductoProveedor;
 use App\Models\Empresa;
 use App\Models\RegimenFiscal;
 use App\Models\UsoCfdi;
@@ -189,11 +190,20 @@ class CotizacionCompraController extends Controller
             $orden->dias_credito = $cotizacionCompra->proveedor->dias_credito ?? 0;
             $orden->save();
 
+            $productoIds = $cotizacionCompra->detalles->pluck('producto_id')->filter()->unique()->values();
+            $codigosProveedor = $productoIds->isNotEmpty()
+                ? ProductoProveedor::where('proveedor_id', $cotizacionCompra->proveedor_id)
+                    ->whereIn('producto_id', $productoIds)
+                    ->pluck('codigo', 'producto_id')
+                : collect();
+
             foreach ($cotizacionCompra->detalles as $index => $d) {
+                $codigoProv = $d->producto_id ? ($codigosProveedor[$d->producto_id] ?? null) : null;
                 OrdenCompraDetalle::create([
                     'orden_compra_id' => $orden->id,
                     'producto_id' => $d->producto_id,
                     'codigo' => $d->codigo,
+                    'codigo_proveedor' => $codigoProv,
                     'descripcion' => $d->descripcion,
                     'es_producto_manual' => $d->es_producto_manual,
                     'cantidad' => $d->cantidad,
@@ -277,17 +287,30 @@ class CotizacionCompraController extends Controller
     public function buscarProductos(Request $request)
     {
         $q = $request->get('q', '');
+        $proveedorId = $request->integer('proveedor_id') ?: null;
+
         $list = Producto::where('activo', true)
             ->where(fn ($query) => $query->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%"))
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'costo', 'costo_promedio', 'precio_venta', 'tasa_iva', 'tipo_factor']);
-        $list = $list->map(function ($p) {
+
+        $codigosPorProducto = collect();
+        if ($proveedorId && $list->isNotEmpty()) {
+            $codigosPorProducto = ProductoProveedor::where('proveedor_id', $proveedorId)
+                ->whereIn('producto_id', $list->pluck('id'))
+                ->pluck('codigo', 'producto_id');
+        }
+
+        $list = $list->map(function ($p) use ($codigosPorProducto) {
             $costoPromedio = $p->costo_promedio_mostrar;
             $costo = $costoPromedio ?? (float) $p->costo;
+            $codigoProveedor = $codigosPorProducto[$p->id] ?? null;
+
             return [
                 'id' => $p->id,
                 'codigo' => $p->codigo,
                 'nombre' => $p->nombre,
+                'codigo_proveedor' => $codigoProveedor,
                 'costo' => $costo,
                 'costo_promedio' => $costoPromedio,
                 'precio_venta' => $p->precio_venta,
@@ -295,5 +318,28 @@ class CotizacionCompraController extends Controller
             ];
         });
         return response()->json($list);
+    }
+
+    /**
+     * Mapa producto_id => código del proveedor (para actualizar líneas al cambiar proveedor en OC).
+     */
+    public function codigosProveedorPorProductos(Request $request)
+    {
+        $proveedorId = $request->integer('proveedor_id');
+        $ids = array_filter(array_map('intval', explode(',', (string) $request->get('producto_ids', ''))));
+        if ($proveedorId <= 0 || $ids === []) {
+            return response()->json([]);
+        }
+
+        $map = ProductoProveedor::where('proveedor_id', $proveedorId)
+            ->whereIn('producto_id', $ids)
+            ->pluck('codigo', 'producto_id');
+
+        $out = [];
+        foreach ($ids as $pid) {
+            $out[(string) $pid] = $map[$pid] ?? null;
+        }
+
+        return response()->json($out);
     }
 }

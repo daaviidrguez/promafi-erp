@@ -81,6 +81,7 @@
 <thead>
 <tr>
 <th>Código</th>
+<th>Cód. proveedor</th>
 <th>Descripción</th>
 <th class="center">Cant.</th>
 <th class="right">Precio Unit.</th>
@@ -91,6 +92,7 @@
 @foreach($doc->detalles ?? [] as $d)
 <tr>
 <td>{{ ($d->codigo === 'MANUAL' || $d->codigo === null) ? '—' : $d->codigo }}</td>
+<td class="text-mono">{{ $d->codigo_proveedor ? $d->codigo_proveedor : '—' }}</td>
 <td>{{ $d->descripcion }}</td>
 <td class="center">{{ number_format($d->cantidad, 2) }}</td>
 <td class="right">${{ number_format($d->precio_unitario ?? 0, 2) }}</td>

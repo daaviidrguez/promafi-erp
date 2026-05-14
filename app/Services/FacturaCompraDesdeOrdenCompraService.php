@@ -106,7 +106,7 @@ class FacturaCompraDesdeOrdenCompraService
                     'clave_prod_serv' => $producto?->clave_sat ?? '01010101',
                     'clave_unidad' => $producto?->clave_unidad_sat ?? 'H87',
                     'unidad' => $producto?->unidad ?? 'Pieza',
-                    'no_identificacion' => $producto?->codigo ?? $d->codigo,
+                    'no_identificacion' => $d->codigo_proveedor ?: ($producto?->codigo ?? $d->codigo),
                     'descripcion' => $d->descripcion,
                     'cantidad' => $d->cantidad,
                     'valor_unitario' => $d->precio_unitario,

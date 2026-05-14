@@ -54,6 +54,7 @@ $cuentaVinculada = $ordenCompra->cuentaPorPagar ?? $ordenCompra->facturaCompra?-
                     <thead>
                         <tr>
                             <th>Código</th>
+                            <th>Cód. proveedor</th>
                             <th>Descripción</th>
                             <th class="td-center">Cant.</th>
                             <th class="td-right">Costo unit.</th>
@@ -64,6 +65,7 @@ $cuentaVinculada = $ordenCompra->cuentaPorPagar ?? $ordenCompra->facturaCompra?-
                         @foreach($ordenCompra->detalles as $d)
                         <tr>
                             <td class="text-mono">{{ $d->codigo ?? '—' }}</td>
+                            <td class="text-mono">{{ $d->codigo_proveedor ?: '—' }}</td>
                             <td>{{ $d->descripcion }}</td>
                             <td class="td-center">{{ number_format($d->cantidad, 2) }}</td>
                             <td class="td-right text-mono">${{ number_format($d->precio_unitario, 2) }}</td>

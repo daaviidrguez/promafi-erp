@@ -16,6 +16,7 @@ class OrdenCompraDetalle extends Model
         'orden_compra_id',
         'producto_id',
         'codigo',
+        'codigo_proveedor',
         'descripcion',
         'es_producto_manual',
         'cantidad',

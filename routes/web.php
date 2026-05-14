@@ -142,6 +142,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/cotizaciones-compra/crear', [CotizacionCompraController::class, 'create'])->name('cotizaciones-compra.create');
     Route::get('/cotizaciones-compra/buscar-proveedores', [CotizacionCompraController::class, 'buscarProveedores'])->name('cotizaciones-compra.buscar-proveedores');
     Route::get('/cotizaciones-compra/buscar-productos', [CotizacionCompraController::class, 'buscarProductos'])->name('cotizaciones-compra.buscar-productos');
+    Route::get('/cotizaciones-compra/codigos-proveedor-por-productos', [CotizacionCompraController::class, 'codigosProveedorPorProductos'])->name('cotizaciones-compra.codigos-proveedor-por-productos');
     Route::get('/cotizaciones-compra', [CotizacionCompraController::class, 'index'])->name('cotizaciones-compra.index');
     Route::post('/cotizaciones-compra', [CotizacionCompraController::class, 'store'])->name('cotizaciones-compra.store');
     Route::get('/cotizaciones-compra/{cotizacionCompra}', [CotizacionCompraController::class, 'show'])->name('cotizaciones-compra.show');

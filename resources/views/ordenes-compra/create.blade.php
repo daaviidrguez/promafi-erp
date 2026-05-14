@@ -160,6 +160,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function closeDropdown(id) { document.getElementById(id).classList.remove('show'); }
 
+function textoSubLineaBusquedaProducto(p) {
+    const costo = (parseFloat(p.costo) || 0).toFixed(2);
+    let s = p.codigo || '—';
+    if (p.codigo_proveedor) s += ' — ' + p.codigo_proveedor;
+    s += ' — Costo $' + costo;
+    return s;
+}
+
+async function refrescarCodigosProveedorEnLineas() {
+    const pid = document.getElementById('proveedor_id').value;
+    const ids = productos.filter(x => x.id && !x.manual).map(x => x.id);
+    if (!pid || !ids.length) return;
+    try {
+        const r = await fetch(`{{ route('cotizaciones-compra.codigos-proveedor-por-productos') }}?proveedor_id=${encodeURIComponent(pid)}&producto_ids=${ids.join(',')}`);
+        const map = await r.json();
+        productos.forEach(p => {
+            if (p.id && !p.manual) {
+                const v = map[String(p.id)];
+                p.codigo_proveedor = (v != null && String(v).trim() !== '') ? String(v).trim() : null;
+            }
+        });
+    } catch (e) { console.error(e); }
+    renderProductos();
+}
+
 async function buscarProveedores(q) {
     try {
         const r = await fetch(`{{ route('cotizaciones-compra.buscar-proveedores') }}?q=${encodeURIComponent(q)}`);
@@ -170,7 +195,7 @@ async function buscarProveedores(q) {
     } catch(e) { console.error(e); }
 }
 
-function seleccionarProveedor(p) {
+async function seleccionarProveedor(p) {
     document.getElementById('proveedor_id').value = p.id;
     document.getElementById('buscarProveedor').value = p.nombre;
     document.getElementById('proveedorNombre').textContent = p.nombre;
@@ -190,6 +215,7 @@ function seleccionarProveedor(p) {
     }
     document.getElementById('proveedorInfo').style.display = 'block';
     closeDropdown('proveedorResults');
+    await refrescarCodigosProveedorEnLineas();
 }
 
 function limpiarProveedor() {
@@ -199,28 +225,33 @@ function limpiarProveedor() {
     document.getElementById('dias_credito').value = '0';
     document.getElementById('proveedorRegimen').textContent = '';
     document.getElementById('proveedorUsoCfdi').textContent = '';
+    productos.forEach(p => { if (p.id && !p.manual) p.codigo_proveedor = null; });
+    renderProductos();
 }
 
 async function buscarProductos(q) {
     try {
-        const r = await fetch(`{{ route('cotizaciones-compra.buscar-productos') }}?q=${encodeURIComponent(q)}`);
+        const pid = document.getElementById('proveedor_id').value;
+        const url = `{{ route('cotizaciones-compra.buscar-productos') }}?q=${encodeURIComponent(q)}` + (pid ? `&proveedor_id=${encodeURIComponent(pid)}` : '');
+        const r = await fetch(url);
         const data = await r.json();
         const box = document.getElementById('productoResults');
-        box.innerHTML = data.length ? data.map(p => `<div class="autocomplete-item" onclick='agregarProducto(${JSON.stringify(p)})'><div class="autocomplete-item-name">${p.nombre}</div><div class="autocomplete-item-sub">${p.codigo} — Costo $${(parseFloat(p.costo) || 0).toFixed(2)}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+        box.innerHTML = data.length ? data.map(p => `<div class="autocomplete-item" onclick='agregarProducto(${JSON.stringify(p)})'><div class="autocomplete-item-name">${p.nombre}</div><div class="autocomplete-item-sub">${textoSubLineaBusquedaProducto(p)}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
         box.classList.add('show');
     } catch(e) { console.error(e); }
 }
 
 function agregarProducto(p) {
     if (productos.some(x => x.id && x.id === p.id)) { alert('Ya está en la lista'); return; }
-    productos.push({ id: p.id, codigo: p.codigo, nombre: p.nombre, cantidad: 1, precio: parseFloat(p.costo) || 0, descuento: 0, tasa_iva: p.tasa_iva != null ? p.tasa_iva : null, manual: false });
+    const cp = p.codigo_proveedor != null && String(p.codigo_proveedor).trim() !== '' ? String(p.codigo_proveedor).trim() : null;
+    productos.push({ id: p.id, codigo: p.codigo, codigo_proveedor: cp, nombre: p.nombre, cantidad: 1, precio: parseFloat(p.costo) || 0, descuento: 0, tasa_iva: p.tasa_iva != null ? p.tasa_iva : null, manual: false });
     document.getElementById('buscarProducto').value = '';
     closeDropdown('productoResults');
     renderProductos();
 }
 
 function agregarManual() {
-    productos.push({ id: null, codigo: 'MANUAL', nombre: '', cantidad: 1, precio: 0, descuento: 0, tasa_iva: 0.16, manual: true });
+    productos.push({ id: null, codigo: 'MANUAL', codigo_proveedor: null, nombre: '', cantidad: 1, precio: 0, descuento: 0, tasa_iva: 0.16, manual: true });
     renderProductos();
 }
 
@@ -244,10 +275,12 @@ function renderProductos() {
         const base = sub - desc;
         const iva = p.tasa_iva != null ? base * p.tasa_iva : 0;
         const total = base + iva;
+        const subCodigos = [p.codigo, p.codigo_proveedor].filter(Boolean).join(' — ');
         return `<tr>
-            <td>${p.manual ? `<input type="text" value="${(p.nombre||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'nombre',this.value)" placeholder="Descripción" class="form-control" style="font-size:13px;"><input type="hidden" name="productos[${i}][es_producto_manual]" value="1">` : `<div class="fw-600">${(p.nombre||'').replace(/</g,'&lt;')}</div><span class="text-muted" style="font-size:12px;">${p.codigo}</span>`}
+            <td>${p.manual ? `<input type="text" value="${(p.nombre||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'nombre',this.value)" placeholder="Descripción" class="form-control" style="font-size:13px;"><input type="hidden" name="productos[${i}][es_producto_manual]" value="1"><input type="hidden" name="productos[${i}][codigo_proveedor]" value="">` : `<div class="fw-600">${(p.nombre||'').replace(/</g,'&lt;')}</div><span class="text-muted" style="font-size:12px;">${(subCodigos || '').replace(/</g,'&lt;')}</span>`}
                 <input type="hidden" name="productos[${i}][producto_id]" value="${p.id||''}">
                 <input type="hidden" name="productos[${i}][descripcion]" value="${(p.nombre||'').replace(/"/g,'&quot;')}">
+                ${p.manual ? '' : `<input type="hidden" name="productos[${i}][codigo_proveedor]" value="${String(p.codigo_proveedor||'').replace(/"/g,'&quot;')}">`}
             </td>
             <td class="td-center"><input type="number" name="productos[${i}][cantidad]" value="${p.cantidad}" min="0.01" step="0.01" onchange="upd(${i},'cantidad',+this.value)" class="form-control" style="width:70px;text-align:center;"></td>
             <td class="td-right"><input type="number" name="productos[${i}][precio_unitario]" value="${p.precio.toFixed(2)}" min="0" step="0.01" onchange="upd(${i},'precio',+this.value)" class="form-control" style="width:90px;text-align:right;"></td>

@@ -21,7 +21,7 @@ $breadcrumbs = [
                 <input type="text"
                        name="search"
                        value="{{ $search ?? '' }}"
-                       placeholder="Buscar por nombre, RFC, email..."
+                       placeholder="Buscar por código, nombre, RFC, email..."
                        class="form-control"
                        style="flex: 1; min-width: 240px;">
                 <button type="submit"
@@ -64,6 +64,9 @@ $breadcrumbs = [
             @foreach($clientes as $cliente)
             <tr>
                 <td>
+                    @if($cliente->codigo)
+                        <div class="cliente-codigo-interno text-mono">{{ $cliente->codigo }}</div>
+                    @endif
                     <div class="fw-600 text-primary">{{ $cliente->nombre }}</div>
                     @if($cliente->nombre_comercial)
                         <div class="text-muted" style="font-size: 12px;">{{ $cliente->nombre_comercial }}</div>
@@ -127,3 +130,16 @@ $breadcrumbs = [
 </div>
 
 @endsection
+
+@push('styles')
+<style>
+.cliente-codigo-interno {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--color-gray-500);
+    margin-bottom: 4px;
+}
+</style>
+@endpush

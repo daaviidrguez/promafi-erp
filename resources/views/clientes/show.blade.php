@@ -2,7 +2,13 @@
 
 @section('title', 'Cliente: ' . $cliente->nombre)
 @section('page-title', $cliente->nombre)
-@section('page-subtitle', 'RFC: ' . $cliente->rfc)
+@section('page-subtitle')
+    @if($cliente->codigo)
+        <span class="text-mono" style="font-size: 13px; color: var(--color-gray-500); letter-spacing: 0.4px;">{{ $cliente->codigo }}</span>
+        <span style="color: var(--color-gray-300); margin: 0 6px;">·</span>
+    @endif
+    RFC: {{ $cliente->rfc }}
+@endsection
 
 @php
 $breadcrumbs = [
@@ -25,6 +31,12 @@ $breadcrumbs = [
             </div>
             <div class="card-body">
                 <div class="info-grid-2">
+                    @if($cliente->codigo)
+                    <div class="info-row">
+                        <div class="info-label">Código interno</div>
+                        <div class="info-value text-mono fw-600" style="color: var(--color-primary); letter-spacing: 0.5px;">{{ $cliente->codigo }}</div>
+                    </div>
+                    @endif
                     <div class="info-row">
                         <div class="info-label">Nombre / Razón Social</div>
                         <div class="info-value">{{ $cliente->nombre }}</div>

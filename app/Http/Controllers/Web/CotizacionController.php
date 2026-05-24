@@ -741,12 +741,11 @@ class CotizacionController extends Controller
         $search = $request->get('q', '');
 
         $clientes = Cliente::activos()
-            ->where(function($query) use ($search) {
-                $query->where('nombre', 'like', "%{$search}%")
-                    ->orWhere('rfc', 'like', "%{$search}%");
+            ->when($search, function ($query) use ($search) {
+                $query->buscar($search);
             })
             ->limit(10)
-            ->get(['id', 'nombre', 'rfc', 'email', 'dias_credito', 'forma_pago']);
+            ->get(['id', 'codigo', 'nombre', 'rfc', 'email', 'dias_credito', 'forma_pago']);
 
         return response()->json($clientes);
     }

@@ -5,8 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\ClienteContacto; 
+use App\Models\ClienteContacto;
 use App\Models\ClienteDireccionEntrega;
+use App\Services\ClienteCodigoGenerator;
 
 class Cliente extends Model
 {
@@ -52,6 +53,15 @@ class Cliente extends Model
         'descuento_porcentaje' => 'decimal:2',
         'activo' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Cliente $cliente) {
+            if (empty($cliente->codigo)) {
+                $cliente->codigo = ClienteCodigoGenerator::generarSiguiente();
+            }
+        });
+    }
 
      /**
      * Relación con contactos del cliente

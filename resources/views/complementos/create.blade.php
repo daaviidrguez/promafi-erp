@@ -233,6 +233,10 @@ $breadcrumbs = [
 
 @endsection
 
+@push('styles')
+@include('complementos.partials.facturas-aplicar-table-styles')
+@endpush
+
 @push('scripts')
 <script>
 let facturasPendientes = [];
@@ -345,32 +349,46 @@ async function cargarFacturasPendientes() {
 
         let rows = facturasPendientes.map((f, i) => `
             <tr>
-                <td>
+                <td class="col-factura">
                     <input type="hidden" name="facturas[${i}][factura_id]" value="${f.id}">
-                    <div class="text-mono fw-600">${f.folio}</div>
-                    <div class="text-mono text-muted" style="font-size: 11px;">${(f.uuid || '').substring(0, 20)}${(f.uuid || '').length > 20 ? '...' : ''}</div>
+                    <div class="text-mono fw-600" style="line-height: 1.35;">${f.folio}</div>
+                    <div class="text-mono text-muted" style="font-size: 11px; line-height: 1.3; word-break: break-all;">${(f.uuid || '').substring(0, 20)}${(f.uuid || '').length > 20 ? '...' : ''}</div>
                 </td>
-                <td>${f.fecha}</td>
-                <td class="td-right text-mono">$${parseFloat(f.pendiente).toFixed(2).replace(/\d(?=(\d{3})+\.)/g,'$&,')}</td>
-                <td class="td-right">
+                <td class="col-fecha">${f.fecha}</td>
+                <td class="col-pendiente td-right text-mono">$${parseFloat(f.pendiente).toFixed(2).replace(/\d(?=(\d{3})+\.)/g,'$&,')}</td>
+                <td class="col-pagar td-right">
                     <input type="number" name="facturas[${i}][monto_pagado]"
                            class="form-control monto-pago"
                            data-pendiente="${f.pendiente}"
                            min="0" max="${f.pendiente}" step="0.01" value="0"
-                           style="width: 140px; text-align: right;"
-                           oninput="actualizarTotales()">
+                           oninput="onMontoPagoInput(this)">
+                </td>
+                <td class="col-pago-total">
+                    <div class="pago-total-cell">
+                        <input type="checkbox" class="pago-total-check" title="Pago total"
+                               aria-label="Pago total de ${f.folio}"
+                               onchange="togglePagoTotal(this)">
+                    </div>
                 </td>
             </tr>`).join('');
 
         listDiv.innerHTML = `
-            <div class="table-container" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
-                <table>
+            <div class="table-container table-container--scroll complemento-facturas-wrap" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+                <table class="complemento-facturas-table">
+                    <colgroup>
+                        <col class="col-factura">
+                        <col class="col-fecha">
+                        <col class="col-pendiente">
+                        <col class="col-pagar">
+                        <col class="col-pago-total">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th>Factura</th>
-                            <th>Fecha</th>
-                            <th class="td-right">Pendiente</th>
-                            <th class="td-right">Pagar</th>
+                            <th class="col-factura">Factura</th>
+                            <th class="col-fecha">Fecha</th>
+                            <th class="col-pendiente td-right">Pendiente</th>
+                            <th class="col-pagar td-right">Pagar</th>
+                            <th class="col-pago-total td-center" title="Pago total">Total</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -388,7 +406,10 @@ async function cargarFacturasPendientes() {
                 const name = hidden.getAttribute('name');
                 const idx = name.match(/facturas\[(\d+)\]/)[1];
                 const montoInp = listDiv.querySelector('input[name="facturas[' + idx + '][monto_pagado]"]');
-                if (montoInp && oldByFacturaId[fid] !== undefined) montoInp.value = oldByFacturaId[fid].toFixed(2);
+                if (montoInp && oldByFacturaId[fid] !== undefined) {
+                    montoInp.value = oldByFacturaId[fid].toFixed(2);
+                    syncPagoTotalCheckbox(montoInp);
+                }
             });
             if (window.oldMontoTotal != null && window.oldMontoTotal !== '')
                 document.getElementById('monto_total').value = window.oldMontoTotal;
@@ -406,6 +427,7 @@ async function cargarFacturasPendientes() {
                     const montoInp = listDiv.querySelector(`input[name="facturas[${idx}][monto_pagado]"]`);
                     if (montoInp) {
                         montoInp.value = parseFloat(cp.monto_pendiente).toFixed(2);
+                        syncPagoTotalCheckbox(montoInp);
                         document.getElementById('monto_total').value = parseFloat(cp.monto_pendiente).toFixed(2);
                         actualizarTotales();
                     }
@@ -424,6 +446,33 @@ async function cargarFacturasPendientes() {
 }
 
 function fmt(n) { return '$' + n.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'); }
+
+function togglePagoTotal(checkbox) {
+    const row = checkbox.closest('tr');
+    const montoInp = row ? row.querySelector('.monto-pago') : null;
+    if (!montoInp) return;
+    const pendiente = parseFloat(montoInp.dataset.pendiente) || 0;
+    if (checkbox.checked) {
+        montoInp.value = pendiente.toFixed(2);
+    } else {
+        montoInp.value = '0';
+    }
+    actualizarTotales();
+}
+
+function syncPagoTotalCheckbox(montoInp) {
+    const row = montoInp.closest('tr');
+    const checkbox = row ? row.querySelector('.pago-total-check') : null;
+    if (!checkbox) return;
+    const pendiente = parseFloat(montoInp.dataset.pendiente) || 0;
+    const monto = parseFloat(montoInp.value) || 0;
+    checkbox.checked = pendiente > 0 && Math.abs(monto - pendiente) < 0.01;
+}
+
+function onMontoPagoInput(montoInp) {
+    syncPagoTotalCheckbox(montoInp);
+    actualizarTotales();
+}
 
 function actualizarTotales() {
     const montoTotal = parseFloat(document.getElementById('monto_total').value) || 0;

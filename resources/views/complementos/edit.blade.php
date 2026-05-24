@@ -75,31 +75,51 @@ $breadcrumbs = [
                     <div class="empty-state-title">No hay facturas pendientes</div>
                 </div>
                 @else
-                <div class="table-container" style="border: none;">
-                    <table>
+                <div class="table-container table-container--scroll complemento-facturas-wrap" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+                    <table class="complemento-facturas-table">
+                        <colgroup>
+                            <col class="col-factura">
+                            <col class="col-fecha">
+                            <col class="col-pendiente">
+                            <col class="col-pagar">
+                            <col class="col-pago-total">
+                        </colgroup>
                         <thead>
                             <tr>
-                                <th>Factura</th>
-                                <th>Fecha</th>
-                                <th class="td-right">Pendiente</th>
-                                <th class="td-right">Pagar</th>
+                                <th class="col-factura">Factura</th>
+                                <th class="col-fecha">Fecha</th>
+                                <th class="col-pendiente td-right">Pendiente</th>
+                                <th class="col-pagar td-right">Pagar</th>
+                                <th class="col-pago-total td-center" title="Pago total">Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($facturasDisponibles as $i => $f)
+                            @php
+                                $montoActual = (float) old('facturas.'.$i.'.monto_pagado', $f['monto_pagado']);
+                                $pagoTotalChecked = (float) $f['pendiente'] > 0 && abs($montoActual - (float) $f['pendiente']) < 0.01;
+                            @endphp
                             <tr>
-                                <td>
+                                <td class="col-factura">
                                     <input type="hidden" name="facturas[{{ $i }}][factura_id]" value="{{ $f['id'] }}">
-                                    <div class="text-mono fw-600">{{ $f['folio'] }}</div>
-                                    <div class="text-muted text-mono" style="font-size: 11px;">{{ substr($f['uuid'] ?? '', 0, 20) }}...</div>
+                                    <div class="text-mono fw-600" style="line-height: 1.35;">{{ $f['folio'] }}</div>
+                                    <div class="text-muted text-mono" style="font-size: 11px; line-height: 1.3; word-break: break-all;">{{ substr($f['uuid'] ?? '', 0, 20) }}{{ strlen($f['uuid'] ?? '') > 20 ? '...' : '' }}</div>
                                 </td>
-                                <td>{{ $f['fecha'] }}</td>
-                                <td class="td-right text-mono">${{ number_format($f['pendiente'], 2, '.', ',') }}</td>
-                                <td class="td-right">
+                                <td class="col-fecha">{{ $f['fecha'] }}</td>
+                                <td class="col-pendiente td-right text-mono">${{ number_format($f['pendiente'], 2, '.', ',') }}</td>
+                                <td class="col-pagar td-right">
                                     <input type="number" name="facturas[{{ $i }}][monto_pagado]" class="form-control monto-pago"
                                            data-pendiente="{{ $f['pendiente'] }}" min="0" max="{{ $f['pendiente'] }}" step="0.01"
                                            value="{{ old('facturas.'.$i.'.monto_pagado', $f['monto_pagado']) }}"
-                                           style="width: 140px; text-align: right;" oninput="actualizarTotales()">
+                                           oninput="onMontoPagoInput(this)">
+                                </td>
+                                <td class="col-pago-total">
+                                    <div class="pago-total-cell">
+                                        <input type="checkbox" class="pago-total-check" title="Pago total"
+                                               aria-label="Pago total de {{ $f['folio'] }}"
+                                               @checked($pagoTotalChecked)
+                                               onchange="togglePagoTotal(this)">
+                                    </div>
                                 </td>
                             </tr>
                             @endforeach
@@ -142,8 +162,39 @@ $breadcrumbs = [
 </div>
 </form>
 
+@push('styles')
+@include('complementos.partials.facturas-aplicar-table-styles')
+@endpush
+
 @push('scripts')
 <script>
+function togglePagoTotal(checkbox) {
+    const row = checkbox.closest('tr');
+    const montoInp = row ? row.querySelector('.monto-pago') : null;
+    if (!montoInp) return;
+    const pendiente = parseFloat(montoInp.dataset.pendiente) || 0;
+    if (checkbox.checked) {
+        montoInp.value = pendiente.toFixed(2);
+    } else {
+        montoInp.value = '0';
+    }
+    actualizarTotales();
+}
+
+function syncPagoTotalCheckbox(montoInp) {
+    const row = montoInp.closest('tr');
+    const checkbox = row ? row.querySelector('.pago-total-check') : null;
+    if (!checkbox) return;
+    const pendiente = parseFloat(montoInp.dataset.pendiente) || 0;
+    const monto = parseFloat(montoInp.value) || 0;
+    checkbox.checked = pendiente > 0 && Math.abs(monto - pendiente) < 0.01;
+}
+
+function onMontoPagoInput(montoInp) {
+    syncPagoTotalCheckbox(montoInp);
+    actualizarTotales();
+}
+
 function fmt(n) { return '$' + parseFloat(n).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'); }
 function actualizarTotales() {
     const montoTotal = parseFloat(document.getElementById('monto_total')?.value) || 0;
@@ -168,7 +219,10 @@ document.getElementById('formComplementoEdit')?.addEventListener('submit', funct
         alert('El monto aplicado debe coincidir con el monto total del pago.');
     }
 });
-document.addEventListener('DOMContentLoaded', actualizarTotales);
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.monto-pago').forEach(syncPagoTotalCheckbox);
+    actualizarTotales();
+});
 </script>
 @endpush
 @endsection

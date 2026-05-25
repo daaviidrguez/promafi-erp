@@ -47,7 +47,7 @@
                     @endif
                 </td>
                 <td>
-                    {{ $c->nombre_emisor }}
+                    {{ $c->proveedor?->etiqueta_con_codigo ?? $c->nombre_emisor }}
                     @if($c->uuid)<br><span class="text-muted" style="font-size:11px;">{{ \Illuminate\Support\Str::limit($c->uuid, 20) }}</span>@endif
                 </td>
                 <td>{{ $c->fecha_emision->format('d/m/Y') }}</td>

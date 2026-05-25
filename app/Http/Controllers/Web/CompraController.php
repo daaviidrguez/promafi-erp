@@ -49,7 +49,10 @@ class CompraController extends Controller
                             );
                         }
                     })
-                    ->orWhereHas('ordenCompra', fn ($qo) => $qo->where('folio', 'like', "%{$s}%"));
+                    ->orWhereHas('ordenCompra', fn ($qo) => $qo->where('folio', 'like', "%{$s}%"))
+                    ->orWhereHas('proveedor', fn ($qp) => $qp->where('codigo', 'like', "%{$s}%")
+                        ->orWhere('nombre', 'like', "%{$s}%")
+                        ->orWhere('rfc', 'like', "%{$s}%"));
             });
         }
         $compras = $query->orderBy('fecha_emision', 'desc')->paginate(20);
@@ -1135,12 +1138,14 @@ class CompraController extends Controller
 
         return response()->json(
             Proveedor::activos()
-                ->Buscar($q)
+                ->buscar($q)
                 ->limit(15)
-                ->get(['id', 'nombre', 'rfc', 'dias_credito'])
+                ->get(['id', 'codigo', 'nombre', 'rfc', 'dias_credito'])
                 ->map(fn ($p) => [
                     'id' => $p->id,
+                    'codigo' => $p->codigo,
                     'nombre' => $p->nombre,
+                    'etiqueta' => $p->etiqueta_con_codigo,
                     'rfc' => $p->rfc ?? '',
                     'dias_credito' => $p->dias_credito ?? 0,
                 ])

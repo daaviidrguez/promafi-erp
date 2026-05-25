@@ -140,6 +140,7 @@ $breadcrumbs = [
 </form>
 
 @push('scripts')
+@include('partials.etiqueta-proveedor-js')
 <script>
 let productos = [];
 let timerProveedor, timerProducto;
@@ -172,15 +173,16 @@ async function buscarProveedores(q) {
         const r = await fetch(`{{ route('compras.buscar-proveedores') }}?q=${encodeURIComponent(q)}`);
         const data = await r.json();
         const box = document.getElementById('proveedorResults');
-        box.innerHTML = data.length ? data.map(c => `<div class="autocomplete-item" onclick='seleccionarProveedor(${JSON.stringify(c)})'><div class="autocomplete-item-name">${c.nombre}</div><div class="autocomplete-item-sub">${c.rfc || ''}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+        box.innerHTML = data.length ? data.map(c => `<div class="autocomplete-item" onclick='seleccionarProveedor(${JSON.stringify(c)})'><div class="autocomplete-item-name">${etiquetaProveedor(c)}</div><div class="autocomplete-item-sub">${c.rfc || ''}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
         box.classList.add('show');
     } catch(e) { console.error(e); }
 }
 
 function seleccionarProveedor(p) {
     document.getElementById('proveedor_id').value = p.id;
-    document.getElementById('buscarProveedor').value = p.nombre;
-    document.getElementById('proveedorNombre').textContent = p.nombre;
+    var etiqueta = etiquetaProveedor(p);
+    document.getElementById('buscarProveedor').value = etiqueta;
+    document.getElementById('proveedorNombre').textContent = etiqueta;
     document.getElementById('proveedorRfc').textContent = p.rfc ? ' RFC: ' + p.rfc : '';
     var dias = p.dias_credito != null ? parseInt(p.dias_credito, 10) : 0;
     if (isNaN(dias)) dias = 0;

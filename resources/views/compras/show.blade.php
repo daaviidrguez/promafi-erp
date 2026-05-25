@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Compra ' . $compra->folio_completo)
 @section('page-title', '🛒 ' . $compra->folio_completo)
-@section('page-subtitle', $compra->nombre_emisor)
+@section('page-subtitle', $compra->proveedor?->etiqueta_con_codigo ?? $compra->nombre_emisor)
 
 @php
 $breadcrumbs = [
@@ -44,7 +44,7 @@ $breadcrumbs = [
             </div>
             <div class="card-body">
                 <div class="info-grid-2">
-                    <div class="info-row"><div class="info-label">Razón Social (Emisor)</div><div class="info-value">{{ $compra->nombre_emisor }}</div></div>
+                    <div class="info-row"><div class="info-label">Razón Social (Emisor)</div><div class="info-value">{{ $compra->proveedor?->etiqueta_con_codigo ?? $compra->nombre_emisor }}</div></div>
                     <div class="info-row"><div class="info-label">RFC Emisor</div><div class="info-value text-mono">{{ $compra->rfc_emisor ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">Fecha emisión</div><div class="info-value">{{ $compra->fecha_emision?->format('d/m/Y') ?? '—' }}</div></div>
                     @if($compra->uuid)

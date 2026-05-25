@@ -16,10 +16,7 @@
                     <label class="form-label">Nombre / Razón Social <span class="req">*</span></label>
                     <input type="text" name="nombre" class="form-control" value="{{ old('nombre') }}" required>
                     @error('nombre')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Código</label>
-                    <input type="text" name="codigo" class="form-control text-mono" value="{{ old('codigo') }}">
+                    <span class="form-hint">El código interno (00001, 00002…) se asigna automáticamente al guardar.</span>
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">

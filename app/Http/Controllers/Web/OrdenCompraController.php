@@ -60,6 +60,7 @@ class OrdenCompraController extends Controller
             $p = Proveedor::find($request->proveedor_id);
             if ($p) {
                 $proveedorPrecargado = $p->only(['id', 'codigo', 'nombre', 'rfc', 'dias_credito', 'regimen_fiscal', 'uso_cfdi']);
+                $proveedorPrecargado['etiqueta'] = $p->etiqueta_con_codigo;
             }
         }
         return view('ordenes-compra.create', compact('empresa', 'folio', 'orden', 'cotizacionCompra', 'proveedorPrecargado'));

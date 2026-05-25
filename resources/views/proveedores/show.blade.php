@@ -1,7 +1,13 @@
 @extends('layouts.app')
 @section('title', $proveedor->nombre)
 @section('page-title', $proveedor->nombre)
-@section('page-subtitle', 'Proveedor')
+@section('page-subtitle')
+    @if($proveedor->codigo)
+        <span class="text-mono" style="font-size: 13px; color: var(--color-gray-500); letter-spacing: 0.4px;">{{ $proveedor->codigo }}</span>
+        <span style="color: var(--color-gray-300); margin: 0 6px;">·</span>
+    @endif
+    Proveedor
+@endsection
 
 @php $breadcrumbs = [['title' => 'Proveedores', 'url' => route('proveedores.index')], ['title' => $proveedor->nombre]]; @endphp
 
@@ -15,8 +21,13 @@
             </div>
             <div class="card-body">
                 <div class="info-grid-2">
+                    @if($proveedor->codigo)
+                    <div class="info-row">
+                        <div class="info-label">Código interno</div>
+                        <div class="info-value text-mono fw-600" style="color: var(--color-primary); letter-spacing: 0.5px;">{{ $proveedor->codigo }}</div>
+                    </div>
+                    @endif
                     <div class="info-row"><div class="info-label">Nombre</div><div class="info-value">{{ $proveedor->nombre }}</div></div>
-                    <div class="info-row"><div class="info-label">Código</div><div class="info-value text-mono">{{ $proveedor->codigo ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">RFC</div><div class="info-value text-mono">{{ $proveedor->rfc ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">Régimen Fiscal</div><div class="info-value">{{ $regimenEtiqueta ?? '—' }}</div></div>
                     <div class="info-row"><div class="info-label">Uso de CFDI</div><div class="info-value">{{ $usoCfdiEtiqueta ?? '—' }}</div></div>

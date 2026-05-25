@@ -32,7 +32,6 @@ class ProveedorController extends Controller
     {
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
-            'codigo' => 'nullable|string|max:20|unique:proveedores,codigo',
             'rfc' => 'nullable|string|max:13',
             'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
             'uso_cfdi' => 'nullable|string|exists:usos_cfdi,clave',
@@ -88,7 +87,6 @@ class ProveedorController extends Controller
     {
         $validated = $request->validate([
             'nombre' => 'required|string|max:255',
-            'codigo' => 'nullable|string|max:20|unique:proveedores,codigo,' . $proveedor->id,
             'rfc' => 'nullable|string|max:13',
             'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
             'uso_cfdi' => 'nullable|string|exists:usos_cfdi,clave',
@@ -97,6 +95,7 @@ class ProveedorController extends Controller
             'dias_credito' => 'nullable|integer|min:0',
             'activo' => 'boolean',
         ]);
+        unset($validated['codigo']);
         if (!empty($validated['rfc'])) {
             $validated['rfc'] = strtoupper(preg_replace('/\s/', '', $validated['rfc']));
         }

@@ -19,8 +19,9 @@
                     @error('nombre')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Código</label>
-                    <input type="text" name="codigo" class="form-control text-mono" value="{{ old('codigo', $proveedor->codigo) }}">
+                    <label class="form-label">Código interno</label>
+                    <input type="text" class="form-control text-mono" value="{{ $proveedor->codigo }}" readonly style="background: var(--color-gray-50);">
+                    <span class="form-hint">Generado automáticamente; no editable.</span>
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">

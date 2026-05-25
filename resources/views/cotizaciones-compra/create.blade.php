@@ -248,6 +248,7 @@ $breadcrumbs = [
 @endsection
 
 @push('scripts')
+@include('partials.etiqueta-proveedor-js')
 <script>
 let productos = [];
 let timerProveedor, timerProducto;
@@ -294,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     @if($isEdit)
     document.getElementById('proveedorInfo').style.display = 'block';
-    document.getElementById('proveedorNombre').textContent = '{{ $cotizacion->proveedor->nombre }}';
+    document.getElementById('proveedorNombre').textContent = @json($cotizacion->proveedor->etiqueta_con_codigo);
     document.getElementById('proveedorRfc').textContent = 'RFC: {{ $cotizacion->proveedor->rfc }}';
     document.getElementById('proveedorRegimen').textContent = 'Régimen Fiscal: {{ $cotizacion->proveedor_regimen_fiscal ?? '—' }}';
     document.getElementById('proveedorUsoCfdi').textContent = 'Uso CFDI: {{ $cotizacion->proveedor_uso_cfdi ?? '—' }}';
@@ -316,7 +317,7 @@ async function buscarProveedores(q) {
         } else {
             box.innerHTML = data.map(c => `
                 <div class="autocomplete-item" onclick='seleccionarProveedor(${JSON.stringify(c)})'>
-                    <div class="autocomplete-item-name">${c.nombre}</div>
+                    <div class="autocomplete-item-name">${etiquetaProveedor(c)}</div>
                     <div class="autocomplete-item-sub">RFC: ${c.rfc || ''}</div>
                 </div>
             `).join('');
@@ -327,8 +328,9 @@ async function buscarProveedores(q) {
 
 function seleccionarProveedor(provider) {
     document.getElementById('proveedor_id').value = provider.id;
-    document.getElementById('buscarProveedor').value = provider.nombre;
-    document.getElementById('proveedorNombre').textContent = provider.nombre;
+    var etiqueta = etiquetaProveedor(provider);
+    document.getElementById('buscarProveedor').value = etiqueta;
+    document.getElementById('proveedorNombre').textContent = etiqueta;
     document.getElementById('proveedorRfc').textContent = 'RFC: ' + (provider.rfc || '');
     document.getElementById('proveedorRegimen').textContent = 'Régimen Fiscal: ' + (provider.regimen_fiscal_etiqueta || provider.regimen_fiscal || '—');
     document.getElementById('proveedorUsoCfdi').textContent = 'Uso CFDI: ' + (provider.uso_cfdi_etiqueta || provider.uso_cfdi || '—');

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Services\ProveedorCodigoGenerator;
 
 class Proveedor extends Model
 {
@@ -43,6 +44,24 @@ class Proveedor extends Model
         'dias_credito' => 'integer',
         'activo' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Proveedor $proveedor) {
+            if (empty($proveedor->codigo)) {
+                $proveedor->codigo = ProveedorCodigoGenerator::generarSiguiente();
+            }
+        });
+    }
+
+    public function getEtiquetaConCodigoAttribute(): string
+    {
+        if (! $this->codigo) {
+            return $this->nombre;
+        }
+
+        return $this->nombre . ' - ' . $this->codigo;
+    }
 
     public function scopeActivos($query)
     {

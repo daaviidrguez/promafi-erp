@@ -68,7 +68,7 @@ $conceptosCount = count($conceptos);
             <div class="card-body">
                 <div class="form-group search-box">
                     <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control"
-                           value="{{ $proveedor ? $proveedor->nombre : ($datos['rfc_emisor'] ?? ($datos['nombre_emisor'] ?? '')) }}">
+                           value="{{ $proveedor ? $proveedor->etiqueta_con_codigo : ($datos['rfc_emisor'] ?? ($datos['nombre_emisor'] ?? '')) }}">
                     <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $proveedor?->id ?? '' }}">
                     <div id="proveedorResults" class="autocomplete-results"></div>
                 </div>
@@ -302,6 +302,7 @@ $conceptosCount = count($conceptos);
 </div>
 
 @push('scripts')
+@include('partials.etiqueta-proveedor-js')
 <script>
 (function() {
     const listarUrl = '{{ route("compras.buscar-productos") }}';
@@ -564,7 +565,7 @@ $conceptosCount = count($conceptos);
 
     @if($proveedor)
     document.getElementById('proveedor_id').value = '{{ $proveedor->id }}';
-    document.getElementById('buscarProveedor').value = {!! json_encode($proveedor->nombre) !!};
+    document.getElementById('buscarProveedor').value = {!! json_encode($proveedor->etiqueta_con_codigo) !!};
     @endif
 })();
 </script>
@@ -583,7 +584,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     proveedorResults.innerHTML = data.length ? data.map(function(c) {
-                        return '<div class="autocomplete-item" data-id="' + c.id + '" data-nombre="' + (c.nombre || '').replace(/"/g, '&quot;') + '"><div class="autocomplete-item-name">' + (c.nombre || '').replace(/</g, '&lt;') + '</div><div class="autocomplete-item-sub">' + (c.rfc || '') + '</div></div>';
+                        var etiqueta = etiquetaProveedor(c).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                        return '<div class="autocomplete-item" data-id="' + c.id + '" data-nombre="' + etiqueta + '"><div class="autocomplete-item-name">' + etiqueta + '</div><div class="autocomplete-item-sub">' + (c.rfc || '') + '</div></div>';
                     }).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
                     proveedorResults.classList.add('show');
                     proveedorResults.querySelectorAll('.autocomplete-item[data-id]').forEach(function(el) {

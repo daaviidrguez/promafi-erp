@@ -231,7 +231,7 @@ class CotizacionCompraController extends Controller
     {
         $q = $request->get('q', '');
         $list = Proveedor::activos()
-            ->where(fn ($query) => $query->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%"))
+            ->when(strlen(trim($q)) > 0, fn ($query) => $query->buscar($q))
             ->limit(10)
             ->get(['id', 'codigo', 'nombre', 'rfc', 'dias_credito', 'regimen_fiscal', 'uso_cfdi']);
 
@@ -243,6 +243,7 @@ class CotizacionCompraController extends Controller
                 'id' => (int) $p->id,
                 'codigo' => $p->codigo,
                 'nombre' => $p->nombre,
+                'etiqueta' => $p->etiqueta_con_codigo,
                 'rfc' => $p->rfc,
                 'dias_credito' => $p->dias_credito,
                 'regimen_fiscal' => $p->regimen_fiscal,

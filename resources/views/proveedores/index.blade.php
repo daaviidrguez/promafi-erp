@@ -30,7 +30,6 @@ $breadcrumbs = [['title' => 'Proveedores']];
         <thead>
             <tr>
                 <th>Proveedor</th>
-                <th>Código</th>
                 <th>RFC</th>
                 <th>Contacto</th>
                 <th class="td-center">Crédito</th>
@@ -41,8 +40,12 @@ $breadcrumbs = [['title' => 'Proveedores']];
         <tbody>
             @foreach($proveedores as $p)
             <tr>
-                <td><div class="fw-600 text-primary">{{ $p->nombre }}</div></td>
-                <td class="text-mono">{{ $p->codigo ?? '—' }}</td>
+                <td>
+                    @if($p->codigo)
+                        <div class="codigo-interno-erp text-mono">{{ $p->codigo }}</div>
+                    @endif
+                    <div class="fw-600 text-primary">{{ $p->nombre }}</div>
+                </td>
                 <td class="text-mono">{{ $p->rfc ?? '—' }}</td>
                 <td>
                     @if($p->email)<div style="font-size:13px;">📧 {{ $p->email }}</div>@endif
@@ -70,5 +73,9 @@ $breadcrumbs = [['title' => 'Proveedores']];
     </div>
     @endif
 </div>
+
+@push('styles')
+@include('partials.codigo-interno-entity-styles')
+@endpush
 
 @endsection

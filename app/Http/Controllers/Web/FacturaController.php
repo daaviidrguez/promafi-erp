@@ -180,8 +180,7 @@ class FacturaController extends Controller
             })->values()->all();
         }
 
-        $folioContado = $empresa ? $empresa->obtenerSiguienteFolioFactura() : 'FA-0001';
-        $folioCredito = $empresa ? $empresa->obtenerSiguienteFolioFacturaCredito() : 'FB-0001';
+        $folioFactura = $empresa ? $empresa->obtenerSiguienteFolioFacturaCredito() : 'FB-0001';
 
         return view('facturas.create', compact(
             'empresa',
@@ -191,8 +190,7 @@ class FacturaController extends Controller
             'formasPago',
             'metodosPago',
             'usosCfdi',
-            'folioContado',
-            'folioCredito',
+            'folioFactura',
             'remisionId',
             'remisionLineasJson',
             'observacionesPre',
@@ -294,15 +292,8 @@ class FacturaController extends Controller
             }
             $total = $subtotal - $descuentoTotal + $ivaTotal - $retencionISR;
 
-            // Serie y folio según método de pago: PPD = crédito (FB), PUE = contado (FA)
-            $esCredito = ($validated['metodo_pago'] ?? '') === 'PPD';
-            if ($esCredito) {
-                $serie = $empresa->serie_factura_credito ?? 'FB';
-                $folio = (int) ($empresa->folio_factura_credito ?? 1);
-            } else {
-                $serie = $empresa->serie_factura ?? 'FA';
-                $folio = (int) ($empresa->folio_factura ?? 1);
-            }
+            $serie = $empresa->serie_factura_credito ?? 'FB';
+            $folio = (int) ($empresa->folio_factura_credito ?? 1);
 
             // Crear factura
             $factura = Factura::create([
@@ -394,12 +385,7 @@ class FacturaController extends Controller
                 }
             }
 
-            // Incrementar folio según tipo (contado o crédito)
-            if ($esCredito) {
-                $empresa->incrementarFolioFacturaCredito();
-            } else {
-                $empresa->incrementarFolioFactura();
-            }
+            $empresa->incrementarFolioFacturaCredito();
 
             // Si es a crédito (PPD), crear cuenta por cobrar
             if ($factura->metodo_pago === 'PPD') {

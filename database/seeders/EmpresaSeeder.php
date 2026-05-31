@@ -58,7 +58,7 @@ class EmpresaSeeder extends Seeder
         echo "   Dashboard → Configuración\n";
         echo "\n";
         echo "📋 RFC: XAXX010101000 (genérico - cámbialo)\n";
-        echo "🧾 Facturas Contado: FA | Facturas Crédito: FB | Folio inicial: 1\n";
+        echo "🧾 Facturas: FB (contado y crédito) | Folio inicial: 1\n";
         echo "🔐 Timbrado: Configura credenciales de Facturama (sandbox o producción)\n";
         echo "\n";
     }

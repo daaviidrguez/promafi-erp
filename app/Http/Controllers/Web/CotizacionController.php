@@ -549,14 +549,8 @@ class CotizacionController extends Controller
             }
 
             $metodoPago = strtolower($cotizacion->tipo_venta ?? 'contado') === 'credito' ? 'PPD' : 'PUE';
-            $esCredito = $metodoPago === 'PPD';
-            if ($esCredito) {
-                $serieFactura = $empresa->serie_factura_credito ?? 'FB';
-                $folioFactura = (int) ($empresa->folio_factura_credito ?? 1);
-            } else {
-                $serieFactura = $empresa->serie_factura ?? 'FA';
-                $folioFactura = (int) ($empresa->folio_factura ?? 1);
-            }
+            $serieFactura = $empresa->serie_factura_credito ?? 'FB';
+            $folioFactura = (int) ($empresa->folio_factura_credito ?? 1);
             $formaPago = $cotizacion->forma_pago ?? $cliente->forma_pago ?? '03';
             $usoCfdi = $cliente->uso_cfdi_default ?? 'G03';
 
@@ -634,11 +628,7 @@ class CotizacionController extends Controller
                 // El descuento de inventario se hace al timbrar la factura, no en borrador
             }
 
-            if ($esCredito) {
-                $empresa->incrementarFolioFacturaCredito();
-            } else {
-                $empresa->incrementarFolioFactura();
-            }
+            $empresa->incrementarFolioFacturaCredito();
 
             if ($metodoPago === 'PPD') {
                 $diasCredito = (int) ($cotizacion->dias_credito_aplicados ?? $cliente->dias_credito ?? 0);

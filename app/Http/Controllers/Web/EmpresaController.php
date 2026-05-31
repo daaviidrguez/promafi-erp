@@ -86,8 +86,6 @@ class EmpresaController extends Controller
         // ===============================
         // FACTURACIÓN
         // ===============================
-        'serie_factura' => 'required|string|max:5',
-        'folio_factura' => 'required|integer|min:1',
         'serie_factura_credito' => 'required|string|max:5',
         'folio_factura_credito' => 'required|integer|min:1',
         'serie_nota_credito' => 'required|string|max:5',

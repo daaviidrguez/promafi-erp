@@ -100,7 +100,7 @@ class Empresa extends Model
     }
 
     /**
-     * Obtener siguiente folio de factura (contado)
+     * Obtener siguiente folio de factura (contado) — legacy, no usar en facturas nuevas.
      */
     public function obtenerSiguienteFolioFactura(): string
     {
@@ -119,7 +119,7 @@ class Empresa extends Model
     }
 
     /**
-     * Obtener siguiente folio de factura crédito
+     * Obtener siguiente folio de factura (contado y crédito)
      */
     public function obtenerSiguienteFolioFacturaCredito(): string
     {
@@ -130,7 +130,7 @@ class Empresa extends Model
     }
 
     /**
-     * Incrementar folio de factura crédito
+     * Incrementar folio de factura (contado y crédito)
      */
     public function incrementarFolioFacturaCredito(): void
     {

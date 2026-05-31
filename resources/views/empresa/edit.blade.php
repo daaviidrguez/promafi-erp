@@ -202,32 +202,15 @@ $breadcrumbs = [
                 <div class="card-body">
                     <p class="text-muted small mb-4">Serie y folio inicial para cada tipo de documento. El folio es el siguiente número a asignar.</p>
 
-                    {{-- Facturas Contado --}}
-                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas Contado</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-                        <div class="form-group">
-                            <label class="form-label">Serie <span class="req">*</span></label>
-                            <input type="text" name="serie_factura" id="serie_factura" class="form-control"
-                                   value="{{ old('serie_factura', $empresa->serie_factura ?? 'FA') }}"
-                                   maxlength="5" required style="text-transform: uppercase;">
-                            <span class="form-hint">Sugerido: FA (modificable)</span>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Folio inicial <span class="req">*</span></label>
-                            <input type="number" name="folio_factura" class="form-control"
-                                   value="{{ old('folio_factura', $empresa->folio_factura ?? 1) }}" min="1" required>
-                        </div>
-                    </div>
-
-                    {{-- Facturas Crédito --}}
-                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas Crédito</div>
+                    {{-- Facturas --}}
+                    <div class="form-section-title" style="margin-bottom: 10px;">📄 Facturas</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
                         <div class="form-group">
                             <label class="form-label">Serie <span class="req">*</span></label>
                             <input type="text" name="serie_factura_credito" id="serie_factura_credito" class="form-control"
                                    value="{{ old('serie_factura_credito', $empresa->serie_factura_credito ?? 'FB') }}"
                                    maxlength="5" required style="text-transform: uppercase;">
-                            <span class="form-hint">Sugerido: FB (modificable)</span>
+                            <span class="form-hint">Sugerido: FB (contado y crédito)</span>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Folio inicial <span class="req">*</span></label>
@@ -530,9 +513,6 @@ $breadcrumbs = [
     }
     document.getElementById('tipo_persona')?.addEventListener('change', toggleResicoAviso);
     document.getElementById('regimen_fiscal')?.addEventListener('change', toggleResicoAviso);
-    document.getElementById('serie_factura').addEventListener('input', function() {
-        this.value = this.value.toUpperCase();
-    });
     document.getElementById('serie_factura_credito').addEventListener('input', function() {
         this.value = this.value.toUpperCase();
     });

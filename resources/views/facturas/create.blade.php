@@ -113,12 +113,9 @@ $breadcrumbs = [
                     <div class="form-group">
                         <label class="form-label">Folio</label>
                         <div class="form-control" style="background: var(--color-gray-50); font-weight: 600; font-variant-numeric: tabular-nums;" id="visorFolio" readonly tabindex="-1">
-                            @php
-                                $metodoInicial = old('metodo_pago', ($clientePreseleccionado && ($clientePreseleccionado->dias_credito ?? 0) > 0) ? 'PPD' : 'PUE');
-                            @endphp
-                            {{ $metodoInicial === 'PPD' ? ($folioCredito ?? 'FB-0001') : ($folioContado ?? 'FA-0001') }}
+                            {{ $folioFactura ?? 'FB-0001' }}
                         </div>
-                        <span class="form-hint">Según método de pago (PUE = contado, PPD = crédito)</span>
+                        <span class="form-hint">Serie y folio consecutivo para contado y crédito</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Orden de compra</label>
@@ -273,9 +270,6 @@ $breadcrumbs = [
 let productoIndex = 0;
 let filaBusquedaActiva = null;
 const catalogoProductos = @json($productos);
-const folioContado = @json($folioContado ?? 'FA-0001');
-const folioCredito = @json($folioCredito ?? 'FB-0001');
-
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -285,12 +279,6 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-function actualizarVisorFolio() {
-    const metodo = document.getElementById('metodo_pago').value;
-    document.getElementById('visorFolio').textContent = metodo === 'PPD' ? folioCredito : folioContado;
-}
-
-document.getElementById('metodo_pago').addEventListener('change', actualizarVisorFolio);
 document.addEventListener('click', function (e) {
     if (!e.target.closest('.search-box') && !e.target.closest('#productoResultsFlotanteFactura')) {
         cerrarFlotanteProductosFactura();
@@ -308,7 +296,6 @@ document.getElementById('cliente_id').addEventListener('change', function() {
         document.getElementById('forma_pago').value        = opt.dataset.formaPago || '03';
         document.getElementById('metodo_pago').value       = parseInt(opt.dataset.credito) > 0 ? 'PPD' : 'PUE';
         info.style.display = 'block';
-        actualizarVisorFolio();
     } else {
         info.style.display = 'none';
     }

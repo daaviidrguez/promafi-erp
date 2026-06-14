@@ -107,12 +107,12 @@ $breadcrumbs = [
                         <div class="form-group">
                             <label class="form-label">Núm. Exterior</label>
                             <input type="text" name="numero_exterior" class="form-control"
-                                   value="{{ old('numero_exterior', $cliente->numero_exterior) }}" maxlength="10">
+                                   value="{{ old('numero_exterior', $cliente->numero_exterior) }}" maxlength="20">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Núm. Interior</label>
                             <input type="text" name="numero_interior" class="form-control"
-                                   value="{{ old('numero_interior', $cliente->numero_interior) }}" maxlength="10">
+                                   value="{{ old('numero_interior', $cliente->numero_interior) }}" maxlength="20">
                         </div>
                     </div>
                     <div class="form-group">

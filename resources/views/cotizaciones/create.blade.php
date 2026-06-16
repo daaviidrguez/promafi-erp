@@ -172,9 +172,15 @@ $breadcrumbs = [
     <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">📦 Productos y Servicios</div>
-                <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">
-                    ➕ Agregar
-                </button>
+                <div class="cotizacion-excel-actions">
+                    <button type="button" onclick="importarExcel()">Importar</button>
+                    <button type="button" onclick="exportarExcel()">Exportar</button>
+                    <button type="button" onclick="descargarPlantilla()">Plantilla</button>
+                    <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">
+                        ➕ Agregar
+                    </button>
+                    <input type="file" id="importExcelInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="procesarImportExcel(event)">
+                </div>
             </div>
 
             <div class="card-body" style="padding:0;">
@@ -342,6 +348,52 @@ $breadcrumbs = [
 
 </form>
 
+{{-- Modal: cambios sin guardar --}}
+<div id="modalCambiosSinGuardar" class="modal">
+    <div class="modal-box" style="max-width: 480px;">
+        <div class="modal-header">
+            <div class="modal-title">Cambios sin guardar</div>
+            <button type="button" class="modal-close" onclick="continuarEditando()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin:0; line-height:1.6; color:var(--color-gray-700);">
+                Tienes cambios que aún no se han guardado.
+                ¿Deseas continuar {{ $isEdit ? 'editando' : 'creando' }} la cotización o salir sin guardar?
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="salirSinGuardar()">Salir sin guardar</button>
+            <button type="button" class="btn btn-primary" onclick="continuarEditando()">
+                Continuar {{ $isEdit ? 'editando' : 'creando' }}
+            </button>
+        </div>
+    </div>
+</div>
+
+{{-- Modal: importar partidas con partidas existentes --}}
+<div id="modalImportacionPartidas" class="modal">
+    <div class="modal-box" style="max-width: 520px;">
+        <div class="modal-header">
+            <div class="modal-title">Importar partidas</div>
+            <button type="button" class="modal-close" onclick="cerrarModalImportacion()">✕</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin:0; line-height:1.6; color:var(--color-gray-700);">
+                Ya tienes partidas en la cotización. ¿Cómo deseas aplicar el archivo importado?
+            </p>
+            <ul style="margin:14px 0 0; padding-left:20px; color:var(--color-gray-700); line-height:1.6; font-size:14px;">
+                <li style="margin-bottom:8px;"><strong>Reemplazar todo:</strong> elimina las partidas actuales y usa solo las del archivo.</li>
+                <li><strong>Actualizar y agregar:</strong> actualiza cada fila existente y agrega las nuevas al final.</li>
+            </ul>
+        </div>
+        <div class="modal-footer" style="flex-wrap:wrap;">
+            <button type="button" class="btn btn-light" onclick="cerrarModalImportacion()">Cancelar importación</button>
+            <button type="button" class="btn btn-light" onclick="importarActualizarFilas()">Actualizar y agregar</button>
+            <button type="button" class="btn btn-primary" onclick="importarReemplazarTodo()">Reemplazar todo</button>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @php
@@ -379,6 +431,26 @@ $breadcrumbs = [
 .table-productos-cotizacion .form-control-numeric { padding: 9px 6px; font-size: 13px; }
 .table-productos-cotizacion .form-control-numeric:focus { padding: 9px 6px; }
 
+.cotizacion-excel-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.cotizacion-excel-actions button:not(.btn) {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.cotizacion-excel-actions button:not(.btn):hover {
+    color: var(--color-secondary);
+}
+
 @media (max-width: 768px) {
     /* Solo móvil: descripción más ancha y scroll horizontal estable */
     .table-container .table-productos-cotizacion {
@@ -402,11 +474,307 @@ $breadcrumbs = [
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 let productos = [];
 let timerCliente, timerProducto, timerSugerencia = {};
 let lastSugerenciaRowIndex = 0;
 const cotizacionDetallesIniciales = @json($detallesIniciales);
+const isEditMode = @json($isEdit);
+
+let initialSnapshot = '';
+let allowNavigation = false;
+let pendingNavUrl = null;
+let pendingImportRows = null;
+
+const EXCEL_COLS = ['Descripción', 'Cantidad', 'Unidad', 'Precio', 'Desc%', 'IVA'];
+
+function getFormSnapshot() {
+    const form = document.getElementById('cotizacionForm');
+    const data = {
+        cliente_id: document.getElementById('cliente_id').value,
+        tipo_venta: document.getElementById('tipoVenta').value,
+        dias_credito: document.getElementById('diasCredito').value,
+        forma_pago: form.querySelector('[name="forma_pago"]')?.value || '',
+        fecha: form.querySelector('[name="fecha"]')?.value || '',
+        fecha_vencimiento: form.querySelector('[name="fecha_vencimiento"]')?.value || '',
+        condiciones_pago: form.querySelector('[name="condiciones_pago"]')?.value || '',
+        observaciones: (form.querySelector('[name="observaciones"]')?.value || '').trim(),
+        referencia_comercial: form.querySelector('[name="referencia_comercial"]')?.value || '',
+        referencia_url: form.querySelector('[name="referencia_url"]')?.value || '',
+        referencia_url_2: form.querySelector('[name="referencia_url_2"]')?.value || '',
+        referencia_url_3: form.querySelector('[name="referencia_url_3"]')?.value || '',
+        productos: productos.map(p => ({
+            id: p.id,
+            codigo: p.codigo,
+            nombre: p.nombre,
+            cantidad: p.cantidad,
+            unidad: p.unidad,
+            precio: p.precio,
+            descuento: p.descuento,
+            tasa_iva: p.tasa_iva,
+            manual: p.manual,
+            sugerencia_id: p.sugerencia_id || null,
+        })),
+    };
+    return JSON.stringify(data);
+}
+
+function isFormDirty() {
+    return getFormSnapshot() !== initialSnapshot;
+}
+
+function captureInitialSnapshot() {
+    initialSnapshot = getFormSnapshot();
+}
+
+function showUnsavedModal() {
+    document.getElementById('modalCambiosSinGuardar').classList.add('show');
+}
+
+function continuarEditando() {
+    pendingNavUrl = null;
+    document.getElementById('modalCambiosSinGuardar').classList.remove('show');
+}
+
+function salirSinGuardar() {
+    allowNavigation = true;
+    document.getElementById('modalCambiosSinGuardar').classList.remove('show');
+    if (pendingNavUrl) {
+        window.location.href = pendingNavUrl;
+    }
+}
+
+function initUnsavedGuard() {
+    window.addEventListener('beforeunload', (e) => {
+        if (!allowNavigation && isFormDirty()) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (allowNavigation || !isFormDirty()) return;
+        if (e.target.closest('#modalCambiosSinGuardar')) return;
+        if (e.target.closest('#modalImportacionPartidas')) return;
+        if (e.target.closest('#importExcelInput')) return;
+
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+        if (link.target === '_blank' || link.hasAttribute('download')) return;
+
+        let targetUrl;
+        try {
+            targetUrl = new URL(link.href, window.location.origin);
+        } catch (_) {
+            return;
+        }
+        if (targetUrl.origin !== window.location.origin) return;
+        if (targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        pendingNavUrl = link.href;
+        showUnsavedModal();
+    }, true);
+}
+
+function normalizeExcelKey(key) {
+    return String(key || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+}
+
+function getExcelCell(row, aliases) {
+    for (const [key, value] of Object.entries(row)) {
+        const normalized = normalizeExcelKey(key);
+        if (aliases.includes(normalized)) {
+            return value;
+        }
+    }
+    return '';
+}
+
+function tasaIvaToLabel(tasa) {
+    if (tasa === null || tasa === undefined) return 'Exento';
+    if (Number(tasa) === 0) return '0%';
+    return '16%';
+}
+
+function parseTasaIva(val) {
+    const v = String(val ?? '').trim().toLowerCase();
+    if (!v || v === 'exento' || v === 'exe') return null;
+    if (v === '0%' || v === '0' || v === '0.0') return 0;
+    if (v === '16%' || v === '16' || v === '0.16') return 0.16;
+    const num = parseFloat(v.replace('%', ''));
+    if (!Number.isNaN(num)) {
+        return num > 1 ? num / 100 : num;
+    }
+    return 0.16;
+}
+
+function descargarPlantilla() {
+    if (typeof XLSX === 'undefined') {
+        alert('No se pudo cargar la librería de Excel. Recarga la página e intenta de nuevo.');
+        return;
+    }
+    const ws = XLSX.utils.aoa_to_sheet([
+        EXCEL_COLS,
+        ['Ejemplo de producto o servicio', 1, 'PZA', 100, 0, '16%'],
+    ]);
+    ws['!cols'] = [{ wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Partidas');
+    XLSX.writeFile(wb, 'plantilla_cotizacion.xlsx');
+}
+
+function exportarExcel() {
+    if (typeof XLSX === 'undefined') {
+        alert('No se pudo cargar la librería de Excel. Recarga la página e intenta de nuevo.');
+        return;
+    }
+    if (!productos.length) {
+        alert('No hay partidas para exportar.');
+        return;
+    }
+    const rows = productos.map(p => [
+        p.nombre || '',
+        p.cantidad,
+        p.unidad || 'PZA',
+        p.precio,
+        p.descuento || 0,
+        tasaIvaToLabel(p.tasa_iva),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([EXCEL_COLS, ...rows]);
+    ws['!cols'] = [{ wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Partidas');
+    XLSX.writeFile(wb, 'cotizacion_partidas.xlsx');
+}
+
+function importarExcel() {
+    document.getElementById('importExcelInput').click();
+}
+
+function parseImportRows(rows) {
+    const aliases = {
+        descripcion: ['descripcion', 'description', 'producto', 'nombre'],
+        cantidad: ['cantidad', 'qty', 'quantity'],
+        unidad: ['unidad', 'unit', 'uom'],
+        precio: ['precio', 'precio unitario', 'precio_unitario', 'price'],
+        descuento: ['desc%', 'desc', 'descuento', 'descuento_porcentaje'],
+        iva: ['iva', 'tasa_iva', 'tasa iva'],
+    };
+
+    return rows.map((row) => {
+        const descripcion = String(getExcelCell(row, aliases.descripcion) || '').trim();
+        if (!descripcion) return null;
+
+        const cantidad = Math.max(0.01, parseFloat(getExcelCell(row, aliases.cantidad)) || 1);
+        const unidad = String(getExcelCell(row, aliases.unidad) || 'PZA').trim().slice(0, 10) || 'PZA';
+        const precio = Math.max(0, parseFloat(getExcelCell(row, aliases.precio)) || 0);
+        const descuento = Math.min(100, Math.max(0, parseFloat(getExcelCell(row, aliases.descuento)) || 0));
+        const tasa_iva = parseTasaIva(getExcelCell(row, aliases.iva));
+
+        return {
+            id: null,
+            codigo: '-',
+            nombre: descripcion,
+            cantidad,
+            unidad,
+            precio,
+            descuento,
+            tasa_iva,
+            manual: true,
+            sugerencia_id: null,
+        };
+    }).filter(Boolean);
+}
+
+function aplicarImportacion(imported) {
+    if (!productos.length) {
+        productos = imported;
+        renderProductos();
+        return;
+    }
+
+    pendingImportRows = imported;
+    document.getElementById('modalImportacionPartidas').classList.add('show');
+}
+
+function cerrarModalImportacion() {
+    pendingImportRows = null;
+    document.getElementById('modalImportacionPartidas').classList.remove('show');
+}
+
+function importarReemplazarTodo() {
+    if (!pendingImportRows) return;
+    productos = pendingImportRows;
+    cerrarModalImportacion();
+    renderProductos();
+}
+
+function importarActualizarFilas() {
+    if (!pendingImportRows) return;
+    const imported = pendingImportRows;
+    cerrarModalImportacion();
+    imported.forEach((item, idx) => {
+        if (idx < productos.length) {
+            const existing = productos[idx];
+            productos[idx] = {
+                ...existing,
+                nombre: item.nombre,
+                cantidad: item.cantidad,
+                unidad: item.unidad,
+                precio: item.precio,
+                descuento: item.descuento,
+                tasa_iva: item.tasa_iva,
+            };
+        } else {
+            productos.push(item);
+        }
+    });
+    renderProductos();
+}
+
+function procesarImportExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (typeof XLSX === 'undefined') {
+        alert('No se pudo cargar la librería de Excel. Recarga la página e intenta de nuevo.');
+        event.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const imported = parseImportRows(rows);
+
+            if (!imported.length) {
+                alert('El archivo no contiene partidas válidas. Verifica las columnas de la plantilla.');
+                return;
+            }
+
+            aplicarImportacion(imported);
+        } catch (err) {
+            console.error(err);
+            alert('No se pudo leer el archivo. Verifica que sea un Excel válido.');
+        } finally {
+            event.target.value = '';
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -428,6 +796,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         renderProductos();
     }
+
+    initUnsavedGuard();
 
     // Sincroniza visibilidad, disabled y validación HTML5 de días (evita "not focusable" si está oculto con min incompatible)
     onTipoVentaChange();
@@ -465,6 +835,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cardListaPrecios').style.display = 'block';
     fetchListasPreciosCliente({{ $cotizacion->cliente_id }});
     @endif
+
+    captureInitialSnapshot();
 });
 
 function closeDropdown(id) {
@@ -881,7 +1253,9 @@ document.getElementById('cotizacionForm').addEventListener('submit', e => {
         e.preventDefault();
         alert('⚠️ Agrega al menos un producto');
         document.getElementById('buscarProducto').focus();
+        return;
     }
+    allowNavigation = true;
 });
 </script>
 @endpush

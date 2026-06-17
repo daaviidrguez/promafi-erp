@@ -186,6 +186,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/compras/{compra}/ver-pdf', [CompraController::class, 'verPDF'])->name('compras.ver-pdf');
     Route::get('/compras/{compra}/descargar-pdf', [CompraController::class, 'descargarPDF'])->name('compras.descargar-pdf');
     Route::post('/compras/{compra}/recibir', [CompraController::class, 'recibir'])->name('compras.recibir');
+    Route::post('/compras/{compra}/cancelar', [CompraController::class, 'cancelar'])->name('compras.cancelar');
     Route::post('/compras/{compra}/dismiss-revision-precios', [CompraController::class, 'dismissRevisionPrecios'])->name('compras.dismiss-revision-precios');
 
     // ========================================

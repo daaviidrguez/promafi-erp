@@ -31,6 +31,7 @@ class InventarioMovimiento extends Model
     ];
 
     const TIPO_ENTRADA_COMPRA = 'entrada_compra';
+    const TIPO_SALIDA_COMPRA = 'salida_compra';
     const TIPO_SALIDA_FACTURA = 'salida_factura';
     const TIPO_DEVOLUCION_FACTURA = 'devolucion_factura';
     const TIPO_SALIDA_REMISION = 'salida_remision';
@@ -87,6 +88,7 @@ class InventarioMovimiento extends Model
     {
         return match ($this->tipo) {
             self::TIPO_ENTRADA_COMPRA => 'Entrada (compra)',
+            self::TIPO_SALIDA_COMPRA => 'Salida (reversa compra)',
             self::TIPO_SALIDA_FACTURA => 'Salida (factura)',
             self::TIPO_DEVOLUCION_FACTURA => 'Devolución (factura cancelada)',
             self::TIPO_SALIDA_REMISION => 'Salida (remisión)',

@@ -19,7 +19,7 @@ class FacturaCompraDesdeOrdenCompraService
             return false;
         }
 
-        return ! $orden->facturaCompra()->exists();
+        return ! $orden->tieneCompraActiva();
     }
 
     /**

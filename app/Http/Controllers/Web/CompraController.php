@@ -311,6 +311,95 @@ class CompraController extends Controller
     }
 
     /**
+     * Cancela una compra registrada o recibida: revierte inventario (si aplica),
+     * cancela la cuenta por pagar y restaura la orden de compra de origen.
+     */
+    public function cancelar(FacturaCompra $compra)
+    {
+        $compra->load(['detalles.producto', 'cuentaPorPagar', 'ordenCompra']);
+
+        $motivo = $compra->motivoNoCancelable();
+        if ($motivo !== null) {
+            return back()->with('error', $motivo);
+        }
+
+        DB::beginTransaction();
+        try {
+            $eraRecibida = $compra->estaRecibida();
+
+            if ($eraRecibida) {
+                foreach ($compra->detalles as $detalle) {
+                    if (! $detalle->producto_id || ! $detalle->producto || ! $detalle->producto->controla_inventario) {
+                        continue;
+                    }
+                    $producto = $detalle->producto;
+                    $cantidad = (float) $detalle->cantidad;
+                    $costoUnitario = (float) $detalle->valor_unitario;
+                    $stockActual = (float) $producto->stock;
+                    $costoActual = (float) ($producto->costo_promedio ?? $producto->costo ?? 0);
+                    $stockDespuesReversa = $stockActual - $cantidad;
+
+                    if ($stockDespuesReversa < 0) {
+                        throw new \InvalidArgumentException(
+                            "Stock insuficiente para revertir «{$producto->nombre}». Disponible: {$stockActual}, se requieren {$cantidad}."
+                        );
+                    }
+
+                    if ($stockDespuesReversa > 0) {
+                        $nuevoCostoPromedio = round(
+                            ($stockActual * $costoActual - $cantidad * $costoUnitario) / $stockDespuesReversa,
+                            2
+                        );
+                        $producto->update(['costo_promedio' => max(0, $nuevoCostoPromedio)]);
+                    } else {
+                        $producto->update(['costo_promedio' => (float) ($producto->costo ?? 0)]);
+                    }
+
+                    InventarioMovimiento::registrar(
+                        $producto,
+                        InventarioMovimiento::TIPO_SALIDA_COMPRA,
+                        $cantidad,
+                        auth()->id(),
+                        null,
+                        null,
+                        null,
+                        $compra->id,
+                        'Reversa por cancelación de compra'
+                    );
+                }
+            }
+
+            if ($compra->cuentaPorPagar) {
+                $compra->cuentaPorPagar->update([
+                    'estado' => 'cancelada',
+                    'monto_pendiente' => 0,
+                ]);
+            }
+
+            if ($compra->ordenCompra && $compra->ordenCompra->estado === 'convertida_compra') {
+                $compra->ordenCompra->update(['estado' => 'aceptada']);
+            }
+
+            $compra->update([
+                'estado' => 'cancelada',
+                'fecha_recepcion' => null,
+            ]);
+
+            DB::commit();
+
+            $mensaje = $eraRecibida
+                ? 'Compra cancelada. Se revirtió el inventario y se canceló la cuenta por pagar vinculada.'
+                : 'Compra cancelada. Se canceló la cuenta por pagar vinculada (sin movimiento de inventario).';
+
+            return back()->with('success', $mensaje);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->with('error', 'Error al cancelar la compra: '.$e->getMessage());
+        }
+    }
+
+    /**
      * Limpia la sesión de conversión OC → CFDI (flujo botón B) y redirige al listado de compras.
      */
     public function descartarVinculoOrdenOcCfdi(Request $request)

@@ -210,6 +210,40 @@ class FacturaCompra extends Model
         return $this->estado === 'recibida';
     }
 
+    public function estaCancelada(): bool
+    {
+        return $this->estado === 'cancelada';
+    }
+
+    /**
+     * Compras registradas o recibidas sin pagos en CxP pueden cancelarse.
+     */
+    public function puedeCancelarse(): bool
+    {
+        return $this->motivoNoCancelable() === null;
+    }
+
+    public function motivoNoCancelable(): ?string
+    {
+        if ($this->estaCancelada()) {
+            return 'Esta compra ya está cancelada.';
+        }
+        if (! in_array($this->estado, ['registrada', 'recibida'], true)) {
+            return 'Solo se pueden cancelar compras registradas o recibidas.';
+        }
+        $cxp = $this->relationLoaded('cuentaPorPagar') ? $this->cuentaPorPagar : $this->cuentaPorPagar()->first();
+        if ($cxp) {
+            if ((float) $cxp->monto_pagado > 0) {
+                return 'No se puede cancelar: la cuenta por pagar tiene pagos registrados. Revierta los pagos primero.';
+            }
+            if ($cxp->estado === 'cancelada') {
+                return 'La cuenta por pagar vinculada ya está cancelada.';
+            }
+        }
+
+        return null;
+    }
+
     /**
      * Scope para búsqueda global (folio, proveedor, UUID).
      */

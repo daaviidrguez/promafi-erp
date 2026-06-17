@@ -186,6 +186,15 @@ $breadcrumbs = [
                 </form>
                 @endif
 
+                @if($compra->puedeCancelarse())
+                <button type="button" class="btn btn-danger w-full"
+                        onclick="document.getElementById('modalCancelarCompra').classList.add('show')">
+                    🗑️ Cancelar compra
+                </button>
+                @elseif($compra->motivoNoCancelable() && !$compra->estaCancelada())
+                <p class="text-muted small mb-0" style="font-size:12px;line-height:1.4;">{{ $compra->motivoNoCancelable() }}</p>
+                @endif
+
                 @if($compra->cuentaPorPagar)
                 <a href="{{ route('cuentas-por-pagar.show', $compra->cuentaPorPagar->id) }}" class="btn btn-outline w-full">💳 Ver cuenta por pagar</a>
                 @endif
@@ -195,6 +204,56 @@ $breadcrumbs = [
         </div>
     </div>
 </div>
+
+@if($compra->puedeCancelarse())
+<div id="modalCancelarCompra" class="modal" onclick="if(event.target===this)this.classList.remove('show')">
+    <div class="modal-box" style="max-width: 480px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" style="color: var(--color-danger);">⚠️ Cancelar compra</div>
+            <button type="button" class="modal-close"
+                    onclick="document.getElementById('modalCancelarCompra').classList.remove('show')"
+                    aria-label="Cerrar">✕</button>
+        </div>
+        <form method="POST" action="{{ route('compras.cancelar', $compra->id) }}">
+            @csrf
+            <div class="modal-body">
+                @if($compra->estaRecibida())
+                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
+                    Esta compra ya tiene <strong>entrada de inventario registrada</strong>. Al confirmar se revertirán los siguientes efectos:
+                    <ul style="margin: 8px 0 0 18px; padding: 0;">
+                        <li>Salida de inventario por cada producto recibido</li>
+                        <li>Recálculo del costo promedio</li>
+                        @if($compra->cuentaPorPagar)<li>Cancelación de la cuenta por pagar vinculada</li>@endif
+                        @if($compra->ordenCompra)<li>La orden de compra <span class="text-mono">{{ $compra->ordenCompra->folio }}</span> volverá a estado <strong>aceptada</strong></li>@endif
+                    </ul>
+                </div>
+                @else
+                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
+                    @if($compra->cuentaPorPagar)
+                    Se cancelará la <strong>cuenta por pagar</strong> vinculada. Aún no se ha recibido mercancía, por lo que no hay movimiento de inventario que revertir.
+                    @else
+                    Aún no se ha recibido mercancía; no hay movimiento de inventario que revertir.
+                    @endif
+                    @if($compra->ordenCompra)
+                    <span style="display:block;margin-top:8px;">La orden de compra <span class="text-mono">{{ $compra->ordenCompra->folio }}</span> volverá a estado <strong>aceptada</strong>.</span>
+                    @endif
+                </div>
+                @endif
+                <p class="text-muted" style="margin:0;font-size:14px;line-height:1.45;">
+                    ¿Está seguro de cancelar la compra <strong>{{ $compra->folio_completo }}</strong>? Esta acción no se puede deshacer desde el sistema.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light"
+                        onclick="document.getElementById('modalCancelarCompra').classList.remove('show')">
+                    Cerrar
+                </button>
+                <button type="submit" class="btn btn-danger">Confirmar cancelación</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
 
 @push('styles')
 <style>

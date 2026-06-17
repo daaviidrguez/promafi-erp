@@ -126,7 +126,15 @@ class OrdenCompra extends Model
 
     public function puedeConvertirseACompra(): bool
     {
-        return $this->estado === 'aceptada' && ! $this->facturaCompra()->exists();
+        return $this->estado === 'aceptada' && ! $this->tieneCompraActiva();
+    }
+
+    /**
+     * Compra vinculada que no esté cancelada (permite reconvertir la OC tras cancelar una compra errónea).
+     */
+    public function tieneCompraActiva(): bool
+    {
+        return $this->facturaCompra()->where('estado', '!=', 'cancelada')->exists();
     }
 
     /**

@@ -82,6 +82,7 @@ class ReporteController extends Controller
             ->whereBetween('fecha', [$inicio, $fin])
             ->get();
         $facturasCompra = FacturaCompra::whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estado', '!=', 'cancelada')
             ->with('detalles.impuestos')
             ->get();
         $ivaOrdenes = $ordenes->sum(fn ($o) => (float) ($o->iva ?? 0));
@@ -395,6 +396,7 @@ class ReporteController extends Controller
         $fin = $inicio->copy()->endOfMonth();
 
         return FacturaCompra::whereBetween('fecha_emision', [$inicio, $fin])
+            ->where('estado', '!=', 'cancelada')
             ->with(['proveedor', 'ordenCompra', 'detalles.impuestos'])
             ->orderBy('fecha_emision')
             ->get();

@@ -86,6 +86,11 @@ class OrdenCompra extends Model
         return $this->hasOne(FacturaCompra::class);
     }
 
+    public function entradasAnticipadas(): HasMany
+    {
+        return $this->hasMany(EntradaAnticipada::class);
+    }
+
     public static function generarFolio(): string
     {
         $max = 0;
@@ -126,7 +131,36 @@ class OrdenCompra extends Model
 
     public function puedeConvertirseACompra(): bool
     {
-        return $this->estado === 'aceptada' && ! $this->tieneCompraActiva();
+        return in_array($this->estado, ['aceptada', 'en_recepcion'], true)
+            && ! $this->tieneCompraActiva()
+            && ! $this->tieneEntradaAnticipadaActiva();
+    }
+
+    public function puedeCrearEntradaAnticipada(): bool
+    {
+        return in_array($this->estado, ['aceptada', 'en_recepcion'], true)
+            && ! $this->tieneCompraActiva();
+    }
+
+    /**
+     * EA confirmada o parcialmente facturada sin cancelar.
+     */
+    public function tieneEntradaAnticipadaActiva(): bool
+    {
+        return $this->entradasAnticipadas()
+            ->whereIn('estado', ['confirmada', 'parcialmente_facturada'])
+            ->exists();
+    }
+
+    /**
+     * Cantidad ya recibida en EAs confirmadas/facturadas por línea de OC.
+     */
+    public function cantidadRecibidaEnEntradas(int $ordenCompraDetalleId): float
+    {
+        return (float) EntradaAnticipadaDetalle::query()
+            ->where('orden_compra_detalle_id', $ordenCompraDetalleId)
+            ->whereHas('entradaAnticipada', fn ($q) => $q->whereIn('estado', ['confirmada', 'parcialmente_facturada', 'facturada']))
+            ->sum('cantidad_recibida');
     }
 
     /**
@@ -143,6 +177,8 @@ class OrdenCompra extends Model
      */
     public function puedeCancelarse(): bool
     {
-        return $this->estado === 'aceptada' && ! $this->facturaCompra()->exists();
+        return $this->estado === 'aceptada'
+            && ! $this->facturaCompra()->exists()
+            && ! $this->entradasAnticipadas()->whereNotIn('estado', ['cancelada'])->exists();
     }
 }

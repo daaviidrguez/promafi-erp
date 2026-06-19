@@ -20,6 +20,7 @@ class InventarioMovimiento extends Model
         'remision_id',
         'orden_compra_id',
         'factura_compra_id',
+        'entrada_anticipada_id',
         'usuario_id',
         'observaciones',
     ];
@@ -38,6 +39,9 @@ class InventarioMovimiento extends Model
     const TIPO_ENTRADA_REMISION = 'entrada_remision';
     const TIPO_ENTRADA_MANUAL = 'entrada_manual';
     const TIPO_SALIDA_MANUAL = 'salida_manual';
+    const TIPO_ENTRADA_ANTICIPADA = 'entrada_anticipada';
+    const TIPO_SALIDA_ANTICIPADA = 'salida_anticipada';
+    const TIPO_AJUSTE_COSTO_FACTURA_COMPRA = 'ajuste_costo_factura_compra';
 
     public static function tiposEntrada(): array
     {
@@ -45,6 +49,7 @@ class InventarioMovimiento extends Model
             self::TIPO_ENTRADA_COMPRA,
             self::TIPO_ENTRADA_REMISION,
             self::TIPO_ENTRADA_MANUAL,
+            self::TIPO_ENTRADA_ANTICIPADA,
             self::TIPO_DEVOLUCION_FACTURA,
         ];
     }
@@ -79,6 +84,11 @@ class InventarioMovimiento extends Model
         return $this->belongsTo(FacturaCompra::class);
     }
 
+    public function entradaAnticipada(): BelongsTo
+    {
+        return $this->belongsTo(EntradaAnticipada::class);
+    }
+
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -95,6 +105,9 @@ class InventarioMovimiento extends Model
             self::TIPO_ENTRADA_REMISION => 'Entrada (reversa remisión)',
             self::TIPO_ENTRADA_MANUAL => 'Entrada manual',
             self::TIPO_SALIDA_MANUAL => 'Salida manual',
+            self::TIPO_ENTRADA_ANTICIPADA => 'Entrada (anticipada)',
+            self::TIPO_SALIDA_ANTICIPADA => 'Salida (reversa EA)',
+            self::TIPO_AJUSTE_COSTO_FACTURA_COMPRA => 'Ajuste costo (factura)',
             default => $this->tipo,
         };
     }
@@ -134,7 +147,8 @@ class InventarioMovimiento extends Model
         ?int $remisionId = null,
         ?int $ordenCompraId = null,
         ?int $facturaCompraId = null,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        ?int $entradaAnticipadaId = null
     ): self {
         if (!$producto->controla_inventario) {
             throw new \InvalidArgumentException('El producto no controla inventario');
@@ -159,6 +173,7 @@ class InventarioMovimiento extends Model
             'remision_id' => $remisionId,
             'orden_compra_id' => $ordenCompraId,
             'factura_compra_id' => $facturaCompraId,
+            'entrada_anticipada_id' => $entradaAnticipadaId,
             'usuario_id' => $usuarioId ?? auth()->id(),
             'observaciones' => $observaciones,
         ];

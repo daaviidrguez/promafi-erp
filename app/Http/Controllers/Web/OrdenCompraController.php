@@ -35,6 +35,7 @@ class OrdenCompraController extends Controller
             'aceptada' => OrdenCompra::where('estado', 'aceptada')->count(),
             'recibida' => OrdenCompra::where('estado', 'recibida')->count(),
             'convertida_compra' => OrdenCompra::where('estado', 'convertida_compra')->count(),
+            'en_recepcion' => OrdenCompra::where('estado', 'en_recepcion')->count(),
             'cancelada' => OrdenCompra::where('estado', 'cancelada')->count(),
         ];
         return view('ordenes-compra.index', compact('ordenes', 'estadisticas'));
@@ -158,7 +159,7 @@ class OrdenCompraController extends Controller
 
     public function show(OrdenCompra $ordenCompra)
     {
-        $ordenCompra->load(['proveedor', 'detalles.producto', 'cotizacionCompra', 'cuentaPorPagar', 'usuario', 'facturaCompra.cuentaPorPagar']);
+        $ordenCompra->load(['proveedor', 'detalles.producto', 'cotizacionCompra', 'cuentaPorPagar', 'usuario', 'facturaCompra.cuentaPorPagar', 'entradasAnticipadas']);
         return view('ordenes-compra.show', compact('ordenCompra'));
     }
 
@@ -170,24 +171,9 @@ class OrdenCompraController extends Controller
         DB::beginTransaction();
         try {
             $ordenCompra->update(['estado' => 'aceptada']);
-            $diasCredito = (int) ($ordenCompra->dias_credito ?? 0);
-            if ($diasCredito > 0) {
-                $vencimiento = $ordenCompra->fecha->copy()->addDays($diasCredito);
-                CuentaPorPagar::create([
-                    'orden_compra_id' => $ordenCompra->id,
-                    'proveedor_id' => $ordenCompra->proveedor_id,
-                    'monto_total' => $ordenCompra->total,
-                    'monto_pagado' => 0,
-                    'monto_pendiente' => $ordenCompra->total,
-                    'fecha_emision' => $ordenCompra->fecha,
-                    'fecha_vencimiento' => $vencimiento,
-                    'estado' => 'pendiente',
-                ]);
-                DB::commit();
-                return back()->with('success', 'Orden aceptada. Se creó la cuenta por pagar. Puedes convertir la orden en compra cuando recibas la factura o la mercancía.');
-            }
             DB::commit();
-            return back()->with('success', 'Orden aceptada. Compra de contado (0 días crédito), no se registró en Cuentas por Pagar. Puedes convertir la orden en compra cuando corresponda.');
+
+            return back()->with('success', 'Orden aceptada. Puede crear una entrada anticipada al recibir mercancía o convertir la orden en compra cuando reciba la factura.');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', $e->getMessage());

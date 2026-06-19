@@ -21,6 +21,7 @@ use App\Http\Controllers\Web\CuentaPorPagarController;
 use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\DevolucionController;
 use App\Http\Controllers\Web\EmpresaController;
+use App\Http\Controllers\Web\EntradaAnticipadaController;
 use App\Http\Controllers\Web\EstadoCuentaController;
 use App\Http\Controllers\Web\FacturaController;
 use App\Http\Controllers\Web\FormaPagoController;
@@ -167,9 +168,27 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/ordenes-compra/{ordenCompra}/convertir-compra-normal', [OrdenCompraController::class, 'convertirACompraNormal'])->name('ordenes-compra.convertir-compra-normal');
 
     // ========================================
+    // ENTRADAS ANTICIPADAS
+    // ========================================
+    Route::get('/entradas-anticipadas/crear', [EntradaAnticipadaController::class, 'create'])->name('entradas-anticipadas.create');
+    Route::get('/entradas-anticipadas/buscar-proveedores', [EntradaAnticipadaController::class, 'buscarProveedores'])->name('entradas-anticipadas.buscar-proveedores');
+    Route::get('/entradas-anticipadas/buscar-productos', [EntradaAnticipadaController::class, 'buscarProductos'])->name('entradas-anticipadas.buscar-productos');
+    Route::get('/entradas-anticipadas', [EntradaAnticipadaController::class, 'index'])->name('entradas-anticipadas.index');
+    Route::post('/entradas-anticipadas', [EntradaAnticipadaController::class, 'store'])->name('entradas-anticipadas.store');
+    Route::get('/entradas-anticipadas/{entradaAnticipada}', [EntradaAnticipadaController::class, 'show'])->name('entradas-anticipadas.show');
+    Route::get('/entradas-anticipadas/{entradaAnticipada}/edit', [EntradaAnticipadaController::class, 'edit'])->name('entradas-anticipadas.edit');
+    Route::put('/entradas-anticipadas/{entradaAnticipada}', [EntradaAnticipadaController::class, 'update'])->name('entradas-anticipadas.update');
+    Route::post('/entradas-anticipadas/{entradaAnticipada}/confirmar', [EntradaAnticipadaController::class, 'confirmar'])->name('entradas-anticipadas.confirmar');
+    Route::post('/entradas-anticipadas/{entradaAnticipada}/cancelar', [EntradaAnticipadaController::class, 'cancelar'])->name('entradas-anticipadas.cancelar');
+    Route::get('/entradas-anticipadas/{entradaAnticipada}/facturar', [EntradaAnticipadaController::class, 'facturar'])->name('entradas-anticipadas.facturar');
+    Route::get('/entradas-anticipadas/{entradaAnticipada}/ver-pdf', [EntradaAnticipadaController::class, 'verPDF'])->name('entradas-anticipadas.ver-pdf');
+    Route::get('/entradas-anticipadas/{entradaAnticipada}/descargar-pdf', [EntradaAnticipadaController::class, 'descargarPDF'])->name('entradas-anticipadas.descargar-pdf');
+
+    // ========================================
     // COMPRAS (facturas de compra directas / CFDI)
     // ========================================
     Route::get('/compras/crear', [CompraController::class, 'create'])->name('compras.create');
+    Route::get('/compras/descartar-vinculo-entrada-anticipada', [CompraController::class, 'descartarVinculoEntradaAnticipada'])->name('compras.descartar-vinculo-entrada-anticipada');
     Route::get('/compras/descartar-vinculo-orden-oc', [CompraController::class, 'descartarVinculoOrdenOcCfdi'])->name('compras.descartar-vinculo-orden-oc');
     Route::match(['get', 'post'], '/compras/subir-cfdi', [CompraController::class, 'uploadCfdi'])->name('compras.upload-cfdi');
     Route::get('/compras/crear-desde-cfdi', [CompraController::class, 'crearDesdeCfdi'])->name('compras.crear-desde-cfdi');
@@ -178,6 +197,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/compras/crear-desde-cfdi/crear-productos', [CompraController::class, 'crearProductosDesdeCfdi'])->name('compras.crear-desde-cfdi.crear-productos');
     Route::post('/compras/crear-desde-cfdi/crear-producto-linea', [CompraController::class, 'crearProductoLineaDesdeCfdi'])->name('compras.crear-desde-cfdi.crear-producto-linea');
     Route::post('/compras/crear-desde-cfdi/verificar-similitud-descripcion', [CompraController::class, 'verificarSimilitudDescripcionCfdi'])->name('compras.crear-desde-cfdi.verificar-similitud-descripcion');
+    Route::post('/compras/crear-desde-cfdi/evaluar-vinculo-ea', [CompraController::class, 'evaluarVinculoProductoCfdiEa'])->name('compras.crear-desde-cfdi.evaluar-vinculo-ea');
+    Route::post('/compras/crear-desde-cfdi/vincular-producto-ea', [CompraController::class, 'vincularProductoLineaCfdiEa'])->name('compras.crear-desde-cfdi.vincular-producto-ea');
     Route::get('/compras/buscar-proveedores', [CompraController::class, 'buscarProveedores'])->name('compras.buscar-proveedores');
     Route::get('/compras/buscar-productos', [CompraController::class, 'buscarProductos'])->name('compras.buscar-productos');
     Route::get('/compras', [CompraController::class, 'index'])->name('compras.index');
@@ -185,6 +206,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/compras/{compra}', [CompraController::class, 'show'])->name('compras.show');
     Route::get('/compras/{compra}/ver-pdf', [CompraController::class, 'verPDF'])->name('compras.ver-pdf');
     Route::get('/compras/{compra}/descargar-pdf', [CompraController::class, 'descargarPDF'])->name('compras.descargar-pdf');
+    Route::get('/compras/{compra}/ver-pdf-subido', [CompraController::class, 'verPdfSubido'])->name('compras.ver-pdf-subido');
+    Route::get('/compras/{compra}/descargar-pdf-subido', [CompraController::class, 'descargarPdfSubido'])->name('compras.descargar-pdf-subido');
+    Route::get('/compras/{compra}/ver-xml', [CompraController::class, 'verXml'])->name('compras.ver-xml');
+    Route::get('/compras/{compra}/descargar-xml', [CompraController::class, 'descargarXml'])->name('compras.descargar-xml');
     Route::post('/compras/{compra}/recibir', [CompraController::class, 'recibir'])->name('compras.recibir');
     Route::post('/compras/{compra}/cancelar', [CompraController::class, 'cancelar'])->name('compras.cancelar');
     Route::post('/compras/{compra}/dismiss-revision-precios', [CompraController::class, 'dismissRevisionPrecios'])->name('compras.dismiss-revision-precios');

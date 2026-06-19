@@ -32,6 +32,7 @@ class EnsureUserHasRoutePermission
         'inventario' => 'inventario.ver',
         'categorias' => 'categorias.ver',
         'sugerencias' => 'sugerencias.ver',
+        'entradas-anticipadas' => 'entradas_anticipadas.ver',
         'ordenes-compra' => 'ordenes_compra.ver',
         'compras' => 'compras.ver',
         'cotizaciones-compra' => 'cotizaciones_compra.ver',

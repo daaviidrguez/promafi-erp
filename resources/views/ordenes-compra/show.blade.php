@@ -91,10 +91,13 @@ $cuentaVinculada = $ordenCompra->cuentaPorPagar ?? $ordenCompra->facturaCompra?-
             <div class="card-body">
                 @if($ordenCompra->estado === 'borrador')
                 <span class="badge badge-warning" style="font-size:14px;">Borrador</span>
-                <p style="margin-top:12px;font-size:13px;">Al aceptar se creará la cuenta por pagar.</p>
+                <p style="margin-top:12px;font-size:13px;">Al aceptar podrá crear entradas anticipadas o convertir la orden en compra.</p>
                 @elseif($ordenCompra->estado === 'aceptada')
                 <span class="badge badge-info" style="font-size:14px;">Aceptada</span>
-                <p style="margin-top:12px;font-size:13px;">Convierta la orden en compra para continuar con inventario y cuentas por pagar desde el módulo de Compras.</p>
+                <p style="margin-top:12px;font-size:13px;">Reciba mercancía con <strong>entrada anticipada</strong> o convierta en compra cuando tenga la factura.</p>
+                @elseif($ordenCompra->estado === 'en_recepcion')
+                <span class="badge badge-info" style="font-size:14px;">En recepción</span>
+                <p style="margin-top:12px;font-size:13px;">Hay mercancía recibida vía entrada anticipada. Facture las entradas pendientes o reciba más mercancía.</p>
                 @elseif($ordenCompra->estado === 'convertida_compra')
                 <span class="badge badge-success" style="font-size:14px;">Convertida a compra</span>
                 <p style="margin-top:12px;font-size:13px;">Ya existe una compra asociada. Use la ficha de la compra para recibir mercancía o consultar el CFDI.</p>
@@ -124,8 +127,11 @@ $cuentaVinculada = $ordenCompra->cuentaPorPagar ?? $ordenCompra->facturaCompra?-
                 @if($ordenCompra->puedeAceptarse())
                 <form method="POST" action="{{ route('ordenes-compra.aceptar', $ordenCompra->id) }}" style="margin:0;">
                     @csrf
-                    <button type="submit" class="btn btn-success w-full">✅ Aceptar (cargar a Cuentas por pagar)</button>
+                    <button type="submit" class="btn btn-success w-full">✅ Aceptar orden</button>
                 </form>
+                @endif
+                @if($ordenCompra->puedeCrearEntradaAnticipada())
+                <a href="{{ route('entradas-anticipadas.create', ['orden_compra_id' => $ordenCompra->id]) }}" class="btn btn-primary w-full">📥 Crear entrada anticipada</a>
                 @endif
                 @if($ordenCompra->puedeConvertirseACompra())
                 <button type="button" class="btn btn-primary w-full" onclick="document.getElementById('modalConvertirCompra').classList.add('show')">🛒 Convertir a compra</button>
@@ -135,6 +141,15 @@ $cuentaVinculada = $ordenCompra->cuentaPorPagar ?? $ordenCompra->facturaCompra?-
                 @endif
                 @if($cuentaVinculada && $ordenCompra->estado !== 'cancelada')
                 <a href="{{ route('cuentas-por-pagar.show', $cuentaVinculada->id) }}" class="btn btn-outline w-full">💳 Ver cuenta por pagar</a>
+                @endif
+
+                @if($ordenCompra->entradasAnticipadas->isNotEmpty())
+                <div style="margin-top:16px;">
+                    <div class="fw-600" style="font-size:13px;margin-bottom:8px;">Entradas anticipadas</div>
+                    @foreach($ordenCompra->entradasAnticipadas as $ea)
+                    <a href="{{ route('entradas-anticipadas.show', $ea->id) }}" class="btn btn-outline btn-sm w-full" style="margin-bottom:6px;text-align:left;">{{ $ea->folio }} — {{ $ea->etiquetaEstado() }}</a>
+                    @endforeach
+                </div>
                 @endif
 
                 @if($ordenCompra->puedeCancelarse())

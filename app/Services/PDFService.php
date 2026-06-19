@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Empresa;
+use App\Models\EntradaAnticipada;
 use App\Models\InventarioMovimiento;
 use App\Models\LogisticaEnvio;
 use Dompdf\Dompdf;
@@ -24,6 +25,8 @@ class PDFService
             $modelo->loadMissing(['detalles.producto', 'proveedor', 'usuario', 'empresa']);
         } elseif ($tipo === 'factura_compra') {
             $modelo->loadMissing(['detalles.producto', 'detalles.impuestos', 'proveedor', 'usuario', 'empresa']);
+        } elseif ($tipo === 'entrada_anticipada') {
+            $modelo->loadMissing(['detalles.producto', 'proveedor', 'ordenCompra', 'usuario', 'empresa']);
         } elseif ($tipo === 'remision') {
             $modelo->loadMissing(['detalles.producto', 'cliente', 'usuario', 'empresa']);
         } else {
@@ -52,6 +55,7 @@ class PDFService
             'esCotizacionCompra' => $tipo === 'cotizacion_compra',
             'esOrdenCompra' => $tipo === 'orden_compra',
             'esFacturaCompra' => $tipo === 'factura_compra',
+            'esEntradaAnticipada' => $tipo === 'entrada_anticipada',
         ])->render();
 
         $options = new Options;
@@ -102,6 +106,11 @@ class PDFService
     public function generarFacturaCompraPDF($facturaCompra): string
     {
         return $this->generarDocumentoPDF($facturaCompra, 'factura_compra');
+    }
+
+    public function generarEntradaAnticipadaPDF(EntradaAnticipada $entradaAnticipada): string
+    {
+        return $this->generarDocumentoPDF($entradaAnticipada, 'entrada_anticipada');
     }
 
     public function generarRemisionPDF($remision): string

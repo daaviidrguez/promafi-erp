@@ -1,17 +1,24 @@
 @extends('layouts.app')
-@section('title', 'Guardar compra desde CFDI')
-@section('page-title', '📄 Compra desde CFDI')
-@section('page-subtitle', 'Vincule cada línea a un producto (lupa en Código); en la ficha de la compra use «Recibir mercancía» para inventario')
+@section('title', $entradaAnticipada ? 'CFDI — '.$entradaAnticipada->folio : 'Guardar compra desde CFDI')
+@section('page-title', $entradaAnticipada ? '📄 Vincular CFDI a entrada' : '📄 Compra desde CFDI')
+@section('page-subtitle', $entradaAnticipada ? $entradaAnticipada->folio : 'Vincule cada línea a un producto (lupa en Código)')
 
 @php
-$breadcrumbs = [
-    ['title' => 'Compras', 'url' => route('compras.index')],
-    ['title' => 'Leer CFDI', 'url' => route('compras.upload-cfdi')],
-    ['title' => 'Guardar compra'],
-];
+$breadcrumbs = $entradaAnticipada
+    ? [
+        ['title' => 'Entradas anticipadas', 'url' => route('entradas-anticipadas.index')],
+        ['title' => $entradaAnticipada->folio, 'url' => route('entradas-anticipadas.show', $entradaAnticipada->id)],
+        ['title' => 'CFDI'],
+    ]
+    : [
+        ['title' => 'Compras', 'url' => route('compras.index')],
+        ['title' => 'Leer CFDI', 'url' => route('compras.upload-cfdi')],
+        ['title' => 'Guardar compra'],
+    ];
 $conceptos = $datos['conceptos'] ?? [];
 $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['fecha_emision'])->format('Y-m-d') : date('Y-m-d');
 $conceptosCount = count($conceptos);
+$desdeEa = (bool) $entradaAnticipada;
 @endphp
 
 @section('content')
@@ -22,7 +29,22 @@ $conceptosCount = count($conceptos);
 @if(session('error'))
     <div class="alert alert-danger mb-3">{{ session('error') }}</div>
 @endif
-@if(!empty($ordenConversionCfdi))
+@if(!empty($entradaAnticipada))
+<div class="card mb-3" style="border-left:4px solid var(--color-info);">
+    <div class="card-body" style="font-size:14px;line-height:1.5;">
+        <strong>Entrada anticipada {{ $entradaAnticipada->folio }}</strong> — La mercancía ya está en inventario.
+        Al guardar se crea la compra vinculada; el total del CFDI debe coincidir con el de la entrada (incluye IVA).
+        @if($entradaAnticipada->ordenCompra)
+        <span class="text-muted"> · OC {{ $entradaAnticipada->ordenCompra->folio }}</span>
+        @endif
+        <p class="text-muted" style="margin:10px 0 0;font-size:13px;">
+            <strong>CFDI:</strong> subtotal ${{ number_format($datos['subtotal'] ?? 0, 2) }} · total ${{ number_format($datos['total'] ?? 0, 2) }}
+            &nbsp;|&nbsp;
+            <strong>EA:</strong> subtotal ${{ number_format($entradaAnticipada->subtotal, 2) }} · IVA ${{ number_format($entradaAnticipada->iva, 2) }} · total ${{ number_format($entradaAnticipada->total, 2) }}
+        </p>
+    </div>
+</div>
+@elseif(!empty($ordenConversionCfdi))
 <div class="card mb-3" style="border-left:4px solid var(--color-info);">
     <div class="card-body" style="font-size:14px;">
         <strong>Conversión desde orden {{ $ordenConversionCfdi->folio }}</strong> — Al guardar, la compra se vinculará a esa orden (el total del CFDI debe coincidir con el total de la orden).
@@ -66,6 +88,14 @@ $conceptosCount = count($conceptos);
         <div class="card">
             <div class="card-header"><div class="card-title">🏭 Proveedor</div></div>
             <div class="card-body">
+                @if($desdeEa)
+                <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $entradaAnticipada->proveedor_id }}">
+                <p style="margin:0;">
+                    <span class="fw-600">{{ $entradaAnticipada->proveedor?->nombre }}</span>
+                    <span class="text-muted text-mono"> · {{ $entradaAnticipada->proveedor?->rfc }}</span>
+                </p>
+                <p class="text-muted small mt-2 mb-0">Proveedor fijado por la entrada anticipada.</p>
+                @else
                 <div class="form-group search-box">
                     <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control"
                            value="{{ $proveedor ? $proveedor->etiqueta_con_codigo : ($datos['rfc_emisor'] ?? ($datos['nombre_emisor'] ?? '')) }}">
@@ -83,13 +113,21 @@ $conceptosCount = count($conceptos);
                         </button>
                     </div>
                 @endif
+                @endif
             </div>
         </div>
 
         <div class="card">
             <div class="card-header"><div class="card-title">📦 Detalle</div></div>
             <div class="card-body" style="padding:0;">
-                <p class="text-muted small" style="padding:0 16px 12px;">Use la lupa en <strong>Código</strong> para vincular cada línea a un producto; así "Recibir mercancía" registrará la entrada en inventario.</p>
+                <p class="text-muted small" style="padding:0 16px 12px;">
+                    @if($desdeEa)
+                    Use la lupa en <strong>Código</strong> para relacionar cada línea del CFDI con un producto del catálogo.
+                    No se pueden crear productos nuevos en este flujo. Si el nombre del CFDI difiere, podrá actualizar el catálogo al vincular.
+                    @else
+                    Use la lupa en <strong>Código</strong> para vincular cada línea a un producto; así "Recibir mercancía" registrará la entrada en inventario.
+                    @endif
+                </p>
                 <div class="table-container" style="border:none;margin:0;">
                     <table>
                         <thead>
@@ -113,6 +151,10 @@ $conceptosCount = count($conceptos);
                             }
                             $productoLinea = $productosPorLinea[$i] ?? null;
                             $productoVinculado = $productoPorProveedorCodigo ?? $productoLinea;
+                            $eaDetalleId = null;
+                            if ($desdeEa && $productoVinculado) {
+                                $eaDetalleId = $mapEaProductoIds[$productoVinculado->id] ?? null;
+                            }
                             @endphp
                             <tr data-row="{{ $i }}">
                                 <td>
@@ -123,6 +165,9 @@ $conceptosCount = count($conceptos);
                                         <input type="hidden" name="productos[{{ $i }}][no_identificacion]" id="no_identificacion_{{ $i }}" value="{{ $noIdent }}">
                                     <input type="hidden" name="productos[{{ $i }}][producto_id]" id="producto_id_{{ $i }}"
                                            value="{{ $productoVinculado?->id ?? '' }}">
+                                    @if($desdeEa)
+                                    <input type="hidden" name="productos[{{ $i }}][entrada_detalle_id]" id="entrada_detalle_id_{{ $i }}" value="{{ $eaDetalleId ?? '' }}">
+                                    @endif
                                     <span id="codigo_display_{{ $i }}" class="text-mono" style="font-size:13px;">
                                         @if($productoVinculado)
                                             {{ $noIdent !== '' ? $noIdent : $productoVinculado->codigo }}
@@ -131,10 +176,12 @@ $conceptosCount = count($conceptos);
                                         @endif
                                     </span>
                                     </div>
-                                    @if(!$productoVinculado && $proveedor)
+                                    @if(!$desdeEa && !$productoVinculado && $proveedor)
                                         <button type="button" class="btn btn-sm btn-outline" style="font-weight:700;" title="Crear producto desde esta partida del CFDI" onclick="solicitarCrearProductoLineaCfdi({{ $i }})">➕ Agregar</button>
-                                    @elseif(!$productoVinculado && !$proveedor)
+                                    @elseif(!$desdeEa && !$productoVinculado && !$proveedor)
                                         <span class="text-muted small">Cree el proveedor para usar ➕ Agregar</span>
+                                    @elseif($desdeEa && !$productoVinculado)
+                                        <span class="text-muted small">Use la lupa para relacionar</span>
                                     @endif
                                     </div>
                                 </td>
@@ -170,7 +217,11 @@ $conceptosCount = count($conceptos);
                     Folio: <span class="text-mono fw-600">{{ $folioInterno }}@if($cfdiFiscal !== '') — {{ $cfdiFiscal }}@endif</span>
                 </p>
                 @if(!empty($datos['uuid']))<p class="text-muted small text-mono">UUID: {{ $datos['uuid'] }}</p>@endif
+                @if($desdeEa)
+                <p class="small mt-2">Al guardar, la compra quedará vinculada a la entrada anticipada. El inventario ya fue registrado; no se volverá a recibir mercancía.</p>
+                @else
                 <p class="small mt-2">Al guardar, la compra quedará en estado <strong>Registrada</strong>. En la ficha de la compra use <strong>Recibir mercancía</strong> para dar de alta la entrada en inventario (solo en líneas con producto vinculado).</p>
+                @endif
             </div>
         </div>
     </div>
@@ -178,7 +229,11 @@ $conceptosCount = count($conceptos);
 
 <div class="card mt-3">
     <div class="card-body" style="display:flex;gap:12px;justify-content:flex-end;">
+        @if($desdeEa)
+        <a href="{{ route('compras.descartar-vinculo-entrada-anticipada') }}" class="btn btn-light">Cancelar</a>
+        @else
         <a href="{{ route('compras.upload-cfdi') }}" class="btn btn-light">Cancelar</a>
+        @endif
         <button type="submit" class="btn btn-primary">✓ Guardar compra</button>
     </div>
 </div>
@@ -301,18 +356,167 @@ $conceptosCount = count($conceptos);
     </div>
 </div>
 
+{{-- Modal genérico alerta / confirmación (UX app, sin alert/confirm del navegador) --}}
+<div id="modalCfdiMensaje" class="modal" onclick="if(event.target===this)cfdiResolverModalMensaje(false)">
+    <div class="modal-box" style="max-width: 520px;" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title" id="modalCfdiMensajeTitulo">Aviso</div>
+            <button type="button" class="modal-close" onclick="cfdiResolverModalMensaje(false)" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body" id="modalCfdiMensajeBody">
+            <p id="modalCfdiMensajeTexto" style="margin:0;line-height:1.6;color:var(--color-gray-700);white-space:pre-wrap;"></p>
+            <ul id="modalCfdiMensajeLista" style="margin:14px 0 0;padding-left:20px;color:var(--color-gray-700);line-height:1.6;font-size:14px;display:none;"></ul>
+            <div id="modalCfdiMensajeExtra" style="margin-top:14px;display:none;"></div>
+        </div>
+        <div class="modal-footer" id="modalCfdiMensajeFooter" style="flex-wrap:wrap;gap:8px;justify-content:flex-end;">
+            <button type="button" class="btn btn-light" id="modalCfdiMensajeBtnCancelar" onclick="cfdiResolverModalMensaje(false)">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="modalCfdiMensajeBtnConfirmar" onclick="cfdiResolverModalMensaje(true)">Aceptar</button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 @include('partials.etiqueta-proveedor-js')
 <script>
 (function() {
     const listarUrl = '{{ route("compras.buscar-productos") }}';
     const urlVerificarSimilitud = '{{ route("compras.crear-desde-cfdi.verificar-similitud-descripcion") }}';
+    const urlEvaluarVinculoEa = '{{ route("compras.crear-desde-cfdi.evaluar-vinculo-ea") }}';
+    const urlVincularProductoEa = '{{ route("compras.crear-desde-cfdi.vincular-producto-ea") }}';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     window.CFDI_DESCRIPCION_POR_INDICE = @json($descripcionPorIndiceLineaCfdi ?? []);
     window.CFDI_DESCRIPCIONES_CON_NOIDENT = @json($descripcionesConNoIdentCfdi ?? []);
+    window.CFDI_EA_PRODUCTO_A_DETALLE = @json($mapEaProductoIds ?? []);
+    window.CFDI_EA_DETALLE_POR_PRODUCTO = @json($mapEaDetallePorProducto ?? []);
+    window.CFDI_DESDE_EA = @json($desdeEa);
     let filaActual = null;
     let timerModal = null;
     window.CFDI_IDX_LINEA_A_CREAR = null;
+    let cfdiModalMensajeResolver = null;
+    let cfdiModalMensajeModo = 'alerta';
+
+    function escHtmlCfdi(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function resetModalCfdiMensajeBody() {
+        document.getElementById('modalCfdiMensajeTexto').textContent = '';
+        document.getElementById('modalCfdiMensajeTexto').style.display = '';
+        var lista = document.getElementById('modalCfdiMensajeLista');
+        lista.innerHTML = '';
+        lista.style.display = 'none';
+        var extra = document.getElementById('modalCfdiMensajeExtra');
+        extra.innerHTML = '';
+        extra.style.display = 'none';
+        document.getElementById('modalCfdiMensajeTitulo').style.color = '';
+    }
+
+    function configurarModalCfdiMensajeFooter(modo, opts) {
+        var btnCancel = document.getElementById('modalCfdiMensajeBtnCancelar');
+        var btnConfirm = document.getElementById('modalCfdiMensajeBtnConfirmar');
+        if (modo === 'alerta') {
+            btnCancel.style.display = 'none';
+            btnConfirm.textContent = opts.btnOk || 'Entendido';
+            btnConfirm.className = 'btn btn-primary';
+        } else {
+            btnCancel.style.display = '';
+            btnCancel.textContent = opts.btnCancel || 'Cancelar';
+            btnConfirm.textContent = opts.btnConfirm || 'Continuar';
+            btnConfirm.className = opts.btnConfirmClass || 'btn btn-primary';
+        }
+    }
+
+    window.cfdiResolverModalMensaje = function(resultado) {
+        document.getElementById('modalCfdiMensaje').classList.remove('show');
+        var resolver = cfdiModalMensajeResolver;
+        cfdiModalMensajeResolver = null;
+        if (typeof resolver !== 'function') return;
+        if (cfdiModalMensajeModo === 'alerta') {
+            resolver();
+        } else {
+            resolver(!!resultado);
+        }
+    };
+
+    function mostrarAlertaCfdi(mensaje, opts) {
+        opts = opts || {};
+        return new Promise(function(resolve) {
+            cfdiModalMensajeModo = 'alerta';
+            cfdiModalMensajeResolver = resolve;
+            resetModalCfdiMensajeBody();
+            document.getElementById('modalCfdiMensajeTitulo').textContent = opts.titulo || 'Aviso';
+            document.getElementById('modalCfdiMensajeTexto').textContent = mensaje;
+            if (opts.variant === 'error') {
+                document.getElementById('modalCfdiMensajeTitulo').style.color = 'var(--color-danger)';
+            } else if (opts.variant === 'warning') {
+                document.getElementById('modalCfdiMensajeTitulo').style.color = 'var(--color-warning, #b45309)';
+            }
+            configurarModalCfdiMensajeFooter('alerta', opts);
+            document.getElementById('modalCfdiMensaje').classList.add('show');
+        });
+    }
+
+    function mostrarConfirmacionCfdi(mensaje, opts) {
+        opts = opts || {};
+        return new Promise(function(resolve) {
+            cfdiModalMensajeModo = 'confirmacion';
+            cfdiModalMensajeResolver = resolve;
+            resetModalCfdiMensajeBody();
+            document.getElementById('modalCfdiMensajeTitulo').textContent = opts.titulo || 'Confirmar';
+            if (opts.variant === 'warning') {
+                document.getElementById('modalCfdiMensajeTitulo').style.color = 'var(--color-warning, #b45309)';
+            }
+
+            if (opts.htmlExtra) {
+                document.getElementById('modalCfdiMensajeExtra').innerHTML = opts.htmlExtra;
+                document.getElementById('modalCfdiMensajeExtra').style.display = 'block';
+                document.getElementById('modalCfdiMensajeTexto').style.display = mensaje ? '' : 'none';
+                if (mensaje) document.getElementById('modalCfdiMensajeTexto').textContent = mensaje;
+            } else if (opts.lista && opts.lista.length) {
+                document.getElementById('modalCfdiMensajeTexto').textContent = mensaje || '';
+                var ul = document.getElementById('modalCfdiMensajeLista');
+                opts.lista.forEach(function(item) {
+                    var li = document.createElement('li');
+                    li.style.marginBottom = '8px';
+                    li.textContent = item;
+                    ul.appendChild(li);
+                });
+                ul.style.display = 'block';
+            } else {
+                document.getElementById('modalCfdiMensajeTexto').textContent = mensaje;
+            }
+
+            configurarModalCfdiMensajeFooter('confirmacion', opts);
+            document.getElementById('modalCfdiMensaje').classList.add('show');
+        });
+    }
+
+    function mostrarConfirmacionAdvertenciasEa(advertencias) {
+        return mostrarConfirmacionCfdi(
+            advertencias.length ? 'Revise las siguientes advertencias antes de continuar:' : '',
+            {
+                titulo: 'Advertencias al vincular',
+                variant: 'warning',
+                lista: advertencias,
+                btnConfirm: 'Continuar con este producto',
+                btnCancel: 'Cancelar'
+            }
+        );
+    }
+
+    function mostrarConfirmacionActualizarNombreEa(nombreActual, descCfdi) {
+        var htmlExtra =
+            '<p style="margin:0 0 10px;line-height:1.6;color:var(--color-gray-700);">Nombre en catálogo:</p>' +
+            '<p style="margin:0 0 14px;padding:10px 12px;background:var(--color-gray-50);border-radius:var(--radius-md);font-size:14px;">«' + escHtmlCfdi(nombreActual) + '»</p>' +
+            '<p style="margin:0 0 10px;line-height:1.6;color:var(--color-gray-700);">¿Actualizar a la descripción del CFDI?</p>' +
+            '<p style="margin:0;padding:10px 12px;background:var(--color-gray-50);border-radius:var(--radius-md);font-size:14px;">«' + escHtmlCfdi(descCfdi) + '»</p>';
+        return mostrarConfirmacionCfdi('', {
+            titulo: 'Actualizar nombre del catálogo',
+            htmlExtra: htmlExtra,
+            btnConfirm: 'Sí, actualizar',
+            btnCancel: 'No, mantener actual'
+        });
+    }
 
     window.abrirModalProducto = function(rowIndex) {
         filaActual = rowIndex;
@@ -327,10 +531,111 @@ $conceptosCount = count($conceptos);
         filaActual = null;
     };
 
+    function aplicarProductoEnFila(idx, id, codigo, noIdentFallback) {
+        document.getElementById('producto_id_' + idx).value = id;
+        var noIdent = document.getElementById('no_identificacion_' + idx)?.value || noIdentFallback || '';
+        document.getElementById('codigo_display_' + idx).textContent = noIdent || codigo || id;
+        if (window.CFDI_DESDE_EA) {
+            var eaMap = window.CFDI_EA_PRODUCTO_A_DETALLE || {};
+            var eaDetInp = document.getElementById('entrada_detalle_id_' + idx);
+            if (eaDetInp) {
+                eaDetInp.value = eaMap[id] || eaMap[String(id)] || '';
+            }
+        }
+    }
+
+    async function seleccionarProductoDesdeLupa(id, codigo, nombre) {
+        if (filaActual === null) return;
+
+        var idx = filaActual;
+
+        if (!window.CFDI_DESDE_EA) {
+            aplicarProductoEnFila(idx, id, codigo, '');
+            cerrarModalProducto();
+            return;
+        }
+
+        try {
+            var evalRes = await fetch(urlEvaluarVinculoEa, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ producto_id: id, concepto_index: idx })
+            });
+            var evalData = await evalRes.json();
+            if (!evalRes.ok) {
+                await mostrarAlertaCfdi(evalData.error || 'No se pudo evaluar el vínculo.', { variant: 'error', titulo: 'Error' });
+                return;
+            }
+
+            if (evalData.advertencias && evalData.advertencias.length) {
+                var continuar = await mostrarConfirmacionAdvertenciasEa(evalData.advertencias);
+                if (!continuar) {
+                    return;
+                }
+            }
+
+            var actualizarNombre = false;
+            if (evalData.sugerir_actualizar_nombre) {
+                actualizarNombre = await mostrarConfirmacionActualizarNombreEa(
+                    evalData.nombre_actual || nombre,
+                    evalData.descripcion_cfdi || ''
+                );
+            }
+
+            var vincRes = await fetch(urlVincularProductoEa, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    producto_id: id,
+                    concepto_index: idx,
+                    actualizar_nombre: actualizarNombre
+                })
+            });
+            var vincData = await vincRes.json();
+            if (!vincRes.ok) {
+                await mostrarAlertaCfdi(vincData.error || 'No se pudo vincular el producto.', { variant: 'error', titulo: 'Error' });
+                return;
+            }
+
+            var noIdent = vincData.no_identificacion || document.getElementById('no_identificacion_' + idx)?.value || '';
+            aplicarProductoEnFila(idx, vincData.producto_id, vincData.codigo || codigo, noIdent);
+
+            if (vincData.ea_detalle_id) {
+                var eaDetInp = document.getElementById('entrada_detalle_id_' + idx);
+                if (eaDetInp) eaDetInp.value = vincData.ea_detalle_id;
+            }
+
+            if (vincData.codigo_proveedor_actualizado) {
+                console.info('Código de proveedor actualizado: ' + noIdent);
+            }
+
+            cerrarModalProducto();
+        } catch (err) {
+            await mostrarAlertaCfdi('Error al vincular el producto. Intente de nuevo.', { variant: 'error', titulo: 'Error' });
+        }
+    }
+
     window.solicitarCrearProductoLineaCfdi = function(idx) {
+        if (window.CFDI_DESDE_EA) {
+            mostrarAlertaCfdi(
+                'En entrada anticipada no se pueden crear productos. Use la lupa en cada línea para relacionar con el catálogo.',
+                { variant: 'warning', titulo: 'Entrada anticipada' }
+            );
+            return;
+        }
         var pid = document.getElementById('proveedor_id').value;
         if (!pid || String(pid).trim() === '') {
-            alert('Indique o cree el proveedor primero.');
+            mostrarAlertaCfdi('Indique o cree el proveedor primero.', { variant: 'warning', titulo: 'Proveedor requerido' });
             return;
         }
         window.CFDI_IDX_LINEA_A_CREAR = idx;
@@ -357,7 +662,7 @@ $conceptosCount = count($conceptos);
         if (idx === null || idx === undefined) return;
         var pid = document.getElementById('proveedor_id').value;
         if (!pid || String(pid).trim() === '') {
-            alert('Indique o cree el proveedor primero.');
+            mostrarAlertaCfdi('Indique o cree el proveedor primero.', { variant: 'warning', titulo: 'Proveedor requerido' });
             return;
         }
 
@@ -380,7 +685,7 @@ $conceptosCount = count($conceptos);
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.similar && data.message) {
-                    alert(data.message);
+                    mostrarAlertaCfdi(data.message, { variant: 'warning', titulo: 'Producto similar' });
                     return;
                 }
                 document.getElementById('crear_linea_forzar').value = '0';
@@ -390,19 +695,23 @@ $conceptosCount = count($conceptos);
                 document.getElementById('formCrearProductoLineaCfdi').submit();
             })
             .catch(function() {
-                alert('No se pudo verificar similitud con el catálogo. Intente de nuevo.');
+                mostrarAlertaCfdi('No se pudo verificar similitud con el catálogo. Intente de nuevo.', { variant: 'error', titulo: 'Error' });
             });
     };
 
-    window.confirmarCrearProductoLineaCfdiForzado = function() {
+    window.confirmarCrearProductoLineaCfdiForzado = async function() {
         var idx = window.CFDI_IDX_LINEA_A_CREAR;
         if (idx === null || idx === undefined) return;
         var pid = document.getElementById('proveedor_id').value;
         if (!pid || String(pid).trim() === '') {
-            alert('Indique o cree el proveedor primero.');
+            mostrarAlertaCfdi('Indique o cree el proveedor primero.', { variant: 'warning', titulo: 'Proveedor requerido' });
             return;
         }
-        if (!confirm('Se creará el producto con los datos leídos del CFDI (código PSI consecutivo y relación con el proveedor si aplica). Se omite la comprobación de similitud con el catálogo. ¿Desea continuar?')) {
+        var continuar = await mostrarConfirmacionCfdi(
+            'Se creará el producto con los datos leídos del CFDI (código PSI consecutivo y relación con el proveedor si aplica). Se omite la comprobación de similitud con el catálogo.',
+            { titulo: 'Crear producto', btnConfirm: 'Sí, crear producto' }
+        );
+        if (!continuar) {
             return;
         }
         document.getElementById('crear_linea_forzar').value = '1';
@@ -415,7 +724,7 @@ $conceptosCount = count($conceptos);
     window.confirmarCrearProductosCfdiNormal = function() {
         var proveedorId = document.getElementById('proveedor_id').value;
         if (!proveedorId || String(proveedorId).trim() === '') {
-            alert('Indique o cree el proveedor primero.');
+            mostrarAlertaCfdi('Indique o cree el proveedor primero.', { variant: 'warning', titulo: 'Proveedor requerido' });
             return;
         }
         document.getElementById('crear_productos_proveedor_id').value = proveedorId;
@@ -434,24 +743,28 @@ $conceptosCount = count($conceptos);
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (data.similar && data.message) {
-                    alert(data.message);
+                    mostrarAlertaCfdi(data.message, { variant: 'warning', titulo: 'Productos similares' });
                     return;
                 }
                 document.getElementById('modalCrearProductosCfdi').classList.remove('show');
                 document.getElementById('formCrearProductosCfdi').submit();
             })
             .catch(function() {
-                alert('No se pudo verificar similitud con el catálogo. Intente de nuevo.');
+                mostrarAlertaCfdi('No se pudo verificar similitud con el catálogo. Intente de nuevo.', { variant: 'error', titulo: 'Error' });
             });
     };
 
-    window.confirmarCrearProductosCfdiForzado = function() {
+    window.confirmarCrearProductosCfdiForzado = async function() {
         var proveedorId = document.getElementById('proveedor_id').value;
         if (!proveedorId || String(proveedorId).trim() === '') {
-            alert('Indique o cree el proveedor primero.');
+            mostrarAlertaCfdi('Indique o cree el proveedor primero.', { variant: 'warning', titulo: 'Proveedor requerido' });
             return;
         }
-        if (!confirm('Se crearán los productos faltantes con los datos del CFDI (códigos PSI consecutivos y relación proveedor por NoIdentificación). Se omite la comprobación de similitud con el catálogo. ¿Desea continuar?')) {
+        var continuar = await mostrarConfirmacionCfdi(
+            'Se crearán los productos faltantes con los datos del CFDI (códigos PSI consecutivos y relación proveedor por NoIdentificación). Se omite la comprobación de similitud con el catálogo.',
+            { titulo: 'Crear productos', btnConfirm: 'Sí, crear productos' }
+        );
+        if (!continuar) {
             return;
         }
         document.getElementById('crear_productos_proveedor_id').value = proveedorId;
@@ -480,18 +793,16 @@ $conceptosCount = count($conceptos);
                         list.map(function(p) {
                             const codigo = (p.codigo || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
                             const nombre = (p.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                            return '<tr><td class="text-mono">' + codigo + '</td><td>' + nombre + '</td><td><button type="button" class="btn btn-primary btn-sm" data-id="' + p.id + '" data-codigo="' + codigo + '">Seleccionar</button></td></tr>';
+                            return '<tr><td class="text-mono">' + codigo + '</td><td>' + nombre + '</td><td><button type="button" class="btn btn-primary btn-sm" data-id="' + p.id + '" data-codigo="' + codigo + '" data-nombre="' + nombre + '">Seleccionar</button></td></tr>';
                         }).join('') + '</tbody></table>';
                     div.querySelectorAll('button[data-id]').forEach(function(btn) {
                         btn.addEventListener('click', function() {
                             const id = this.getAttribute('data-id');
                             const codigo = this.getAttribute('data-codigo');
+                            const nombre = this.getAttribute('data-nombre') || '';
                             if (filaActual !== null) {
-                                document.getElementById('producto_id_' + filaActual).value = id;
-                                    const noIdent = document.getElementById('no_identificacion_' + filaActual)?.value || '';
-                                    document.getElementById('codigo_display_' + filaActual).textContent = noIdent || codigo || id;
+                                seleccionarProductoDesdeLupa(id, codigo, nombre);
                             }
-                            cerrarModalProducto();
                         });
                     });
                 })
@@ -537,6 +848,13 @@ $conceptosCount = count($conceptos);
 
         if (faltaProducto) {
             e.preventDefault();
+            if (window.CFDI_DESDE_EA) {
+                mostrarAlertaCfdi(
+                    'Faltan productos por relacionar. Use la lupa en cada línea del detalle.',
+                    { variant: 'warning', titulo: 'Productos pendientes' }
+                );
+                return;
+            }
             indices.forEach(function(idx) {
                 var inp = document.getElementById('producto_id_' + idx);
                 if (!inp || String(inp.value || '').trim() !== '') return;
@@ -547,7 +865,10 @@ $conceptosCount = count($conceptos);
             });
 
             if (faltaProductoSinNoIdent && !faltaProductoConNoIdent) {
-                alert('Hay líneas sin NoIdentificacion en el CFDI. Selecciona el producto manualmente con la lupa en el detalle.');
+                mostrarAlertaCfdi(
+                    'Hay líneas sin NoIdentificacion en el CFDI. Selecciona el producto manualmente con la lupa en el detalle.',
+                    { variant: 'warning', titulo: 'Selección manual requerida' }
+                );
                 return;
             }
 
@@ -559,19 +880,24 @@ $conceptosCount = count($conceptos);
                 return;
             }
 
-            alert('Faltan productos por vincular. Usa la lupa en el detalle o completa la relación.');
+            mostrarAlertaCfdi(
+                'Faltan productos por vincular. Usa la lupa en el detalle o completa la relación.',
+                { variant: 'warning', titulo: 'Productos pendientes' }
+            );
         }
     });
 
-    @if($proveedor)
+    @if(!$desdeEa && $proveedor)
     document.getElementById('proveedor_id').value = '{{ $proveedor->id }}';
     document.getElementById('buscarProveedor').value = {!! json_encode($proveedor->etiqueta_con_codigo) !!};
     @endif
 })();
 </script>
+@if(!$desdeEa)
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var buscarProveedor = document.getElementById('buscarProveedor');
+    if (!buscarProveedor) return;
     var proveedorResults = document.getElementById('proveedorResults');
     var proveedorId = document.getElementById('proveedor_id');
     var timerP = null;
@@ -603,6 +929,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+@endif
 @endpush
 
 @endsection

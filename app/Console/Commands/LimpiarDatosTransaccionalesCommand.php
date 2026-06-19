@@ -65,6 +65,8 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'logistica_envio_items',
         'logistica_envios',
         // Facturas de compra (módulo Compras)
+        'entradas_anticipadas_detalle',
+        'entradas_anticipadas',
         'facturas_compra_impuestos',
         'facturas_compra_detalle',
         'facturas_compra',

@@ -21,9 +21,11 @@ class FacturaCompra extends Model
         'folio_interno',
         'tipo_comprobante',
         'estado',
+        'origen',
         'proveedor_id',
         'empresa_id',
         'orden_compra_id',
+        'entrada_anticipada_id',
         'rfc_emisor',
         'nombre_emisor',
         'regimen_fiscal_emisor',
@@ -73,6 +75,11 @@ class FacturaCompra extends Model
     public function ordenCompra(): BelongsTo
     {
         return $this->belongsTo(OrdenCompra::class);
+    }
+
+    public function entradaAnticipada(): BelongsTo
+    {
+        return $this->belongsTo(EntradaAnticipada::class);
     }
 
     public function usuario(): BelongsTo
@@ -200,9 +207,47 @@ class FacturaCompra extends Model
         return $this->cuentaPorPagar !== null;
     }
 
+    public function tienePdfSubido(): bool
+    {
+        return $this->resolverRutaArchivoLocal($this->pdf_path) !== null;
+    }
+
+    public function tieneXmlCfdi(): bool
+    {
+        if (! empty(trim((string) $this->xml_content))) {
+            return true;
+        }
+
+        return $this->resolverRutaArchivoLocal($this->xml_path) !== null;
+    }
+
+    public function resolverRutaArchivoLocal(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        $private = storage_path('app/private/'.$path);
+        if (file_exists($private)) {
+            return $private;
+        }
+
+        $legacy = storage_path('app/'.$path);
+        if (file_exists($legacy)) {
+            return $legacy;
+        }
+
+        return null;
+    }
+
     public function puedeRecibirse(): bool
     {
-        return $this->estado === 'registrada';
+        return $this->estado === 'registrada' && ! $this->entrada_anticipada_id;
+    }
+
+    public function inventarioDesdeEntradaAnticipada(): bool
+    {
+        return $this->entrada_anticipada_id !== null;
     }
 
     public function estaRecibida(): bool
@@ -213,6 +258,20 @@ class FacturaCompra extends Model
     public function estaCancelada(): bool
     {
         return $this->estado === 'cancelada';
+    }
+
+    /**
+     * Indica si ya hay una compra no cancelada con el mismo UUID de CFDI.
+     */
+    public static function existeCompraActivaConUuid(?string $uuid): bool
+    {
+        if (empty(trim((string) $uuid))) {
+            return false;
+        }
+
+        return static::where('uuid', $uuid)
+            ->where('estado', '!=', 'cancelada')
+            ->exists();
     }
 
     /**

@@ -36,8 +36,8 @@ class FacturaCompraCfdiService
         if (!in_array($tipoComprobante, ['E', 'I', 'P', 'N'])) {
             return ['success' => false, 'datos' => null, 'message' => 'Tipo de comprobante no soportado: ' . $tipoComprobante];
         }
-        if (!empty($datos['uuid']) && FacturaCompra::where('uuid', $datos['uuid'])->exists()) {
-            return ['success' => false, 'datos' => null, 'message' => 'Ya existe una factura de compra con UUID ' . $datos['uuid']];
+        if (! empty($datos['uuid']) && FacturaCompra::existeCompraActivaConUuid($datos['uuid'])) {
+            return ['success' => false, 'datos' => null, 'message' => 'Ya existe una compra activa con UUID '.$datos['uuid'].'. Si la compra anterior fue cancelada, puede volver a usar este XML.'];
         }
         $empresa = Empresa::principal();
         if (!$empresa) {
@@ -70,12 +70,9 @@ class FacturaCompraCfdiService
             return ['success' => false, 'factura_compra' => null, 'message' => 'Tipo de comprobante no soportado: ' . $tipoComprobante];
         }
 
-        // Verificar UUID duplicado
-        if (!empty($datos['uuid'])) {
-            $existe = FacturaCompra::where('uuid', $datos['uuid'])->first();
-            if ($existe) {
-                return ['success' => false, 'factura_compra' => null, 'message' => 'Ya existe una factura de compra con UUID ' . $datos['uuid']];
-            }
+        // Verificar UUID duplicado (solo compras no canceladas)
+        if (! empty($datos['uuid']) && FacturaCompra::existeCompraActivaConUuid($datos['uuid'])) {
+            return ['success' => false, 'factura_compra' => null, 'message' => 'Ya existe una compra activa con UUID '.$datos['uuid'].'. Si la compra anterior fue cancelada, puede volver a usar este XML.'];
         }
 
         $empresa = Empresa::principal();

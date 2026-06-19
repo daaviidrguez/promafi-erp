@@ -80,7 +80,7 @@
     <div class="empty-state">
         <div class="empty-state-icon">💳</div>
         <div class="empty-state-title">No hay cuentas por pagar</div>
-        <div class="empty-state-text">Se generan al aceptar una orden de compra o al registrar compras con PPD</div>
+        <div class="empty-state-text">Se generan al registrar compras con PPD o al facturar entradas anticipadas</div>
     </div>
     @endif
 </div>

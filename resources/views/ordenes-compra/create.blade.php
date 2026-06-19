@@ -63,7 +63,7 @@ $breadcrumbs = [
                         <div class="form-group" style="margin-bottom:0;">
                             <label class="form-label">Días de crédito</label>
                             <input type="number" name="dias_credito" id="dias_credito" min="0" value="0" class="form-control" style="width:100px;">
-                            <span class="form-hint">0 = contado (no va a Cuentas por Pagar). &gt;0 = crédito (sí va a CxP al aceptar).</span>
+                            <span class="form-hint">0 = contado. &gt;0 = crédito (CxP al facturar la compra).</span>
                         </div>
                     </div>
                 </div>

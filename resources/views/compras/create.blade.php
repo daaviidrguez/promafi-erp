@@ -1,27 +1,47 @@
 @extends('layouts.app')
-@section('title', 'Registrar compra')
-@section('page-title', '🛒 Registrar compra')
-@section('page-subtitle', 'Registro manual de factura de compra')
+@section('title', $entradaAnticipada ? 'Facturar '.$entradaAnticipada->folio : 'Registrar compra')
+@section('page-title', $entradaAnticipada ? '🧾 Facturar '.$entradaAnticipada->folio : '🛒 Registrar compra')
+@section('page-subtitle', $entradaAnticipada ? 'Compra manual — inventario ya registrado' : 'Registro manual de factura de compra')
 
 @php
-$breadcrumbs = [
-    ['title' => 'Compras', 'url' => route('compras.index')],
-    ['title' => 'Registrar'],
-];
+$breadcrumbs = $entradaAnticipada
+    ? [
+        ['title' => 'Entradas anticipadas', 'url' => route('entradas-anticipadas.index')],
+        ['title' => $entradaAnticipada->folio, 'url' => route('entradas-anticipadas.show', $entradaAnticipada->id)],
+        ['title' => 'Compra manual'],
+    ]
+    : [
+        ['title' => 'Compras', 'url' => route('compras.index')],
+        ['title' => 'Registrar'],
+    ];
+$desdeEa = (bool) $entradaAnticipada;
 @endphp
 
 @section('content')
 
+@if($entradaAnticipada)
+<div class="card mb-3" style="border-left:4px solid var(--color-info);">
+    <div class="card-body" style="font-size:14px;line-height:1.5;">
+        <strong>Entrada anticipada {{ $entradaAnticipada->folio }}</strong> — La mercancía ya está en inventario.
+        Al guardar se crea la compra vinculada; no se volverá a recibir mercancía.
+        Puede ajustar precios e IVA según la factura del proveedor.
+        @if($entradaAnticipada->ordenCompra)
+        <span class="text-muted"> · OC {{ $entradaAnticipada->ordenCompra->folio }}</span>
+        @endif
+    </div>
+</div>
+@else
 <p class="text-muted" style="margin-bottom:16px;">
     Para cargar compras desde el CFDI XML del proveedor, usa <a href="{{ route('compras.upload-cfdi') }}"><strong>Leer CFDI</strong></a>.
     Aquí puedes registrar una compra manualmente.
 </p>
 <p class="text-muted" style="margin-bottom:16px;padding:12px 14px;background:var(--color-gray-50);border-radius:var(--radius-md);border-left:4px solid var(--color-info);font-size:14px;line-height:1.45;">
     Para convertir una <strong>orden de compra aceptada</strong> en compra, ve a la orden de compra y usa el botón <strong>«Convertir a compra»</strong>.
-    Aquí puedes registrar una factura de compra directamente.
+    Para facturar una <strong>entrada anticipada</strong>, hazlo desde la ficha de la entrada.
 </p>
+@endif
 
-<form action="{{ route('compras.store') }}" method="POST" id="compraForm">
+<form action="{{ route('compras.store') }}" method="POST" id="compraForm" enctype="multipart/form-data">
 @csrf
 
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
@@ -57,6 +77,11 @@ $breadcrumbs = [
                         </select>
                         <span class="form-hint">PPD + proveedor con días crédito = se crea Cuenta por Pagar</span>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">PDF factura proveedor</label>
+                        <input type="file" name="pdf_file" accept=".pdf" class="form-control">
+                        <span class="form-hint">{{ $desdeEa ? 'Recomendado' : 'Opcional' }} — adjunte el PDF del proveedor</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -64,6 +89,13 @@ $breadcrumbs = [
         <div class="card card-search">
             <div class="card-header"><div class="card-title">🏭 Proveedor <span class="req">*</span></div></div>
             <div class="card-body">
+                @if($desdeEa)
+                <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $entradaAnticipada->proveedor_id }}">
+                <div style="padding:12px;background:var(--color-gray-50);border-radius:var(--radius-md);">
+                    <span class="fw-600">{{ $entradaAnticipada->proveedor?->nombre }}</span>
+                    <span class="text-muted text-mono"> · {{ $entradaAnticipada->proveedor?->rfc }}</span>
+                </div>
+                @else
                 <div class="form-group search-box">
                     <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control">
                     <input type="hidden" name="proveedor_id" id="proveedor_id" required>
@@ -77,34 +109,39 @@ $breadcrumbs = [
                         <button type="button" onclick="limpiarProveedor()" class="btn btn-light btn-sm">Cambiar</button>
                     </div>
                 </div>
+                @endif
             </div>
         </div>
 
         <div class="card card-search">
             <div class="card-header">
                 <div class="card-title">📦 Productos</div>
+                @if(!$desdeEa)
                 <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">➕ Agregar</button>
+                @endif
             </div>
             <div class="card-body" style="padding:0;">
+                @if(!$desdeEa)
                 <div class="search-box" style="padding:16px;">
                     <input type="text" id="buscarProducto" placeholder="Buscar producto..." autocomplete="off" class="form-control">
                     <div id="productoResults" class="autocomplete-results"></div>
                 </div>
+                @endif
                 <div class="table-container" style="border:none;margin:0;">
                     <table>
                         <thead>
                             <tr>
                                 <th>Descripción</th>
                                 <th class="td-center">Cant.</th>
-                                <th class="td-right">Costo</th>
+                                <th class="td-right">Costo s/IVA</th>
                                 <th class="td-center">Desc %</th>
                                 <th class="td-center">IVA</th>
                                 <th class="td-right">Total</th>
-                                <th></th>
+                                @if(!$desdeEa)<th></th>@endif
                             </tr>
                         </thead>
                         <tbody id="productosBody">
-                            <tr id="emptyRow"><td colspan="7" class="text-center text-muted" style="padding:24px;">Sin productos. Busca o agrega manual.</td></tr>
+                            <tr id="emptyRow"><td colspan="{{ $desdeEa ? 6 : 7 }}" class="text-center text-muted" style="padding:24px;">Sin productos.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -116,6 +153,15 @@ $breadcrumbs = [
         </div>
     </div>
     <div>
+        @if($desdeEa && $entradaAnticipada)
+        <div class="card mb-3">
+            <div class="card-header"><div class="card-title">Referencia EA</div></div>
+            <div class="card-body" style="font-size:13px;">
+                <div class="totales-row" style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>Total EA</span><span class="text-mono fw-600">${{ number_format($entradaAnticipada->total, 2) }}</span></div>
+                <p class="text-muted mb-0" style="font-size:12px;">Incluye IVA. Puede diferir si ajusta precios a la factura real.</p>
+            </div>
+        </div>
+        @endif
         <div class="card">
             <div class="card-header"><div class="card-title">💰 Totales</div></div>
             <div class="card-body">
@@ -132,8 +178,12 @@ $breadcrumbs = [
 
 <div class="card">
     <div class="card-body" style="display:flex;gap:12px;justify-content:flex-end;">
+        @if($desdeEa)
+        <a href="{{ route('entradas-anticipadas.facturar', $entradaAnticipada->id) }}" class="btn btn-light">← Volver</a>
+        @else
         <a href="{{ route('compras.index') }}" class="btn btn-light">Cancelar</a>
-        <button type="submit" class="btn btn-primary">✓ Guardar compra</button>
+        @endif
+        <button type="submit" class="btn btn-primary">{{ $desdeEa ? '✓ Guardar y vincular compra' : '✓ Guardar compra' }}</button>
     </div>
 </div>
 
@@ -142,28 +192,38 @@ $breadcrumbs = [
 @push('scripts')
 @include('partials.etiqueta-proveedor-js')
 <script>
-let productos = [];
+const desdeEa = {{ $desdeEa ? 'true' : 'false' }};
+let productos = @json($productosPrecargados ?? []);
+const proveedorPrecargado = @json($proveedorPrecargado ?? null);
 let timerProveedor, timerProducto;
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('buscarProveedor').addEventListener('input', function() {
-        clearTimeout(timerProveedor);
-        const q = this.value.trim();
-        if (q.length < 2) { document.getElementById('proveedorResults').classList.remove('show'); return; }
-        timerProveedor = setTimeout(() => buscarProveedores(q), 280);
-    });
-    document.getElementById('buscarProducto').addEventListener('input', function() {
-        clearTimeout(timerProducto);
-        const q = this.value.trim();
-        if (q.length < 2) { document.getElementById('productoResults').classList.remove('show'); return; }
-        timerProducto = setTimeout(() => buscarProductos(q), 280);
-    });
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.search-box')) {
-            document.getElementById('proveedorResults').classList.remove('show');
-            document.getElementById('productoResults').classList.remove('show');
-        }
-    });
+    if (!desdeEa) {
+        document.getElementById('buscarProveedor').addEventListener('input', function() {
+            clearTimeout(timerProveedor);
+            const q = this.value.trim();
+            if (q.length < 2) { document.getElementById('proveedorResults').classList.remove('show'); return; }
+            timerProveedor = setTimeout(() => buscarProveedores(q), 280);
+        });
+        document.getElementById('buscarProducto').addEventListener('input', function() {
+            clearTimeout(timerProducto);
+            const q = this.value.trim();
+            if (q.length < 2) { document.getElementById('productoResults').classList.remove('show'); return; }
+            timerProducto = setTimeout(() => buscarProductos(q), 280);
+        });
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.search-box')) {
+                document.getElementById('proveedorResults').classList.remove('show');
+                document.getElementById('productoResults').classList.remove('show');
+            }
+        });
+    } else if (proveedorPrecargado) {
+        // proveedor ya fijado en hidden
+    }
+    if (desdeEa && productos.length) {
+        productos = productos.map(p => ({ ...p, manual: false, desde_ea: true }));
+    }
+    renderProductos();
 });
 
 function closeDropdown(id) { document.getElementById(id).classList.remove('show'); }
@@ -237,8 +297,9 @@ function quitarProducto(i) { productos.splice(i, 1); renderProductos(); }
 
 function renderProductos() {
     const tbody = document.getElementById('productosBody');
+    const colSpan = desdeEa ? 6 : 7;
     if (!productos.length) {
-        tbody.innerHTML = '<tr id="emptyRow"><td colspan="7" class="text-center text-muted" style="padding:24px;">Sin productos. Busca o agrega manual.</td></tr>';
+        tbody.innerHTML = `<tr id="emptyRow"><td colspan="${colSpan}" class="text-center text-muted" style="padding:24px;">Sin productos.</td></tr>`;
         calcTotales(); return;
     }
     tbody.innerHTML = productos.map((p, i) => {
@@ -247,17 +308,24 @@ function renderProductos() {
         const base = sub - desc;
         const iva = p.tasa_iva != null ? base * p.tasa_iva : 0;
         const total = base + iva;
+        const maxAttr = p.cantidad_max ? `max="${p.cantidad_max}"` : '';
+        const eaHidden = p.entrada_detalle_id ? `<input type="hidden" name="productos[${i}][entrada_detalle_id]" value="${p.entrada_detalle_id}">` : '';
+        const ivaCell = (p.manual || p.desde_ea)
+            ? `<select name="productos[${i}][tasa_iva]" onchange="upd(${i},'tasa_iva',this.value===''?null:+this.value)" class="form-control" style="width:70px;"><option value="0.16" ${p.tasa_iva==0.16?'selected':''}>16%</option><option value="0" ${p.tasa_iva==0?'selected':''}>0%</option><option value="" ${p.tasa_iva==null?'selected':''}>Exento</option></select>`
+            : `<span class="fw-600" style="font-size:13px;">${p.tasa_iva==null?'Exento':(p.tasa_iva*100)+'%'}</span><input type="hidden" name="productos[${i}][tasa_iva]" value="${p.tasa_iva!=null?p.tasa_iva:''}">`;
+        const removeBtn = (!desdeEa) ? `<td><button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm">✕</button></td>` : '';
         return `<tr>
-            <td>${p.manual ? `<input type="text" value="${(p.nombre||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'nombre',this.value)" placeholder="Descripción" class="form-control" style="font-size:13px;"><input type="hidden" name="productos[${i}][es_producto_manual]" value="1">` : `<div class="fw-600">${(p.nombre||'').replace(/</g,'&lt;')}</div><span class="text-muted" style="font-size:12px;">${p.codigo}</span>`}
+            <td>${p.manual ? `<input type="text" value="${(p.nombre||'').replace(/"/g,'&quot;')}" onchange="upd(${i},'nombre',this.value)" placeholder="Descripción" class="form-control" style="font-size:13px;"><input type="hidden" name="productos[${i}][es_producto_manual]" value="1">` : `<div class="fw-600">${(p.nombre||'').replace(/</g,'&lt;')}</div><span class="text-muted" style="font-size:12px;">${p.codigo||''}</span>`}
                 <input type="hidden" name="productos[${i}][producto_id]" value="${p.id||''}">
                 <input type="hidden" name="productos[${i}][descripcion]" value="${(p.nombre||'').replace(/"/g,'&quot;')}">
+                ${eaHidden}
             </td>
-            <td class="td-center"><input type="number" name="productos[${i}][cantidad]" value="${p.cantidad}" min="0.01" step="0.01" onchange="upd(${i},'cantidad',+this.value)" class="form-control" style="width:70px;text-align:center;"></td>
+            <td class="td-center"><input type="number" name="productos[${i}][cantidad]" value="${p.cantidad}" min="0.01" step="0.01" ${maxAttr} onchange="upd(${i},'cantidad',+this.value)" class="form-control" style="width:70px;text-align:center;"></td>
             <td class="td-right"><input type="number" name="productos[${i}][precio_unitario]" value="${p.precio.toFixed(2)}" min="0" step="0.01" onchange="upd(${i},'precio',+this.value)" class="form-control" style="width:90px;text-align:right;"></td>
             <td class="td-center"><input type="number" name="productos[${i}][descuento_porcentaje]" value="${p.descuento}" min="0" max="100" onchange="upd(${i},'descuento',+this.value)" class="form-control" style="width:60px;text-align:center;"></td>
-            <td class="td-center">${p.manual ? `<select name="productos[${i}][tasa_iva]" onchange="upd(${i},'tasa_iva',this.value===''?null:+this.value)" class="form-control" style="width:70px;"><option value="0.16" ${p.tasa_iva==0.16?'selected':''}>16%</option><option value="0" ${p.tasa_iva==0?'selected':''}>0%</option><option value="" ${p.tasa_iva==null?'selected':''}>Exento</option></select>` : `<span class="fw-600" style="font-size:13px;">${p.tasa_iva==null?'Exento':(p.tasa_iva*100)+'%'}</span><input type="hidden" name="productos[${i}][tasa_iva]" value="${p.tasa_iva!=null?p.tasa_iva:''}">`}</td>
+            <td class="td-center">${ivaCell}</td>
             <td class="td-right text-mono fw-600">$${total.toFixed(2)}</td>
-            <td><button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm">✕</button></td>
+            ${removeBtn}
         </tr>`;
     }).join('');
     calcTotales();
@@ -281,6 +349,15 @@ function calcTotales() {
 document.getElementById('compraForm').addEventListener('submit', function(e) {
     if (!document.getElementById('proveedor_id').value) { e.preventDefault(); alert('Selecciona un proveedor'); return; }
     if (!productos.length) { e.preventDefault(); alert('Agrega al menos un producto'); return; }
+    if (desdeEa) {
+        for (const p of productos) {
+            if (p.cantidad_max && p.cantidad > p.cantidad_max + 0.001) {
+                e.preventDefault();
+                alert(`La cantidad de «${p.nombre}» no puede exceder ${p.cantidad_max}`);
+                return;
+            }
+        }
+    }
 });
 </script>
 @endpush

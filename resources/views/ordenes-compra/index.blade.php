@@ -37,7 +37,7 @@
     <div class="card-body">
         <form method="GET" action="{{ route('ordenes-compra.index') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
             <div class="form-group" style="margin:0;"><label class="form-label">Buscar</label><input type="text" name="search" value="{{ request('search') }}" placeholder="Folio, proveedor..." class="form-control" style="min-width:200px;"></div>
-            <div class="form-group" style="margin:0;"><label class="form-label">Estado</label><select name="estado" class="form-control"><option value="">Todos</option><option value="borrador" {{ request('estado')=='borrador'?'selected':'' }}>Borrador</option><option value="aceptada" {{ request('estado')=='aceptada'?'selected':'' }}>Aceptada</option><option value="recibida" {{ request('estado')=='recibida'?'selected':'' }}>Recibida (hist.)</option><option value="convertida_compra" {{ request('estado')=='convertida_compra'?'selected':'' }}>Convertida a compra</option><option value="cancelada" {{ request('estado')=='cancelada'?'selected':'' }}>Cancelada</option></select></div>
+            <div class="form-group" style="margin:0;"><label class="form-label">Estado</label><select name="estado" class="form-control"><option value="">Todos</option><option value="borrador" {{ request('estado')=='borrador'?'selected':'' }}>Borrador</option><option value="aceptada" {{ request('estado')=='aceptada'?'selected':'' }}>Aceptada</option><option value="recibida" {{ request('estado')=='recibida'?'selected':'' }}>Recibida (hist.)</option><option value="en_recepcion" {{ request('estado')=='en_recepcion'?'selected':'' }}>En recepción</option><option value="convertida_compra" {{ request('estado')=='convertida_compra'?'selected':'' }}>Convertida a compra</option><option value="cancelada" {{ request('estado')=='cancelada'?'selected':'' }}>Cancelada</option></select></div>
             <button type="submit" class="btn btn-primary">Buscar</button>
         </form>
     </div>
@@ -67,6 +67,7 @@
                     @if($o->estado === 'borrador')<span class="badge badge-warning">Borrador</span>
                     @elseif($o->estado === 'aceptada')<span class="badge badge-info">Aceptada</span>
                     @elseif($o->estado === 'recibida')<span class="badge badge-success">Recibida</span>
+                    @elseif($o->estado === 'en_recepcion')<span class="badge badge-info">En recepción</span>
                     @elseif($o->estado === 'convertida_compra')<span class="badge badge-success">Convertida a compra</span>
                     @elseif($o->estado === 'cancelada')<span class="badge badge-danger">Cancelada</span>
                     @endif

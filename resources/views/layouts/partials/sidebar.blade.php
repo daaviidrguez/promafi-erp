@@ -148,9 +148,9 @@
 
         {{-- Compras (dropdown) --}}
         @php
-            $compHasActive = request()->routeIs('ordenes-compra.*') || request()->routeIs('compras.*') || request()->routeIs('cotizaciones-compra.*');
+            $compHasActive = request()->routeIs('ordenes-compra.*') || request()->routeIs('compras.*') || request()->routeIs('cotizaciones-compra.*') || request()->routeIs('entradas-anticipadas.*');
         @endphp
-        @if(auth()->user()->can('ordenes_compra.ver') || auth()->user()->can('cotizaciones_compra.ver'))
+        @if(auth()->user()->can('ordenes_compra.ver') || auth()->user()->can('cotizaciones_compra.ver') || auth()->user()->can('entradas_anticipadas.ver'))
         <div class="sidebar-dropdown {{ $compHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $compHasActive ? 'active' : '' }}" data-dropdown="compras" title="Compras">
                 <span class="sidebar-menu-icon">🛒</span>
@@ -158,6 +158,7 @@
                 <span class="sidebar-dropdown-chevron">▼</span>
             </button>
             <ul class="sidebar-dropdown-menu">
+                @can('entradas_anticipadas.ver')<li><a href="{{ route('entradas-anticipadas.index') }}" class="sidebar-menu-link {{ request()->routeIs('entradas-anticipadas.*') ? 'active' : '' }}" title="Entradas anticipadas"><span class="sidebar-menu-icon">📥</span><span class="sidebar-menu-text">Entradas anticipadas</span></a></li>@endcan
                 @can('ordenes_compra.ver')<li><a href="{{ route('compras.index') }}" class="sidebar-menu-link {{ request()->routeIs('compras.*') ? 'active' : '' }}" title="Compras (facturas)"><span class="sidebar-menu-icon">🛒</span><span class="sidebar-menu-text">Compras</span></a></li>@endcan
                 @can('ordenes_compra.ver')<li><a href="{{ route('ordenes-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('ordenes-compra.*') ? 'active' : '' }}" title="Órdenes de Compra"><span class="sidebar-menu-icon">📦</span><span class="sidebar-menu-text">Órdenes de Compra</span></a></li>@endcan
                 @can('cotizaciones_compra.ver')<li><a href="{{ route('cotizaciones-compra.index') }}" class="sidebar-menu-link {{ request()->routeIs('cotizaciones-compra.*') ? 'active' : '' }}" title="Cotizaciones de compras"><span class="sidebar-menu-icon">📋</span><span class="sidebar-menu-text">Cotizaciones de compras</span></a></li>@endcan

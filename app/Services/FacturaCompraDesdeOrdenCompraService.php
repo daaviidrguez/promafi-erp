@@ -70,6 +70,7 @@ class FacturaCompraDesdeOrdenCompraService
                 'folio_interno' => $folioInterno,
                 'tipo_comprobante' => 'E',
                 'estado' => 'registrada',
+                'origen' => 'orden_compra',
                 'proveedor_id' => $proveedor->id,
                 'empresa_id' => $empresa->id,
                 'orden_compra_id' => $orden->id,

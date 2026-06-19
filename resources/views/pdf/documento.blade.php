@@ -210,7 +210,7 @@ body {
             @endif
 
             <div style="display:table-cell; vertical-align:top; font-size:6.5pt; line-height:1.2;">
-                @if($esOrdenCompra ?? false)
+                @if(($esOrdenCompra ?? false) || ($esEntradaAnticipada ?? false))
                 <strong>Razón social:</strong> {{ $empresa->razon_social ?? '—' }}<br>
                 @endif
                 <strong>RFC:</strong> {{ $empresa->rfc }}<br>
@@ -249,6 +249,10 @@ body {
             @elseif($esOrdenCompra ?? false)
             <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
                 ORDEN DE COMPRA
+            </div>
+            @elseif($esEntradaAnticipada ?? false)
+            <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
+                ENTRADA ANTICIPADA
             </div>
             @elseif($esFacturaCompra ?? false)
             <div style="font-size:10.5pt; font-weight:bold; color:#0B3C5D;">
@@ -296,6 +300,8 @@ body {
     @include('pdf.partials.cotizacion-compra')
 @elseif($esOrdenCompra ?? false)
     @include('pdf.partials.orden-compra')
+@elseif($esEntradaAnticipada ?? false)
+    @include('pdf.partials.entrada-anticipada')
 @elseif($esFacturaCompra ?? false)
     @include('pdf.partials.factura-compra')
 @else
@@ -502,7 +508,7 @@ body {
 <div class="footer">
 @if(!$esNotaCredito && !$esComplemento)
 
-@if(($esOrdenCompra ?? false) || ($esFacturaCompra ?? false))
+@if(($esOrdenCompra ?? false) || ($esFacturaCompra ?? false) || ($esEntradaAnticipada ?? false))
 {{-- FOOTER ORDEN DE COMPRA / FACTURA COMPRA --}}
     <div style="text-align: center; margin-top: 8px; padding-top: 8px; font-size: 8pt; line-height: 1.5;">
         Documento generado por {{ $empresa->razon_social ?? '' }}<br>

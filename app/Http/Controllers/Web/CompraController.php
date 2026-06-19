@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\CotizacionCompraDetalle;
 use App\Models\CuentaPorPagar;
 use App\Models\Empresa;
+use App\Models\EntradaAnticipada;
+use App\Models\EntradaAnticipadaDetalle;
 use App\Models\FacturaCompra;
 use App\Models\FacturaCompraDetalle;
 use App\Models\FacturaCompraImpuesto;
@@ -16,9 +18,12 @@ use App\Models\Producto;
 use App\Models\ProductoProveedor;
 use App\Models\Proveedor;
 use App\Services\FacturaCompraCfdiService;
+use App\Services\FacturaCompraDesdeEntradaAnticipadaService;
 use App\Services\FacturaCompraDesdeOrdenCompraService;
+use App\Services\EntradaAnticipadaService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 class CompraController extends Controller
@@ -66,13 +71,86 @@ class CompraController extends Controller
         if (! $empresa) {
             return redirect()->route('dashboard')->with('error', 'Configura la empresa primero');
         }
-        $folio = FacturaCompra::generarFolioInterno();
 
-        return view('compras.create', compact('empresa', 'folio'));
+        $folio = FacturaCompra::generarFolioInterno();
+        $entradaAnticipada = null;
+        $productosPrecargados = [];
+        $proveedorPrecargado = null;
+
+        if ($request->filled('entrada_anticipada_id')) {
+            $ea = EntradaAnticipada::with(['detalles.producto', 'proveedor'])->find($request->integer('entrada_anticipada_id'));
+            if (! $ea || ! $ea->puedeFacturarse()) {
+                return redirect()->route('entradas-anticipadas.index')
+                    ->with('error', 'La entrada anticipada no admite registrar compra manual.');
+            }
+
+            app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
+            $ea->refresh()->load(['detalles.producto', 'proveedor']);
+
+            $request->session()->put('compras_desde_entrada_anticipada_id', $ea->id);
+            $entradaAnticipada = $ea;
+            $proveedorPrecargado = $ea->proveedor?->only(['id', 'codigo', 'nombre', 'rfc', 'dias_credito']);
+
+            foreach ($ea->detalles as $d) {
+                $pendiente = (float) $d->cantidad_recibida - (float) $d->cantidad_facturada;
+                if ($pendiente <= 0) {
+                    continue;
+                }
+                $productosPrecargados[] = [
+                    'entrada_detalle_id' => $d->id,
+                    'id' => $d->producto_id,
+                    'codigo' => $d->producto?->codigo,
+                    'codigo_proveedor' => $d->codigo_proveedor,
+                    'nombre' => $d->descripcion,
+                    'cantidad' => $pendiente,
+                    'cantidad_max' => $pendiente,
+                    'precio' => (float) $d->precio_unitario_estimado,
+                    'descuento' => (float) ($d->descuento_porcentaje ?? 0),
+                    'tasa_iva' => EntradaAnticipadaDetalle::resolverTasaIva($d->producto, $d->tasa_iva),
+                ];
+            }
+
+            if (empty($productosPrecargados)) {
+                return redirect()->route('entradas-anticipadas.show', $ea->id)
+                    ->with('error', 'No hay líneas pendientes de facturar en esta entrada.');
+            }
+        } else {
+            $request->session()->forget('compras_desde_entrada_anticipada_id');
+        }
+
+        return view('compras.create', compact(
+            'empresa',
+            'folio',
+            'entradaAnticipada',
+            'productosPrecargados',
+            'proveedorPrecargado'
+        ));
+    }
+
+    public function descartarVinculoEntradaAnticipada(Request $request)
+    {
+        $eaId = (int) $request->session()->get('compras_desde_entrada_anticipada_id', 0);
+        $this->limpiarPdfTempCfdiSesion($request);
+        $request->session()->forget([
+            'compras_desde_entrada_anticipada_id',
+            'compras_cfdi_precarga',
+            'compras_cfdi_linea_producto',
+        ]);
+
+        if ($eaId > 0) {
+            return redirect()->route('entradas-anticipadas.facturar', $eaId)
+                ->with('info', 'Se descartó el CFDI en curso.');
+        }
+
+        return redirect()->route('compras.index')
+            ->with('info', 'Se descartó el vínculo con la entrada anticipada.');
     }
 
     public function store(Request $request)
     {
+        $eaIdSesion = (int) $request->session()->get('compras_desde_entrada_anticipada_id', 0);
+        $desdeEntradaAnticipada = $eaIdSesion > 0;
+
         $validated = $request->validate([
             'proveedor_id' => 'required|exists:proveedores,id',
             'fecha_emision' => 'required|date',
@@ -81,13 +159,19 @@ class CompraController extends Controller
             'observaciones' => 'nullable|string',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
+            'productos.*.entrada_detalle_id' => 'nullable|exists:entradas_anticipadas_detalle,id',
             'productos.*.descripcion' => 'required|string',
             'productos.*.cantidad' => 'required|numeric|min:0.01',
             'productos.*.precio_unitario' => 'required|numeric|min:0',
             'productos.*.descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
+            'pdf_file' => 'nullable|file|mimes:pdf|max:10240',
         ]);
+
+        if ($desdeEntradaAnticipada) {
+            return $this->storeDesdeEntradaAnticipada($request, $validated, $eaIdSesion);
+        }
 
         DB::beginTransaction();
         try {
@@ -109,6 +193,7 @@ class CompraController extends Controller
                 'folio_interno' => $folioInterno,
                 'tipo_comprobante' => 'E',
                 'estado' => 'registrada',
+                'origen' => 'directa',
                 'proveedor_id' => $proveedor->id,
                 'empresa_id' => $empresa->id,
                 'rfc_emisor' => $proveedor->rfc ?? '',
@@ -179,6 +264,10 @@ class CompraController extends Controller
                 ]);
             }
 
+            if ($request->hasFile('pdf_file')) {
+                $fc->update(['pdf_path' => $request->file('pdf_file')->store('compras/pdf/'.$fc->id, 'local')]);
+            }
+
             DB::commit();
 
             return redirect()->route('compras.show', $fc->id)->with('success', 'Compra registrada correctamente');
@@ -189,9 +278,178 @@ class CompraController extends Controller
         }
     }
 
+    /**
+     * Guarda compra desde CFDI vinculada a entrada anticipada (inventario ya aplicado).
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function storeDesdeEntradaAnticipadaCfdi(Request $request, array $datos, int $eaIdSesion)
+    {
+        $productos = $request->input('productos', []);
+        foreach ($productos as $k => $p) {
+            if (isset($p['producto_id']) && $p['producto_id'] === '') {
+                $productos[$k]['producto_id'] = null;
+            }
+        }
+        $request->merge(['productos' => $productos]);
+
+        $validated = $request->validate([
+            'proveedor_id' => 'required|exists:proveedores,id',
+            'fecha_emision' => 'required|date',
+            'forma_pago' => 'nullable|string|max:2',
+            'metodo_pago' => 'nullable|string|max:3',
+            'observaciones' => 'nullable|string',
+            'productos' => 'required|array|min:1',
+            'productos.*.concepto_index' => 'required|integer|min:0',
+            'productos.*.producto_id' => 'required|exists:productos,id',
+            'productos.*.entrada_detalle_id' => 'nullable|exists:entradas_anticipadas_detalle,id',
+        ]);
+
+        $conceptos = $datos['conceptos'] ?? [];
+        foreach ($validated['productos'] as $p) {
+            if (! isset($conceptos[(int) $p['concepto_index']])) {
+                return back()->withInput()->with('error', 'Datos de detalle inválidos.');
+            }
+        }
+
+        $ea = EntradaAnticipada::with(['detalles.producto', 'proveedor'])->find($eaIdSesion);
+        if (! $ea || ! $ea->puedeFacturarse()) {
+            $request->session()->forget('compras_desde_entrada_anticipada_id');
+
+            return redirect()->route('compras.upload-cfdi')
+                ->with('error', 'La entrada anticipada ya no admite facturación por CFDI.');
+        }
+
+        if ((int) $validated['proveedor_id'] !== (int) $ea->proveedor_id) {
+            return back()->withInput()->with('error', 'El proveedor debe coincidir con el de la entrada anticipada.');
+        }
+
+        $productosForm = $validated['productos'];
+        foreach ($productosForm as $idx => $p) {
+            if (empty($p['entrada_detalle_id'])) {
+                $det = $ea->detalles->firstWhere('producto_id', (int) $p['producto_id']);
+                if ($det) {
+                    $productosForm[$idx]['entrada_detalle_id'] = $det->id;
+                }
+            }
+        }
+
+        try {
+            app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
+            $ea->refresh()->load(['detalles.producto', 'proveedor']);
+
+            $conceptos = $datos['conceptos'] ?? [];
+            foreach ($productosForm as $p) {
+                $idx = (int) ($p['concepto_index'] ?? -1);
+                if (! isset($conceptos[$idx]) || empty($p['producto_id'])) {
+                    continue;
+                }
+                $noIdent = strtoupper(trim((string) ($conceptos[$idx]['no_identificacion'] ?? '')));
+                if ($noIdent === '' || ! $ea->proveedor) {
+                    continue;
+                }
+                $producto = Producto::find((int) $p['producto_id']);
+                if (! $producto) {
+                    continue;
+                }
+                $this->sincronizarCodigoProveedorProducto($producto, $ea->proveedor, $noIdent);
+                $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
+                if ($eaDet) {
+                    $eaDet->update(['codigo_proveedor' => $noIdent]);
+                }
+            }
+
+            $fc = app(FacturaCompraDesdeEntradaAnticipadaService::class)->crearCompraDesdeCfdi(
+                $ea,
+                $datos,
+                $productosForm,
+                $validated,
+                $this->pdfSubidoDesdeTempSesion($request)
+            );
+
+            $this->limpiarPdfTempCfdiSesion($request);
+            $request->session()->forget([
+                'compras_cfdi_precarga',
+                'compras_cfdi_linea_producto',
+                'compras_desde_entrada_anticipada_id',
+            ]);
+
+            return redirect()->route('compras.show', $fc->id)
+                ->with('success', 'CFDI registrado y vinculado a la entrada anticipada '.$ea->folio.'.');
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Guarda compra manual vinculada a entrada anticipada (inventario ya aplicado).
+     */
+    private function storeDesdeEntradaAnticipada(Request $request, array $validated, int $eaIdSesion)
+    {
+        $ea = EntradaAnticipada::with(['detalles.producto', 'proveedor'])->find($eaIdSesion);
+        if (! $ea || ! $ea->puedeFacturarse()) {
+            $request->session()->forget('compras_desde_entrada_anticipada_id');
+
+            return redirect()->route('compras.create')
+                ->with('error', 'La entrada anticipada ya no admite facturación manual.');
+        }
+
+        if ((int) $validated['proveedor_id'] !== (int) $ea->proveedor_id) {
+            return back()->withInput()->with('error', 'El proveedor debe coincidir con el de la entrada anticipada.');
+        }
+
+        app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
+        $ea->refresh()->load('detalles');
+
+        $lineas = [];
+        foreach ($validated['productos'] as $item) {
+            if (empty($item['producto_id'])) {
+                return back()->withInput()->with('error', 'Todas las líneas deben tener producto del catálogo.');
+            }
+
+            $eaDetalleId = (int) ($item['entrada_detalle_id'] ?? 0);
+            $det = $eaDetalleId > 0 ? $ea->detalles->firstWhere('id', $eaDetalleId) : null;
+            if (! $det || (int) $det->producto_id !== (int) $item['producto_id']) {
+                return back()->withInput()->with('error', 'Línea de producto no válida para esta entrada anticipada.');
+            }
+
+            $tasaIva = $item['tasa_iva'] ?? null;
+            if ($tasaIva === '') {
+                $tasaIva = null;
+            }
+
+            $lineas[] = [
+                'entrada_detalle_id' => $det->id,
+                'producto_id' => (int) $item['producto_id'],
+                'descripcion' => $item['descripcion'],
+                'cantidad' => (float) $item['cantidad'],
+                'precio_unitario' => (float) $item['precio_unitario'],
+                'descuento_porcentaje' => (float) ($item['descuento_porcentaje'] ?? 0),
+                'tasa_iva' => $tasaIva !== null ? (float) $tasaIva : null,
+                'codigo_proveedor' => $det->codigo_proveedor,
+            ];
+        }
+
+        try {
+            $fc = app(FacturaCompraDesdeEntradaAnticipadaService::class)->crearCompraManual(
+                $ea,
+                $validated,
+                $lineas,
+                $request->file('pdf_file')
+            );
+
+            $request->session()->forget('compras_desde_entrada_anticipada_id');
+
+            return redirect()->route('compras.show', $fc->id)
+                ->with('success', 'Compra registrada y vinculada a la entrada anticipada '.$ea->folio.'.');
+        } catch (\Throwable $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
     public function show(FacturaCompra $compra)
     {
-        $compra->load(['proveedor', 'detalles.producto', 'detalles.impuestos', 'cuentaPorPagar', 'usuario', 'ordenCompra.cotizacionCompra']);
+        $compra->load(['proveedor', 'detalles.producto', 'detalles.impuestos', 'cuentaPorPagar', 'usuario', 'ordenCompra.cotizacionCompra', 'entradaAnticipada']);
         $usoCfdi = $this->extraerUsoCfdiDeXml($compra->xml_content);
 
         $revisionPreciosBanner = null;
@@ -316,18 +574,22 @@ class CompraController extends Controller
      */
     public function cancelar(FacturaCompra $compra)
     {
-        $compra->load(['detalles.producto', 'cuentaPorPagar', 'ordenCompra']);
+        $compra->load(['detalles.producto', 'cuentaPorPagar', 'ordenCompra', 'entradaAnticipada']);
 
         $motivo = $compra->motivoNoCancelable();
         if ($motivo !== null) {
             return back()->with('error', $motivo);
         }
 
+        $desdeEntradaAnticipada = $compra->inventarioDesdeEntradaAnticipada();
+
         DB::beginTransaction();
         try {
             $eraRecibida = $compra->estaRecibida();
 
-            if ($eraRecibida) {
+            if ($desdeEntradaAnticipada) {
+                app(FacturaCompraDesdeEntradaAnticipadaService::class)->revertirFacturacionCompra($compra);
+            } elseif ($eraRecibida) {
                 foreach ($compra->detalles as $detalle) {
                     if (! $detalle->producto_id || ! $detalle->producto || ! $detalle->producto->controla_inventario) {
                         continue;
@@ -376,7 +638,7 @@ class CompraController extends Controller
                 ]);
             }
 
-            if ($compra->ordenCompra && $compra->ordenCompra->estado === 'convertida_compra') {
+            if (! $desdeEntradaAnticipada && $compra->ordenCompra && $compra->ordenCompra->estado === 'convertida_compra') {
                 $compra->ordenCompra->update(['estado' => 'aceptada']);
             }
 
@@ -386,6 +648,12 @@ class CompraController extends Controller
             ]);
 
             DB::commit();
+
+            if ($desdeEntradaAnticipada) {
+                $folioEa = $compra->entradaAnticipada?->folio ?? 'entrada anticipada';
+
+                return back()->with('success', "Compra cancelada. Se desvinculó la {$folioEa}; el inventario de la entrada se mantiene. Se canceló la cuenta por pagar si existía.");
+            }
 
             $mensaje = $eraRecibida
                 ? 'Compra cancelada. Se revirtió el inventario y se canceló la cuenta por pagar vinculada.'
@@ -412,6 +680,8 @@ class CompraController extends Controller
 
     public function uploadCfdi(Request $request)
     {
+        $eaIdSesion = (int) $request->session()->get('compras_desde_entrada_anticipada_id', 0);
+
         if ($request->isMethod('post')) {
             $request->validate([
                 'xml_file' => [
@@ -427,20 +697,45 @@ class CompraController extends Controller
                         }
                     },
                 ],
+                'pdf_file' => 'nullable|file|mimes:pdf|max:10240',
             ]);
             $content = file_get_contents($request->file('xml_file')->getRealPath());
             $service = app(FacturaCompraCfdiService::class);
             $result = $service->parsear($content);
             if ($result['success']) {
-                $idOrd = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
-                if ($idOrd > 0) {
-                    $oc = OrdenCompra::find($idOrd);
+                if ($eaIdSesion > 0) {
+                    $ea = EntradaAnticipada::with('proveedor')->find($eaIdSesion);
+                    if (! $ea || ! $ea->puedeFacturarse()) {
+                        $request->session()->forget('compras_desde_entrada_anticipada_id');
+
+                        return redirect()->route('entradas-anticipadas.index')
+                            ->with('error', 'La entrada anticipada ya no admite facturación por CFDI.');
+                    }
                     $rfcXml = strtoupper(trim((string) ($result['datos']['rfc_emisor'] ?? '')));
-                    $rfcOrd = strtoupper(trim((string) ($oc->proveedor_rfc ?? '')));
-                    if (! $oc || $rfcOrd === '' || $rfcXml === '' || $rfcOrd !== $rfcXml) {
-                        $request->session()->forget('compras_desde_orden_compra_id');
+                    $rfcProv = strtoupper(trim((string) ($ea->proveedor?->rfc ?? '')));
+                    if ($rfcProv !== '' && $rfcXml !== '' && $rfcProv !== $rfcXml) {
+                        return back()->with('error', 'El RFC del emisor del CFDI no coincide con el proveedor de la entrada anticipada.');
+                    }
+                } else {
+                    $idOrd = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
+                    if ($idOrd > 0) {
+                        $oc = OrdenCompra::find($idOrd);
+                        $rfcXml = strtoupper(trim((string) ($result['datos']['rfc_emisor'] ?? '')));
+                        $rfcOrd = strtoupper(trim((string) ($oc->proveedor_rfc ?? '')));
+                        if (! $oc || $rfcOrd === '' || $rfcXml === '' || $rfcOrd !== $rfcXml) {
+                            $request->session()->forget('compras_desde_orden_compra_id');
+                        }
                     }
                 }
+
+                $this->limpiarPdfTempCfdiSesion($request);
+                if ($request->hasFile('pdf_file')) {
+                    $request->session()->put(
+                        'compras_cfdi_pdf_temp',
+                        $request->file('pdf_file')->store('temp/compras-cfdi-pdf', 'local')
+                    );
+                }
+
                 $request->session()->put('compras_cfdi_precarga', $result['datos']);
                 $request->session()->forget('compras_cfdi_linea_producto');
 
@@ -450,12 +745,32 @@ class CompraController extends Controller
             return back()->with('error', $result['message']);
         }
 
-        // Sin ?orden_compra_id= en la URL (entrada normal a Leer CFDI): no debe persistir un vínculo abandonado del botón B.
         $ordenOrigenConversion = null;
+        $entradaAnticipada = null;
         $svcOrden = app(FacturaCompraDesdeOrdenCompraService::class);
-        if (! $request->filled('orden_compra_id')) {
+
+        if ($request->filled('entrada_anticipada_id')) {
+            $ea = EntradaAnticipada::with(['detalles.producto', 'proveedor', 'ordenCompra'])->find($request->integer('entrada_anticipada_id'));
+            if (! $ea || ! $ea->puedeFacturarse()) {
+                return redirect()->route('entradas-anticipadas.index')
+                    ->with('error', 'La entrada anticipada no admite facturación por CFDI.');
+            }
+
+            app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
+            $ea->refresh()->load(['detalles.producto', 'proveedor', 'ordenCompra']);
+
+            $request->session()->put('compras_desde_entrada_anticipada_id', $ea->id);
+            $request->session()->forget('compras_desde_orden_compra_id');
+            $entradaAnticipada = $ea;
+        } elseif (! $request->filled('orden_compra_id')) {
+            if (! $request->session()->has('compras_cfdi_precarga')) {
+                $request->session()->forget('compras_desde_entrada_anticipada_id');
+                $this->limpiarPdfTempCfdiSesion($request);
+            }
             $request->session()->forget('compras_desde_orden_compra_id');
         } else {
+            $request->session()->forget('compras_desde_entrada_anticipada_id');
+            $this->limpiarPdfTempCfdiSesion($request);
             $oc = OrdenCompra::find($request->integer('orden_compra_id'));
             if ($oc && $svcOrden->ordenPuedeConvertirse($oc)) {
                 $request->session()->put('compras_desde_orden_compra_id', $oc->id);
@@ -463,7 +778,7 @@ class CompraController extends Controller
             }
         }
 
-        return view('compras.upload-cfdi', compact('ordenOrigenConversion'));
+        return view('compras.upload-cfdi', compact('ordenOrigenConversion', 'entradaAnticipada'));
     }
 
     /**
@@ -476,21 +791,58 @@ class CompraController extends Controller
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
         }
 
+        $entradaAnticipada = null;
+        $mapEaProductoIds = [];
+        $mapEaDetallePorProducto = [];
+        $eaIdSesion = (int) $request->session()->get('compras_desde_entrada_anticipada_id', 0);
+        if ($eaIdSesion > 0) {
+            $ea = EntradaAnticipada::with(['detalles.producto', 'proveedor', 'ordenCompra'])->find($eaIdSesion);
+            if (! $ea || ! $ea->puedeFacturarse()) {
+                $request->session()->forget('compras_desde_entrada_anticipada_id');
+
+                return redirect()->route('compras.upload-cfdi')
+                    ->with('error', 'La entrada anticipada ya no admite facturación por CFDI.');
+            }
+
+            app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
+            $ea->refresh()->load(['detalles.producto', 'proveedor', 'ordenCompra']);
+            $entradaAnticipada = $ea;
+            $mapEaProductoIds = $ea->detalles
+                ->filter(fn ($d) => $d->producto_id)
+                ->mapWithKeys(fn ($d) => [(int) $d->producto_id => (int) $d->id])
+                ->all();
+            $mapEaDetallePorProducto = $ea->detalles
+                ->filter(fn ($d) => $d->producto_id)
+                ->mapWithKeys(fn ($d) => [
+                    (int) $d->producto_id => [
+                        'detalle_id' => (int) $d->id,
+                        'descripcion_ea' => (string) $d->descripcion,
+                    ],
+                ])
+                ->all();
+        }
+
         $ordenConversionCfdi = null;
-        $idOrdConv = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
-        if ($idOrdConv > 0) {
-            $oc = OrdenCompra::find($idOrdConv);
-            if ($oc && app(FacturaCompraDesdeOrdenCompraService::class)->ordenPuedeConvertirse($oc)) {
-                $ordenConversionCfdi = $oc;
-            } else {
-                $request->session()->forget('compras_desde_orden_compra_id');
+        if (! $entradaAnticipada) {
+            $idOrdConv = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
+            if ($idOrdConv > 0) {
+                $oc = OrdenCompra::find($idOrdConv);
+                if ($oc && app(FacturaCompraDesdeOrdenCompraService::class)->ordenPuedeConvertirse($oc)) {
+                    $ordenConversionCfdi = $oc;
+                } else {
+                    $request->session()->forget('compras_desde_orden_compra_id');
+                }
             }
         }
 
         $empresa = Empresa::principal();
-        $proveedor = ! empty($datos['rfc_emisor'])
-            ? Proveedor::whereRaw('UPPER(rfc) = UPPER(?)', [$datos['rfc_emisor']])->first()
-            : null;
+        if ($entradaAnticipada) {
+            $proveedor = $entradaAnticipada->proveedor;
+        } else {
+            $proveedor = ! empty($datos['rfc_emisor'])
+                ? Proveedor::whereRaw('UPPER(rfc) = UPPER(?)', [$datos['rfc_emisor']])->first()
+                : null;
+        }
 
         // Mapeo: codigo de proveedor (NoIdentificacion) -> producto_id
         $productoProveedorMap = [];
@@ -534,7 +886,10 @@ class CompraController extends Controller
             'descripcionPorIndiceLineaCfdi',
             'descripcionesConNoIdentCfdi',
             'folioInterno',
-            'ordenConversionCfdi'
+            'ordenConversionCfdi',
+            'entradaAnticipada',
+            'mapEaProductoIds',
+            'mapEaDetallePorProducto'
         ));
     }
 
@@ -575,6 +930,148 @@ class CompraController extends Controller
         }
 
         return response()->json(['similar' => false]);
+    }
+
+    /**
+     * Evalúa advertencias al vincular un producto del catálogo en CFDI + entrada anticipada.
+     */
+    public function evaluarVinculoProductoCfdiEa(Request $request)
+    {
+        if ((int) $request->session()->get('compras_desde_entrada_anticipada_id', 0) <= 0) {
+            return response()->json(['error' => 'Sesión de entrada anticipada no válida.'], 403);
+        }
+
+        $validated = $request->validate([
+            'producto_id' => 'required|exists:productos,id',
+            'concepto_index' => 'required|integer|min:0',
+        ]);
+
+        $datos = $request->session()->get('compras_cfdi_precarga');
+        if (! $datos) {
+            return response()->json(['error' => 'Sesión de CFDI expirada.'], 422);
+        }
+
+        $conceptos = $datos['conceptos'] ?? [];
+        $idx = (int) $validated['concepto_index'];
+        if (! isset($conceptos[$idx])) {
+            return response()->json(['error' => 'Partida del CFDI no válida.'], 422);
+        }
+
+        $producto = Producto::findOrFail((int) $validated['producto_id']);
+        $descripcionCfdi = (string) ($conceptos[$idx]['descripcion'] ?? '');
+
+        $eaId = (int) $request->session()->get('compras_desde_entrada_anticipada_id');
+        $ea = EntradaAnticipada::with('detalles')->find($eaId);
+        $eaDet = $ea?->detalles->firstWhere('producto_id', $producto->id);
+        $enEa = $eaDet !== null;
+
+        $evalProducto = $this->evaluarDiferenciaDescripcionProducto($descripcionCfdi, (string) $producto->nombre);
+        $evalEa = $enEa
+            ? $this->evaluarDiferenciaDescripcionProducto($descripcionCfdi, (string) $eaDet->descripcion)
+            : ['diferencia_considerable' => false, 'nombres_diferentes' => false, 'casi_identicas' => true];
+
+        $advertencias = [];
+        if (! $enEa) {
+            $advertencias[] = 'Este producto no está en la entrada anticipada. Verifique que sea el correcto.';
+        }
+        if ($evalProducto['diferencia_considerable']) {
+            $advertencias[] = 'La descripción del CFDI difiere considerablemente del nombre en catálogo («'.mb_substr(trim($producto->nombre), 0, 80).'»).';
+        }
+        if ($enEa && $evalEa['diferencia_considerable']) {
+            $advertencias[] = 'La descripción del CFDI difiere de la registrada en la entrada («'.mb_substr(trim((string) $eaDet->descripcion), 0, 80).'»).';
+        }
+
+        return response()->json([
+            'en_ea' => $enEa,
+            'ea_detalle_id' => $enEa ? (int) $eaDet->id : null,
+            'advertencias' => $advertencias,
+            'requiere_confirmacion' => ! empty($advertencias),
+            'sugerir_actualizar_nombre' => ! $evalProducto['casi_identicas'] && trim($descripcionCfdi) !== '',
+            'nombre_actual' => (string) $producto->nombre,
+            'descripcion_cfdi' => $descripcionCfdi,
+            'no_identificacion' => trim((string) ($conceptos[$idx]['no_identificacion'] ?? '')),
+        ]);
+    }
+
+    /**
+     * Vincula producto desde lupa en CFDI + EA: actualiza nombre (opcional) y código proveedor.
+     */
+    public function vincularProductoLineaCfdiEa(Request $request)
+    {
+        $eaId = (int) $request->session()->get('compras_desde_entrada_anticipada_id', 0);
+        if ($eaId <= 0) {
+            return response()->json(['error' => 'Sesión de entrada anticipada no válida.'], 403);
+        }
+
+        $datos = $request->session()->get('compras_cfdi_precarga');
+        if (! $datos) {
+            return response()->json(['error' => 'Sesión de CFDI expirada.'], 422);
+        }
+
+        $validated = $request->validate([
+            'producto_id' => 'required|exists:productos,id',
+            'concepto_index' => 'required|integer|min:0',
+            'actualizar_nombre' => 'nullable|boolean',
+        ]);
+
+        $conceptos = $datos['conceptos'] ?? [];
+        $idx = (int) $validated['concepto_index'];
+        if (! isset($conceptos[$idx])) {
+            return response()->json(['error' => 'Partida del CFDI no válida.'], 422);
+        }
+
+        $ea = EntradaAnticipada::with(['detalles', 'proveedor'])->findOrFail($eaId);
+        if (! $ea->puedeFacturarse()) {
+            return response()->json(['error' => 'La entrada anticipada ya no admite facturación.'], 422);
+        }
+
+        $producto = Producto::findOrFail((int) $validated['producto_id']);
+        $concepto = $conceptos[$idx];
+        $noIdent = strtoupper(trim((string) ($concepto['no_identificacion'] ?? '')));
+        $codigoProveedorActualizado = false;
+
+        DB::beginTransaction();
+        try {
+            if ($request->boolean('actualizar_nombre')) {
+                $nuevoNombre = mb_substr(trim((string) ($concepto['descripcion'] ?? '')), 0, 255);
+                if ($nuevoNombre !== '') {
+                    $producto->update(['nombre' => $nuevoNombre]);
+                    $producto->refresh();
+                }
+            }
+
+            if ($noIdent !== '' && $ea->proveedor_id) {
+                $this->sincronizarCodigoProveedorProducto($producto, $ea->proveedor, $noIdent);
+                $codigoProveedorActualizado = true;
+
+                $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
+                if ($eaDet) {
+                    $eaDet->update(['codigo_proveedor' => $noIdent]);
+                }
+            }
+
+            $linea = (array) $request->session()->get('compras_cfdi_linea_producto', []);
+            $linea[$idx] = $producto->id;
+            $request->session()->put('compras_cfdi_linea_producto', $linea);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        $eaDetalleId = $ea->detalles->firstWhere('producto_id', $producto->id)?->id;
+
+        return response()->json([
+            'ok' => true,
+            'producto_id' => $producto->id,
+            'codigo' => $producto->codigo,
+            'nombre' => $producto->nombre,
+            'ea_detalle_id' => $eaDetalleId ? (int) $eaDetalleId : null,
+            'codigo_proveedor_actualizado' => $codigoProveedorActualizado,
+            'no_identificacion' => $noIdent,
+        ]);
     }
 
     private function mensajeSimilitudDescripcionProducto(string $nombreProductoCoincidente): string
@@ -657,6 +1154,90 @@ class CompraController extends Controller
     }
 
     /**
+     * @return array{casi_identicas: bool, diferencia_considerable: bool, nombres_diferentes: bool}
+     */
+    private function evaluarDiferenciaDescripcionProducto(string $descripcionCfdi, string $textoComparar): array
+    {
+        $desc = mb_strtoupper(trim($descripcionCfdi));
+        $cmp = mb_strtoupper(trim($textoComparar));
+
+        if ($desc === '' || $cmp === '') {
+            return [
+                'casi_identicas' => false,
+                'diferencia_considerable' => false,
+                'nombres_diferentes' => false,
+            ];
+        }
+
+        $casiIdenticas = $this->sonDescripcionesCasiIdenticasParaBloqueoSimilitud($desc, $cmp);
+        if ($casiIdenticas) {
+            return [
+                'casi_identicas' => true,
+                'diferencia_considerable' => false,
+                'nombres_diferentes' => false,
+            ];
+        }
+
+        $percent = 0.0;
+        similar_text($desc, $cmp, $percent);
+
+        $aNorm = $this->asciiParaDistanciaEdicion($desc);
+        $bNorm = $this->asciiParaDistanciaEdicion($cmp);
+        $maxLen = max(strlen($aNorm), strlen($bNorm));
+        $dist = -1;
+        if ($maxLen > 0) {
+            $dist = levenshtein(
+                substr($aNorm, 0, 255),
+                substr($bNorm, 0, 255)
+            );
+        }
+        $umbralEdiciones = max(3, (int) floor($maxLen * 0.08));
+        $diferenciaConsiderable = $percent < 45 || ($dist >= 0 && $dist > $umbralEdiciones);
+
+        return [
+            'casi_identicas' => false,
+            'diferencia_considerable' => $diferenciaConsiderable,
+            'nombres_diferentes' => $desc !== $cmp,
+        ];
+    }
+
+    private function sincronizarCodigoProveedorProducto(Producto $producto, Proveedor $proveedor, string $codigo): void
+    {
+        $codigoNorm = strtoupper(trim($codigo));
+        if ($codigoNorm === '') {
+            return;
+        }
+
+        $conflicto = ProductoProveedor::query()
+            ->where('proveedor_id', $proveedor->id)
+            ->where('producto_id', '!=', $producto->id)
+            ->get()
+            ->contains(fn ($pp) => strtoupper(trim((string) ($pp->codigo ?? ''))) === $codigoNorm);
+
+        if ($conflicto) {
+            throw new \RuntimeException("El código de proveedor «{$codigoNorm}» ya está asignado a otro producto.");
+        }
+
+        ProductoProveedor::updateOrCreate(
+            [
+                'producto_id' => $producto->id,
+                'proveedor_id' => $proveedor->id,
+            ],
+            ['codigo' => $codigoNorm]
+        );
+    }
+
+    private function bloquearCreacionProductoDesdeCfdiSiEntradaAnticipada(Request $request): ?\Illuminate\Http\RedirectResponse
+    {
+        if ((int) $request->session()->get('compras_desde_entrada_anticipada_id', 0) > 0) {
+            return redirect()->route('compras.crear-desde-cfdi')
+                ->with('error', 'En facturación por entrada anticipada no se pueden crear productos. Use la lupa para relacionar con el catálogo.');
+        }
+
+        return null;
+    }
+
+    /**
      * Guardar compra desde formulario precargado por CFDI (con producto_id en cada línea para inventario).
      */
     public function storeDesdeCfdi(Request $request)
@@ -664,6 +1245,11 @@ class CompraController extends Controller
         $datos = $request->session()->get('compras_cfdi_precarga');
         if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'Sesión de CFDI expirada. Sube el XML de nuevo.');
+        }
+
+        $eaIdSesion = (int) $request->session()->get('compras_desde_entrada_anticipada_id', 0);
+        if ($eaIdSesion > 0) {
+            return $this->storeDesdeEntradaAnticipadaCfdi($request, $datos, $eaIdSesion);
         }
 
         $productos = $request->input('productos', []);
@@ -730,6 +1316,7 @@ class CompraController extends Controller
                 'folio_interno' => $folioInterno,
                 'tipo_comprobante' => $datos['tipo_comprobante'] ?? 'E',
                 'estado' => 'registrada',
+                'origen' => $ordenCtx ? 'orden_compra' : 'cfdi_directo',
                 'proveedor_id' => $proveedor->id,
                 'empresa_id' => $empresa->id,
                 'rfc_emisor' => $datos['rfc_emisor'] ?? $proveedor->rfc,
@@ -894,6 +1481,10 @@ class CompraController extends Controller
      */
     public function crearProductoLineaDesdeCfdi(Request $request)
     {
+        if ($redirect = $this->bloquearCreacionProductoDesdeCfdiSiEntradaAnticipada($request)) {
+            return $redirect;
+        }
+
         $datos = $request->session()->get('compras_cfdi_precarga');
         if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
@@ -1026,6 +1617,10 @@ class CompraController extends Controller
      */
     public function crearProductosDesdeCfdi(Request $request)
     {
+        if ($redirect = $this->bloquearCreacionProductoDesdeCfdiSiEntradaAnticipada($request)) {
+            return $redirect;
+        }
+
         $datos = $request->session()->get('compras_cfdi_precarga');
         if (! $datos) {
             return redirect()->route('compras.upload-cfdi')->with('error', 'No hay datos de CFDI. Sube el XML de nuevo.');
@@ -1218,6 +1813,81 @@ class CompraController extends Controller
         }
     }
 
+    public function verPdfSubido(FacturaCompra $compra)
+    {
+        $ruta = $compra->resolverRutaArchivoLocal($compra->pdf_path);
+        if (! $ruta) {
+            return back()->with('error', 'PDF del proveedor no disponible');
+        }
+
+        return response()->file($ruta);
+    }
+
+    public function descargarPdfSubido(FacturaCompra $compra)
+    {
+        $ruta = $compra->resolverRutaArchivoLocal($compra->pdf_path);
+        if (! $ruta) {
+            return back()->with('error', 'PDF del proveedor no disponible');
+        }
+
+        $nombreArchivo = 'Compra_'.preg_replace('/[^a-zA-Z0-9._-]+/', '_', $compra->folio_completo).'_proveedor.pdf';
+
+        return response()->download($ruta, $nombreArchivo);
+    }
+
+    public function verXml(FacturaCompra $compra)
+    {
+        $contenido = $this->obtenerContenidoXmlCompra($compra);
+        if ($contenido === null) {
+            return back()->with('error', 'XML no disponible');
+        }
+
+        $nombreArchivo = $this->nombreArchivoXmlCompra($compra);
+
+        return response($contenido, 200, [
+            'Content-Type' => 'application/xml',
+            'Content-Disposition' => 'inline; filename="'.$nombreArchivo.'"',
+        ]);
+    }
+
+    public function descargarXml(FacturaCompra $compra)
+    {
+        $contenido = $this->obtenerContenidoXmlCompra($compra);
+        if ($contenido === null) {
+            return back()->with('error', 'XML no disponible');
+        }
+
+        $nombreArchivo = $this->nombreArchivoXmlCompra($compra);
+
+        return response($contenido, 200, [
+            'Content-Type' => 'application/xml',
+            'Content-Disposition' => 'attachment; filename="'.$nombreArchivo.'"',
+        ]);
+    }
+
+    private function obtenerContenidoXmlCompra(FacturaCompra $compra): ?string
+    {
+        if (! empty(trim((string) $compra->xml_content))) {
+            return $compra->xml_content;
+        }
+
+        $ruta = $compra->resolverRutaArchivoLocal($compra->xml_path);
+        if ($ruta) {
+            return file_get_contents($ruta) ?: null;
+        }
+
+        return null;
+    }
+
+    private function nombreArchivoXmlCompra(FacturaCompra $compra): string
+    {
+        $base = $compra->uuid
+            ? preg_replace('/[^a-zA-Z0-9._-]+/', '_', $compra->uuid)
+            : preg_replace('/[^a-zA-Z0-9._-]+/', '_', $compra->folio_completo);
+
+        return $base.'.xml';
+    }
+
     public function buscarProveedores(Request $request)
     {
         $q = $request->get('q', '');
@@ -1262,5 +1932,32 @@ class CompraController extends Controller
                     'tasa_iva' => (float) ($p->tasa_iva ?? 0.16),
                 ])
         );
+    }
+
+    private function limpiarPdfTempCfdiSesion(Request $request): void
+    {
+        $pdfTemp = $request->session()->get('compras_cfdi_pdf_temp');
+        if ($pdfTemp) {
+            $ruta = (new FacturaCompra)->resolverRutaArchivoLocal($pdfTemp);
+            if ($ruta) {
+                @unlink($ruta);
+            }
+        }
+        $request->session()->forget('compras_cfdi_pdf_temp');
+    }
+
+    private function pdfSubidoDesdeTempSesion(Request $request): ?UploadedFile
+    {
+        $pdfTemp = $request->session()->get('compras_cfdi_pdf_temp');
+        if (! $pdfTemp) {
+            return null;
+        }
+
+        $ruta = (new FacturaCompra)->resolverRutaArchivoLocal($pdfTemp);
+        if (! $ruta) {
+            return null;
+        }
+
+        return new UploadedFile($ruta, basename($pdfTemp), 'application/pdf', null, true);
     }
 }

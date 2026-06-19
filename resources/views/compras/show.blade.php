@@ -148,7 +148,13 @@ $breadcrumbs = [
             <div class="card-body">
                 @if($compra->estado === 'recibida')
                 <span class="badge badge-success" style="font-size:14px;">Recibida</span>
-                <p style="margin-top:12px;font-size:13px;">Entrada de inventario registrada.</p>
+                <p style="margin-top:12px;font-size:13px;">
+                    @if($compra->inventarioDesdeEntradaAnticipada())
+                    Inventario aplicado vía entrada anticipada {{ $compra->entradaAnticipada?->folio }}.
+                    @else
+                    Entrada de inventario registrada.
+                    @endif
+                </p>
                 @if($compra->fecha_recepcion)<p style="margin-top:4px;font-size:12px;color:var(--color-gray-500);">Recibida el {{ $compra->fecha_recepcion->format('d/m/Y') }}</p>@endif
                 @elseif($compra->estado === 'cancelada')
                 <span class="badge badge-danger" style="font-size:14px;">Cancelada</span>
@@ -158,7 +164,15 @@ $breadcrumbs = [
                 <p style="margin-top:12px;font-size:13px;">Compra en borrador.</p>
                 @else
                 <span class="badge badge-info" style="font-size:14px;">Registrada</span>
-                <p style="margin-top:12px;font-size:13px;">{{ $compra->uuid ? 'Registrada desde XML del proveedor.' : 'Registrada manualmente.' }} Recibe la mercancía para registrar la entrada de inventario.</p>
+                <p style="margin-top:12px;font-size:13px;">
+                    @if($compra->inventarioDesdeEntradaAnticipada())
+                    Inventario aplicado vía entrada anticipada. @if($compra->uuid)CFDI registrado.@else Compra manual.@endif
+                    @elseif($compra->uuid)
+                    Registrada desde XML del proveedor. Recibe la mercancía para registrar la entrada de inventario.
+                    @else
+                    Registrada manualmente. Recibe la mercancía para registrar la entrada de inventario.
+                    @endif
+                </p>
                 @endif
             </div>
         </div>
@@ -166,17 +180,35 @@ $breadcrumbs = [
             <div class="card-header"><div class="card-title">⚡ Acciones</div></div>
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
 
+                @if($compra->tienePdfSubido())
+                <a href="{{ route('compras.ver-pdf-subido', $compra->id) }}"
+                   target="_blank" class="btn btn-outline w-full">👁️ Ver PDF del proveedor</a>
+                <a href="{{ route('compras.descargar-pdf-subido', $compra->id) }}"
+                   class="btn btn-outline w-full">📄 Descargar PDF del proveedor</a>
+                @endif
+
+                @if($compra->tieneXmlCfdi())
+                <a href="{{ route('compras.ver-xml', $compra->id) }}"
+                   target="_blank" class="btn btn-outline w-full">👁️ Ver XML</a>
+                <a href="{{ route('compras.descargar-xml', $compra->id) }}"
+                   class="btn btn-success w-full">📄 Descargar XML</a>
+                @endif
+
                 <a href="{{ route('compras.ver-pdf', $compra->id) }}"
-                   target="_blank" class="btn btn-outline w-full">👁️ Ver PDF</a>
+                   target="_blank" class="btn btn-outline w-full">👁️ Ver comprobante (PDF)</a>
 
                 <a href="{{ route('compras.descargar-pdf', $compra->id) }}"
-                   class="btn btn-outline w-full">📄 Descargar PDF</a>
+                   class="btn btn-outline w-full">📄 Descargar comprobante (PDF)</a>
 
                 @if($revisionPreciosAccionCount > 0)
                 @can('productos.ver')
                 <a href="{{ route('productos.revision-precios', ['compra_id' => $compra->id]) }}"
                    class="btn w-full btn-revision-precios-accion">⚠️ Revisión de precios ({{ $revisionPreciosAccionCount }})</a>
                 @endcan
+                @endif
+
+                @if($compra->entradaAnticipada)
+                <a href="{{ route('entradas-anticipadas.show', $compra->entradaAnticipada->id) }}" class="btn btn-outline w-full">📥 Ver entrada anticipada</a>
                 @endif
 
                 @if($compra->puedeRecibirse())
@@ -217,7 +249,19 @@ $breadcrumbs = [
         <form method="POST" action="{{ route('compras.cancelar', $compra->id) }}">
             @csrf
             <div class="modal-body">
-                @if($compra->estaRecibida())
+                @if($compra->inventarioDesdeEntradaAnticipada())
+                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
+                    Esta compra proviene de la entrada anticipada <strong>{{ $compra->entradaAnticipada?->folio }}</strong>.
+                    Al cancelar:
+                    <ul style="margin: 8px 0 0 18px; padding: 0;">
+                        <li>Se desvinculará la entrada anticipada (volverá a estado <strong>confirmada</strong> para poder facturar de nuevo)</li>
+                        <li>Se revertirá el ajuste de costo fiscal si aplicó</li>
+                        <li><strong>No</strong> se modificará el inventario (ya registrado por la entrada anticipada)</li>
+                        @if($compra->cuentaPorPagar)<li>Cancelación de la cuenta por pagar vinculada</li>@endif
+                        @if($compra->ordenCompra)<li>La orden de compra <span class="text-mono">{{ $compra->ordenCompra->folio }}</span> puede volver a <strong>en recepción</strong></li>@endif
+                    </ul>
+                </div>
+                @elseif($compra->estaRecibida())
                 <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
                     Esta compra ya tiene <strong>entrada de inventario registrada</strong>. Al confirmar se revertirán los siguientes efectos:
                     <ul style="margin: 8px 0 0 18px; padding: 0;">

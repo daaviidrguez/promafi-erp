@@ -4,6 +4,7 @@ namespace App\Models;
 
 // UBICACIÓN: app/Models/Cotizacion.php
 
+use App\Helpers\IsrResicoHelper;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -50,6 +51,7 @@ class Cotizacion extends Model
         'subtotal',
         'descuento',
         'iva',
+        'isr_retenido',
         'total',
         
         // Condiciones de pago
@@ -78,10 +80,33 @@ class Cotizacion extends Model
         'subtotal' => 'decimal:2',
         'descuento' => 'decimal:2',
         'iva' => 'decimal:2',
+        'isr_retenido' => 'decimal:2',
         'total' => 'decimal:2',
         'tipo_cambio' => 'decimal:6',
         'dias_credito_aplicados' => 'integer',
     ];
+
+    /**
+     * ISR retenido aplicable (PF RESICO → persona moral), coherente con facturación.
+     */
+    public function calcularIsrRetenido(?Empresa $empresa = null, ?Cliente $cliente = null): float
+    {
+        $empresa = $empresa ?? $this->empresa ?? Empresa::principal();
+        $cliente = $cliente ?? $this->cliente;
+
+        if (! $empresa || ! $cliente) {
+            return 0.0;
+        }
+
+        if (! IsrResicoHelper::aplicaRetencionIsrPm($empresa, $cliente)) {
+            return 0.0;
+        }
+
+        return IsrResicoHelper::calcularRetencionIsrPm(
+            (float) $this->subtotal,
+            (float) ($this->descuento ?? 0)
+        );
+    }
 
     /**
      * Relación con Cliente

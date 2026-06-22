@@ -325,6 +325,11 @@ $breadcrumbs = [
                         <span class="monto text-mono" id="tIva">$0.00</span>
                     </div>
 
+                    <div class="totales-row descuento" id="rowIsrRetenido" style="display:none;">
+                        <span>ISR retenido</span>
+                        <span class="monto text-mono" id="tIsrRetenido">−$0.00</span>
+                    </div>
+
                     <div class="totales-row grand">
                         <span>TOTAL</span>
                         <span class="monto" id="tTotal">$0.00</span>
@@ -479,6 +484,13 @@ $breadcrumbs = [
 let productos = [];
 let timerCliente, timerProducto, timerSugerencia = {};
 let lastSugerenciaRowIndex = 0;
+let clienteTipoPersona = @json($isEdit ? ($cotizacion->cliente->tipo_persona ?? 'fisica') : 'fisica');
+const empresaIsrConfig = {
+    tipo_persona: @json($empresa->tipo_persona ?? 'moral'),
+    regimen_fiscal: @json($empresa->regimen_fiscal ?? ''),
+    regimen_resico: @json(config('isr_resico.regimen_clave', '626')),
+    tasa_retencion: @json((float) config('isr_resico.tasa_retencion_pm_a_resico', 0.0125)),
+};
 const cotizacionDetallesIniciales = @json($detallesIniciales);
 const isEditMode = @json($isEdit);
 
@@ -863,11 +875,23 @@ async function buscarClientes(q) {
     } catch(e) { console.error(e); }
 }
 
+function aplicaRetencionIsrPm(tipoPersona) {
+    const esResico = empresaIsrConfig.tipo_persona === 'fisica'
+        && empresaIsrConfig.regimen_fiscal === empresaIsrConfig.regimen_resico;
+    return esResico && tipoPersona === 'moral';
+}
+
+function calcularRetencionIsrPm(subtotal, descuento) {
+    const base = Math.max(0, subtotal - descuento);
+    return Math.round(base * empresaIsrConfig.tasa_retencion * 100) / 100;
+}
+
 function seleccionarCliente(c) {
     document.getElementById('cliente_id').value = c.id;
     document.getElementById('buscarCliente').value = c.nombre;
     document.getElementById('clienteNombre').textContent = c.nombre;
     document.getElementById('clienteRfc').textContent = `RFC: ${c.rfc}`;
+    clienteTipoPersona = c.tipo_persona || 'fisica';
     document.getElementById('clienteInfo').style.display = 'block';
     document.getElementById('cardListaPrecios').style.display = 'block';
     closeDropdown('clienteResults');
@@ -885,11 +909,13 @@ function seleccionarCliente(c) {
     if (fpSelect && c.forma_pago) {
         fpSelect.value = c.forma_pago;
     }
+    calcTotales();
 }
 
 function limpiarCliente() {
     document.getElementById('cliente_id').value = '';
     document.getElementById('buscarCliente').value = '';
+    clienteTipoPersona = 'fisica';
     document.getElementById('clienteInfo').style.display = 'none';
     document.getElementById('cardListaPrecios').style.display = 'none';
     document.getElementById('selectListaPrecio').innerHTML = '<option value="">— Selecciona una lista —</option>';
@@ -899,6 +925,7 @@ function limpiarCliente() {
     document.getElementById('productoListaResults').classList.remove('show');
     productosDeLista = [];
     document.getElementById('buscarCliente').focus();
+    calcTotales();
 }
 
 function onTipoVentaChange() {
@@ -1235,11 +1262,14 @@ function calcTotales() {
         sub += s; desc += d;
         if (p.tasa_iva != null) iva += (s - d) * p.tasa_iva;
     });
+    const isr = aplicaRetencionIsrPm(clienteTipoPersona) ? calcularRetencionIsrPm(sub, desc) : 0;
     document.getElementById('tSubtotal').textContent = '$' + fmtMonto(sub);
     document.getElementById('tDescuento').textContent = '−$' + fmtMonto(desc);
     document.getElementById('tIva').textContent = '$' + fmtMonto(iva);
-    document.getElementById('tTotal').textContent = '$' + fmtMonto((sub - desc) + iva);
+    document.getElementById('tIsrRetenido').textContent = '−$' + fmtMonto(isr);
+    document.getElementById('tTotal').textContent = '$' + fmtMonto((sub - desc) + iva - isr);
     document.getElementById('rowDescuento').style.display = desc > 0 ? 'flex' : 'none';
+    document.getElementById('rowIsrRetenido').style.display = isr !== 0 ? 'flex' : 'none';
 }
 
 document.getElementById('cotizacionForm').addEventListener('submit', e => {

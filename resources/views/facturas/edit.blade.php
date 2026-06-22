@@ -48,6 +48,7 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
                                 <option value="{{ $cliente->id }}"
                                         data-rfc="{{ $cliente->rfc }}"
                                         data-regimen="{{ $cliente->regimen_fiscal }}"
+                                        data-tipo-persona="{{ $cliente->tipo_persona ?? 'fisica' }}"
                                         data-uso-cfdi="{{ $cliente->uso_cfdi_default }}"
                                         data-forma-pago="{{ $cliente->forma_pago ?? '03' }}"
                                         data-credito="{{ $cliente->dias_credito }}"
@@ -229,6 +230,10 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
                             <span>IVA</span>
                             <span class="monto" id="ivaDisplay">$0.00</span>
                         </div>
+                        <div class="totales-row descuento" id="rowIsrRetenido" style="display: none;">
+                            <span>ISR retenido</span>
+                            <span class="monto" id="isrRetenidoDisplay">−$0.00</span>
+                        </div>
                         <div class="totales-row grand">
                             <span>TOTAL</span>
                             <span class="monto" id="totalDisplay">$0.00</span>
@@ -257,6 +262,29 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
 let productoIndex = 0;
 const catalogoProductos = @json($productos);
 const detallesIniciales = @json($detallesIniciales);
+const empresaIsrConfig = {
+    tipo_persona: @json($empresa->tipo_persona ?? 'moral'),
+    regimen_fiscal: @json($empresa->regimen_fiscal ?? ''),
+    regimen_resico: @json(config('isr_resico.regimen_clave', '626')),
+    tasa_retencion: @json((float) config('isr_resico.tasa_retencion_pm_a_resico', 0.0125)),
+};
+
+function getClienteTipoPersona() {
+    const sel = document.getElementById('cliente_id');
+    if (!sel?.value) return 'fisica';
+    return sel.options[sel.selectedIndex]?.dataset.tipoPersona || 'fisica';
+}
+
+function aplicaRetencionIsrPm(clienteTipoPersona) {
+    const esResico = empresaIsrConfig.tipo_persona === 'fisica'
+        && empresaIsrConfig.regimen_fiscal === empresaIsrConfig.regimen_resico;
+    return esResico && clienteTipoPersona === 'moral';
+}
+
+function calcularRetencionIsrPm(subtotal, descuento) {
+    const base = Math.max(0, subtotal - descuento);
+    return Math.round(base * empresaIsrConfig.tasa_retencion * 100) / 100;
+}
 
 function actualizarInfoCliente() {
     const sel = document.getElementById('cliente_id');
@@ -272,6 +300,7 @@ function actualizarInfoCliente() {
     } else {
         info.style.display = 'none';
     }
+    calcularTotales();
 }
 
 document.getElementById('cliente_id').addEventListener('change', actualizarInfoCliente);
@@ -375,11 +404,16 @@ function calcularTotales() {
         const imp = tr.querySelector('[id^="importe-"]');
         if (imp) imp.textContent = fmt(importe);
     });
+    const retencionIsr = aplicaRetencionIsrPm(getClienteTipoPersona())
+        ? calcularRetencionIsrPm(subtotal, descuento)
+        : 0;
     document.getElementById('subtotalDisplay').textContent = fmt(subtotal);
     document.getElementById('descuentoDisplay').textContent = '−' + fmt(descuento);
     document.getElementById('ivaDisplay').textContent = fmt(iva);
-    document.getElementById('totalDisplay').textContent = fmt(subtotal - descuento + iva);
+    document.getElementById('isrRetenidoDisplay').textContent = '−' + fmt(retencionIsr);
+    document.getElementById('totalDisplay').textContent = fmt(subtotal - descuento + iva - retencionIsr);
     document.getElementById('rowDescuento').style.display = descuento > 0 ? 'flex' : 'none';
+    document.getElementById('rowIsrRetenido').style.display = retencionIsr !== 0 ? 'flex' : 'none';
 }
 
 document.addEventListener('DOMContentLoaded', function() {

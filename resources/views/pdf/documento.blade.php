@@ -495,6 +495,9 @@ body {
 <tr><td>Descuento:</td><td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td></tr>
 @endif
 <tr><td>IVA:</td><td>${{ number_format($ivaPdf, 2) }}</td></tr>
+@if($esCotizacion && ($doc->isr_retenido ?? 0) > 0)
+<tr><td>ISR retenido:</td><td style="color:#EF4444;">-${{ number_format($doc->isr_retenido, 2) }}</td></tr>
+@endif
 <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($totalPdf, 2) }} MXN</td></tr>
 <tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float) $totalPdf) }}</td></tr>
 </table>

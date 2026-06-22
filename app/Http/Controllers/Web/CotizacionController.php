@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 // UBICACIÓN: app/Http/Controllers/Web/CotizacionController.php
 
 use App\Http\Controllers\Controller;
+use App\Helpers\IsrResicoHelper;
 use App\Models\Cotizacion;
 use App\Models\CotizacionDetalle;
 use App\Models\Cliente;
@@ -179,6 +180,12 @@ class CotizacionController extends Controller
 
             $totalGeneral = ($subtotalGeneral - $descuentoGeneral) + $ivaGeneral;
 
+            $isrRetenido = 0.0;
+            if (IsrResicoHelper::aplicaRetencionIsrPm($empresa, $cliente)) {
+                $isrRetenido = IsrResicoHelper::calcularRetencionIsrPm($subtotalGeneral, $descuentoGeneral);
+            }
+            $totalGeneral -= $isrRetenido;
+
             // Crear o actualizar cotización
             $cotizacionId = $request->input('cotizacion_id');
 
@@ -228,6 +235,7 @@ class CotizacionController extends Controller
                 'subtotal' => $subtotalGeneral,
                 'descuento' => $descuentoGeneral,
                 'iva' => $ivaGeneral,
+                'isr_retenido' => $isrRetenido,
                 'total' => $totalGeneral,
                 
                 // Condiciones de pago
@@ -554,6 +562,15 @@ class CotizacionController extends Controller
             $formaPago = $cotizacion->forma_pago ?? $cliente->forma_pago ?? '03';
             $usoCfdi = $cliente->uso_cfdi_default ?? 'G03';
 
+            $retencionISR = (float) ($cotizacion->isr_retenido ?? 0);
+            if ($retencionISR <= 0 && IsrResicoHelper::aplicaRetencionIsrPm($empresa, $cliente)) {
+                $retencionISR = IsrResicoHelper::calcularRetencionIsrPm(
+                    (float) $cotizacion->subtotal,
+                    (float) ($cotizacion->descuento ?? 0)
+                );
+            }
+            $baseGravableTotal = max(0.01, (float) $cotizacion->subtotal - (float) ($cotizacion->descuento ?? 0));
+
             $factura = Factura::create([
                 'serie' => $serieFactura,
                 'folio' => $folioFactura,
@@ -624,6 +641,21 @@ class CotizacionController extends Controller
                         'base' => $baseImpuesto,
                         'importe' => $tipoFactor === 'Tasa' && $tasa > 0 ? round($baseImpuesto * $tasa, 2) : null,
                     ]);
+                }
+
+                if ($retencionISR > 0 && $baseImpuesto > 0) {
+                    $retencionLinea = round($retencionISR * ($baseImpuesto / $baseGravableTotal), 2);
+                    if ($retencionLinea > 0) {
+                        FacturaImpuesto::create([
+                            'factura_detalle_id' => $detalle->id,
+                            'tipo' => 'retencion',
+                            'impuesto' => '001',
+                            'tipo_factor' => 'Tasa',
+                            'tasa_o_cuota' => config('isr_resico.tasa_retencion_pm_a_resico', 0.0125),
+                            'base' => $baseImpuesto,
+                            'importe' => $retencionLinea,
+                        ]);
+                    }
                 }
                 // El descuento de inventario se hace al timbrar la factura, no en borrador
             }
@@ -735,7 +767,7 @@ class CotizacionController extends Controller
                 $query->buscar($search);
             })
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'rfc', 'email', 'dias_credito', 'forma_pago']);
+            ->get(['id', 'codigo', 'nombre', 'rfc', 'email', 'dias_credito', 'forma_pago', 'tipo_persona']);
 
         return response()->json($clientes);
     }

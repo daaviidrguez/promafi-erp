@@ -127,11 +127,13 @@
 <tbody>
 @foreach($f->detalles ?? [] as $d)
 @php
-    $impuestosLinea = 0;
+    $impuestosTrasladadosLinea = 0;
     foreach ($d->impuestos ?? [] as $imp) {
-        $impuestosLinea += (float) $imp->importe;
+        if (($imp->tipo ?? 'traslado') === 'traslado') {
+            $impuestosTrasladadosLinea += (float) $imp->importe;
+        }
     }
-    $totalLinea = (float) $d->importe - (float) ($d->descuento ?? 0) + $impuestosLinea;
+    $totalLinea = (float) $d->importe - (float) ($d->descuento ?? 0) + $impuestosTrasladadosLinea;
 @endphp
 <tr>
     <td>{{ $d->clave_prod_serv ?? '-' }}</td>
@@ -141,7 +143,7 @@
     <td class="right">{{ formatMoney($d->valor_unitario) }}</td>
     <td class="right">{{ formatMoney($d->importe) }}</td>
     <td class="right">{{ formatMoney($d->descuento ?? 0) }}</td>
-    <td class="right">{{ formatMoney($impuestosLinea) }}</td>
+    <td class="right">{{ formatMoney($impuestosTrasladadosLinea) }}</td>
     <td class="right">{{ formatMoney($totalLinea) }}</td>
 </tr>
 @endforeach

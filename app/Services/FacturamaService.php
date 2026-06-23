@@ -506,11 +506,9 @@ class FacturamaService
                 $base = 0.01;
             }
             $rate = round((float) $row['tasa_o_cuota'], 6);
+            $importeProporcional = round($row['importe'] * $proporcion, 2);
+            $total = $this->totalImpuestoParaFacturama($base, $rate, $importeProporcional, $row['tipo_factor'] ?? 'Tasa');
             $esCuota = ($row['tipo_factor'] ?? 'Tasa') === 'Cuota';
-            // Facturama exige: Total = Base * Rate (para Tasa). Usar Total = round(Base * Rate, 2) para evitar "Total incorrecto Base por Rate debe ser igual al Total".
-            $total = $esCuota
-                ? round($row['importe'] * $proporcion, 2)
-                : round($base * $rate, 2);
             $impuesto = $row['impuesto'] ?? '002';
             $tipo = $row['tipo'] ?? 'traslado';
             $name = \App\Models\FacturaImpuesto::nombreParaFacturama($impuesto, $tipo, $row['tipo_factor'] ?? null);
@@ -524,6 +522,20 @@ class FacturamaService
             ];
         }
         return $taxes;
+    }
+
+    /**
+     * Total del impuesto para la API de Facturama.
+     * Tasa: Facturama exige Total = Base × Rate (evita "Base por Rate debe ser igual al Total").
+     * Cuota: se usa el importe persistido o proporcional.
+     */
+    protected function totalImpuestoParaFacturama(float $base, float $rate, float $importeGuardado, ?string $tipoFactor = 'Tasa'): float
+    {
+        if (($tipoFactor ?? 'Tasa') === 'Cuota') {
+            return round($importeGuardado, 2);
+        }
+
+        return round(round($base, 2) * round($rate, 6), 2);
     }
 
     /**
@@ -833,20 +845,23 @@ class FacturamaService
             $impuestosTotal = 0;
             $tieneImpuestos = $d->impuestos && $d->impuestos->isNotEmpty();
             foreach ($d->impuestos ?? [] as $imp) {
-                $monto = (float) $imp->importe;
+                $base = round((float) $imp->base, 2);
+                $rate = round((float) $imp->tasa_o_cuota, 6);
+                $tipoFactor = $imp->tipo_factor ?? 'Tasa';
+                $monto = $this->totalImpuestoParaFacturama($base, $rate, (float) ($imp->importe ?? 0), $tipoFactor);
                 $impuestosTotal += ($imp->tipo ?? 'traslado') === 'retencion' ? -$monto : $monto;
                 $nombre = \App\Models\FacturaImpuesto::nombreParaFacturama(
                     $imp->impuesto ?? '002',
                     $imp->tipo ?? 'traslado',
-                    $imp->tipo_factor ?? null
+                    $tipoFactor
                 );
                 $taxes[] = [
                     'Name' => $nombre,
-                    'Base' => round((float) $imp->base, 2),
-                    'Rate' => round((float) $imp->tasa_o_cuota, 6),
-                    'Total' => round((float) $imp->importe, 2),
+                    'Base' => $base,
+                    'Rate' => $rate,
+                    'Total' => $monto,
                     'IsRetention' => $imp->tipo === 'retencion',
-                    'IsQuota' => ($imp->tipo_factor ?? 'Tasa') === 'Cuota',
+                    'IsQuota' => $tipoFactor === 'Cuota',
                     'TaxObject' => $d->objeto_impuesto ?? '02',
                 ];
             }

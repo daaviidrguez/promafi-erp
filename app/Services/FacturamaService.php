@@ -1032,20 +1032,23 @@ class FacturamaService
             $taxes = [];
             $impuestosTotal = 0;
             foreach ($d->impuestos ?? [] as $imp) {
-                $monto = (float) $imp->importe;
+                $base = round((float) $imp->base, 2);
+                $rate = round((float) $imp->tasa_o_cuota, 6);
+                $tipoFactor = $imp->tipo_factor ?? 'Tasa';
+                $monto = $this->totalImpuestoParaFacturama($base, $rate, (float) ($imp->importe ?? 0), $tipoFactor);
                 $impuestosTotal += ($imp->tipo ?? 'traslado') === 'retencion' ? -$monto : $monto;
                 $nombre = \App\Models\FacturaImpuesto::nombreParaFacturama(
                     $imp->impuesto ?? '002',
                     $imp->tipo ?? 'traslado',
-                    $imp->tipo_factor ?? null
+                    $tipoFactor
                 );
                 $taxes[] = [
                     'Name' => $nombre,
-                    'Base' => round((float) $imp->base, 2),
-                    'Rate' => round((float) $imp->tasa_o_cuota, 6),
-                    'Total' => round((float) $imp->importe, 2),
+                    'Base' => $base,
+                    'Rate' => $rate,
+                    'Total' => $monto,
                     'IsRetention' => $imp->tipo === 'retencion',
-                    'IsQuota' => ($imp->tipo_factor ?? 'Tasa') === 'Cuota',
+                    'IsQuota' => $tipoFactor === 'Cuota',
                     'TaxObject' => $d->objeto_impuesto ?? '02',
                 ];
             }

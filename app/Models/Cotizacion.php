@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Cotizacion extends Model
 {
@@ -138,6 +139,14 @@ class Cotizacion extends Model
     public function detalles(): HasMany
     {
         return $this->hasMany(CotizacionDetalle::class)->orderBy('orden');
+    }
+
+    /**
+     * Factura generada al convertir esta cotización (si aplica).
+     */
+    public function factura(): HasOne
+    {
+        return $this->hasOne(Factura::class);
     }
 
     /**

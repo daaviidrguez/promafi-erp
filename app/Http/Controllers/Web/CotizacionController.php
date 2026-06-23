@@ -51,7 +51,7 @@ class CotizacionController extends Controller
      */
     public function index(Request $request)
     {
-        $query = $this->queryCotizaciones()->with(['cliente', 'usuario']);
+        $query = $this->queryCotizaciones()->with(['cliente', 'usuario', 'factura']);
 
         // Filtros
         if ($request->filled('estado')) {
@@ -326,7 +326,8 @@ class CotizacionController extends Controller
         $cotizacion = Cotizacion::with([
             'cliente',
             'detalles.producto',
-            'usuario'
+            'usuario',
+            'factura',
         ])->findOrFail($id);
         $this->authorizeCotizacion($cotizacion);
 

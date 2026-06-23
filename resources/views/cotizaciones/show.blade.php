@@ -254,6 +254,9 @@ $breadcrumbs = [
                                 'vencida'   => ['badge-gray',     '⏰ Vencida'],
                             ];
                             [$badgeClass, $badgeLabel] = $estados[$cotizacion->estado] ?? ['badge-gray', $cotizacion->estado];
+                            if ($cotizacion->estado === 'facturada' && $cotizacion->factura?->estado === 'timbrada') {
+                                $badgeClass = 'badge-success';
+                            }
                         @endphp
                         <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
                     </div>
@@ -367,6 +370,13 @@ $breadcrumbs = [
                 </button>
                 <p class="text-muted small mt-1 mb-0">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
                 @endif
+                @endif
+
+                @if($cotizacion->factura)
+                @can('facturas.ver')
+                <a href="{{ route('facturas.show', $cotizacion->factura->id) }}"
+                   class="btn btn-outline w-full">💰 Ver factura relacionada</a>
+                @endcan
                 @endif
 
                 <a href="{{ route('cotizaciones.index') }}" class="btn btn-light w-full">← Volver</a>

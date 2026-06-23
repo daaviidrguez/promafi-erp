@@ -157,10 +157,39 @@ $breadcrumbs = [
                             'rechazada' => '✗',
                             'vencida'   => '⏰',
                         ];
+                        $estadoBadgeClass = $badgeMap[$c->estado] ?? 'badge-gray';
+                        $estadoBadgeLabel = ($iconMap[$c->estado] ?? '') . ' ' . ucfirst($c->estado);
+                        $estadoBadgeTitle = null;
+                        if ($c->estado === 'facturada' && $c->factura) {
+                            if ($c->factura->estado === 'timbrada') {
+                                $estadoBadgeClass = 'badge-success';
+                                $estadoBadgeTitle = 'Factura timbrada — ver detalle';
+                            } elseif ($c->factura->estado === 'borrador') {
+                                $estadoBadgeTitle = 'Factura en borrador — ver detalle';
+                            } else {
+                                $estadoBadgeTitle = 'Ver factura relacionada';
+                            }
+                        }
                     @endphp
-                    <span class="badge {{ $badgeMap[$c->estado] ?? 'badge-gray' }}">
-                        {{ $iconMap[$c->estado] ?? '' }} {{ ucfirst($c->estado) }}
+                    @if($c->estado === 'facturada' && $c->factura)
+                        @can('facturas.ver')
+                        <a href="{{ route('facturas.show', $c->factura->id) }}"
+                           class="badge {{ $estadoBadgeClass }}"
+                           style="text-decoration: none;"
+                           @if($estadoBadgeTitle) title="{{ $estadoBadgeTitle }}" @endif>
+                            {{ trim($estadoBadgeLabel) }}
+                        </a>
+                        @else
+                        <span class="badge {{ $estadoBadgeClass }}"
+                              @if($estadoBadgeTitle) title="{{ $estadoBadgeTitle }}" @endif>
+                            {{ trim($estadoBadgeLabel) }}
+                        </span>
+                        @endcan
+                    @else
+                    <span class="badge {{ $estadoBadgeClass }}">
+                        {{ trim($estadoBadgeLabel) }}
                     </span>
+                    @endif
                 </td>
                 <td class="td-actions">
                     <div style="display:flex; gap:6px; justify-content:center;">

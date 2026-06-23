@@ -81,6 +81,9 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                     </div>
                 </th>
                 <th>
+                    <div class="th-sort-title">Código SAT</div>
+                </th>
+                <th>
                     <div class="th-sort-title">Categoría</div>
                     <div class="th-sort-links">
                         <a href="{{ $sortLink('categoria', 'asc') }}" class="{{ $isSorted('categoria') && $dirAsc ? 'active' : '' }}">A→Z</a>
@@ -124,6 +127,7 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                 <th>
                     <input type="text" name="f_nombre" value="{{ $fNombre ?? '' }}" class="form-control input-col-filter" placeholder="Nombre o desc.">
                 </th>
+                <th></th>
                 <th>
                     <select name="f_categoria_col" class="form-control input-col-filter">
                         <option value="">Todas</option>
@@ -176,6 +180,14 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                     @endif
                 </td>
                 <td>
+                    <div class="text-mono fw-600">{{ $producto->clave_sat }}</div>
+                    @if($producto->claveProdServicio)
+                        <div class="text-muted" style="font-size: 12px;">
+                            {{ \Str::limit($producto->claveProdServicio->descripcion, 55) }}
+                        </div>
+                    @endif
+                </td>
+                <td>
                     @if($producto->categoria)
                         <div class="producto-cat-cell" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
                             @if($producto->categoria->parent)
@@ -224,7 +236,7 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
             </tr>
             @empty
             <tr>
-                <td colspan="7" style="padding: 48px 24px; text-align: center;">
+                <td colspan="8" style="padding: 48px 24px; text-align: center;">
                     <div class="empty-state-icon" style="font-size: 2.5rem;">📦</div>
                     <div style="font-weight: 600; margin-top: 12px;">No hay productos que coincidan</div>
                     <div class="text-muted" style="margin-top: 8px;">Ajusta la búsqueda o los filtros por columna</div>

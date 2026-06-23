@@ -138,7 +138,7 @@ class ProductoController extends Controller
             'sort' => $sort,
             'dir' => $dir,
         ]);
-        $productos = $query->with(['categoria.parent'])->paginate(20)->appends($appends);
+        $productos = $query->with(['categoria.parent', 'claveProdServicio'])->paginate(20)->appends($appends);
 
         $categorias = CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
 

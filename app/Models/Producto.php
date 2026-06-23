@@ -137,6 +137,14 @@ class Producto extends Model
     }
 
     /**
+     * Clave producto/servicio del catálogo SAT
+     */
+    public function claveProdServicio()
+    {
+        return $this->belongsTo(ClaveProdServicio::class, 'clave_sat', 'clave');
+    }
+
+    /**
      * Calcular precio con IVA (según tipo_factor y tasa_iva)
      */
     public function getPrecioConIvaAttribute(): float

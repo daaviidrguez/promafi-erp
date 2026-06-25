@@ -12,26 +12,68 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('clientes', function (Blueprint $table) {
-            $table->dropUnique(['rfc']);
-        });
+        if ($this->hasIndex('clientes', 'clientes_rfc_unique')) {
+            Schema::table('clientes', function (Blueprint $table) {
+                $table->dropUnique(['rfc']);
+            });
+        }
 
-        DB::statement(
-            "CREATE UNIQUE INDEX clientes_rfc_unique ON clientes ((
-                CASE
-                    WHEN rfc = 'XAXX010101000' THEN CONCAT(rfc, '-', tipo_persona)
-                    ELSE rfc
-                END
-            ))"
-        );
+        if (! Schema::hasColumn('clientes', 'rfc_unique_key')) {
+            $this->addRfcUniqueKeyColumn();
+        }
+
+        if (! $this->hasIndex('clientes', 'clientes_rfc_unique_key_unique')) {
+            Schema::table('clientes', function (Blueprint $table) {
+                $table->unique('rfc_unique_key');
+            });
+        }
     }
 
     public function down(): void
     {
-        DB::statement('DROP INDEX clientes_rfc_unique ON clientes');
+        if ($this->hasIndex('clientes', 'clientes_rfc_unique_key_unique')) {
+            Schema::table('clientes', function (Blueprint $table) {
+                $table->dropUnique(['rfc_unique_key']);
+            });
+        }
 
-        Schema::table('clientes', function (Blueprint $table) {
-            $table->unique('rfc');
-        });
+        if (Schema::hasColumn('clientes', 'rfc_unique_key')) {
+            Schema::table('clientes', function (Blueprint $table) {
+                $table->dropColumn('rfc_unique_key');
+            });
+        }
+
+        if (! $this->hasIndex('clientes', 'clientes_rfc_unique')) {
+            Schema::table('clientes', function (Blueprint $table) {
+                $table->unique('rfc');
+            });
+        }
+    }
+
+    private function addRfcUniqueKeyColumn(): void
+    {
+        $version = DB::selectOne('SELECT VERSION() as version')->version ?? '';
+        $isMariaDb = stripos($version, 'mariadb') !== false;
+
+        $expression = "CASE WHEN rfc = 'XAXX010101000' THEN CONCAT(rfc, '-', tipo_persona) ELSE rfc END";
+
+        if ($isMariaDb) {
+            DB::statement(
+                "ALTER TABLE clientes ADD COLUMN rfc_unique_key VARCHAR(25) AS ({$expression}) PERSISTENT"
+            );
+
+            return;
+        }
+
+        DB::statement(
+            "ALTER TABLE clientes ADD COLUMN rfc_unique_key VARCHAR(25) GENERATED ALWAYS AS ({$expression}) STORED"
+        );
+    }
+
+    private function hasIndex(string $table, string $indexName): bool
+    {
+        return collect(DB::select("SHOW INDEX FROM {$table}"))
+            ->pluck('Key_name')
+            ->contains($indexName);
     }
 };

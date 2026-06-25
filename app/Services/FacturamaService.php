@@ -621,15 +621,19 @@ class FacturamaService
 
     /**
      * Obtener acuse de cancelación por factura (para facturas ya canceladas sin acuse guardado).
-     * Usa pac_cfdi_id de la factura o busca por UUID.
+     * Usa pac_cfdi_id de la factura o busca por UUID (incluye CFDI cancelados).
      */
     public function obtenerAcuseCancelacionPorFactura(Factura $factura): ?string
     {
-        $cfdiId = $factura->pac_cfdi_id ?? null;
-        if (empty($cfdiId) && !empty($factura->uuid)) {
-            $cfdiId = $this->obtenerCfdiIdPorUuid($factura->uuid);
+        $cfdiId = $this->resolverCfdiId($factura->pac_cfdi_id ?? null, $factura->uuid ?? null, true);
+        if ($cfdiId) {
+            $acuse = $this->obtenerAcuseCancelacion($cfdiId);
+            if (! empty($acuse)) {
+                return $acuse;
+            }
         }
-        return $cfdiId ? $this->obtenerAcuseCancelacion($cfdiId) : null;
+
+        return ! empty($factura->acuse_cancelacion) ? $factura->acuse_cancelacion : null;
     }
 
     /**
@@ -637,36 +641,279 @@ class FacturamaService
      */
     public function obtenerAcuseCancelacionPorComplemento(ComplementoPago $complemento): ?string
     {
-        $cfdiId = $complemento->pac_cfdi_id ?? null;
-        if (empty($cfdiId) && !empty($complemento->uuid)) {
-            $cfdiId = $this->obtenerCfdiIdPorUuid($complemento->uuid);
+        $cfdiId = $this->resolverCfdiId($complemento->pac_cfdi_id ?? null, $complemento->uuid ?? null, true);
+        if ($cfdiId) {
+            $acuse = $this->obtenerAcuseCancelacion($cfdiId);
+            if (! empty($acuse)) {
+                return $acuse;
+            }
         }
-        return $cfdiId ? $this->obtenerAcuseCancelacion($cfdiId) : null;
+
+        return ! empty($complemento->acuse_cancelacion) ? $complemento->acuse_cancelacion : null;
     }
 
     /**
-     * Obtener acuse de cancelación vía GET (cuando el DELETE no lo devuelve).
-     * GET /Acuse/{format}/{type}/{id} - format puede ser xml, pdf, html según API.
-     * Solo devuelve contenido que parezca XML del acuse (para no guardar PDF/HTML por error).
+     * Consultar estatus de cancelación ante Facturama/SAT (botón actualizar estatus).
+     *
+     * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}
      */
-    protected function obtenerAcuseCancelacion(string $cfdiId): ?string
+    public function consultarEstatusCancelacionPorFactura(Factura $factura): array
     {
-        $formats = ['xml', 'Xml', 'XML'];
+        return $this->consultarEstatusCancelacion(
+            $factura->pac_cfdi_id ?? null,
+            $factura->uuid ?? null,
+            $factura->acuse_cancelacion ?? null
+        );
+    }
+
+    /**
+     * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}
+     */
+    public function consultarEstatusCancelacionPorComplemento(ComplementoPago $complemento): array
+    {
+        return $this->consultarEstatusCancelacion(
+            $complemento->pac_cfdi_id ?? null,
+            $complemento->uuid ?? null,
+            $complemento->acuse_cancelacion ?? null
+        );
+    }
+
+    /**
+     * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}
+     */
+    public function consultarEstatusCancelacion(?string $pacCfdiId, ?string $uuid, ?string $acuseLocal = null): array
+    {
+        $cfdiId = $this->resolverCfdiId($pacCfdiId, $uuid, true);
+        $detalle = $cfdiId ? $this->obtenerEstadoCancelacionDesdeDetalle($cfdiId) : null;
+
+        $statusPac = $detalle['status'] ?? null;
+        $mensajePac = $detalle['message'] ?? null;
+        $acuse = $detalle['acuse'] ?? null;
+
+        if (empty($acuse) && $cfdiId) {
+            $acuse = $this->obtenerAcuseCancelacion($cfdiId, $detalle);
+        }
+        if (empty($acuse) && ! empty($acuseLocal)) {
+            $acuse = $acuseLocal;
+        }
+
+        $codigoEstatus = null;
+        if (! empty($acuse)) {
+            $codigoEstatus = self::extraerCodigoEstatusDelAcuse($acuse);
+        } elseif (! empty($detalle['sat_acuse_status_code'])) {
+            $codigoEstatus = $detalle['sat_acuse_status_code'];
+        }
+
+        $codigoEstatus = $this->normalizarCodigoEstatusCancelacion($codigoEstatus, $statusPac, $mensajePac);
+
+        $statusNormalizado = strtolower((string) $statusPac);
+        $canceladaEnPac = in_array($statusNormalizado, ['canceled', 'cancelled'], true);
+        $pendienteEnPac = $statusNormalizado === 'pending';
+        $rechazadaEnPac = in_array($statusNormalizado, ['rejected', 'reject'], true);
+
+        if ($canceladaEnPac || $pendienteEnPac || $rechazadaEnPac) {
+            return [
+                'success' => true,
+                'message' => '',
+                'acuse' => $acuse,
+                'codigo_estatus' => $codigoEstatus ?? ($canceladaEnPac ? '202' : ($pendienteEnPac ? '206' : 'R-213')),
+                'status_pac' => $statusPac,
+                'mensaje_pac' => $mensajePac,
+            ];
+        }
+
+        if (! empty($acuse) || ! empty($codigoEstatus)) {
+            return [
+                'success' => true,
+                'message' => '',
+                'acuse' => $acuse,
+                'codigo_estatus' => $codigoEstatus ?? '201',
+                'status_pac' => $statusPac,
+                'mensaje_pac' => $mensajePac,
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => 'No se pudo obtener la respuesta del SAT. Intente más tarde o verifique la factura en Facturama.',
+            'acuse' => null,
+            'codigo_estatus' => null,
+            'status_pac' => $statusPac,
+            'mensaje_pac' => $mensajePac,
+        ];
+    }
+
+    /**
+     * Obtener acuse de cancelación vía detalle del CFDI o GET /Acuse/{format}/{type}/{id}.
+     * Documentación Facturama: formatos acuse pdf|html; algunos ambientes también responden xml.
+     *
+     * @param  array{status?: ?string, message?: ?string, sat_acuse_status_code?: ?string, acuse?: ?string}|null  $detallePrecargado
+     */
+    protected function obtenerAcuseCancelacion(string $cfdiId, ?array $detallePrecargado = null): ?string
+    {
+        if (! empty($detallePrecargado['acuse'])) {
+            return $detallePrecargado['acuse'];
+        }
+
+        $detalle = $detallePrecargado ?? $this->obtenerEstadoCancelacionDesdeDetalle($cfdiId);
+        if (! empty($detalle['acuse'])) {
+            return $detalle['acuse'];
+        }
+
+        $formats = ['xml', 'Xml', 'XML', 'html', 'Html', 'HTML'];
         foreach ($formats as $format) {
             $url = $this->baseUrl . '/Acuse/' . $format . '/issued/' . $cfdiId;
             $res = $this->http()->acceptJson()->timeout(15)->get($url);
-            if ($res->successful()) {
-                $body = $res->json();
-                $content = $body['Content'] ?? null;
-                if (!empty($content)) {
-                    $decoded = base64_decode($content, true);
-                    if ($decoded !== false && (stripos($decoded, '<?xml') === 0 || stripos(trim($decoded), '<') === 0) && (stripos($decoded, 'Cancelacion') !== false || stripos($decoded, 'cancelacion') !== false || stripos($decoded, 'Acuse') !== false)) {
-                        return $content;
-                    }
+            if (! $res->successful()) {
+                continue;
+            }
+            $body = $res->json();
+            $content = $body['Content'] ?? null;
+            if (empty($content)) {
+                continue;
+            }
+            $decoded = base64_decode($content, true);
+            if ($decoded !== false && $this->contenidoPareceAcuseXml($decoded)) {
+                return $content;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * GET detalle del CFDI en Facturama para leer Status y acuse de cancelación.
+     *
+     * @return array{status: ?string, message: ?string, sat_acuse_status_code: ?string, acuse: ?string}|null
+     */
+    protected function obtenerEstadoCancelacionDesdeDetalle(string $cfdiId): ?array
+    {
+        $urls = [
+            $this->baseUrl . '/cfdi/issued/' . $cfdiId,
+            $this->baseUrl . '/cfdi/' . $cfdiId . '?type=issued',
+        ];
+
+        foreach ($urls as $url) {
+            $res = $this->http()->acceptJson()->timeout(15)->get($url);
+            if (! $res->successful()) {
+                continue;
+            }
+            $data = $res->json();
+            if (! is_array($data)) {
+                continue;
+            }
+
+            return $this->parsearEstadoCancelacionDesdeRespuesta($data);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{status: ?string, message: ?string, sat_acuse_status_code: ?string, acuse: ?string}
+     */
+    protected function parsearEstadoCancelacionDesdeRespuesta(array $data): array
+    {
+        $bloques = [$data];
+        foreach (['CancelationStatus', 'CancellationStatus', 'Cancelation', 'Cancellation'] as $clave) {
+            if (isset($data[$clave]) && is_array($data[$clave])) {
+                $bloques[] = $data[$clave];
+            }
+        }
+
+        $status = null;
+        $message = null;
+        $satCode = null;
+        $acuse = null;
+
+        foreach ($bloques as $bloque) {
+            $status ??= $bloque['Status'] ?? $bloque['status'] ?? null;
+            $message ??= $bloque['Message'] ?? $bloque['message'] ?? null;
+            if (isset($bloque['SatAcuseStatusCode']) || isset($bloque['satAcuseStatusCode'])) {
+                $satCode ??= (string) ($bloque['SatAcuseStatusCode'] ?? $bloque['satAcuseStatusCode']);
+            }
+            $acuse ??= $this->extraerAcuseDePayload($bloque);
+        }
+
+        return [
+            'status' => $status !== null ? (string) $status : null,
+            'message' => $message !== null ? (string) $message : null,
+            'sat_acuse_status_code' => $satCode,
+            'acuse' => $acuse,
+        ];
+    }
+
+    protected function extraerAcuseDePayload(array $data): ?string
+    {
+        $acuse = $data['AcuseXmlBase64'] ?? $data['acuseXmlBase64'] ?? $data['AcuseXml'] ?? $data['acuseXml'] ?? $data['AcuseXmlFile'] ?? null;
+        if ($acuse !== null && $acuse !== '') {
+            return (string) $acuse;
+        }
+        foreach (array_keys($data) as $key) {
+            if (stripos($key, 'acuse') !== false && (stripos($key, 'xml') !== false || stripos($key, 'base64') !== false)) {
+                $val = $data[$key];
+                if (is_string($val) && $val !== '') {
+                    return $val;
                 }
             }
         }
+
         return null;
+    }
+
+    protected function resolverCfdiId(?string $pacCfdiId, ?string $uuid, bool $incluirCancelados = false): ?string
+    {
+        if (! empty($pacCfdiId)) {
+            return (string) $pacCfdiId;
+        }
+        if (! empty($uuid)) {
+            return $this->obtenerCfdiIdPorUuid($uuid, $incluirCancelados);
+        }
+
+        return null;
+    }
+
+    protected function contenidoPareceAcuseXml(string $decoded): bool
+    {
+        $trimmed = trim($decoded);
+        if ($trimmed === '') {
+            return false;
+        }
+        if (stripos($trimmed, '<?xml') !== 0 && stripos($trimmed, '<') !== 0) {
+            return false;
+        }
+
+        return stripos($decoded, 'Cancelacion') !== false
+            || stripos($decoded, 'cancelacion') !== false
+            || stripos($decoded, 'Acuse') !== false
+            || stripos($decoded, 'EstatusUUID') !== false;
+    }
+
+    protected function normalizarCodigoEstatusCancelacion(?string $codigo, ?string $statusPac, ?string $mensajePac): ?string
+    {
+        $status = strtolower((string) $statusPac);
+        $msg = strtolower((string) $mensajePac);
+
+        if ($status === 'pending') {
+            return '206';
+        }
+        if (in_array($status, ['rejected', 'reject'], true)) {
+            return str_starts_with((string) $codigo, 'R-') ? $codigo : 'R-213';
+        }
+        if (in_array($status, ['canceled', 'cancelled'], true)) {
+            if ($codigo === null || $codigo === '' || in_array($codigo, ['201', '206'], true)) {
+                return '202';
+            }
+
+            return $codigo;
+        }
+        if ($msg !== '' && (str_contains($msg, 'sin acept') || str_contains($msg, 'plazo vencido') || str_contains($msg, 'plazo'))) {
+            if ($codigo === null || $codigo === '' || in_array($codigo, ['201', '206'], true)) {
+                return '202';
+            }
+        }
+
+        return $codigo;
     }
 
     /**
@@ -713,21 +960,29 @@ class FacturamaService
 
     /**
      * Obtener el Id del CFDI en Facturama buscando por UUID (keyword).
-     * GET /cfdi/{type}?keyword={uuid}&status=active&invoiceType=issued&page=1
+     * GET /cfdi/{type}?keyword={uuid}&status={active|canceled|pending|all}&invoiceType=issued&page=1
      */
-    protected function obtenerCfdiIdPorUuid(string $uuid): ?string
+    protected function obtenerCfdiIdPorUuid(string $uuid, bool $incluirCancelados = false): ?string
     {
-        // Primero con invoiceType=issued; si no hay resultados, intentar sin invoiceType (incluye complementos tipo P)
-        $urls = [
-            $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=active&invoiceType=issued&page=1',
-            $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=active&page=1',
-        ];
-        foreach ($urls as $url) {
-            $id = $this->buscarCfdiIdEnListaPorUuid($url, $uuid);
-            if ($id !== null) {
-                return $id;
+        $statuses = ['active'];
+        if ($incluirCancelados) {
+            $statuses = array_merge($statuses, ['canceled', 'pending', 'all']);
+        }
+
+        foreach ($statuses as $status) {
+            // Primero con invoiceType=issued; si no hay resultados, intentar sin invoiceType (incluye complementos tipo P)
+            $urls = [
+                $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=' . $status . '&invoiceType=issued&page=1',
+                $this->baseUrl . '/cfdi/issued?keyword=' . urlencode($uuid) . '&status=' . $status . '&page=1',
+            ];
+            foreach ($urls as $url) {
+                $id = $this->buscarCfdiIdEnListaPorUuid($url, $uuid);
+                if ($id !== null) {
+                    return $id;
+                }
             }
         }
+
         return null;
     }
 

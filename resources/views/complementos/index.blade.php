@@ -121,10 +121,12 @@ $breadcrumbs = [
                 <td class="td-actions">
                     <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
                         @if($complemento->estado === 'cancelado')
-                            <form method="POST" action="{{ route('complementos.actualizar-estatus-cancelacion', $complemento->id) }}" style="display: inline;" onsubmit="return confirm('¿Consultar respuesta actual del SAT para este complemento cancelado?');">
-                                @csrf
-                                <button type="submit" class="btn btn-outline-primary btn-sm btn-icon" title="Actualizar estatus">🔄</button>
-                            </form>
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm btn-icon js-actualizar-estatus-sat"
+                                    title="Actualizar estatus"
+                                    data-action="{{ route('complementos.actualizar-estatus-cancelacion', $complemento->id) }}"
+                                    data-folio="{{ $complemento->folio_completo }}"
+                                    data-tipo="complemento">🔄</button>
                         @endif
                         <a href="{{ route('complementos.show', $complemento->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
@@ -152,5 +154,7 @@ $breadcrumbs = [
     </div>
     @endif
 </div>
+
+@include('partials.modal-actualizar-estatus-sat')
 
 @endsection

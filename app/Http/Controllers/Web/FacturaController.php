@@ -1033,17 +1033,24 @@ class FacturaController extends Controller
         }
         try {
             $facturama = new FacturamaService($empresa);
-            $acuse = $facturama->obtenerAcuseCancelacionPorFactura($factura);
-            if (empty($acuse)) {
-                return back()->with('error', 'No se pudo obtener la respuesta del SAT. Intente más tarde o verifique la factura en Facturama.');
+            $resultado = $facturama->consultarEstatusCancelacionPorFactura($factura);
+            if (! $resultado['success']) {
+                return back()->with('error', $resultado['message']);
             }
-            $codigoEstatus = FacturamaService::extraerCodigoEstatusDelAcuse($acuse);
-            $factura->update([
-                'acuse_cancelacion' => $acuse,
-                'codigo_estatus_cancelacion' => $codigoEstatus,
-            ]);
 
-            return back()->with('success', 'Estatus actualizado: '.Factura::descripcionCodigoCancelacion($codigoEstatus).' (código '.$codigoEstatus.').');
+            $updates = ['codigo_estatus_cancelacion' => $resultado['codigo_estatus']];
+            if (! empty($resultado['acuse'])) {
+                $updates['acuse_cancelacion'] = $resultado['acuse'];
+            }
+            $factura->update($updates);
+
+            $mensaje = 'Estatus actualizado: '.Factura::descripcionCodigoCancelacion($resultado['codigo_estatus'])
+                .' (código '.$resultado['codigo_estatus'].').';
+            if (! empty($resultado['mensaje_pac'])) {
+                $mensaje .= ' '.$resultado['mensaje_pac'];
+            }
+
+            return back()->with('success', $mensaje);
         } catch (\Throwable $e) {
             return back()->with('error', 'Error al actualizar estatus: '.$e->getMessage());
         }

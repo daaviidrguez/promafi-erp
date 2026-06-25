@@ -124,10 +124,12 @@ $breadcrumbs = [
                 <td class="td-actions">
                     <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
                         @if($factura->estado === 'cancelada')
-                            <form method="POST" action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}" style="display: inline;" onsubmit="return confirm('¿Consultar respuesta actual del SAT para esta factura cancelada?');">
-                                @csrf
-                                <button type="submit" class="btn btn-outline-primary btn-sm btn-icon" title="Actualizar estatus">🔄</button>
-                            </form>
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm btn-icon js-actualizar-estatus-sat"
+                                    title="Actualizar estatus"
+                                    data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
+                                    data-folio="{{ $factura->folio_completo }}"
+                                    data-tipo="factura">🔄</button>
                         @endif
                         <a href="{{ route('facturas.show', $factura->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
@@ -159,5 +161,7 @@ $breadcrumbs = [
     </div>
     @endif
 </div>
+
+@include('partials.modal-actualizar-estatus-sat')
 
 @endsection

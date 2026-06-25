@@ -748,16 +748,33 @@ class ComplementoPagoController extends Controller
         if ($complemento->estado !== 'cancelado') {
             return back()->with('error', 'Solo se puede actualizar el estatus de complementos cancelados.');
         }
-        $acuse = $this->pacService->obtenerAcuseCancelacionPorComplemento($complemento);
-        if (empty($acuse)) {
-            return back()->with('error', 'No se pudo obtener la respuesta del SAT. Intente más tarde o verifique el complemento en Facturama.');
+        $empresa = $complemento->empresa ?? \App\Models\Empresa::principal();
+        if (! $empresa) {
+            return back()->with('error', 'No hay empresa configurada.');
         }
-        $codigoEstatus = FacturamaService::extraerCodigoEstatusDelAcuse($acuse);
-        $complemento->update([
-            'acuse_cancelacion' => $acuse,
-            'codigo_estatus_cancelacion' => $codigoEstatus,
-        ]);
-        return back()->with('success', 'Estatus actualizado: ' . ComplementoPago::descripcionCodigoCancelacion($codigoEstatus) . ' (código ' . $codigoEstatus . ').');
+        try {
+            $facturama = new FacturamaService($empresa);
+            $resultado = $facturama->consultarEstatusCancelacionPorComplemento($complemento);
+            if (! $resultado['success']) {
+                return back()->with('error', $resultado['message']);
+            }
+
+            $updates = ['codigo_estatus_cancelacion' => $resultado['codigo_estatus']];
+            if (! empty($resultado['acuse'])) {
+                $updates['acuse_cancelacion'] = $resultado['acuse'];
+            }
+            $complemento->update($updates);
+
+            $mensaje = 'Estatus actualizado: '.ComplementoPago::descripcionCodigoCancelacion($resultado['codigo_estatus'])
+                .' (código '.$resultado['codigo_estatus'].').';
+            if (! empty($resultado['mensaje_pac'])) {
+                $mensaje .= ' '.$resultado['mensaje_pac'];
+            }
+
+            return back()->with('success', $mensaje);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error al actualizar estatus: '.$e->getMessage());
+        }
     }
 
     /**

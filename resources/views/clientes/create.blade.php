@@ -255,18 +255,30 @@ document.addEventListener('DOMContentLoaded', function() {
     var nombre = document.getElementById('nombre');
     var tipoPersona = document.querySelector('select[name="tipo_persona"]');
     var rfcHint = document.getElementById('rfcHint');
+    var RFC_PUBLICO_GENERAL = 'XAXX010101000';
+    function esRfcPublicoGeneral(valor) {
+        return (valor || '').toUpperCase().replace(/\s/g, '') === RFC_PUBLICO_GENERAL;
+    }
     function actualizarRfcPorTipo() {
         var esMoral = tipoPersona && tipoPersona.value === 'moral';
-        var max = esMoral ? 12 : 13;
+        var esPublicoGeneral = esRfcPublicoGeneral(rfc.value);
+        var max = (esMoral && !esPublicoGeneral) ? 12 : 13;
         rfc.maxLength = max;
-        rfcHint.textContent = esMoral
-            ? 'Persona moral: 12 caracteres (ej. XA1901231ABC).'
-            : 'Persona física: 13 caracteres (ej. GODE901231ABC).';
+        if (esPublicoGeneral) {
+            rfcHint.textContent = 'Público en General: 13 caracteres (XAXX010101000).';
+        } else {
+            rfcHint.textContent = esMoral
+                ? 'Persona moral: 12 caracteres (ej. XA1901231ABC).'
+                : 'Persona física: 13 caracteres (ej. GODE901231ABC).';
+        }
         if (rfc.value.length > max) rfc.value = rfc.value.slice(0, max);
     }
     if (tipoPersona) tipoPersona.addEventListener('change', actualizarRfcPorTipo);
     actualizarRfcPorTipo();
-    rfc.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+    rfc.addEventListener('input', function() {
+        this.value = this.value.toUpperCase();
+        actualizarRfcPorTipo();
+    });
 
     if (nombre) {
         nombre.addEventListener('input', function() { this.value = this.value.toUpperCase(); });

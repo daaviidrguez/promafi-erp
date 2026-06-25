@@ -110,6 +110,16 @@ if (!function_exists('cleanRFC')) {
     }
 }
 
+if (!function_exists('isRfcPublicoGeneral')) {
+    /**
+     * RFC genérico SAT para Público en General (permite 1 registro por tipo de persona).
+     */
+    function isRfcPublicoGeneral(?string $rfc): bool
+    {
+        return cleanRFC((string) $rfc) === 'XAXX010101000';
+    }
+}
+
 if (!function_exists('percentFormat')) {
     /**
      * Formatear porcentaje

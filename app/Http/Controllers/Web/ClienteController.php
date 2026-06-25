@@ -46,6 +46,41 @@ class ClienteController extends Controller
     }
 
     /**
+     * Reglas de validación del RFC según tipo de persona.
+     *
+     * @return array<int, mixed>
+     */
+    private function reglasRfc(Request $request, ?Cliente $cliente = null): array
+    {
+        $tipoPersona = (string) $request->input('tipo_persona');
+        $rfcIngresado = cleanRFC((string) $request->input('rfc', ''));
+        $esPublicoGeneral = isRfcPublicoGeneral($rfcIngresado);
+        $rfcSize = $tipoPersona === 'moral' && ! $esPublicoGeneral ? 12 : 13;
+
+        return [
+            'required',
+            'string',
+            'size:' . $rfcSize,
+            function ($attr, $value, $fail) use ($request, $cliente, $tipoPersona) {
+                $rfc = cleanRFC((string) $value);
+                $exceptId = $cliente?->id;
+
+                if (! Cliente::rfcYaRegistrado($rfc, $tipoPersona, $exceptId)) {
+                    return;
+                }
+
+                if (isRfcPublicoGeneral($rfc)) {
+                    $etiqueta = $tipoPersona === 'moral' ? 'moral' : 'física';
+                    $fail("Ya existe un cliente de Público en General como persona {$etiqueta}.");
+                    return;
+                }
+
+                $fail('El RFC ya está registrado.');
+            },
+        ];
+    }
+
+    /**
      * Mostrar lista de clientes
      */
     public function index(Request $request)
@@ -78,7 +113,6 @@ class ClienteController extends Controller
      */
     public function store(Request $request)
     {
-        $rfcSize = $request->input('tipo_persona') === 'moral' ? 12 : 13;
         $validated = $request->validate([
             'nombre' => [
                 'required',
@@ -92,12 +126,7 @@ class ClienteController extends Controller
             ],
             'nombre_comercial' => 'nullable|string|max:255',
             'tipo_persona' => 'required|in:fisica,moral',
-            'rfc' => [
-                'required',
-                'string',
-                'size:' . $rfcSize,
-                'unique:clientes,rfc',
-            ],
+            'rfc' => $this->reglasRfc($request),
             'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
             'uso_cfdi_default' => 'required|string|exists:usos_cfdi,clave',
             'forma_pago' => 'nullable|string|exists:formas_pago,clave',
@@ -176,7 +205,6 @@ class ClienteController extends Controller
      */
     public function update(Request $request, Cliente $cliente)
     {
-        $rfcSize = $request->input('tipo_persona') === 'moral' ? 12 : 13;
         $validated = $request->validate([
             'nombre' => [
                 'required',
@@ -190,12 +218,7 @@ class ClienteController extends Controller
             ],
             'nombre_comercial' => 'nullable|string|max:255',
             'tipo_persona' => 'required|in:fisica,moral',
-            'rfc' => [
-                'required',
-                'string',
-                'size:' . $rfcSize,
-                'unique:clientes,rfc,' . $cliente->id,
-            ],
+            'rfc' => $this->reglasRfc($request, $cliente),
             'regimen_fiscal' => 'nullable|string|exists:regimenes_fiscales,clave',
             'uso_cfdi_default' => 'required|string|exists:usos_cfdi,clave',
             'forma_pago' => 'nullable|string|exists:formas_pago,clave',

@@ -13,6 +13,8 @@ class Cliente extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const RFC_PUBLICO_GENERAL = 'XAXX010101000';
+
     protected $fillable = [
         'codigo',
         'nombre',
@@ -194,6 +196,25 @@ class Cliente extends Model
         $domicilio .= ' CP ' . $this->codigo_postal;
         
         return $domicilio;
+    }
+
+    /**
+     * Verifica si el RFC ya está registrado (respeta excepción de Público en General).
+     */
+    public static function rfcYaRegistrado(string $rfc, string $tipoPersona, ?int $exceptId = null): bool
+    {
+        $rfc = cleanRFC($rfc);
+        $query = static::query()->where('rfc', $rfc);
+
+        if ($exceptId !== null) {
+            $query->where('id', '!=', $exceptId);
+        }
+
+        if (isRfcPublicoGeneral($rfc)) {
+            return $query->where('tipo_persona', $tipoPersona)->exists();
+        }
+
+        return $query->exists();
     }
 
     /**

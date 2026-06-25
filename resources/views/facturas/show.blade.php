@@ -311,7 +311,8 @@ $breadcrumbs = [
                 @can('facturas.crear')
                 <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-primary w-full">✏️ Editar Factura</a>
                 @endcan
-                <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}">
+                <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}"
+                      class="form-timbrar-protegido" data-loading-text="Timbrando factura…">
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>
                 </form>

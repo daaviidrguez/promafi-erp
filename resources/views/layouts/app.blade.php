@@ -136,6 +136,23 @@
                 });
             verPdfLinks.forEach((a) => a.removeAttribute('target'));
         }
+
+        document.querySelectorAll('form.form-timbrar-protegido').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                const btn = form.querySelector('button[type="submit"]');
+                if (!btn || btn.disabled) {
+                    return;
+                }
+                btn.disabled = true;
+                const loadingText = form.getAttribute('data-loading-text') || 'Emitiendo…';
+                if (!btn.dataset.originalText) {
+                    btn.dataset.originalText = btn.textContent.trim();
+                }
+                btn.textContent = loadingText;
+                btn.style.opacity = '0.65';
+                btn.style.cursor = 'wait';
+            });
+        });
     });
 
     function toggleUserMenu() {

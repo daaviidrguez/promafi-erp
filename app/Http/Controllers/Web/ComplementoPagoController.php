@@ -17,6 +17,7 @@ use App\Models\NotaCredito;
 use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
+use App\Services\TimbradoConcurrencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -472,61 +473,76 @@ class ComplementoPagoController extends Controller
      */
     public function timbrar(ComplementoPago $complemento)
     {
-        if ($complemento->estado !== 'borrador') {
+        if (! $complemento->puedeTimbrar()) {
             return back()->with('error', 'Este complemento no puede ser timbrado');
         }
 
-        DB::beginTransaction();
+        $lock = TimbradoConcurrencyGuard::acquire('complemento', $complemento->id);
+        if ($lock === null) {
+            return back()->with('error', TimbradoConcurrencyGuard::mensajeEnProceso());
+        }
+
         try {
-            // Llamar al servicio de timbrado
-            $resultado = $this->pacService->timbrarComplemento($complemento);
+            DB::beginTransaction();
+            try {
+                $complemento = ComplementoPago::lockForUpdate()->findOrFail($complemento->id);
+                if (! $complemento->puedeTimbrar()) {
+                    throw new \Exception('Este complemento no puede ser timbrado');
+                }
 
-            if (!$resultado['success']) {
-                throw new \Exception($resultado['message']);
-            }
+                // Llamar al servicio de timbrado
+                $resultado = $this->pacService->timbrarComplemento($complemento);
 
-            // Actualizar complemento (incluye sellos, cadena y pac_cfdi_id para cancelación)
-            $complemento->update([
-                'estado' => 'timbrado',
-                'uuid' => $resultado['uuid'],
-                'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
-                'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
-                'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
-                'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
-                'sello_sat' => $resultado['sello_sat'] ?? null,
-                'cadena_original' => $resultado['cadena_original'] ?? null,
-                'xml_content' => $resultado['xml'] ?? null,
-            ]);
+                if (! $resultado['success']) {
+                    throw new \Exception($resultado['message']);
+                }
 
-            // Guardar XML
-            if (isset($resultado['xml'])) {
-                $xmlPath = $this->guardarXML($complemento, $resultado['xml']);
-                $complemento->update(['xml_path' => $xmlPath]);
-            }
+                // Actualizar complemento (incluye sellos, cadena y pac_cfdi_id para cancelación)
+                $complemento->update([
+                    'estado' => 'timbrado',
+                    'uuid' => $resultado['uuid'],
+                    'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
+                    'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
+                    'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
+                    'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
+                    'sello_sat' => $resultado['sello_sat'] ?? null,
+                    'cadena_original' => $resultado['cadena_original'] ?? null,
+                    'xml_content' => $resultado['xml'] ?? null,
+                ]);
 
-            // Aplicar pagos a Cuentas por Cobrar (solo al timbrar, flujo fiscal correcto)
-            $complemento->load('pagosRecibidos.documentosRelacionados.factura');
-            foreach ($complemento->pagosRecibidos as $pagoRecibido) {
-                foreach ($pagoRecibido->documentosRelacionados as $doc) {
-                    $cuenta = $doc->factura->cuentaPorCobrar;
-                    if ($cuenta) {
-                        $cuenta->registrarPago((float) $doc->monto_pagado);
+                // Guardar XML
+                if (isset($resultado['xml'])) {
+                    $xmlPath = $this->guardarXML($complemento, $resultado['xml']);
+                    $complemento->update(['xml_path' => $xmlPath]);
+                }
+
+                // Aplicar pagos a Cuentas por Cobrar (solo al timbrar, flujo fiscal correcto)
+                $complemento->load('pagosRecibidos.documentosRelacionados.factura');
+                foreach ($complemento->pagosRecibidos as $pagoRecibido) {
+                    foreach ($pagoRecibido->documentosRelacionados as $doc) {
+                        $cuenta = $doc->factura->cuentaPorCobrar;
+                        if ($cuenta) {
+                            $cuenta->registrarPago((float) $doc->monto_pagado);
+                        }
                     }
                 }
+
+                // Generar PDF del complemento
+                $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
+                $complemento->update(['pdf_path' => $pdfPath]);
+
+                DB::commit();
+
+                return redirect()->route('complementos.show', $complemento->id)
+                    ->with('success', $resultado['message'].' - PDF generado.');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                return back()->with('error', 'Error al timbrar: '.$e->getMessage());
             }
-
-            // Generar PDF del complemento
-            $pdfPath = $this->pdfService->generarComplementoPDF($complemento);
-            $complemento->update(['pdf_path' => $pdfPath]);
-
-            DB::commit();
-
-            return redirect()->route('complementos.show', $complemento->id)
-                ->with('success', $resultado['message'] . ' - PDF generado.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Error al timbrar: ' . $e->getMessage());
+        } finally {
+            TimbradoConcurrencyGuard::release($lock);
         }
     }
 

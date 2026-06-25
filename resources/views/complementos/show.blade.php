@@ -198,7 +198,8 @@ $breadcrumbs = [
                 <p class="text-muted" style="font-size: 13px; margin: 0 0 8px 0;">
                     Al emitir se timbrará el complemento y se aplicará el pago a las cuentas por cobrar.
                 </p>
-                <form method="POST" action="{{ route('complementos.timbrar', $complemento->id) }}">
+                <form method="POST" action="{{ route('complementos.timbrar', $complemento->id) }}"
+                      class="form-timbrar-protegido" data-loading-text="Emitiendo complemento…">
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">Emitir complemento</button>
                 </form>

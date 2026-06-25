@@ -16,6 +16,7 @@ use App\Models\FormaPago;
 use App\Models\MetodoPago;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
+use App\Services\TimbradoConcurrencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -596,51 +597,66 @@ class NotaCreditoController extends Controller
 
     public function timbrar(NotaCredito $notaCredito)
     {
-        if (!$notaCredito->puedeTimbrar()) {
+        if (! $notaCredito->puedeTimbrar()) {
             return back()->with('error', 'Esta nota de crédito no puede ser timbrada.');
         }
 
-        DB::beginTransaction();
+        $lock = TimbradoConcurrencyGuard::acquire('nota-credito', $notaCredito->id);
+        if ($lock === null) {
+            return back()->with('error', TimbradoConcurrencyGuard::mensajeEnProceso());
+        }
+
         try {
-            $resultado = $this->pacService->timbrarNotaCredito($notaCredito);
-            if (!$resultado['success']) {
-                throw new \Exception($resultado['message']);
-            }
-
-            $notaCredito->update([
-                'estado' => 'timbrada',
-                'uuid' => $resultado['uuid'],
-                'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
-                'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
-                'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
-                'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
-                'sello_sat' => $resultado['sello_sat'] ?? null,
-                'cadena_original' => $resultado['cadena_original'] ?? null,
-                'xml_content' => $resultado['xml'] ?? null,
-            ]);
-
-            if (!empty($resultado['xml'])) {
-                $dir = storage_path('app/notas-credito/' . now()->format('Y/m'));
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0755, true);
+            DB::beginTransaction();
+            try {
+                $notaCredito = NotaCredito::lockForUpdate()->findOrFail($notaCredito->id);
+                if (! $notaCredito->puedeTimbrar()) {
+                    throw new \Exception('Esta nota de crédito no puede ser timbrada.');
                 }
-                $path = $dir . '/' . $notaCredito->folio_completo . '.xml';
-                file_put_contents($path, $resultado['xml']);
-                $notaCredito->update(['xml_path' => 'notas-credito/' . now()->format('Y/m') . '/' . $notaCredito->folio_completo . '.xml']);
+
+                $resultado = $this->pacService->timbrarNotaCredito($notaCredito);
+                if (! $resultado['success']) {
+                    throw new \Exception($resultado['message']);
+                }
+
+                $notaCredito->update([
+                    'estado' => 'timbrada',
+                    'uuid' => $resultado['uuid'],
+                    'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
+                    'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
+                    'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
+                    'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
+                    'sello_sat' => $resultado['sello_sat'] ?? null,
+                    'cadena_original' => $resultado['cadena_original'] ?? null,
+                    'xml_content' => $resultado['xml'] ?? null,
+                ]);
+
+                if (! empty($resultado['xml'])) {
+                    $dir = storage_path('app/notas-credito/'.now()->format('Y/m'));
+                    if (! is_dir($dir)) {
+                        mkdir($dir, 0755, true);
+                    }
+                    $path = $dir.'/'.$notaCredito->folio_completo.'.xml';
+                    file_put_contents($path, $resultado['xml']);
+                    $notaCredito->update(['xml_path' => 'notas-credito/'.now()->format('Y/m').'/'.$notaCredito->folio_completo.'.xml']);
+                }
+
+                $pdfPath = $this->pdfService->generarNotaCreditoPDF($notaCredito);
+                $notaCredito->update(['pdf_path' => $pdfPath]);
+
+                $notaCredito->cliente->actualizarSaldo();
+
+                DB::commit();
+
+                return redirect()->route('notas-credito.show', $notaCredito->id)
+                    ->with('success', ($resultado['message'] ?? 'Nota de crédito timbrada.').' PDF generado.');
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                return back()->with('error', 'Error al timbrar: '.$e->getMessage());
             }
-
-            $pdfPath = $this->pdfService->generarNotaCreditoPDF($notaCredito);
-            $notaCredito->update(['pdf_path' => $pdfPath]);
-
-            $notaCredito->cliente->actualizarSaldo();
-
-            DB::commit();
-
-            return redirect()->route('notas-credito.show', $notaCredito->id)
-                ->with('success', ($resultado['message'] ?? 'Nota de crédito timbrada.') . ' PDF generado.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Error al timbrar: ' . $e->getMessage());
+        } finally {
+            TimbradoConcurrencyGuard::release($lock);
         }
     }
 

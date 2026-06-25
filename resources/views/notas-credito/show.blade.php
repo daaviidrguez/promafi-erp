@@ -67,7 +67,8 @@ $breadcrumbs = [
                 @endif
                 <a href="{{ route('notas-credito.ver-pdf', $notaCredito->id) }}" target="_blank" class="btn btn-outline w-full">Ver PDF</a>
                 @if($notaCredito->estado === 'borrador')
-                <form method="POST" action="{{ route('notas-credito.timbrar', $notaCredito->id) }}">@csrf<button type="submit" class="btn btn-primary w-full">Emitir (timbrar) nota de crédito</button></form>
+                <form method="POST" action="{{ route('notas-credito.timbrar', $notaCredito->id) }}"
+                      class="form-timbrar-protegido" data-loading-text="Emitiendo nota de crédito…">@csrf<button type="submit" class="btn btn-primary w-full">Emitir (timbrar) nota de crédito</button></form>
                 @endif
                 @if($notaCredito->estaTimbrada())
                     @if($notaCredito->pdf_path)<a href="{{ route('notas-credito.descargar-pdf', $notaCredito->id) }}" class="btn btn-outline w-full">Descargar PDF</a>@endif

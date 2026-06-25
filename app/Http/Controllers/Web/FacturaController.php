@@ -24,6 +24,7 @@ use App\Models\UsoCfdi;
 use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
+use App\Services\TimbradoConcurrencyGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -729,71 +730,85 @@ class FacturaController extends Controller
             return back()->with('error', 'Esta factura no puede ser timbrada');
         }
 
-        DB::beginTransaction();
+        $lock = TimbradoConcurrencyGuard::acquire('factura', $factura->id);
+        if ($lock === null) {
+            return back()->with('error', TimbradoConcurrencyGuard::mensajeEnProceso());
+        }
+
         try {
-            // Llamar al servicio de timbrado
-            $resultado = $this->pacService->timbrarFactura($factura);
+            DB::beginTransaction();
+            try {
+                $factura = Factura::lockForUpdate()->findOrFail($factura->id);
+                if (! $factura->puedeTimbrar()) {
+                    throw new \Exception('Esta factura no puede ser timbrada');
+                }
 
-            if (! $resultado['success']) {
-                throw new \Exception($resultado['message']);
-            }
+                // Llamar al servicio de timbrado
+                $resultado = $this->pacService->timbrarFactura($factura);
 
-            // Actualizar factura con datos del timbrado
-            $factura->update([
-                'estado' => 'timbrada',
-                'uuid' => $resultado['uuid'],
-                'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
-                'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
-                'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
-                'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
-                'sello_sat' => $resultado['sello_sat'] ?? null,
-                'cadena_original' => $resultado['cadena_original'] ?? null,
-                'xml_content' => $resultado['xml'] ?? null,
-            ]);
+                if (! $resultado['success']) {
+                    throw new \Exception($resultado['message']);
+                }
 
-            $factura->load(['detalles.producto', 'remisionVinculada']);
-            foreach ($factura->detalles as $detalle) {
-                $detalle->aplicarSnapshotCostoAlTimbrado();
-            }
+                // Actualizar factura con datos del timbrado
+                $factura->update([
+                    'estado' => 'timbrada',
+                    'uuid' => $resultado['uuid'],
+                    'pac_cfdi_id' => $resultado['pac_cfdi_id'] ?? null,
+                    'fecha_timbrado' => $resultado['fecha_timbrado'] ?? now(),
+                    'no_certificado_sat' => $resultado['no_certificado_sat'] ?? null,
+                    'sello_cfdi' => $resultado['sello_cfdi'] ?? null,
+                    'sello_sat' => $resultado['sello_sat'] ?? null,
+                    'cadena_original' => $resultado['cadena_original'] ?? null,
+                    'xml_content' => $resultado['xml'] ?? null,
+                ]);
 
-            // Descontar inventario al timbrar (no en borrador), salvo si la mercancía ya salió por remisión
-            if (! $factura->inventarioDescontadoEnRemision()) {
+                $factura->load(['detalles.producto', 'remisionVinculada']);
                 foreach ($factura->detalles as $detalle) {
-                    $producto = $detalle->producto;
-                    if ($producto && $producto->controla_inventario) {
-                        InventarioMovimiento::registrar(
-                            $producto,
-                            InventarioMovimiento::TIPO_SALIDA_FACTURA,
-                            (float) $detalle->cantidad,
-                            auth()->id(),
-                            $factura->id,
-                            null,
-                            null,
-                            null
-                        );
+                    $detalle->aplicarSnapshotCostoAlTimbrado();
+                }
+
+                // Descontar inventario al timbrar (no en borrador), salvo si la mercancía ya salió por remisión
+                if (! $factura->inventarioDescontadoEnRemision()) {
+                    foreach ($factura->detalles as $detalle) {
+                        $producto = $detalle->producto;
+                        if ($producto && $producto->controla_inventario) {
+                            InventarioMovimiento::registrar(
+                                $producto,
+                                InventarioMovimiento::TIPO_SALIDA_FACTURA,
+                                (float) $detalle->cantidad,
+                                auth()->id(),
+                                $factura->id,
+                                null,
+                                null,
+                                null
+                            );
+                        }
                     }
                 }
+
+                // Guardar XML
+                if (isset($resultado['xml'])) {
+                    $xmlPath = $this->guardarXML($factura, $resultado['xml']);
+                    $factura->update(['xml_path' => $xmlPath]);
+                }
+
+                // Generar PDF automáticamente
+                $pdfPath = $this->pdfService->generarFacturaPDF($factura);
+                $factura->update(['pdf_path' => $pdfPath]);
+
+                DB::commit();
+
+                return redirect()->route('facturas.show', $factura->id)
+                    ->with('success', $resultado['message'].' - PDF generado automáticamente');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                return back()->with('error', 'Error al timbrar: '.$e->getMessage());
             }
-
-            // Guardar XML
-            if (isset($resultado['xml'])) {
-                $xmlPath = $this->guardarXML($factura, $resultado['xml']);
-                $factura->update(['xml_path' => $xmlPath]);
-            }
-
-            // Generar PDF automáticamente
-            $pdfPath = $this->pdfService->generarFacturaPDF($factura);
-            $factura->update(['pdf_path' => $pdfPath]);
-
-            DB::commit();
-
-            return redirect()->route('facturas.show', $factura->id)
-                ->with('success', $resultado['message'].' - PDF generado automáticamente');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return back()->with('error', 'Error al timbrar: '.$e->getMessage());
+        } finally {
+            TimbradoConcurrencyGuard::release($lock);
         }
     }
 

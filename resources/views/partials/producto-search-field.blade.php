@@ -8,6 +8,7 @@
     $required = $required ?? true;
     $allowEmpty = $allowEmpty ?? ! $required;
     $compact = $compact ?? false;
+    $wide = $wide ?? false;
     $showStock = $showStock ?? false;
     $placeholder = $placeholder ?? 'Buscar producto por código o nombre...';
     $productoIdValue = (string) ($productoIdValue ?? old($hiddenName, $productoId ?? ''));
@@ -27,9 +28,12 @@
     $inputStyle = $compact
         ? 'width: auto; min-width: 220px; max-width: min(320px, 100vw);'
         : '';
+    $wrapperStyle = $wide
+        ? 'min-width: min(100%, 420px); flex: 1 1 320px;'
+        : '';
 @endphp
 
-<div class="{{ $wrapperClass }}">
+<div class="{{ $wrapperClass }}"@if($wrapperStyle !== '') style="{{ $wrapperStyle }}"@endif>
     @if($showLabel && $label !== '')
         <label class="form-label" for="{{ $inputId }}">
             {{ $label }} @if($required)<span class="req">*</span>@endif

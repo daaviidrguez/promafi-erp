@@ -13,17 +13,14 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
 
 @section('content')
 
-<div class="card">
+<div class="card card-search">
     <div class="card-body">
-        <form method="GET" action="{{ route('inventario.movimientos') }}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <form method="GET" action="{{ route('inventario.movimientos') }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
             @include('partials.producto-search-field', [
                 'required' => false,
                 'allowEmpty' => true,
-                'label' => '',
-                'showLabel' => false,
-                'compact' => true,
+                'wide' => true,
                 'showStock' => true,
-                'placeholder' => 'Buscar producto...',
                 'productoIdValue' => $productoId ?? '',
                 'productoNombreValue' => $productoSeleccionado
                     ? $productoSeleccionado->codigo . ' — ' . $productoSeleccionado->nombre . ' (stock: ' . number_format((float) $productoSeleccionado->stock, 2) . ')'

@@ -12,12 +12,13 @@ $breadcrumbs = [
 
 @section('content')
 
-<div class="card">
+<div class="card card-search">
     <div class="card-header"><div class="card-title">Filtros</div></div>
     <div class="card-body">
         <form method="GET" action="{{ route('inventario.kardex') }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
             @include('partials.producto-search-field', [
                 'required' => true,
+                'wide' => true,
                 'showStock' => true,
                 'productoIdValue' => $productoId ?? '',
                 'productoNombreValue' => $productoSeleccionado

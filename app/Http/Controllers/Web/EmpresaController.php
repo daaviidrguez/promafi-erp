@@ -28,6 +28,8 @@ class EmpresaController extends Controller
                 'serie_factura_credito' => 'FB',
                 'folio_factura_credito' => 1,
                 'pac_provider' => 'facturama_sandbox',
+                'pdf_factura_font_cuerpo' => Empresa::PDF_FACTURA_FONT_CUERPO_DEFAULT,
+                'pdf_factura_font_titulo' => Empresa::PDF_FACTURA_FONT_TITULO_DEFAULT,
             ]);
         }
 
@@ -107,6 +109,22 @@ class EmpresaController extends Controller
         'banco' => 'nullable|string|max:255',
         'numero_cuenta' => 'nullable|string|max:50',
         'clabe' => 'nullable|string|max:18',
+
+        // ===============================
+        // PDF FACTURA (tipografía segura)
+        // ===============================
+        'pdf_factura_font_cuerpo' => 'required|numeric|between:'.Empresa::PDF_FACTURA_FONT_CUERPO_MIN.','.Empresa::PDF_FACTURA_FONT_CUERPO_MAX,
+        'pdf_factura_font_titulo' => [
+            'required',
+            'numeric',
+            'between:'.Empresa::PDF_FACTURA_FONT_TITULO_MIN.','.Empresa::PDF_FACTURA_FONT_TITULO_MAX,
+            function ($attribute, $value, $fail) use ($request) {
+                $cuerpo = (float) $request->input('pdf_factura_font_cuerpo', Empresa::PDF_FACTURA_FONT_CUERPO_DEFAULT);
+                if ((float) $value < $cuerpo + 0.5) {
+                    $fail('El tamaño del título debe ser al menos 0.5 pt mayor que el del cuerpo.');
+                }
+            },
+        ],
 
         // ===============================
         // PAC / Facturama
@@ -292,6 +310,22 @@ class EmpresaController extends Controller
     }
     $fillable = array_flip($empresa->getFillable());
     $validated = array_intersect_key($validated, $fillable);
+
+    // Ajustar tipografía PDF a límites seguros (defensa en profundidad)
+    if (isset($validated['pdf_factura_font_cuerpo'])) {
+        $validated['pdf_factura_font_cuerpo'] = min(
+            max((float) $validated['pdf_factura_font_cuerpo'], Empresa::PDF_FACTURA_FONT_CUERPO_MIN),
+            Empresa::PDF_FACTURA_FONT_CUERPO_MAX
+        );
+    }
+    if (isset($validated['pdf_factura_font_titulo'])) {
+        $cuerpo = (float) ($validated['pdf_factura_font_cuerpo'] ?? $empresa->pdf_factura_font_cuerpo ?? Empresa::PDF_FACTURA_FONT_CUERPO_DEFAULT);
+        $titulo = min(
+            max((float) $validated['pdf_factura_font_titulo'], Empresa::PDF_FACTURA_FONT_TITULO_MIN),
+            Empresa::PDF_FACTURA_FONT_TITULO_MAX
+        );
+        $validated['pdf_factura_font_titulo'] = max($titulo, $cuerpo + 0.5);
+    }
 
     // ===============================
     // GUARDAR

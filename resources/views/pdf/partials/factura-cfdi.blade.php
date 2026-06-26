@@ -34,14 +34,25 @@
         $urlVerificacion = urlVerificacionSat($f->uuid, $f->rfc_emisor, $f->rfc_receptor, (float) $f->total, $f->sello_cfdi ?? null);
         $qrVerificacionDataUri = qrCodeDataUri($urlVerificacion, 110);
     }
+
+    // Tipografía RECEPTOR / COMPROBANTE: configurable solo en factura (nota de crédito mantiene tamaño fijo)
+    if ($esFactura ?? false) {
+        $fontCuerpo = $e?->pdfFacturaFontCuerpo() ?? \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_DEFAULT;
+        $fontTitulo = $e?->pdfFacturaFontTitulo() ?? \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_DEFAULT;
+    } else {
+        $fontCuerpo = 6.5;
+        $fontTitulo = 7.0;
+    }
+    $infoBoxStyle = "font-size:{$fontCuerpo}pt; line-height:1.2; padding:2px 6px; margin-bottom:2px;";
+    $sectionTitleStyle = "font-size:{$fontTitulo}pt; margin-bottom:1px; padding-bottom:1px;";
 @endphp
 
 {{-- RECEPTOR (izq) y DATOS DEL COMPROBANTE (der). Emisor ya va en el header. --}}
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:2px;">
 <tr>
     <td width="50%" valign="top" style="padding-right:6px;">
-        <div class="info-box" style="font-size:6.5pt; line-height:1.2; padding:2px 6px; margin-bottom:2px;">
-            <div class="section-title" style="font-size:7pt; margin-bottom:1px; padding-bottom:1px;">RECEPTOR</div>
+        <div class="info-box" style="{{ $infoBoxStyle }}">
+            <div class="section-title" style="{{ $sectionTitleStyle }}">RECEPTOR</div>
             <strong>RFC:</strong> {{ $f->rfc_receptor }}<br>
             <strong>Nombre:</strong> {{ $f->nombre_receptor }}<br>
             <strong>Uso CFDI:</strong> {{ $usoCfdiEtiqueta }}<br>
@@ -66,8 +77,8 @@
         </div>
     </td>
     <td width="50%" valign="top">
-        <div class="info-box" style="font-size:6.5pt; line-height:1.2; padding:2px 6px; margin-bottom:2px;">
-            <div class="section-title" style="font-size:7pt; margin-bottom:1px; padding-bottom:1px;">DATOS DEL COMPROBANTE</div>
+        <div class="info-box" style="{{ $infoBoxStyle }}">
+            <div class="section-title" style="{{ $sectionTitleStyle }}">DATOS DEL COMPROBANTE</div>
             <strong>Serie / Folio:</strong> {{ $f->serie ?? '' }} {{ $f->folio }}<br>
             <strong>Fecha y hora de expedición:</strong> {{ $fechaExpedicionMostrar ? $fechaExpedicionMostrar->format('d/m/Y H:i:s') : '-' }}<br>
             <strong>Lugar de expedición:</strong> {{ $f->lugar_expedicion ?? $e->codigo_postal ?? '-' }}<br>

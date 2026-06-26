@@ -358,6 +358,115 @@ $breadcrumbs = [
                 </div>
             </div>
 
+            {{-- Tipografía PDF de factura --}}
+            @php
+                $pdfFontCuerpo = old('pdf_factura_font_cuerpo', $empresa->pdf_factura_font_cuerpo ?? \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_DEFAULT);
+                $pdfFontTitulo = old('pdf_factura_font_titulo', $empresa->pdf_factura_font_titulo ?? \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_DEFAULT);
+            @endphp
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">📄 PDF de factura</div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted" style="font-size: 12px; margin: 0 0 12px;">
+                        Ajusta el tamaño de <strong>RECEPTOR</strong> y <strong>DATOS DEL COMPROBANTE</strong> en el PDF de factura.
+                        Los rangos están limitados para evitar que el contenido se desborde de la página.
+                    </p>
+
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+                        <button type="button" class="btn btn-secondary btn-sm pdf-font-preset" data-cuerpo="6.5" data-titulo="7">Compacto</button>
+                        <button type="button" class="btn btn-secondary btn-sm pdf-font-preset" data-cuerpo="7.5" data-titulo="8">Normal</button>
+                        <button type="button" class="btn btn-secondary btn-sm pdf-font-preset" data-cuerpo="8.5" data-titulo="9.5">Amplio</button>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Texto del cuerpo (pt)</label>
+                            <input type="number" name="pdf_factura_font_cuerpo" id="pdf_factura_font_cuerpo" class="form-control"
+                                   value="{{ $pdfFontCuerpo }}"
+                                   min="{{ \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_MIN }}"
+                                   max="{{ \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_MAX }}"
+                                   step="0.5" required>
+                            <span class="form-hint">Rango seguro: {{ \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_MIN }} – {{ \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_MAX }} pt</span>
+                            @error('pdf_factura_font_cuerpo')
+                                <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
+                            @enderror
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Títulos de sección (pt)</label>
+                            <input type="number" name="pdf_factura_font_titulo" id="pdf_factura_font_titulo" class="form-control"
+                                   value="{{ $pdfFontTitulo }}"
+                                   min="{{ \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_MIN }}"
+                                   max="{{ \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_MAX }}"
+                                   step="0.5" required>
+                            <span class="form-hint">Rango seguro: {{ \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_MIN }} – {{ \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_MAX }} pt (mín. +0.5 sobre el cuerpo)</span>
+                            @error('pdf_factura_font_titulo')
+                                <span class="form-hint" style="color: var(--color-danger);">{{ $message }}</span>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div id="pdf-font-preview" style="border: 1px solid var(--color-gray-200); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--color-gray-50);">
+                        <div id="pdf-font-preview-titulo" style="font-weight: bold; border-bottom: 2px solid #0B3C5D; margin-bottom: 4px; padding-bottom: 2px;">RECEPTOR</div>
+                        <div id="pdf-font-preview-cuerpo" style="line-height: 1.25;">
+                            <strong>RFC:</strong> XAXX010101000<br>
+                            <strong>Nombre:</strong> Cliente de ejemplo S.A. de C.V.
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info" style="margin-top: 12px; margin-bottom: 0; padding: 10px 12px; font-size: 12px;">
+                        Los PDF ya generados no cambian solos. El nuevo tamaño aplica al timbrar o regenerar facturas.
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function () {
+                var cuerpoInput = document.getElementById('pdf_factura_font_cuerpo');
+                var tituloInput = document.getElementById('pdf_factura_font_titulo');
+                var previewCuerpo = document.getElementById('pdf-font-preview-cuerpo');
+                var previewTitulo = document.getElementById('pdf-font-preview-titulo');
+                var cuerpoMin = {{ \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_MIN }};
+                var cuerpoMax = {{ \App\Models\Empresa::PDF_FACTURA_FONT_CUERPO_MAX }};
+                var tituloMin = {{ \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_MIN }};
+                var tituloMax = {{ \App\Models\Empresa::PDF_FACTURA_FONT_TITULO_MAX }};
+
+                function clamp(value, min, max) {
+                    return Math.min(max, Math.max(min, value));
+                }
+
+                function updatePreview() {
+                    var cuerpo = clamp(parseFloat(cuerpoInput.value) || 7.5, cuerpoMin, cuerpoMax);
+                    var titulo = clamp(parseFloat(tituloInput.value) || 8, tituloMin, tituloMax);
+                    if (titulo < cuerpo + 0.5) {
+                        titulo = cuerpo + 0.5;
+                        tituloInput.value = titulo.toFixed(1);
+                    }
+                    previewCuerpo.style.fontSize = cuerpo + 'pt';
+                    previewTitulo.style.fontSize = titulo + 'pt';
+                }
+
+                cuerpoInput.addEventListener('input', function () {
+                    var cuerpo = clamp(parseFloat(cuerpoInput.value) || cuerpoMin, cuerpoMin, cuerpoMax);
+                    var titulo = parseFloat(tituloInput.value) || tituloMin;
+                    if (titulo < cuerpo + 0.5) {
+                        tituloInput.value = (cuerpo + 0.5).toFixed(1);
+                    }
+                    updatePreview();
+                });
+                tituloInput.addEventListener('input', updatePreview);
+
+                document.querySelectorAll('.pdf-font-preset').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        cuerpoInput.value = btn.getAttribute('data-cuerpo');
+                        tituloInput.value = btn.getAttribute('data-titulo');
+                        updatePreview();
+                    });
+                });
+
+                updatePreview();
+            })();
+            </script>
+
             {{-- Configuración PAC / Facturama --}}
             <div class="card">
                 <div class="card-header">

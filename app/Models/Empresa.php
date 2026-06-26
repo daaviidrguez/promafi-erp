@@ -10,6 +10,18 @@ class Empresa extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const PDF_FACTURA_FONT_CUERPO_MIN = 6.5;
+
+    public const PDF_FACTURA_FONT_CUERPO_MAX = 9.0;
+
+    public const PDF_FACTURA_FONT_CUERPO_DEFAULT = 7.5;
+
+    public const PDF_FACTURA_FONT_TITULO_MIN = 7.0;
+
+    public const PDF_FACTURA_FONT_TITULO_MAX = 10.0;
+
+    public const PDF_FACTURA_FONT_TITULO_DEFAULT = 8.0;
+
     protected $table = 'empresas';
 
     protected $fillable = [
@@ -32,6 +44,8 @@ class Empresa extends Model
         'email',
         'sitio_web',
         'logo_path',
+        'pdf_factura_font_cuerpo',
+        'pdf_factura_font_titulo',
         'qr_sat_path',
         'banco',
         'numero_cuenta',
@@ -81,6 +95,8 @@ class Empresa extends Model
         'folio_cotizacion' => 'integer',
         'folio_remision' => 'integer',
         'folio_logistica' => 'integer',
+        'pdf_factura_font_cuerpo' => 'float',
+        'pdf_factura_font_titulo' => 'float',
     ];
 
     protected $hidden = [
@@ -90,6 +106,29 @@ class Empresa extends Model
         'pac_facturama_password_sandbox',
         'pac_facturama_password_production',
     ];
+
+    /**
+     * Tamaño de fuente del cuerpo (RECEPTOR / DATOS DEL COMPROBANTE) en PDF de factura.
+     * Siempre dentro de límites seguros para no desbordar la página.
+     */
+    public function pdfFacturaFontCuerpo(): float
+    {
+        $valor = (float) ($this->pdf_factura_font_cuerpo ?? self::PDF_FACTURA_FONT_CUERPO_DEFAULT);
+
+        return round(min(max($valor, self::PDF_FACTURA_FONT_CUERPO_MIN), self::PDF_FACTURA_FONT_CUERPO_MAX), 1);
+    }
+
+    /**
+     * Tamaño de fuente de títulos de sección en PDF de factura.
+     * Garantiza al menos 0.5 pt más grande que el cuerpo.
+     */
+    public function pdfFacturaFontTitulo(): float
+    {
+        $valor = (float) ($this->pdf_factura_font_titulo ?? self::PDF_FACTURA_FONT_TITULO_DEFAULT);
+        $titulo = round(min(max($valor, self::PDF_FACTURA_FONT_TITULO_MIN), self::PDF_FACTURA_FONT_TITULO_MAX), 1);
+
+        return max($titulo, $this->pdfFacturaFontCuerpo() + 0.5);
+    }
 
     /**
      * Obtener la empresa principal (singleton)

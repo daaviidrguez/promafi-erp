@@ -1049,6 +1049,7 @@ class FacturaController extends Controller
             if (! empty($resultado['mensaje_pac'])) {
                 $mensaje .= ' '.$resultado['mensaje_pac'];
             }
+            $mensaje .= ' Puedes descargar el comprobante en el detalle de la factura.';
 
             return back()->with('success', $mensaje);
         } catch (\Throwable $e) {
@@ -1085,6 +1086,45 @@ class FacturaController extends Controller
             'Content-Type' => 'application/xml',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
+    }
+
+    /**
+     * Descargar PDF del acuse de cancelación (comprobante SAT / Facturama, on-demand).
+     */
+    public function descargarPdfAcuseCancelacion(Factura $factura)
+    {
+        if ($factura->estado !== 'cancelada') {
+            return back()->with('error', 'Solo se puede descargar el comprobante de facturas canceladas.');
+        }
+        if ($factura->pendienteCancelacionAntePac()) {
+            return back()->with('error', 'El comprobante estará disponible después de cancelar el CFDI ante el PAC.');
+        }
+        if (empty($factura->uuid)) {
+            return back()->with('error', 'La factura no tiene UUID timbrado.');
+        }
+
+        $empresa = $factura->empresa ?? Empresa::principal();
+        if (! $empresa) {
+            return back()->with('error', 'No hay empresa configurada.');
+        }
+
+        try {
+            $facturama = new FacturamaService($empresa);
+            $resultado = $facturama->obtenerAcuseCancelacionPdfPorFactura($factura);
+            if (! $resultado['success'] || empty($resultado['content'])) {
+                return back()->with('error', $resultado['message']);
+            }
+
+            $filename = 'AcuseCancelacion_'.($factura->uuid ?? $factura->folio_completo).'.pdf';
+            $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+
+            return response($resultado['content'], 200, [
+                'Content-Type' => $resultado['content_type'] ?? 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error al obtener comprobante: '.$e->getMessage());
+        }
     }
 
     /**

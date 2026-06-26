@@ -653,6 +653,104 @@ class FacturamaService
     }
 
     /**
+     * Obtener acuse de cancelación en PDF desde Facturama (on-demand).
+     * GET /Acuse/pdf/issued/{id}
+     *
+     * @return array{success: bool, message: string, content: ?string, content_type: string}
+     */
+    public function obtenerAcuseCancelacionPdfPorFactura(Factura $factura): array
+    {
+        return $this->obtenerAcuseCancelacionPdf($factura->pac_cfdi_id ?? null, $factura->uuid ?? null);
+    }
+
+    /**
+     * @return array{success: bool, message: string, content: ?string, content_type: string}
+     */
+    public function obtenerAcuseCancelacionPdfPorComplemento(ComplementoPago $complemento): array
+    {
+        return $this->obtenerAcuseCancelacionPdf($complemento->pac_cfdi_id ?? null, $complemento->uuid ?? null);
+    }
+
+    /**
+     * @return array{success: bool, message: string, content: ?string, content_type: string}
+     */
+    public function obtenerAcuseCancelacionPdf(?string $pacCfdiId, ?string $uuid): array
+    {
+        $cfdiId = $this->resolverCfdiId($pacCfdiId, $uuid, true);
+        if (empty($cfdiId)) {
+            return [
+                'success' => false,
+                'message' => 'No se encontró el CFDI en Facturama para obtener el comprobante de cancelación.',
+                'content' => null,
+                'content_type' => 'application/pdf',
+            ];
+        }
+
+        $pdf = $this->descargarAcuseCancelacionDesdeFacturama($cfdiId, 'pdf');
+        if ($pdf !== null) {
+            return [
+                'success' => true,
+                'message' => '',
+                'content' => $pdf['content'],
+                'content_type' => $pdf['content_type'],
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => 'No se pudo obtener el comprobante PDF de cancelación desde Facturama. Verifica que el CFDI esté cancelado en el PAC.',
+            'content' => null,
+            'content_type' => 'application/pdf',
+        ];
+    }
+
+    /**
+     * @return array{content: string, content_type: string}|null
+     */
+    protected function descargarAcuseCancelacionDesdeFacturama(string $cfdiId, string $formato): ?array
+    {
+        $formatos = match (strtolower($formato)) {
+            'pdf' => ['pdf', 'Pdf', 'PDF'],
+            default => [$formato],
+        };
+
+        foreach ($formatos as $format) {
+            $url = $this->baseUrl . '/Acuse/' . $format . '/issued/' . $cfdiId;
+            $res = $this->http()->acceptJson()->timeout(30)->get($url);
+            if (! $res->successful()) {
+                continue;
+            }
+            $body = $res->json();
+            if (! is_array($body)) {
+                continue;
+            }
+            $content = $body['Content'] ?? null;
+            if (empty($content)) {
+                continue;
+            }
+            $decoded = base64_decode($content, true);
+            if ($decoded === false || $decoded === '') {
+                continue;
+            }
+            if (strtolower($formato) === 'pdf' && ! str_starts_with($decoded, '%PDF')) {
+                continue;
+            }
+
+            $contentType = $body['ContentType'] ?? null;
+            if (! is_string($contentType) || $contentType === '') {
+                $contentType = strtolower($formato) === 'pdf' ? 'application/pdf' : 'application/octet-stream';
+            }
+
+            return [
+                'content' => $decoded,
+                'content_type' => $contentType,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * Consultar estatus de cancelación ante Facturama/SAT (botón actualizar estatus).
      *
      * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}

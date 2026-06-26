@@ -221,6 +221,10 @@ $breadcrumbs = [
                 @endif
 
                 @if($complemento->estado === 'cancelado')
+                    @if(!empty($complemento->uuid))
+                    <a href="{{ route('complementos.descargar-pdf-acuse-cancelacion', $complemento->id) }}"
+                       class="btn btn-outline w-full">📑 Comprobante de cancelación (PDF)</a>
+                    @endif
                     @if(!empty($complemento->acuse_cancelacion))
                     <a href="{{ route('complementos.descargar-xml-cancelacion', $complemento->id) }}"
                        class="btn btn-outline w-full">📄 XML cancelado</a>

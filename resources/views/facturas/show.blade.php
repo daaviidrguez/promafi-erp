@@ -357,6 +357,10 @@ $breadcrumbs = [
 
                 {{-- XML de cancelación: visible cuando la factura está cancelada (no depende de estaTimbrada) --}}
                 @if($factura->estado === 'cancelada')
+                    @if(! $factura->pendienteCancelacionAntePac() && !empty($factura->uuid))
+                    <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}"
+                       class="btn btn-outline w-full">📑 Comprobante de cancelación (PDF)</a>
+                    @endif
                     @if(!empty($factura->acuse_cancelacion))
                     <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">📄 XML cancelado</a>

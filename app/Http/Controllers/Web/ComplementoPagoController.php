@@ -770,10 +770,47 @@ class ComplementoPagoController extends Controller
             if (! empty($resultado['mensaje_pac'])) {
                 $mensaje .= ' '.$resultado['mensaje_pac'];
             }
+            $mensaje .= ' Puedes descargar el comprobante en el detalle del complemento.';
 
             return back()->with('success', $mensaje);
         } catch (\Throwable $e) {
             return back()->with('error', 'Error al actualizar estatus: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Descargar PDF del acuse de cancelación (comprobante SAT / Facturama, on-demand).
+     */
+    public function descargarPdfAcuseCancelacion(ComplementoPago $complemento)
+    {
+        if ($complemento->estado !== 'cancelado') {
+            return back()->with('error', 'Solo se puede descargar el comprobante de complementos cancelados.');
+        }
+        if (empty($complemento->uuid)) {
+            return back()->with('error', 'El complemento no tiene UUID timbrado.');
+        }
+
+        $empresa = $complemento->empresa ?? Empresa::principal();
+        if (! $empresa) {
+            return back()->with('error', 'No hay empresa configurada.');
+        }
+
+        try {
+            $facturama = new FacturamaService($empresa);
+            $resultado = $facturama->obtenerAcuseCancelacionPdfPorComplemento($complemento);
+            if (! $resultado['success'] || empty($resultado['content'])) {
+                return back()->with('error', $resultado['message']);
+            }
+
+            $filename = 'AcuseCancelacion_'.($complemento->uuid ?? $complemento->folio_completo).'.pdf';
+            $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+
+            return response($resultado['content'], 200, [
+                'Content-Type' => $resultado['content_type'] ?? 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Error al obtener comprobante: '.$e->getMessage());
         }
     }
 

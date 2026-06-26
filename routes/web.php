@@ -313,6 +313,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::delete('/facturas/{factura}/cancelar', [FacturaController::class, 'cancelar'])->name('facturas.cancelar');
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');
     Route::get('/facturas/{factura}/descargar-xml-cancelacion', [FacturaController::class, 'descargarXmlCancelacion'])->name('facturas.descargar-xml-cancelacion');
+    Route::get('/facturas/{factura}/descargar-pdf-acuse-cancelacion', [FacturaController::class, 'descargarPdfAcuseCancelacion'])->name('facturas.descargar-pdf-acuse-cancelacion');
     Route::get('/facturas/{factura}/obtener-acuse-cancelacion', [FacturaController::class, 'obtenerAcuseCancelacion'])->name('facturas.obtener-acuse-cancelacion');
     Route::post('/facturas/{factura}/actualizar-estatus-cancelacion', [FacturaController::class, 'actualizarEstatusCancelacion'])->name('facturas.actualizar-estatus-cancelacion');
     Route::get('/facturas/{factura}/ver-pdf', [FacturaController::class, 'verPDF'])->name('facturas.ver-pdf');
@@ -374,6 +375,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/complementos/{complemento}/descargar-xml', [ComplementoPagoController::class, 'descargarXML'])->name('complementos.descargar-xml');
     Route::post('/complementos/{complemento}/cancelar', [ComplementoPagoController::class, 'cancelar'])->name('complementos.cancelar');
     Route::get('/complementos/{complemento}/descargar-xml-cancelacion', [ComplementoPagoController::class, 'descargarXmlCancelacion'])->name('complementos.descargar-xml-cancelacion');
+    Route::get('/complementos/{complemento}/descargar-pdf-acuse-cancelacion', [ComplementoPagoController::class, 'descargarPdfAcuseCancelacion'])->name('complementos.descargar-pdf-acuse-cancelacion');
     Route::get('/complementos/{complemento}/obtener-acuse-cancelacion', [ComplementoPagoController::class, 'obtenerAcuseCancelacion'])->name('complementos.obtener-acuse-cancelacion');
     Route::post('/complementos/{complemento}/actualizar-estatus-cancelacion', [ComplementoPagoController::class, 'actualizarEstatusCancelacion'])->name('complementos.actualizar-estatus-cancelacion');
 

@@ -296,6 +296,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::resource('categorias', CategoriaProductoController::class)->except(['create', 'edit', 'show']);
 
     // ───── INVENTARIO ─────
+    Route::get('/inventario/buscar-productos', [InventarioController::class, 'buscarProductos'])->name('inventario.buscar-productos');
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
     Route::get('/inventario/movimientos', [InventarioController::class, 'movimientos'])->name('inventario.movimientos');
     Route::get('/inventario/movimientos/crear', [InventarioController::class, 'createMovimiento'])->name('inventario.create-movimiento');

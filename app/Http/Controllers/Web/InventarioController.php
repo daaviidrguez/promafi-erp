@@ -31,6 +31,30 @@ class InventarioController extends Controller
         return view('inventario.show-movimiento', compact('movimiento'));
     }
 
+    public function buscarProductos(Request $request)
+    {
+        $search = trim((string) $request->get('q', ''));
+        if (strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $productos = Producto::where('controla_inventario', true)
+            ->where(function ($q) use ($search) {
+                $q->where('nombre', 'like', "%{$search}%")
+                    ->orWhere('codigo', 'like', "%{$search}%");
+            })
+            ->orderBy('nombre')
+            ->limit(10)
+            ->get(['id', 'codigo', 'nombre', 'stock']);
+
+        return response()->json($productos->map(fn ($p) => [
+            'id' => $p->id,
+            'codigo' => $p->codigo,
+            'nombre' => $p->nombre,
+            'stock' => (float) $p->stock,
+        ]));
+    }
+
     public function movimientos(Request $request)
     {
         $productoId = $request->get('producto_id');
@@ -40,15 +64,21 @@ class InventarioController extends Controller
             ->when($tipo, fn ($q) => $q->where('tipo', $tipo))
             ->orderByDesc('created_at');
         $movimientos = $query->paginate(25);
-        $productos = Producto::where('controla_inventario', true)->orderBy('nombre')->get(['id', 'nombre', 'codigo']);
-        return view('inventario.movimientos', compact('movimientos', 'productos', 'productoId', 'tipo'));
+        $productoSeleccionado = $productoId
+            ? Producto::where('controla_inventario', true)->find($productoId)
+            : null;
+
+        return view('inventario.movimientos', compact('movimientos', 'productoId', 'tipo', 'productoSeleccionado'));
     }
 
     public function createMovimiento(Request $request)
     {
-        $productos = Producto::where('controla_inventario', true)->orderBy('nombre')->get();
-        $productoId = $request->get('producto_id');
-        return view('inventario.create-movimiento', compact('productos', 'productoId'));
+        $productoId = old('producto_id', $request->get('producto_id'));
+        $productoSeleccionado = $productoId
+            ? Producto::where('controla_inventario', true)->find($productoId)
+            : null;
+
+        return view('inventario.create-movimiento', compact('productoId', 'productoSeleccionado'));
     }
 
     public function storeMovimiento(Request $request)
@@ -97,7 +127,6 @@ class InventarioController extends Controller
      */
     public function kardex(Request $request)
     {
-        $productos = Producto::where('controla_inventario', true)->orderBy('nombre')->get(['id', 'nombre', 'codigo']);
         $productoId = $request->get('producto_id');
         $fechaDesde = $request->get('fecha_desde');
         $fechaHasta = $request->get('fecha_hasta');
@@ -129,7 +158,11 @@ class InventarioController extends Controller
             }
         }
 
-        return view('inventario.kardex', compact('productos', 'producto', 'movimientos', 'saldoInicial', 'fechaDesde', 'fechaHasta', 'productoId'));
+        $productoSeleccionado = $producto ?? ($productoId
+            ? Producto::where('controla_inventario', true)->find($productoId)
+            : null);
+
+        return view('inventario.kardex', compact('producto', 'movimientos', 'saldoInicial', 'fechaDesde', 'fechaHasta', 'productoId', 'productoSeleccionado'));
     }
 
     /**

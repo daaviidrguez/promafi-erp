@@ -16,12 +16,19 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
 <div class="card">
     <div class="card-body">
         <form method="GET" action="{{ route('inventario.movimientos') }}" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-            <select name="producto_id" class="form-control" style="min-width:220px;">
-                <option value="">Todos los productos</option>
-                @foreach($productos as $p)
-                    <option value="{{ $p->id }}" {{ ($productoId ?? '') == $p->id ? 'selected' : '' }}>{{ $p->codigo }} — {{ Str::limit($p->nombre, 40) }}</option>
-                @endforeach
-            </select>
+            @include('partials.producto-search-field', [
+                'required' => false,
+                'allowEmpty' => true,
+                'label' => '',
+                'showLabel' => false,
+                'compact' => true,
+                'showStock' => true,
+                'placeholder' => 'Buscar producto...',
+                'productoIdValue' => $productoId ?? '',
+                'productoNombreValue' => $productoSeleccionado
+                    ? $productoSeleccionado->codigo . ' — ' . $productoSeleccionado->nombre . ' (stock: ' . number_format((float) $productoSeleccionado->stock, 2) . ')'
+                    : '',
+            ])
             <select name="tipo" class="form-control" style="min-width:180px;">
                 <option value="">Todos los tipos</option>
                 <option value="entrada_compra" {{ ($tipo ?? '') == 'entrada_compra' ? 'selected' : '' }}>Entrada (compra)</option>
@@ -98,3 +105,12 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
 </div>
 
 @endsection
+
+@push('scripts')
+@include('partials.producto-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ProductoSearch.init({ required: false, allowEmpty: true, showStock: true });
+});
+</script>
+@endpush

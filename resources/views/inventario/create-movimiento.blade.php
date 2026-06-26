@@ -13,16 +13,15 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
     <div class="card">
         <div class="card-header"><div class="card-title">📦 Movimiento</div></div>
         <div class="card-body">
-            <div class="form-group">
-                <label class="form-label">Producto <span class="req">*</span></label>
-                <select name="producto_id" class="form-control" required>
-                    <option value="">Seleccionar producto...</option>
-                    @foreach($productos as $p)
-                        <option value="{{ $p->id }}" {{ old('producto_id', $productoId ?? null) == $p->id ? 'selected' : '' }}>{{ $p->codigo }} — {{ $p->nombre }} (stock: {{ number_format($p->stock, 2) }})</option>
-                    @endforeach
-                </select>
-                @error('producto_id')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
-            </div>
+            @include('partials.producto-search-field', [
+                'required' => true,
+                'showStock' => true,
+                'productoIdValue' => old('producto_id', $productoId ?? ''),
+                'productoNombreValue' => $productoSeleccionado
+                    ? $productoSeleccionado->codigo . ' — ' . $productoSeleccionado->nombre . ' (stock: ' . number_format((float) $productoSeleccionado->stock, 2) . ')'
+                    : '',
+            ])
+            @error('producto_id')<span class="form-hint" style="color:var(--color-danger);">{{ $message }}</span>@enderror
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                 <div class="form-group">
                     <label class="form-label">Tipo <span class="req">*</span></label>
@@ -51,3 +50,12 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
     </div>
 </form>
 @endsection
+
+@push('scripts')
+@include('partials.producto-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ProductoSearch.init({ showStock: true });
+});
+</script>
+@endpush

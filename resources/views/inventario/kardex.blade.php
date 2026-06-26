@@ -16,15 +16,14 @@ $breadcrumbs = [
     <div class="card-header"><div class="card-title">Filtros</div></div>
     <div class="card-body">
         <form method="GET" action="{{ route('inventario.kardex') }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-            <div class="form-group" style="min-width: 260px;">
-                <label class="form-label">Producto <span class="req">*</span></label>
-                <select name="producto_id" class="form-control" required>
-                    <option value="">Seleccione un producto</option>
-                    @foreach($productos as $p)
-                        <option value="{{ $p->id }}" {{ ($productoId ?? '') == $p->id ? 'selected' : '' }}>{{ $p->codigo }} — {{ Str::limit($p->nombre, 50) }}</option>
-                    @endforeach
-                </select>
-            </div>
+            @include('partials.producto-search-field', [
+                'required' => true,
+                'showStock' => true,
+                'productoIdValue' => $productoId ?? '',
+                'productoNombreValue' => $productoSeleccionado
+                    ? $productoSeleccionado->codigo . ' — ' . $productoSeleccionado->nombre . ' (stock: ' . number_format((float) $productoSeleccionado->stock, 2) . ')'
+                    : '',
+            ])
             <div class="form-group">
                 <label class="form-label">Fecha desde</label>
                 <input type="date" name="fecha_desde" class="form-control" value="{{ $fechaDesde ?? now()->startOfMonth()->format('Y-m-d') }}" required>
@@ -114,3 +113,12 @@ $breadcrumbs = [
 @endif
 
 @endsection
+
+@push('scripts')
+@include('partials.producto-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ProductoSearch.init({ showStock: true });
+});
+</script>
+@endpush

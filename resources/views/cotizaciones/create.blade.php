@@ -22,11 +22,12 @@ $breadcrumbs = [
 
 @section('content')
 
-<form action="{{ route('cotizaciones.store') }}" method="POST" id="cotizacionForm">
+<form action="{{ route('cotizaciones.store') }}" method="POST" id="cotizacionForm" enctype="multipart/form-data">
 @csrf
 @if($isEdit)
     <input type="hidden" name="cotizacion_id" value="{{ $cotizacion->id }}">
 @endif
+<div id="imagenesHiddenContainer" style="display:none;" aria-hidden="true"></div>
 
 <div style="display:flex; flex-direction:column; gap:20px;">
 
@@ -205,7 +206,7 @@ $breadcrumbs = [
                             <col style="width:70px;">
                             <col style="width:92px;">
                             <col style="width:96px;">
-                            <col style="width:38px;">
+                            <col style="width:72px;">
                         </colgroup>
                         <thead>
                             <tr>
@@ -416,6 +417,8 @@ $breadcrumbs = [
                 'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
                 'manual'    => (bool) $d->es_producto_manual,
                 'sugerencia_id' => $d->sugerencia_id,
+                'imagenes_existentes' => $d->rutasImagenes(),
+                'imagenes_urls' => $d->imagenes_urls,
             ];
         })->all();
     }
@@ -431,7 +434,35 @@ $breadcrumbs = [
 .table-productos-cotizacion tbody td:first-child { padding: 12px 16px; }
 .table-productos-cotizacion tbody td:nth-child(n+2) { padding: 8px 4px; }
 .table-productos-cotizacion tbody td:nth-child(8) { padding-right: 6px; }
-.table-productos-cotizacion tbody td:last-child { padding: 8px 6px 8px 2px; }
+.table-productos-cotizacion tbody td:last-child { padding: 8px 4px 8px 2px; }
+.partida-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.partida-acciones-btns { display: flex; gap: 3px; }
+.partida-imagenes-preview { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; max-width: 68px; }
+.partida-imagen-thumb {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--color-gray-200);
+    background: var(--color-gray-50);
+}
+.partida-imagen-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.partida-imagen-thumb button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 14px;
+    height: 14px;
+    padding: 0;
+    border: none;
+    background: rgba(220, 38, 38, 0.9);
+    color: #fff;
+    font-size: 9px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 0 0 0 3px;
+}
 /* Inputs numéricos: padding horizontal reducido */
 .table-productos-cotizacion .form-control-numeric { padding: 9px 6px; font-size: 13px; }
 .table-productos-cotizacion .form-control-numeric:focus { padding: 9px 6px; }
@@ -493,6 +524,7 @@ const empresaIsrConfig = {
 };
 const cotizacionDetallesIniciales = @json($detallesIniciales);
 const isEditMode = @json($isEdit);
+const MAX_IMAGENES_PARTIDA = 3;
 
 let initialSnapshot = '';
 let allowNavigation = false;
@@ -704,6 +736,7 @@ function parseImportRows(rows) {
             tasa_iva,
             manual: true,
             sugerencia_id: null,
+            imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         };
     }).filter(Boolean);
 }
@@ -804,6 +837,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 tasa_iva: d.tasa_iva,
                 manual: d.manual,
                 sugerencia_id: d.sugerencia_id || null,
+                imagenesExistentes: Array.isArray(d.imagenes_existentes) ? d.imagenes_existentes.slice() : [],
+                imagenesUrls: Array.isArray(d.imagenes_urls) ? d.imagenes_urls.slice() : [],
+                imagenesNuevas: [],
+                previewNuevas: [],
             };
         });
         renderProductos();
@@ -1007,6 +1044,7 @@ function cargarProductoListaByIdx(i) {
         id: p.id, codigo: p.codigo, nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
         descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+        imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     document.getElementById('buscarProductoLista').value = '';
     document.getElementById('productoListaResults').classList.remove('show');
@@ -1026,6 +1064,7 @@ if (btnCargar) btnCargar.addEventListener('click', async function() {
                     id: p.id, codigo: p.codigo, nombre: p.nombre,
                     cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
                     descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+                    imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
                 });
             }
         });
@@ -1063,6 +1102,7 @@ function agregarDesdeBusqueda(item) {
             id: null, codigo: item.codigo || '-', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
             descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id,
+            imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     } else {
         if (productos.find(x => x.id === item.id && !x.manual)) { alert('Este producto ya está en la cotización'); return; }
@@ -1070,6 +1110,7 @@ function agregarDesdeBusqueda(item) {
             id: item.id, codigo: item.codigo, nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
             descuento: 0, tasa_iva: item.tasa_iva, manual: false,
+            imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     }
     document.getElementById('buscarProducto').value = '';
@@ -1083,6 +1124,7 @@ function agregarProducto(p) {
         id: p.id, codigo: p.codigo, nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio_venta),
         descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+        imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     document.getElementById('buscarProducto').value = '';
     closeDropdown('productoResults');
@@ -1090,8 +1132,133 @@ function agregarProducto(p) {
 }
 
 function agregarManual() {
-    productos.push({ id: null, codigo: '-', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: null });
+    productos.push({
+        id: null, codigo: '-', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16,
+        manual: true, sugerencia_id: null,
+        imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
+    });
     renderProductos();
+}
+
+function initImagenesPartida(p) {
+    if (!p.imagenesExistentes) p.imagenesExistentes = [];
+    if (!p.imagenesUrls) p.imagenesUrls = [];
+    if (!p.imagenesNuevas) p.imagenesNuevas = [];
+    if (!p.previewNuevas) p.previewNuevas = [];
+}
+
+function contarImagenesPartida(p) {
+    initImagenesPartida(p);
+    return (p.imagenesExistentes?.length || 0) + (p.imagenesNuevas?.length || 0);
+}
+
+function liberarPreviewNuevas(p) {
+    (p.previewNuevas || []).forEach(url => { try { URL.revokeObjectURL(url); } catch (e) {} });
+    p.previewNuevas = [];
+}
+
+function agregarImagenPartida(i) {
+    const p = productos[i];
+    if (!p) return;
+    initImagenesPartida(p);
+    if (contarImagenesPartida(p) >= MAX_IMAGENES_PARTIDA) {
+        alert('Máximo ' + MAX_IMAGENES_PARTIDA + ' imágenes por partida.');
+        return;
+    }
+    const input = document.getElementById('imagenInput_' + i);
+    if (input) {
+        input.value = '';
+        input.click();
+    }
+}
+
+function onImagenPartidaSelected(i, input) {
+    const p = productos[i];
+    if (!p || !input?.files?.length) return;
+    initImagenesPartida(p);
+    const restantes = MAX_IMAGENES_PARTIDA - contarImagenesPartida(p);
+    if (restantes <= 0) {
+        alert('Máximo ' + MAX_IMAGENES_PARTIDA + ' imágenes por partida.');
+        input.value = '';
+        return;
+    }
+    const aceptados = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    Array.from(input.files).slice(0, restantes).forEach(file => {
+        if (!aceptados.includes(file.type)) return;
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Cada imagen no debe superar 5 MB.');
+            return;
+        }
+        p.imagenesNuevas.push(file);
+        p.previewNuevas.push(URL.createObjectURL(file));
+    });
+    input.value = '';
+    renderProductos();
+}
+
+function quitarImagenExistente(i, idx) {
+    const p = productos[i];
+    if (!p?.imagenesExistentes) return;
+    p.imagenesExistentes.splice(idx, 1);
+    p.imagenesUrls.splice(idx, 1);
+    renderProductos();
+}
+
+function quitarImagenNueva(i, idx) {
+    const p = productos[i];
+    if (!p?.imagenesNuevas) return;
+    if (p.previewNuevas[idx]) {
+        try { URL.revokeObjectURL(p.previewNuevas[idx]); } catch (e) {}
+    }
+    p.imagenesNuevas.splice(idx, 1);
+    p.previewNuevas.splice(idx, 1);
+    renderProductos();
+}
+
+function renderImagenesPreview(i, p) {
+    initImagenesPartida(p);
+    const items = [];
+    (p.imagenesUrls || []).forEach((url, j) => {
+        const src = (url || '').replace(/"/g, '&quot;');
+        items.push(`<div class="partida-imagen-thumb" title="Imagen guardada">
+            <img src="${src}" alt="">
+            <button type="button" onclick="quitarImagenExistente(${i}, ${j})" title="Quitar">×</button>
+        </div>`);
+    });
+    (p.previewNuevas || []).forEach((url, j) => {
+        const src = (url || '').replace(/"/g, '&quot;');
+        items.push(`<div class="partida-imagen-thumb" title="Nueva imagen">
+            <img src="${src}" alt="">
+            <button type="button" onclick="quitarImagenNueva(${i}, ${j})" title="Quitar">×</button>
+        </div>`);
+    });
+    return items.length ? `<div class="partida-imagenes-preview">${items.join('')}</div>` : '';
+}
+
+function syncImagenesAlFormulario() {
+    const container = document.getElementById('imagenesHiddenContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    productos.forEach((p, i) => {
+        initImagenesPartida(p);
+        (p.imagenesExistentes || []).forEach(path => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = `productos[${i}][imagenes_mantener][]`;
+            inp.value = path;
+            container.appendChild(inp);
+        });
+        (p.imagenesNuevas || []).forEach(file => {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            const inp = document.createElement('input');
+            inp.type = 'file';
+            inp.name = `productos[${i}][imagenes][]`;
+            inp.files = dt.files;
+            inp.style.display = 'none';
+            container.appendChild(inp);
+        });
+    });
 }
 
 function renderProductos() {
@@ -1162,7 +1329,17 @@ function renderProductos() {
             <td class="td-right text-mono" style="font-size:13px;">$${fmtMonto(sub)}</td>
             <td class="td-right text-mono fw-bold" style="color: var(--color-secondary); font-size:13.5px;">$${fmtMonto(total)}</td>
             <td class="td-right">
-                <button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm">✕</button>
+                <div class="partida-acciones">
+                    <div class="partida-acciones-btns">
+                        <button type="button" onclick="agregarImagenPartida(${i})" class="btn btn-outline btn-icon btn-sm"
+                                title="Agregar foto (${contarImagenesPartida(p)}/${MAX_IMAGENES_PARTIDA})"
+                                ${contarImagenesPartida(p) >= MAX_IMAGENES_PARTIDA ? 'disabled' : ''}>+</button>
+                        <button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm" title="Quitar partida">✕</button>
+                    </div>
+                    ${renderImagenesPreview(i, p)}
+                </div>
+                <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" multiple
+                       id="imagenInput_${i}" style="display:none" onchange="onImagenPartidaSelected(${i}, this)">
             </td>
         </tr>`;
     }).join('');
@@ -1246,6 +1423,8 @@ function aplicarSugerencia(rowIndex, el) {
 }
 
 function quitarProducto(i) {
+    const p = productos[i];
+    if (p) liberarPreviewNuevas(p);
     productos.splice(i, 1);
     renderProductos();
 }
@@ -1285,6 +1464,7 @@ document.getElementById('cotizacionForm').addEventListener('submit', e => {
         document.getElementById('buscarProducto').focus();
         return;
     }
+    syncImagenesAlFormulario();
     allowNavigation = true;
 });
 </script>

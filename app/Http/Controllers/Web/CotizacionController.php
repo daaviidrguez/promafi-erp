@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use App\Mail\CotizacionEnviada;
 use Illuminate\Http\JsonResponse;
 
@@ -159,7 +160,24 @@ class CotizacionController extends Controller
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
             'productos.*.sugerencia_id' => 'nullable|exists:sugerencias,id',
+            'productos.*.imagenes_mantener' => 'nullable|array|max:3',
+            'productos.*.imagenes_mantener.*' => 'nullable|string|max:500',
+            'productos.*.imagenes' => 'nullable|array|max:3',
+            'productos.*.imagenes.*' => 'nullable|image|mimes:jpeg,jpg,png,gif,webp|max:5120',
+        ], [
+            'productos.*.imagenes.*.image' => 'Cada archivo debe ser una imagen válida.',
+            'productos.*.imagenes.*.max' => 'Cada imagen no debe superar 5 MB.',
         ]);
+
+        foreach ($request->input('productos', []) as $idx => $item) {
+            $mantener = count(array_filter((array) ($item['imagenes_mantener'] ?? [])));
+            $nuevas = count(array_filter($request->file("productos.{$idx}.imagenes", []) ?: []));
+            if ($mantener + $nuevas > 3) {
+                return back()->withInput()->withErrors([
+                    "productos.{$idx}.imagenes" => 'Máximo 3 imágenes por partida.',
+                ]);
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -188,12 +206,19 @@ class CotizacionController extends Controller
 
             // Crear o actualizar cotización
             $cotizacionId = $request->input('cotizacion_id');
+            $imagenesAntiguas = [];
 
             if ($cotizacionId) {
-                $cotizacion = Cotizacion::findOrFail($cotizacionId);
+                $cotizacion = Cotizacion::with('detalles')->findOrFail($cotizacionId);
 
                 if (!$cotizacion->puedeEditarse()) {
                     throw new \Exception('Esta cotización no puede editarse');
+                }
+
+                foreach ($cotizacion->detalles as $detalleAntiguo) {
+                    foreach ($detalleAntiguo->rutasImagenes() as $path) {
+                        $imagenesAntiguas[] = $path;
+                    }
                 }
 
                 // Eliminar detalle anterior
@@ -259,6 +284,8 @@ class CotizacionController extends Controller
 
             $cotizacion->save();
 
+            $imagenesUsadas = [];
+
             // Crear detalles
             foreach ($validated['productos'] as $index => $item) {
                 $producto = null;
@@ -299,12 +326,15 @@ class CotizacionController extends Controller
                     'descuento_porcentaje' => $item['descuento_porcentaje'] ?? 0,
                     'tasa_iva' => $item['tasa_iva'] ?? null,
                     'orden' => $index,
+                    'imagenes' => $this->procesarImagenesPartida($request, $index, $cotizacion->id, $imagenesUsadas),
                 ]);
                 // Actualizar precio más reciente en la sugerencia para próximas cotizaciones
                 if ($sugerenciaId) {
                     Sugerencia::where('id', $sugerenciaId)->update(['precio_unitario' => $item['precio_unitario']]);
                 }
             }
+
+            $this->eliminarImagenesHuerfanas($imagenesAntiguas, $imagenesUsadas);
 
             DB::commit();
 
@@ -460,6 +490,37 @@ class CotizacionController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Error al mostrar PDF: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Ver imagen de una partida (autenticado; no depende del symlink public/storage).
+     */
+    public function verImagenPartida($cotizacionId, $detalleId, int $indice)
+    {
+        $cotizacion = Cotizacion::findOrFail($cotizacionId);
+        $this->authorizeCotizacion($cotizacion);
+
+        $detalle = CotizacionDetalle::where('cotizacion_id', $cotizacion->id)
+            ->findOrFail($detalleId);
+
+        $paths = $detalle->rutasImagenes();
+        if (! array_key_exists($indice, $paths)) {
+            abort(404);
+        }
+
+        $relativePath = $paths[$indice];
+        if (! $this->esRutaImagenCotizacionValida($relativePath, $cotizacion->id)) {
+            abort(404);
+        }
+
+        $fullPath = Storage::disk('public')->path($relativePath);
+        if (! is_file($fullPath)) {
+            abort(404);
+        }
+
+        return response()->file($fullPath, [
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
     }
 
     /**
@@ -741,9 +802,14 @@ class CotizacionController extends Controller
                 return back()->with('error', 'Esta cotización no puede eliminarse');
             }
 
-            // Eliminar PDF si existe
+            // Eliminar PDF e imágenes de partidas si existen
             if ($cotizacion->pdf_path && file_exists(storage_path('app/' . $cotizacion->pdf_path))) {
                 unlink(storage_path('app/' . $cotizacion->pdf_path));
+            }
+
+            $cotizacion->load('detalles');
+            foreach ($cotizacion->detalles as $detalle) {
+                $detalle->eliminarImagenesDelDisco();
             }
 
             $cotizacion->delete();
@@ -892,5 +958,66 @@ class CotizacionController extends Controller
             'por_vencer' => (clone $q)->porVencer()->count(),
             'vencidas' => (clone $q)->estado('vencida')->count(),
         ]);
+    }
+
+    /**
+     * Procesar imágenes de una partida (máx. 3): conservar existentes y subir nuevas.
+     *
+     * @param  array<int, string>  $imagenesUsadas  Referencia para rastrear rutas en uso tras edición
+     * @return array<int, string>|null
+     */
+    private function procesarImagenesPartida(Request $request, int $index, int $cotizacionId, array &$imagenesUsadas): ?array
+    {
+        $mantenerInput = array_values(array_filter(array_map(
+            static fn ($p) => is_string($p) ? trim($p) : '',
+            (array) $request->input("productos.{$index}.imagenes_mantener", [])
+        )));
+
+        $paths = [];
+        foreach ($mantenerInput as $path) {
+            if ($path === '' || ! $this->esRutaImagenCotizacionValida($path, $cotizacionId)) {
+                continue;
+            }
+            if (! Storage::disk('public')->exists($path)) {
+                continue;
+            }
+            $paths[] = $path;
+        }
+
+        $files = array_values(array_filter($request->file("productos.{$index}.imagenes", []) ?: []));
+        $maxNuevos = max(0, 3 - count($paths));
+        $files = array_slice($files, 0, $maxNuevos);
+
+        foreach ($files as $file) {
+            $paths[] = $file->store('cotizaciones/imagenes/'.$cotizacionId, 'public');
+        }
+
+        $paths = array_values(array_slice($paths, 0, 3));
+        foreach ($paths as $path) {
+            $imagenesUsadas[] = $path;
+        }
+
+        return $paths !== [] ? $paths : null;
+    }
+
+    private function esRutaImagenCotizacionValida(string $path, int $cotizacionId): bool
+    {
+        $prefix = 'cotizaciones/imagenes/'.$cotizacionId.'/';
+
+        return str_starts_with($path, $prefix) && ! str_contains($path, '..');
+    }
+
+    /**
+     * @param  array<int, string>  $imagenesAntiguas
+     * @param  array<int, string>  $imagenesUsadas
+     */
+    private function eliminarImagenesHuerfanas(array $imagenesAntiguas, array $imagenesUsadas): void
+    {
+        $usadas = array_unique($imagenesUsadas);
+        foreach (array_unique($imagenesAntiguas) as $path) {
+            if (! in_array($path, $usadas, true)) {
+                Storage::disk('public')->delete($path);
+            }
+        }
     }
 }

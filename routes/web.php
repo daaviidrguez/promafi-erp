@@ -131,6 +131,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/cotizaciones/{cotizacion}/crear-productos-manuales', [CotizacionController::class, 'crearProductosDesdeManuales'])->name('cotizaciones.crear-productos-manuales');
     Route::post('/cotizaciones/{cotizacion}/detalles/{detalle}/asignar-producto', [CotizacionController::class, 'asignarProductoDetalle'])
         ->name('cotizaciones.detalles.asignar-producto');
+    Route::get('/cotizaciones/{cotizacion}/detalles/{detalle}/imagen/{indice}', [CotizacionController::class, 'verImagenPartida'])
+        ->whereNumber('indice')
+        ->name('cotizaciones.detalles.imagen');
 
     // PDFs
     Route::get('/cotizaciones/{cotizacion}/generar-pdf', [CotizacionController::class, 'generarPDF'])->name('cotizaciones.generar-pdf');

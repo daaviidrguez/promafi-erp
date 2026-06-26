@@ -82,6 +82,7 @@ $breadcrumbs = [
                             <th class="td-center">IVA</th>
                             <th class="td-right">Subtotal</th>
                             <th class="td-right">Total</th>
+                            <th class="td-center">Fotos</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -127,6 +128,20 @@ $breadcrumbs = [
                             </td>
                             <td class="td-right text-mono fw-600">
                                 ${{ number_format($d->total, 2) }}
+                            </td>
+                            <td class="td-center">
+                                @if($d->tieneImagenes())
+                                    <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">
+                                        @foreach($d->imagenes_urls as $url)
+                                            <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" title="Ver imagen">
+                                                <img src="{{ $url }}" alt="Foto partida"
+                                                     style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--color-gray-200);">
+                                            </a>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
                             </td>
                         </tr>
                         @endforeach

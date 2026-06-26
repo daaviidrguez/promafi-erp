@@ -639,6 +639,9 @@ body {
 </div>
 {{-- /FOOTER --}}
 
+@if($esCotizacion ?? false)
+    @include('pdf.partials.cotizacion-anexo-imagenes')
+@endif
 
 <script type="text/php">
 if (isset($pdf)) {

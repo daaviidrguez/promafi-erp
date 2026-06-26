@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class CotizacionDetalle extends Model
 {
@@ -32,9 +33,11 @@ class CotizacionDetalle extends Model
         'iva_monto',
         'total',
         'orden',
+        'imagenes',
     ];
 
     protected $casts = [
+        'imagenes' => 'array',
         'es_producto_manual' => 'boolean',
         'cantidad' => 'decimal:2',
         'precio_unitario' => 'decimal:2',
@@ -70,6 +73,59 @@ class CotizacionDetalle extends Model
     public function sugerencia(): BelongsTo
     {
         return $this->belongsTo(Sugerencia::class);
+    }
+
+    /**
+     * Rutas relativas guardadas (máx. 3) en disco public.
+     *
+     * @return array<int, string>
+     */
+    public function rutasImagenes(): array
+    {
+        $paths = $this->imagenes;
+        if (! is_array($paths) || $paths === []) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn ($p) => is_string($p) ? trim($p) : '', $paths)));
+    }
+
+    /**
+     * URLs para mostrar imágenes en vistas (ruta autenticada del ERP).
+     *
+     * @return array<int, string>
+     */
+    public function getImagenesUrlsAttribute(): array
+    {
+        if (! $this->id || ! $this->cotizacion_id) {
+            return [];
+        }
+
+        $urls = [];
+        foreach ($this->rutasImagenes() as $indice => $path) {
+            if ($path === '') {
+                continue;
+            }
+            $urls[] = route('cotizaciones.detalles.imagen', [
+                'cotizacion' => $this->cotizacion_id,
+                'detalle' => $this->id,
+                'indice' => $indice,
+            ]);
+        }
+
+        return $urls;
+    }
+
+    public function tieneImagenes(): bool
+    {
+        return $this->rutasImagenes() !== [];
+    }
+
+    public function eliminarImagenesDelDisco(): void
+    {
+        foreach ($this->rutasImagenes() as $path) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     /**

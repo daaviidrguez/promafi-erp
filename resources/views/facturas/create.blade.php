@@ -9,6 +9,16 @@ $breadcrumbs = [
     ['title' => 'Facturas', 'url' => route('facturas.index')],
     ['title' => 'Nueva Factura']
 ];
+$clientePreseleccionadoJson = $clientePreseleccionado ? [
+    'id' => $clientePreseleccionado->id,
+    'nombre' => $clientePreseleccionado->nombre,
+    'rfc' => $clientePreseleccionado->rfc,
+    'regimen_fiscal' => $clientePreseleccionado->regimen_fiscal,
+    'tipo_persona' => $clientePreseleccionado->tipo_persona ?? 'fisica',
+    'uso_cfdi_default' => $clientePreseleccionado->uso_cfdi_default,
+    'forma_pago' => $clientePreseleccionado->forma_pago ?? '03',
+    'dias_credito' => $clientePreseleccionado->dias_credito,
+] : null;
 @endphp
 
 @section('content')
@@ -30,35 +40,21 @@ $breadcrumbs = [
                     <div class="card-title">👤 Datos del Cliente</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Cliente <span class="req">*</span></label>
-                        <select id="cliente_id" name="cliente_id" class="form-control" required>
-                            <option value="">Seleccionar cliente...</option>
-                            @foreach($clientes as $cliente)
-                                <option value="{{ $cliente->id }}"
-                                        data-rfc="{{ $cliente->rfc }}"
-                                        data-regimen="{{ $cliente->regimen_fiscal }}"
-                                        data-tipo-persona="{{ $cliente->tipo_persona ?? 'fisica' }}"
-                                        data-uso-cfdi="{{ $cliente->uso_cfdi_default }}"
-                                        data-forma-pago="{{ $cliente->forma_pago ?? '03' }}"
-                                        data-credito="{{ $cliente->dias_credito }}"
-                                        {{ ($clientePreseleccionado && $clientePreseleccionado->id == $cliente->id) ? 'selected' : '' }}>
-                                    {{ $cliente->nombre }} — {{ $cliente->rfc }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('partials.cliente-search-field', [
+                        'clienteIdValue' => old('cliente_id', $clientePreseleccionado?->id),
+                        'clienteNombreValue' => $clientePreseleccionado?->nombre ?? '',
+                    ])
 
-                    <div id="infoCliente" style="display: none;">
+                    <div id="infoCliente" style="display: {{ $clientePreseleccionado ? 'block' : 'none' }};">
                         <div style="background: var(--color-gray-50); border: 1.5px solid var(--color-gray-200); border-radius: var(--radius-md); padding: 12px 16px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
                                 <div>
                                     <span class="text-muted">RFC: </span>
-                                    <span class="text-mono fw-600" id="infoRFC"></span>
+                                    <span class="text-mono fw-600" id="infoRFC">{{ $clientePreseleccionado->rfc ?? '' }}</span>
                                 </div>
                                 <div>
                                     <span class="text-muted">Régimen: </span>
-                                    <span id="infoRegimen"></span>
+                                    <span id="infoRegimen">{{ $clientePreseleccionado->regimen_fiscal ?? 'N/A' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -271,9 +267,11 @@ $breadcrumbs = [
 @endsection
 
 @push('scripts')
+@include('partials.cliente-search-js')
 <script>
 let productoIndex = 0;
 let filaBusquedaActiva = null;
+let clienteTipoPersonaActual = @json($clientePreseleccionado?->tipo_persona ?? 'fisica');
 const catalogoProductos = @json($productos);
 const empresaIsrConfig = {
     tipo_persona: @json($empresa->tipo_persona ?? 'moral'),
@@ -283,9 +281,7 @@ const empresaIsrConfig = {
 };
 
 function getClienteTipoPersona() {
-    const sel = document.getElementById('cliente_id');
-    if (!sel?.value) return 'fisica';
-    return sel.options[sel.selectedIndex]?.dataset.tipoPersona || 'fisica';
+    return clienteTipoPersonaActual || 'fisica';
 }
 
 function aplicaRetencionIsrPm(clienteTipoPersona) {
@@ -314,21 +310,36 @@ document.addEventListener('click', function (e) {
     }
 });
 
-// Info cliente al cambiar select
-document.getElementById('cliente_id').addEventListener('change', function() {
-    const opt = this.options[this.selectedIndex];
+// Info cliente al seleccionar en búsqueda
+function aplicarClienteFactura(c) {
     const info = document.getElementById('infoCliente');
-    if (this.value) {
-        document.getElementById('infoRFC').textContent     = opt.dataset.rfc;
-        document.getElementById('infoRegimen').textContent = opt.dataset.regimen || 'N/A';
-        document.getElementById('uso_cfdi').value          = opt.dataset.usoCfdi || 'G03';
-        document.getElementById('forma_pago').value        = opt.dataset.formaPago || '03';
-        document.getElementById('metodo_pago').value       = parseInt(opt.dataset.credito) > 0 ? 'PPD' : 'PUE';
-        info.style.display = 'block';
-    } else {
-        info.style.display = 'none';
+    if (!c || !c.id) {
+        clienteTipoPersonaActual = 'fisica';
+        if (info) info.style.display = 'none';
+        return;
     }
+    clienteTipoPersonaActual = c.tipo_persona || 'fisica';
+    document.getElementById('infoRFC').textContent = c.rfc || '';
+    document.getElementById('infoRegimen').textContent = c.regimen_fiscal || 'N/A';
+    document.getElementById('uso_cfdi').value = c.uso_cfdi_default || 'G03';
+    document.getElementById('forma_pago').value = c.forma_pago || '03';
+    document.getElementById('metodo_pago').value = parseInt(c.dias_credito, 10) > 0 ? 'PPD' : 'PUE';
+    if (info) info.style.display = 'block';
     calcularTotales();
+}
+
+const clientePreseleccionado = @json($clientePreseleccionadoJson);
+
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init({
+        onSelect: aplicarClienteFactura,
+        onClear: function () {
+            clienteTipoPersonaActual = 'fisica';
+            document.getElementById('infoCliente').style.display = 'none';
+            calcularTotales();
+        },
+        initial: clientePreseleccionado,
+    });
 });
 
 // Prefill desde remisión (cuando se llega con `?remision_id=...`)
@@ -379,12 +390,13 @@ function prefillFacturaDesdeRemision() {
     });
 
     // Pre-cargar cliente (y disparar change para que se actualice método/folio)
-    if (clientePreId) {
-        const clienteSelect = document.getElementById('cliente_id');
-        if (clienteSelect) {
-            clienteSelect.value = String(clientePreId);
-            clienteSelect.dispatchEvent(new Event('change'));
-        }
+    if (clientePreId && clientePreseleccionado) {
+        ClienteSearch.apply(clientePreseleccionado, {
+            inputId: 'buscarCliente',
+            hiddenId: 'cliente_id',
+            resultsId: 'clienteResults',
+            onSelect: aplicarClienteFactura,
+        });
     }
 
     // Observaciones

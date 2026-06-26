@@ -20,13 +20,10 @@ $breadcrumbs = [
         <form method="GET" action="{{ route('estado-cuenta.ver') }}"
               style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: end;">
             <div class="form-group">
-                <label class="form-label">Cliente <span class="req">*</span></label>
-                <select name="cliente_id" class="form-control" required>
-                    <option value="">Seleccionar cliente</option>
-                    @foreach($clientes as $c)
-                        <option value="{{ $c->id }}" {{ ($clienteId ?? '') == $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
-                    @endforeach
-                </select>
+                @include('partials.cliente-search-field', [
+                    'clienteIdValue' => $clienteId ?? '',
+                    'clientes' => $clientes,
+                ])
             </div>
             <div class="form-group">
                 <label class="form-label">Tipo de reporte</label>
@@ -58,3 +55,12 @@ $breadcrumbs = [
 </p>
 
 @endsection
+
+@push('scripts')
+@include('partials.cliente-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init();
+});
+</script>
+@endpush

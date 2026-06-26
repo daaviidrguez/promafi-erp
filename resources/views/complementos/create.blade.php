@@ -9,6 +9,15 @@ $breadcrumbs = [
     ['title' => 'Complementos de Pago', 'url' => route('complementos.index')],
     ['title' => 'Nuevo Complemento']
 ];
+$clientePreComplemento = $cuentaPreseleccionada?->cliente ?? null;
+if (!$clientePreComplemento && old('cliente_id')) {
+    $clientePreComplemento = $clientes->firstWhere('id', (int) old('cliente_id'));
+}
+$clientePreComplementoJson = $clientePreComplemento ? [
+    'id' => $clientePreComplemento->id,
+    'nombre' => $clientePreComplemento->nombre,
+    'rfc' => $clientePreComplemento->rfc,
+] : null;
 @endphp
 
 @section('content')
@@ -39,24 +48,15 @@ $breadcrumbs = [
         <div>
 
             {{-- Cliente --}}
-            <div class="card">
+            <div class="card card-search">
                 <div class="card-header">
                     <div class="card-title">👤 Cliente</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Cliente <span class="req">*</span></label>
-                        <select id="cliente_id" name="cliente_id" class="form-control" required
-                                onchange="cargarFacturasPendientes()">
-                            <option value="">Seleccionar cliente...</option>
-                            @foreach($clientes as $cliente)
-                                <option value="{{ $cliente->id }}"
-                                    {{ old('cliente_id', $cuentaPreseleccionada?->cliente_id) == $cliente->id ? 'selected' : '' }}>
-                                    {{ $cliente->nombre }} — {{ $cliente->rfc }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('partials.cliente-search-field', [
+                        'clienteIdValue' => old('cliente_id', $cuentaPreseleccionada?->cliente_id),
+                        'clienteNombreValue' => $clientePreComplemento?->nombre ?? '',
+                    ])
                 </div>
             </div>
 
@@ -238,6 +238,7 @@ $breadcrumbs = [
 @endpush
 
 @push('scripts')
+@include('partials.cliente-search-js')
 <script>
 let facturasPendientes = [];
 const listarComplementosParaRelacionUrl = '{{ route("complementos.listar-para-relacion") }}';
@@ -540,8 +541,15 @@ window.cuentaPreseleccionada = {
 };
 @endif
 document.addEventListener('DOMContentLoaded', function() {
-    var clienteId = document.getElementById('cliente_id').value;
-    if (clienteId) cargarFacturasPendientes();
+    ClienteSearch.init({
+        onSelect: function () { cargarFacturasPendientes(); },
+        onClear: function () {
+            document.getElementById('facturasPlaceholder').style.display = 'block';
+            document.getElementById('facturasList').style.display = 'none';
+            document.getElementById('facturasList').innerHTML = '';
+        },
+        initial: @json($clientePreComplementoJson),
+    });
 });
 </script>
 @endpush

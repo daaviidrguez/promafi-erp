@@ -28,13 +28,12 @@ $breadcrumbs = [
                 <input type="date" name="fecha_hasta" class="form-control" value="{{ $fechaHasta ?? '' }}">
             </div>
             <div class="form-group">
-                <label class="form-label">👤 Cliente</label>
-                <select name="cliente_id" class="form-control">
-                    <option value="">Todos</option>
-                    @foreach($clientes ?? [] as $c)
-                        <option value="{{ $c->id }}" {{ ($clienteId ?? '') == $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
-                    @endforeach
-                </select>
+                @include('partials.cliente-search-field', [
+                    'required' => false,
+                    'allowEmpty' => true,
+                    'clienteIdValue' => $clienteId ?? '',
+                    'clientes' => $clientes ?? collect(),
+                ])
             </div>
             <div class="form-group">
                 <label class="form-label">📦 Producto</label>
@@ -264,7 +263,11 @@ $breadcrumbs = [
 </div>
 
 @push('scripts')
+@include('partials.cliente-search-js')
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init({ required: false, allowEmpty: true });
+});
 (function () {
     var formFiltros = document.getElementById('formFiltrosUtilidad');
     var formExport = document.getElementById('formExportUtilidad');

@@ -159,7 +159,7 @@ function closeDropdown(id) { document.getElementById(id).classList.remove('show'
 
 async function buscarClientes(q) {
     try {
-        const r = await fetch(`{{ route('remisiones.buscar-clientes') }}?q=${encodeURIComponent(q)}`);
+        const r = await fetch(`{{ route('clientes.buscar') }}?q=${encodeURIComponent(q)}`);
         const data = await r.json();
         const box = document.getElementById('clienteResults');
         box.innerHTML = data.length ? data.map(c => `<div class="autocomplete-item" onclick='seleccionarCliente(${JSON.stringify(c).replace(/'/g, "\\'")})'><div class="autocomplete-item-name">${c.nombre}</div><div class="autocomplete-item-sub">${c.rfc || ''}</div></div>`).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';

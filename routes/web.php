@@ -266,6 +266,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::put('/logistica/{envio}', [LogisticaController::class, 'update'])->name('logistica.update');
 
     // ───── CLIENTES ───── ✅
+    Route::get('/clientes/buscar', [ClienteController::class, 'buscar'])->name('clientes.buscar');
     Route::resource('clientes', ClienteController::class);
     Route::resource('clientes.contactos', ClienteContactoController::class)->parameters(['contactos' => 'contacto']);
     Route::post('/clientes/{cliente}/direcciones-entrega', [ClienteDireccionEntregaController::class, 'store'])

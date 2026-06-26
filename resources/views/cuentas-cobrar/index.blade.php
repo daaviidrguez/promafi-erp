@@ -48,15 +48,16 @@ $breadcrumbs = [
     <div class="card-body">
         <form method="GET" action="{{ route('cuentas-cobrar.index') }}"
               style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <select name="cliente_id" class="form-control" style="min-width: 200px;">
-                <option value="">Todos los clientes</option>
-                @foreach($clientes as $cliente)
-                    <option value="{{ $cliente->id }}"
-                        {{ ($cliente_id ?? '') == $cliente->id ? 'selected' : '' }}>
-                        {{ $cliente->nombre }}
-                    </option>
-                @endforeach
-            </select>
+            @include('partials.cliente-search-field', [
+                'required' => false,
+                'allowEmpty' => true,
+                'label' => '',
+                'showLabel' => false,
+                'compact' => true,
+                'placeholder' => 'Buscar cliente...',
+                'clienteIdValue' => $cliente_id ?? '',
+                'clientes' => $clientes,
+            ])
             <select name="estado" class="form-control" style="min-width: 180px;">
                 <option value="">Todos los estados</option>
                 <option value="pendiente" {{ ($estado ?? '') == 'pendiente' ? 'selected' : '' }}>⏳ Pendiente</option>
@@ -161,3 +162,12 @@ $breadcrumbs = [
 </div>
 
 @endsection
+
+@push('scripts')
+@include('partials.cliente-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init({ required: false, allowEmpty: true });
+});
+</script>
+@endpush

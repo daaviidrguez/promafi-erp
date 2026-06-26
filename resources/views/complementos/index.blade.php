@@ -28,14 +28,16 @@ $breadcrumbs = [
         <form method="GET" action="{{ route('complementos.index') }}"
               style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
             <div style="display: flex; gap: 12px; flex: 1; flex-wrap: wrap;">
-                <select name="cliente_id" class="form-control" style="min-width: 200px;">
-                    <option value="">Todos los clientes</option>
-                    @foreach($clientes as $cliente)
-                        <option value="{{ $cliente->id }}" {{ ($cliente_id ?? '') == $cliente->id ? 'selected' : '' }}>
-                            {{ $cliente->nombre }}
-                        </option>
-                    @endforeach
-                </select>
+                @include('partials.cliente-search-field', [
+                    'required' => false,
+                    'allowEmpty' => true,
+                    'label' => '',
+                    'showLabel' => false,
+                    'compact' => true,
+                    'placeholder' => 'Buscar cliente...',
+                    'clienteIdValue' => $cliente_id ?? '',
+                    'clientes' => $clientes,
+                ])
                 <select name="estado" class="form-control" style="min-width: 150px;">
                     <option value="">Todos los estados</option>
                     <option value="borrador"  {{ ($estado ?? '') == 'borrador'  ? 'selected' : '' }}>📝 Borrador</option>
@@ -158,3 +160,12 @@ $breadcrumbs = [
 @include('partials.modal-actualizar-estatus-sat')
 
 @endsection
+
+@push('scripts')
+@include('partials.cliente-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init({ required: false, allowEmpty: true });
+});
+</script>
+@endpush

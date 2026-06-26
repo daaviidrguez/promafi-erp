@@ -50,12 +50,16 @@ $detallesIniciales = $listaPrecio->detalles->map(fn($d) => [
                 </div>
                 <div class="form-group">
                     <label class="form-label">Cliente asignado</label>
-                    <select name="cliente_id" class="form-control">
-                        <option value="">— Sin asignar —</option>
-                        @foreach($clientes as $c)
-                            <option value="{{ $c->id }}" {{ old('cliente_id', $listaPrecio->cliente_id) == $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
-                        @endforeach
-                    </select>
+                    @include('partials.cliente-search-field', [
+                        'required' => false,
+                        'allowEmpty' => true,
+                        'label' => '',
+                        'showLabel' => false,
+                        'placeholder' => 'Buscar cliente para asignar (opcional)...',
+                        'clienteIdValue' => old('cliente_id', $listaPrecio->cliente_id),
+                        'clienteNombreValue' => $listaPrecio->cliente->nombre ?? '',
+                        'clientes' => $clientes,
+                    ])
                 </div>
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -136,12 +140,14 @@ $detallesIniciales = $listaPrecio->detalles->map(fn($d) => [
     })->values();
 @endphp
 @push('scripts')
+@include('partials.cliente-search-js')
 <script>
 const catalogoProductos = @json($catalogoProductos);
 let productos = @json($detallesIniciales);
 let timerProducto;
 
 document.addEventListener('DOMContentLoaded', () => {
+    ClienteSearch.init({ allowEmpty: true, required: false });
     renderProductos();
     document.getElementById('buscarProducto').addEventListener('input', function() {
         clearTimeout(timerProducto);

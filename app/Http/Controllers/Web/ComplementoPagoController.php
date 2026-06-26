@@ -69,7 +69,7 @@ class ComplementoPagoController extends Controller
         // Si viene de una cuenta por cobrar específica
         $cuentaPreseleccionada = null;
         if ($request->has('cuenta_id')) {
-            $cuentaPreseleccionada = CuentaPorCobrar::with('factura')->find($request->cuenta_id);
+            $cuentaPreseleccionada = CuentaPorCobrar::with(['factura', 'cliente'])->find($request->cuenta_id);
         }
 
         // Si el cliente ya tiene complemento en borrador, redirigir al show (evitar duplicados)

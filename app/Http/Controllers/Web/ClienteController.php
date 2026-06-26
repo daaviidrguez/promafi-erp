@@ -98,6 +98,36 @@ class ClienteController extends Controller
     }
 
     /**
+     * API: búsqueda de clientes (autocompletado en formularios y filtros).
+     */
+    public function buscar(Request $request)
+    {
+        $search = trim((string) $request->get('q', ''));
+        if (strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $clientes = Cliente::activos()
+            ->buscar($search)
+            ->orderBy('nombre')
+            ->limit(10)
+            ->get([
+                'id',
+                'codigo',
+                'nombre',
+                'rfc',
+                'email',
+                'regimen_fiscal',
+                'tipo_persona',
+                'uso_cfdi_default',
+                'forma_pago',
+                'dias_credito',
+            ]);
+
+        return response()->json($clientes);
+    }
+
+    /**
      * Mostrar formulario de crear cliente
      */
     public function create()

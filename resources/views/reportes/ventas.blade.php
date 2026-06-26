@@ -32,14 +32,16 @@ $breadcrumbs = [
                 @endfor
             </select>
             <label class="text-muted" style="font-size: 12px; font-weight: 600; align-self: center; margin: 0;">👤 Cliente</label>
-            <select name="cliente_id" class="form-control" style="width: auto; min-width: 160px; max-width: min(280px, 100vw);">
-                <option value="">Todos</option>
-                @foreach($clientes ?? [] as $c)
-                    <option value="{{ $c->id }}" {{ (string)($clienteId ?? '') === (string)$c->id ? 'selected' : '' }}>
-                        {{ \Illuminate\Support\Str::limit($c->nombre, 48) }}
-                    </option>
-                @endforeach
-            </select>
+            @include('partials.cliente-search-field', [
+                'required' => false,
+                'allowEmpty' => true,
+                'label' => '',
+                'showLabel' => false,
+                'compact' => true,
+                'placeholder' => 'Buscar cliente...',
+                'clienteIdValue' => $clienteId ?? '',
+                'clientes' => $clientes ?? collect(),
+            ])
             <button type="submit" class="btn btn-primary">Filtrar</button>
             <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('modalExportVentas').classList.add('show')">Exportar</button>
         </form>
@@ -129,7 +131,11 @@ $breadcrumbs = [
 </div>
 
 @push('scripts')
+@include('partials.cliente-search-js')
 <script>
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init({ required: false, allowEmpty: true });
+});
 (function () {
     var formFiltros = document.getElementById('formFiltrosVentas');
     var formExport = document.getElementById('formExportVentas');

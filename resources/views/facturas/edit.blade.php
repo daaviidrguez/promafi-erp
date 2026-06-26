@@ -19,6 +19,16 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
     'descuento' => (float) ($d->descuento ?? 0),
     'tasa_iva' => $d->producto ? (($d->producto->tipo_factor ?? 'Tasa') === 'Exento' ? 0 : (float)($d->producto->tasa_iva ?? 0)) : 0,
 ])->values()->all();
+$clienteFacturaJson = $factura->cliente ? [
+    'id' => $factura->cliente->id,
+    'nombre' => $factura->cliente->nombre,
+    'rfc' => $factura->cliente->rfc,
+    'regimen_fiscal' => $factura->cliente->regimen_fiscal,
+    'tipo_persona' => $factura->cliente->tipo_persona ?? 'fisica',
+    'uso_cfdi_default' => $factura->cliente->uso_cfdi_default,
+    'forma_pago' => $factura->cliente->forma_pago ?? '03',
+    'dias_credito' => $factura->cliente->dias_credito,
+] : null;
 @endphp
 
 @section('content')
@@ -35,29 +45,15 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
         <div>
 
             {{-- Datos del Cliente --}}
-            <div class="card">
+            <div class="card card-search">
                 <div class="card-header">
                     <div class="card-title">👤 Datos del Cliente</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Cliente <span class="req">*</span></label>
-                        <select id="cliente_id" name="cliente_id" class="form-control" required>
-                            <option value="">Seleccionar cliente...</option>
-                            @foreach($clientes as $cliente)
-                                <option value="{{ $cliente->id }}"
-                                        data-rfc="{{ $cliente->rfc }}"
-                                        data-regimen="{{ $cliente->regimen_fiscal }}"
-                                        data-tipo-persona="{{ $cliente->tipo_persona ?? 'fisica' }}"
-                                        data-uso-cfdi="{{ $cliente->uso_cfdi_default }}"
-                                        data-forma-pago="{{ $cliente->forma_pago ?? '03' }}"
-                                        data-credito="{{ $cliente->dias_credito }}"
-                                        {{ old('cliente_id', $factura->cliente_id) == $cliente->id ? 'selected' : '' }}>
-                                    {{ $cliente->nombre }} — {{ $cliente->rfc }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('partials.cliente-search-field', [
+                        'clienteIdValue' => old('cliente_id', $factura->cliente_id),
+                        'clienteNombreValue' => $factura->cliente->nombre ?? '',
+                    ])
 
                     <div id="infoCliente" style="display: {{ $factura->cliente_id ? 'block' : 'none' }};">
                         <div style="background: var(--color-gray-50); border: 1.5px solid var(--color-gray-200); border-radius: var(--radius-md); padding: 12px 16px;">
@@ -85,21 +81,22 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
                     </button>
                 </div>
                 <div class="card-body" style="padding: 0;">
-                    <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+                    <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0; overflow-y: visible; position: relative;">
                         <table>
                             <thead>
                                 <tr>
-                                    <th style="width: 35%;">Descripción</th>
-                                    <th class="td-center" style="width: 12%;">Cantidad</th>
-                                    <th class="td-right" style="width: 18%;">Precio Unit.</th>
-                                    <th class="td-right" style="width: 15%;">Descuento</th>
-                                    <th class="td-right" style="width: 15%;">Importe</th>
+                                    <th style="width: 48%;">Descripción</th>
+                                    <th class="td-center" style="width: 10%;">Cantidad</th>
+                                    <th class="td-right" style="width: 14%;">Precio Unit.</th>
+                                    <th class="td-right" style="width: 12%;">Descuento</th>
+                                    <th class="td-right" style="width: 13%;">Importe</th>
                                     <th style="width: 5%;"></th>
                                 </tr>
                             </thead>
                             <tbody id="productosContainer"></tbody>
                         </table>
                     </div>
+                    <div id="productoResultsFlotanteFactura" class="autocomplete-results autocomplete-results-flotante" style="display:none; position:fixed; z-index:2000;"></div>
 
                     <div id="emptyProductos" style="padding: 40px 20px; text-align: center; color: var(--color-gray-500);">
                         <div style="font-size: 36px; margin-bottom: 10px; opacity: 0.3;">📦</div>
@@ -258,8 +255,11 @@ $detallesIniciales = $factura->detalles->map(fn($d) => [
 @endsection
 
 @push('scripts')
+@include('partials.cliente-search-js')
 <script>
 let productoIndex = 0;
+let filaBusquedaActiva = null;
+let clienteTipoPersonaActual = @json($factura->cliente->tipo_persona ?? 'fisica');
 const catalogoProductos = @json($productos);
 const detallesIniciales = @json($detallesIniciales);
 const empresaIsrConfig = {
@@ -270,9 +270,7 @@ const empresaIsrConfig = {
 };
 
 function getClienteTipoPersona() {
-    const sel = document.getElementById('cliente_id');
-    if (!sel?.value) return 'fisica';
-    return sel.options[sel.selectedIndex]?.dataset.tipoPersona || 'fisica';
+    return clienteTipoPersonaActual || 'fisica';
 }
 
 function aplicaRetencionIsrPm(clienteTipoPersona) {
@@ -286,55 +284,82 @@ function calcularRetencionIsrPm(subtotal, descuento) {
     return Math.round(base * empresaIsrConfig.tasa_retencion * 100) / 100;
 }
 
-function actualizarInfoCliente() {
-    const sel = document.getElementById('cliente_id');
-    const opt = sel.options[sel.selectedIndex];
-    const info = document.getElementById('infoCliente');
-    if (sel.value) {
-        document.getElementById('infoRFC').textContent = opt.dataset.rfc;
-        document.getElementById('infoRegimen').textContent = opt.dataset.regimen || 'N/A';
-        document.getElementById('uso_cfdi').value = opt.dataset.usoCfdi || 'G03';
-        document.getElementById('forma_pago').value = opt.dataset.formaPago || '03';
-        document.getElementById('metodo_pago').value = parseInt(opt.dataset.credito) > 0 ? 'PPD' : 'PUE';
-        info.style.display = 'block';
-    } else {
-        info.style.display = 'none';
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+document.addEventListener('click', function (e) {
+    if (!e.target.closest('.search-box') && !e.target.closest('#productoResultsFlotanteFactura')) {
+        cerrarFlotanteProductosFactura();
     }
+});
+
+function aplicarClienteFactura(c) {
+    const info = document.getElementById('infoCliente');
+    if (!c || !c.id) {
+        clienteTipoPersonaActual = 'fisica';
+        if (info) info.style.display = 'none';
+        return;
+    }
+    clienteTipoPersonaActual = c.tipo_persona || 'fisica';
+    document.getElementById('infoRFC').textContent = c.rfc || '';
+    document.getElementById('infoRegimen').textContent = c.regimen_fiscal || 'N/A';
+    document.getElementById('uso_cfdi').value = c.uso_cfdi_default || 'G03';
+    document.getElementById('forma_pago').value = c.forma_pago || '03';
+    document.getElementById('metodo_pago').value = parseInt(c.dias_credito, 10) > 0 ? 'PPD' : 'PUE';
+    if (info) info.style.display = 'block';
     calcularTotales();
 }
 
-document.getElementById('cliente_id').addEventListener('change', actualizarInfoCliente);
+function actualizarInfoCliente() {
+    // Compatibilidad: la info del cliente se actualiza al seleccionar en búsqueda.
+    calcularTotales();
+}
 
 function agregarProducto(datos = null) {
     document.getElementById('emptyProductos').style.display = 'none';
     const i = productoIndex++;
-    const opciones = catalogoProductos.map(p => {
-        const tasa = p.tipo_factor === 'Exento' ? 0 : (parseFloat(p.tasa_iva) || 0);
-        return `<option value="${p.id}" data-precio="${p.precio_venta}" data-nombre="${p.nombre}" data-tasa-iva="${tasa}">${p.codigo} — ${p.nombre}</option>`;
-    }).join('');
 
-    const desc = datos ? datos.nombre : '';
+    const desc = datos ? (datos.nombre || '') : '';
     const prodId = datos ? (datos.producto_id || '') : '';
     const cant = datos ? datos.cantidad : 1;
     const precio = datos ? datos.valor_unitario : '';
     const descuento = datos ? datos.descuento : 0;
-    let selectedProd = '';
-    if (prodId && catalogoProductos.some(p => p.id == prodId)) {
-        selectedProd = `value="${prodId}"`;
+    const tasaIva = datos ? (datos.tasa_iva ?? 0) : 0;
+
+    let buscarValor = '';
+    if (prodId) {
+        const p = catalogoProductos.find(x => Number(x.id) === Number(prodId));
+        if (p) {
+            buscarValor = `${p.codigo || ''} — ${p.nombre || ''}`.trim();
+        } else if (datos?.codigo) {
+            buscarValor = `${datos.codigo} — ${desc}`.trim();
+        }
     }
 
     const tr = document.createElement('tr');
     tr.id = `prod-${i}`;
     tr.innerHTML = `
-        <td>
-            <select class="form-control form-control-producto" style="font-size: 13px; margin-bottom: 6px;" data-row="${i}"
-                    onchange="seleccionarProducto(${i}, this)">
-                <option value="">Seleccionar del catálogo...</option>
-                ${opciones}
-            </select>
+        <td style="min-width: 520px;">
+            <div class="search-box" style="position: relative; margin-bottom: 6px;">
+                <input type="text"
+                       class="form-control"
+                       style="font-size: 13px; width: 100%;"
+                       placeholder="Buscar producto por código o nombre..."
+                       value="${escapeHtml(buscarValor)}"
+                       oninput="buscarProductosFila(${i}, this.value)"
+                       onfocus="filaBusquedaActiva=${i}"
+                       autocomplete="off">
+            </div>
             <input type="hidden" name="productos[${i}][producto_id]" class="input-producto-id" value="${prodId}">
+            <input type="hidden" class="input-tasa-iva" value="${tasaIva}">
             <input type="text" name="productos[${i}][descripcion]"
-                   placeholder="Descripción *" class="form-control" style="font-size: 13px;" value="${desc}" required>
+                   placeholder="Descripción *" class="form-control" style="font-size: 13px; width: 100%; min-width: 500px;" value="${escapeHtml(desc)}" required>
         </td>
         <td class="td-center">
             <input type="number" name="productos[${i}][cantidad]"
@@ -360,22 +385,82 @@ function agregarProducto(datos = null) {
         </td>
     `;
     document.getElementById('productosContainer').appendChild(tr);
-
-    if (prodId) {
-        const sel = tr.querySelector('select.form-control-producto');
-        sel.value = prodId;
-    }
     calcularTotales();
 }
 
-function seleccionarProducto(i, select) {
-    if (!select.value) return;
-    const opt = select.options[select.selectedIndex];
+function buscarProductosFila(i, query) {
+    filaBusquedaActiva = i;
+    const flotante = document.getElementById('productoResultsFlotanteFactura');
     const row = document.getElementById(`prod-${i}`);
-    row.querySelector('[name*="[descripcion]"]').value = opt.dataset.nombre;
-    row.querySelector('[name*="[valor_unitario]"]').value = parseFloat(opt.dataset.precio).toFixed(2);
-    row.querySelector('.input-producto-id').value = select.value;
+    const input = row ? row.querySelector('.search-box input[type="text"]') : null;
+    if (!flotante || !input) return;
+    const q = (query || '').trim().toLowerCase();
+    if (q.length < 2) {
+        cerrarFlotanteProductosFactura();
+        return;
+    }
+
+    const encontrados = catalogoProductos
+        .filter(p => {
+            const nombre = String(p.nombre || '').toLowerCase();
+            const codigo = String(p.codigo || '').toLowerCase();
+            return nombre.includes(q) || codigo.includes(q);
+        })
+        .slice(0, 10);
+
+    if (!encontrados.length) {
+        posicionarFlotanteProductosFactura(input, flotante);
+        flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+        flotante.classList.add('show');
+        flotante.style.display = 'block';
+        return;
+    }
+
+    posicionarFlotanteProductosFactura(input, flotante);
+    flotante.innerHTML = encontrados.map(p => `
+        <div class="autocomplete-item" onclick="seleccionarProductoPorId(${i}, ${p.id})">
+            <div class="autocomplete-item-name">${escapeHtml(p.nombre)}</div>
+            <div class="autocomplete-item-sub">${escapeHtml(p.codigo || '')} — ${escapeHtml(p.unidad || 'PZA')}</div>
+        </div>
+    `).join('');
+    flotante.classList.add('show');
+    flotante.style.display = 'block';
+}
+
+function seleccionarProductoPorId(i, productoId) {
+    const p = catalogoProductos.find(x => Number(x.id) === Number(productoId));
+    if (!p) return;
+    const row = document.getElementById(`prod-${i}`);
+    if (!row) return;
+    const inputBuscar = row.querySelector('.search-box input[type="text"]');
+    const tasa = p.tipo_factor === 'Exento' ? 0 : (parseFloat(p.tasa_iva) || 0);
+    if (inputBuscar) {
+        const etiquetaProducto = `${p.codigo || ''} — ${p.nombre || ''}`.trim();
+        inputBuscar.value = etiquetaProducto;
+        inputBuscar.title = etiquetaProducto;
+    }
+    row.querySelector('.input-tasa-iva').value = String(tasa);
+    row.querySelector('[name*="[descripcion]"]').value = p.nombre || '';
+    row.querySelector('[name*="[valor_unitario]"]').value = (parseFloat(p.precio_venta) || 0).toFixed(2);
+    row.querySelector('.input-producto-id').value = p.id;
+    cerrarFlotanteProductosFactura();
     calcularTotales();
+}
+
+function posicionarFlotanteProductosFactura(input, flotante) {
+    const rect = input.getBoundingClientRect();
+    flotante.style.top = (rect.bottom + 6) + 'px';
+    flotante.style.left = rect.left + 'px';
+    flotante.style.width = Math.max(rect.width, 420) + 'px';
+    flotante.style.minWidth = '380px';
+}
+
+function cerrarFlotanteProductosFactura() {
+    const flotante = document.getElementById('productoResultsFlotanteFactura');
+    if (!flotante) return;
+    flotante.innerHTML = '';
+    flotante.classList.remove('show');
+    flotante.style.display = 'none';
 }
 
 function quitarProducto(i) {
@@ -398,8 +483,7 @@ function calcularTotales() {
         subtotal += importe;
         descuento += desc;
         const baseImpuesto = importe - desc;
-        const sel = tr.querySelector('select.form-control-producto');
-        const tasa = (sel && sel.value && sel.options[sel.selectedIndex]) ? parseFloat(sel.options[sel.selectedIndex].dataset.tasaIva || 0) : 0;
+        const tasa = parseFloat(tr.querySelector('.input-tasa-iva')?.value || 0) || 0;
         iva += baseImpuesto * tasa;
         const imp = tr.querySelector('[id^="importe-"]');
         if (imp) imp.textContent = fmt(importe);
@@ -417,6 +501,17 @@ function calcularTotales() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    ClienteSearch.init({
+        applyInitial: false,
+        onSelect: aplicarClienteFactura,
+        onClear: function () {
+            clienteTipoPersonaActual = 'fisica';
+            document.getElementById('infoCliente').style.display = 'none';
+            calcularTotales();
+        },
+        initial: @json($clienteFacturaJson),
+    });
+
     if (detallesIniciales && detallesIniciales.length > 0) {
         detallesIniciales.forEach(d => agregarProducto(d));
     }

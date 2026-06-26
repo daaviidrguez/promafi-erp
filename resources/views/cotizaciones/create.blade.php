@@ -858,7 +858,7 @@ function closeDropdown(id) {
 
 async function buscarClientes(q) {
     try {
-        const r = await fetch(`{{ route('cotizaciones.buscar-clientes') }}?q=${encodeURIComponent(q)}`);
+        const r = await fetch(`{{ route('clientes.buscar') }}?q=${encodeURIComponent(q)}`);
         const data = await r.json();
         const box = document.getElementById('clienteResults');
         if (!data.length) {

@@ -12,12 +12,16 @@
             <option value="timbrada" {{ ($estado ?? '') == 'timbrada' ? 'selected' : '' }}>Timbrada</option>
             <option value="cancelada" {{ ($estado ?? '') == 'cancelada' ? 'selected' : '' }}>Cancelada</option>
         </select>
-        <select name="cliente_id" class="form-control" style="min-width:200px;">
-            <option value="">Todos los clientes</option>
-            @foreach($clientes as $c)
-                <option value="{{ $c->id }}" {{ ($cliente_id ?? '') == $c->id ? 'selected' : '' }}>{{ $c->nombre }}</option>
-            @endforeach
-        </select>
+        @include('partials.cliente-search-field', [
+            'required' => false,
+            'allowEmpty' => true,
+            'label' => '',
+            'showLabel' => false,
+            'compact' => true,
+            'placeholder' => 'Buscar cliente...',
+            'clienteIdValue' => $cliente_id ?? '',
+            'clientes' => $clientes,
+        ])
         <button type="submit" class="btn btn-primary">Filtrar</button>
         <a href="{{ route('notas-credito.create') }}" class="btn btn-primary">Nueva nota de crédito</a>
     </form>
@@ -46,3 +50,12 @@
 @endif
 </div>
 @endsection
+
+@push('scripts')
+@include('partials.cliente-search-js')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ClienteSearch.init({ required: false, allowEmpty: true });
+});
+</script>
+@endpush

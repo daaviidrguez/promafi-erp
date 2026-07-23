@@ -207,7 +207,7 @@ $breadcrumbs = [
                             <col style="width:70px;">
                             <col style="width:92px;">
                             <col style="width:96px;">
-                            <col style="width:72px;">
+                            <col style="width:96px;">
                         </colgroup>
                         <thead>
                             <tr>
@@ -439,7 +439,28 @@ $breadcrumbs = [
 .table-productos-cotizacion tbody td:nth-child(9) { padding-right: 6px; }
 .table-productos-cotizacion tbody td:last-child { padding: 8px 4px 8px 2px; }
 .partida-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.partida-acciones-btns { display: flex; gap: 3px; }
+.partida-acciones-btns { display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
+.partida-orden {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-bottom: 2px;
+}
+.partida-orden-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-gray-500);
+    min-width: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.partida-orden .btn-icon {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1;
+}
 .partida-imagenes-preview { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; max-width: 68px; }
 .partida-imagen-thumb {
     position: relative;
@@ -1350,6 +1371,13 @@ function renderProductos() {
             <td class="td-right text-mono fw-bold" style="color: var(--color-secondary); font-size:13.5px;">$${fmtMonto(total)}</td>
             <td class="td-right">
                 <div class="partida-acciones">
+                    <div class="partida-orden">
+                        <button type="button" onclick="moverProducto(${i}, -1)" class="btn btn-outline btn-icon btn-sm"
+                                title="Subir partida" ${i === 0 ? 'disabled' : ''}>▲</button>
+                        <span class="partida-orden-num" title="Partida ${i + 1}">${i + 1}</span>
+                        <button type="button" onclick="moverProducto(${i}, 1)" class="btn btn-outline btn-icon btn-sm"
+                                title="Bajar partida" ${i === productos.length - 1 ? 'disabled' : ''}>▼</button>
+                    </div>
                     <div class="partida-acciones-btns">
                         <button type="button" onclick="agregarImagenPartida(${i})" class="btn btn-outline btn-icon btn-sm"
                                 title="Agregar foto (${contarImagenesPartida(p)}/${MAX_IMAGENES_PARTIDA})"
@@ -1364,6 +1392,16 @@ function renderProductos() {
         </tr>`;
     }).join('');
     calcTotales();
+}
+
+function moverProducto(i, direccion) {
+    const destino = i + direccion;
+    if (destino < 0 || destino >= productos.length) return;
+    closeSugerenciaFlotante();
+    const tmp = productos[i];
+    productos[i] = productos[destino];
+    productos[destino] = tmp;
+    renderProductos();
 }
 
 function upd(i, field, val) {
@@ -1447,6 +1485,7 @@ function aplicarSugerencia(rowIndex, el) {
 function quitarProducto(i) {
     const p = productos[i];
     if (p) liberarPreviewNuevas(p);
+    closeSugerenciaFlotante();
     productos.splice(i, 1);
     renderProductos();
 }

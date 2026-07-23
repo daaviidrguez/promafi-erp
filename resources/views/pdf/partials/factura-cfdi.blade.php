@@ -68,11 +68,16 @@
             @else
                 C.P. {{ $f->domicilio_fiscal_receptor ?? '-' }}
             @endif
-            @if(!empty($f->orden_compra))
-            <br><strong>Orden de compra:</strong> {{ $f->orden_compra }}
-            @endif
-            @if(!empty($f->observaciones))
-            <br><strong>Observaciones:</strong><br>{!! nl2br(e($f->observaciones)) !!}
+            @if(!empty($f->orden_compra) || !empty($f->observaciones))
+            <div style="margin-top:4px; margin-bottom:1px; padding:3px 5px; border:1px solid #D1D5DB; background-color:#F7F7F7;">
+                @if(!empty($f->orden_compra))
+                <strong>Orden de compra:</strong> {{ $f->orden_compra }}
+                @endif
+                @if(!empty($f->observaciones))
+                @if(!empty($f->orden_compra))<br>@endif
+                <strong>Observaciones:</strong><br>{!! nl2br(e($f->observaciones)) !!}
+                @endif
+            </div>
             @endif
         </div>
     </td>

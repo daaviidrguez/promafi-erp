@@ -74,6 +74,7 @@ $breadcrumbs = [
                     <thead>
                         <tr>
                             <th>Código</th>
+                            <th class="td-center">Origen</th>
                             <th>Descripción</th>
                             <th class="td-center">Cant.</th>
                             <th class="td-center">Unidad</th>
@@ -96,6 +97,13 @@ $breadcrumbs = [
                                     </div>
                                 @else
                                     <span class="producto-row-code">{{ $d->codigo === 'MANUAL' ? '—' : ($d->codigo ?? '—') }}</span>
+                                @endif
+                            </td>
+                            <td class="td-center">
+                                @if(filled($d->origen))
+                                    <span class="fw-600" style="font-size:13px;">{{ $d->origen }}</span>
+                                @else
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td>

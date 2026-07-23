@@ -21,6 +21,7 @@ class CotizacionDetalle extends Model
         'sugerencia_id',
         'codigo',
         'descripcion',
+        'origen',
         'es_producto_manual',
         'cantidad',
         'unidad',

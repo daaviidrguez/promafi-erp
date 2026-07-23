@@ -198,6 +198,7 @@ $breadcrumbs = [
                 <div class="table-container" style="border:none; box-shadow:none; border-radius:0; margin-bottom:0;">
                     <table class="table-productos-cotizacion" style="table-layout:fixed; width:100%;">
                         <colgroup>
+                            <col style="width:92px;">
                             <col>
                             <col style="width:76px;">
                             <col style="width:64px;">
@@ -210,6 +211,7 @@ $breadcrumbs = [
                         </colgroup>
                         <thead>
                             <tr>
+                                <th class="td-center">Origen</th>
                                 <th>Descripción</th>
                                 <th class="td-center">Cantidad</th>
                                 <th class="td-center">Unidad</th>
@@ -223,7 +225,7 @@ $breadcrumbs = [
                         </thead>
                         <tbody id="productosBody">
                             <tr id="emptyRow">
-                                <td colspan="9">
+                                <td colspan="10">
                                     <div style="padding:40px 20px; text-align:center; color:var(--color-gray-500);">
                                         <div style="font-size:36px; margin-bottom:10px; opacity:0.3;">📦</div>
                                         <div class="fw-600">Sin productos agregados</div>
@@ -409,6 +411,7 @@ $breadcrumbs = [
             return [
                 'id'        => $d->producto_id,
                 'codigo'    => ($d->codigo === 'MANUAL' ? '-' : $d->codigo) ?? '-',
+                'origen'    => $d->origen ?? '',
                 'nombre'    => $d->descripcion ?? '',
                 'cantidad'  => (float) $d->cantidad,
                 'unidad'    => $d->unidad ?? $d->producto->unidad ?? 'PZA',
@@ -428,12 +431,12 @@ $breadcrumbs = [
 <style>
 /* Tabla productos: scroll horizontal en móvil */
 .table-container .table-productos-cotizacion { min-width: 640px; }
-/* Descripción ancha, columnas numéricas proporción contable, compactas */
-.table-productos-cotizacion thead th:first-child { padding: 11px 16px; }
-.table-productos-cotizacion thead th:nth-child(n+2) { padding: 11px 4px; white-space: nowrap; }
-.table-productos-cotizacion tbody td:first-child { padding: 12px 16px; }
-.table-productos-cotizacion tbody td:nth-child(n+2) { padding: 8px 4px; }
-.table-productos-cotizacion tbody td:nth-child(8) { padding-right: 6px; }
+/* Descripción ancha, Origen = ancho Precio; columnas numéricas compactas */
+.table-productos-cotizacion thead th:nth-child(2) { padding: 11px 16px; }
+.table-productos-cotizacion thead th:not(:nth-child(2)) { padding: 11px 4px; white-space: nowrap; }
+.table-productos-cotizacion tbody td:nth-child(2) { padding: 12px 16px; }
+.table-productos-cotizacion tbody td:not(:nth-child(2)) { padding: 8px 4px; }
+.table-productos-cotizacion tbody td:nth-child(9) { padding-right: 6px; }
 .table-productos-cotizacion tbody td:last-child { padding: 8px 4px 8px 2px; }
 .partida-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .partida-acciones-btns { display: flex; gap: 3px; }
@@ -497,7 +500,7 @@ $breadcrumbs = [
         min-width: 260px;
     }
     .table-productos-cotizacion tbody td:first-child,
-    .table-productos-cotizacion thead th:first-child {
+    .table-productos-cotizacion thead th:nth-child(2) {
         min-width: 260px;
     }
     .table-productos-cotizacion .manual-desc-mobile {
@@ -531,7 +534,7 @@ let allowNavigation = false;
 let pendingNavUrl = null;
 let pendingImportRows = null;
 
-const EXCEL_COLS = ['Descripción', 'Cantidad', 'Unidad', 'Precio', 'Desc%', 'IVA'];
+const EXCEL_COLS = ['Origen', 'Descripción', 'Cantidad', 'Unidad', 'Precio', 'Desc%', 'IVA'];
 
 function getFormSnapshot() {
     const form = document.getElementById('cotizacionForm');
@@ -551,6 +554,7 @@ function getFormSnapshot() {
         productos: productos.map(p => ({
             id: p.id,
             codigo: p.codigo,
+            origen: p.origen || '',
             nombre: p.nombre,
             cantidad: p.cantidad,
             unidad: p.unidad,
@@ -669,9 +673,9 @@ function descargarPlantilla() {
     }
     const ws = XLSX.utils.aoa_to_sheet([
         EXCEL_COLS,
-        ['Ejemplo de producto o servicio', 1, 'PZA', 100, 0, '16%'],
+        ['', 'Ejemplo de producto o servicio', 1, 'PZA', 100, 0, '16%'],
     ]);
-    ws['!cols'] = [{ wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Partidas');
     XLSX.writeFile(wb, 'plantilla_cotizacion.xlsx');
@@ -687,6 +691,7 @@ function exportarExcel() {
         return;
     }
     const rows = productos.map(p => [
+        p.origen || '',
         p.nombre || '',
         p.cantidad,
         p.unidad || 'PZA',
@@ -695,7 +700,7 @@ function exportarExcel() {
         tasaIvaToLabel(p.tasa_iva),
     ]);
     const ws = XLSX.utils.aoa_to_sheet([EXCEL_COLS, ...rows]);
-    ws['!cols'] = [{ wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Partidas');
     XLSX.writeFile(wb, 'cotizacion_partidas.xlsx');
@@ -707,6 +712,7 @@ function importarExcel() {
 
 function parseImportRows(rows) {
     const aliases = {
+        origen: ['origen', 'source', 'fuente'],
         descripcion: ['descripcion', 'description', 'producto', 'nombre'],
         cantidad: ['cantidad', 'qty', 'quantity'],
         unidad: ['unidad', 'unit', 'uom'],
@@ -719,6 +725,7 @@ function parseImportRows(rows) {
         const descripcion = String(getExcelCell(row, aliases.descripcion) || '').trim();
         if (!descripcion) return null;
 
+        const origen = String(getExcelCell(row, aliases.origen) || '').trim().slice(0, 100);
         const cantidad = Math.max(0.01, parseFloat(getExcelCell(row, aliases.cantidad)) || 1);
         const unidad = String(getExcelCell(row, aliases.unidad) || 'PZA').trim().slice(0, 10) || 'PZA';
         const precio = Math.max(0, parseFloat(getExcelCell(row, aliases.precio)) || 0);
@@ -728,6 +735,7 @@ function parseImportRows(rows) {
         return {
             id: null,
             codigo: '-',
+            origen,
             nombre: descripcion,
             cantidad,
             unidad,
@@ -773,6 +781,7 @@ function importarActualizarFilas() {
             const existing = productos[idx];
             productos[idx] = {
                 ...existing,
+                origen: item.origen || '',
                 nombre: item.nombre,
                 cantidad: item.cantidad,
                 unidad: item.unidad,
@@ -829,6 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return {
                 id: d.id,
                 codigo: d.codigo,
+                origen: d.origen || '',
                 nombre: d.nombre,
                 cantidad: d.cantidad,
                 unidad: d.unidad || 'PZA',
@@ -1041,7 +1051,7 @@ function cargarProductoListaByIdx(i) {
     if (!p) return;
     if (productos.find(x => x.id === p.id)) { alert('Este producto ya está en la cotización'); return; }
     productos.push({
-        id: p.id, codigo: p.codigo, nombre: p.nombre,
+        id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
         descuento: 0, tasa_iva: p.tasa_iva, manual: false,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
@@ -1061,7 +1071,7 @@ if (btnCargar) btnCargar.addEventListener('click', async function() {
         items.forEach(p => {
             if (!productos.find(x => x.id === p.id)) {
                 productos.push({
-                    id: p.id, codigo: p.codigo, nombre: p.nombre,
+                    id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
                     cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
                     descuento: 0, tasa_iva: p.tasa_iva, manual: false,
                     imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
@@ -1099,7 +1109,7 @@ function agregarDesdeBusqueda(item) {
     if (item.tipo === 'sugerencia') {
         if (productos.find(x => x.sugerencia_id === item.id)) { alert('Esta sugerencia ya está en la cotización'); return; }
         productos.push({
-            id: null, codigo: item.codigo || '-', nombre: item.nombre,
+            id: null, codigo: item.codigo || '-', origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
             descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
@@ -1107,7 +1117,7 @@ function agregarDesdeBusqueda(item) {
     } else {
         if (productos.find(x => x.id === item.id && !x.manual)) { alert('Este producto ya está en la cotización'); return; }
         productos.push({
-            id: item.id, codigo: item.codigo, nombre: item.nombre,
+            id: item.id, codigo: item.codigo, origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
             descuento: 0, tasa_iva: item.tasa_iva, manual: false,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
@@ -1121,7 +1131,7 @@ function agregarDesdeBusqueda(item) {
 function agregarProducto(p) {
     if (productos.find(x => x.id === p.id && !x.manual)) { alert('Este producto ya está en la lista'); return; }
     productos.push({
-        id: p.id, codigo: p.codigo, nombre: p.nombre,
+        id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio_venta),
         descuento: 0, tasa_iva: p.tasa_iva, manual: false,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
@@ -1133,7 +1143,7 @@ function agregarProducto(p) {
 
 function agregarManual() {
     productos.push({
-        id: null, codigo: '-', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16,
+        id: null, codigo: '-', origen: '', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16,
         manual: true, sugerencia_id: null,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
@@ -1264,7 +1274,7 @@ function syncImagenesAlFormulario() {
 function renderProductos() {
     const tbody = document.getElementById('productosBody');
     if (!productos.length) {
-        tbody.innerHTML = `<tr id="emptyRow"><td colspan="9">
+        tbody.innerHTML = `<tr id="emptyRow"><td colspan="10">
             <div class="empty-state" style="padding:28px 20px;">
                 <div class="empty-state-icon">📦</div>
                 <div class="empty-state-title">Sin productos</div>
@@ -1274,6 +1284,11 @@ function renderProductos() {
     }
     tbody.innerHTML = productos.map((p, i) => {
         const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        const origenEsc = (p.origen || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
         const nombreEsc = (p.nombre || '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -1285,6 +1300,11 @@ function renderProductos() {
         const iva = p.tasa_iva != null ? base * p.tasa_iva : 0;
         const total = base + iva;
         return `<tr>
+            <td class="td-center">
+                <input type="text" name="productos[${i}][origen]" value="${origenEsc}" maxlength="100"
+                       onchange="upd(${i},'origen',this.value)" oninput="upd(${i},'origen',this.value)"
+                       placeholder="—" class="form-control form-control-numeric" style="text-align:center; width:100%; font-size:13px;" autocomplete="off">
+            </td>
             <td>
                 ${p.manual
                     ? `<div class="search-box search-box-manual">
@@ -1348,8 +1368,10 @@ function renderProductos() {
 
 function upd(i, field, val) {
     productos[i][field] = val;
-    if (field === 'nombre') {
-        document.querySelectorAll(`input[name="productos[${i}][descripcion]"]`).forEach(el => el.value = val);
+    if (field === 'nombre' || field === 'origen') {
+        if (field === 'nombre') {
+            document.querySelectorAll(`input[name="productos[${i}][descripcion]"]`).forEach(el => el.value = val);
+        }
     } else {
         renderProductos();
     }

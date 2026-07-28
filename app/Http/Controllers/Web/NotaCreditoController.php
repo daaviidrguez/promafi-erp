@@ -213,11 +213,12 @@ class NotaCreditoController extends Controller
                 ->map(fn ($v) => (float) $v);
         }
 
-        $folio = $empresa->folio_nota_credito ?? 1;
-        $serie = $empresa->serie_nota_credito ?? 'NC';
-
         DB::beginTransaction();
         try {
+            $folioReservado = Empresa::reservarFolioNotaCredito($empresa->id);
+            $folio = $folioReservado['folio'];
+            $serie = $folioReservado['serie'];
+
             $subtotal = 0;
             $descuentoTotal = 0;
             $ivaTotal = 0;
@@ -348,9 +349,6 @@ class NotaCreditoController extends Controller
                     ]);
                 }
             }
-
-            $empresa->folio_nota_credito = ($empresa->folio_nota_credito ?? 1) + 1;
-            $empresa->save();
 
             DB::commit();
 

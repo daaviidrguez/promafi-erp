@@ -311,11 +311,13 @@ $breadcrumbs = [
                 @can('facturas.crear')
                 <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-primary w-full">✏️ Editar Factura</a>
                 @endcan
+                @can('facturas.timbrar')
                 <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}"
                       class="form-timbrar-protegido" data-loading-text="Timbrando factura…">
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>
                 </form>
+                @endcan
                 @can('facturas.crear')
                 <button type="button"
                         onclick="document.getElementById('modalBorrarFactura').classList.add('show')"

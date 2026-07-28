@@ -177,6 +177,51 @@ class Empresa extends Model
     }
 
     /**
+     * Reserva serie/folio de factura (crédito/contado). Debe llamarse dentro de DB::transaction.
+     *
+     * @return array{serie: string, folio: int}
+     */
+    public static function reservarFolioFacturaCredito(int $empresaId): array
+    {
+        $e = self::query()->whereKey($empresaId)->lockForUpdate()->firstOrFail();
+        $serie = $e->serie_factura_credito ?? 'FB';
+        $folio = (int) ($e->folio_factura_credito ?? 1);
+        $e->incrementarFolioFacturaCredito();
+
+        return ['serie' => $serie, 'folio' => $folio];
+    }
+
+    /**
+     * Reserva serie/folio de complemento de pago. Debe llamarse dentro de DB::transaction.
+     *
+     * @return array{serie: string, folio: int}
+     */
+    public static function reservarFolioComplemento(int $empresaId): array
+    {
+        $e = self::query()->whereKey($empresaId)->lockForUpdate()->firstOrFail();
+        $serie = $e->serie_complemento ?? 'P';
+        $folio = (int) ($e->folio_complemento ?? 1);
+        $e->incrementarFolioComplemento();
+
+        return ['serie' => $serie, 'folio' => $folio];
+    }
+
+    /**
+     * Reserva serie/folio de nota de crédito. Debe llamarse dentro de DB::transaction.
+     *
+     * @return array{serie: string, folio: int}
+     */
+    public static function reservarFolioNotaCredito(int $empresaId): array
+    {
+        $e = self::query()->whereKey($empresaId)->lockForUpdate()->firstOrFail();
+        $serie = $e->serie_nota_credito ?? 'NC';
+        $folio = (int) ($e->folio_nota_credito ?? 1);
+        $e->increment('folio_nota_credito');
+
+        return ['serie' => $serie, 'folio' => $folio];
+    }
+
+    /**
      * Obtener siguiente folio de complemento
      */
     public function obtenerSiguienteFolioComplemento(): string

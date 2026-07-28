@@ -378,6 +378,7 @@ $breadcrumbs = [
                 @endif
 
                 @if($cotizacion->puedeFacturarse())
+                @can('facturas.crear')
                 @if($cotizacion->puedeConvertirAFactura())
                 <form method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
                     @csrf
@@ -393,6 +394,7 @@ $breadcrumbs = [
                 </button>
                 <p class="text-muted small mt-1 mb-0">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
                 @endif
+                @endcan
                 @endif
 
                 @if($cotizacion->factura)

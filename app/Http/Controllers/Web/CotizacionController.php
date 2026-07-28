@@ -596,10 +596,18 @@ class CotizacionController extends Controller
      */
     public function convertirFactura($id)
     {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
         DB::beginTransaction();
         try {
-            $cotizacion = Cotizacion::with(['detalles.producto', 'cliente', 'empresa'])->findOrFail($id);
+            $cotizacion = Cotizacion::with(['detalles.producto', 'cliente', 'empresa'])
+                ->lockForUpdate()
+                ->findOrFail($id);
             $this->authorizeCotizacion($cotizacion);
+
+            if (Factura::withTrashed()->where('cotizacion_id', $cotizacion->id)->exists()) {
+                throw new \Exception('Esta cotización ya fue convertida a factura.');
+            }
 
             if (!$cotizacion->puedeFacturarse()) {
                 throw new \Exception('Esta cotización no puede facturarse.');
@@ -621,8 +629,9 @@ class CotizacionController extends Controller
             }
 
             $metodoPago = strtolower($cotizacion->tipo_venta ?? 'contado') === 'credito' ? 'PPD' : 'PUE';
-            $serieFactura = $empresa->serie_factura_credito ?? 'FB';
-            $folioFactura = (int) ($empresa->folio_factura_credito ?? 1);
+            $folioReservado = Empresa::reservarFolioFacturaCredito($empresa->id);
+            $serieFactura = $folioReservado['serie'];
+            $folioFactura = $folioReservado['folio'];
             $formaPago = $cotizacion->forma_pago ?? $cliente->forma_pago ?? '03';
             $usoCfdi = $cliente->uso_cfdi_default ?? 'G03';
 
@@ -723,8 +732,6 @@ class CotizacionController extends Controller
                 }
                 // El descuento de inventario se hace al timbrar la factura, no en borrador
             }
-
-            $empresa->incrementarFolioFacturaCredito();
 
             if ($metodoPago === 'PPD') {
                 $diasCredito = (int) ($cotizacion->dias_credito_aplicados ?? $cliente->dias_credito ?? 0);

@@ -151,28 +151,35 @@ class Cotizacion extends Model
 
     /**
      * Generar folio desde configuración de empresa (serie + folio).
-     * Reserva el folio incrementando el contador de la empresa.
+     * Reserva el folio incrementando el contador de la empresa (con lock).
      */
     public static function generarFolio(): string
     {
-        $empresa = \App\Models\Empresa::principal();
-        if ($empresa) {
-            $folio = $empresa->obtenerSiguienteFolioCotizacion();
-            $empresa->incrementarFolioCotizacion();
-            return $folio;
-        }
-        // Fallback si no hay empresa: secuencia por último registro
-        $ultimo = self::orderBy('id', 'desc')->first();
-        if (!$ultimo) {
-            return 'COT-0001';
-        }
-        $folio = $ultimo->folio;
-        if (preg_match('/^.+-(\d{4})$/', $folio, $m)) {
-            $numero = (int) $m[1] + 1;
-        } else {
-            $numero = 1;
-        }
-        return 'COT-' . str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+        return \Illuminate\Support\Facades\DB::transaction(function () {
+            $empresa = \App\Models\Empresa::principal();
+            if ($empresa) {
+                $e = \App\Models\Empresa::query()->whereKey($empresa->id)->lockForUpdate()->first();
+                if ($e) {
+                    $folio = $e->obtenerSiguienteFolioCotizacion();
+                    $e->incrementarFolioCotizacion();
+
+                    return $folio;
+                }
+            }
+            // Fallback si no hay empresa: secuencia por último registro
+            $ultimo = self::query()->lockForUpdate()->orderByDesc('id')->first();
+            if (! $ultimo) {
+                return 'COT-0001';
+            }
+            $folio = $ultimo->folio;
+            if (preg_match('/^.+-(\d{4})$/', $folio, $m)) {
+                $numero = (int) $m[1] + 1;
+            } else {
+                $numero = 1;
+            }
+
+            return 'COT-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+        });
     }
 
     /**
@@ -242,6 +249,9 @@ class Cotizacion extends Model
      */
     public function puedeConvertirAFactura(): bool
     {
+        if (\App\Models\Factura::withTrashed()->where('cotizacion_id', $this->id)->exists()) {
+            return false;
+        }
         if (!$this->puedeFacturarse()) {
             return false;
         }
@@ -264,6 +274,9 @@ class Cotizacion extends Model
      */
     public function motivoNoConvertirAFactura(): ?string
     {
+        if (\App\Models\Factura::withTrashed()->where('cotizacion_id', $this->id)->exists()) {
+            return 'Esta cotización ya tiene una factura asociada.';
+        }
         if (!$this->puedeFacturarse()) {
             return 'La cotización debe estar aceptada o enviada.';
         }

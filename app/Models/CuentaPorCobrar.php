@@ -53,25 +53,27 @@ class CuentaPorCobrar extends Model
     }
 
     /**
-     * Registrar un pago
+     * Registrar un pago (bloquea la fila para concurrencia segura).
      */
     public function registrarPago(float $monto): void
     {
-        $this->monto_pagado += $monto;
-        $this->monto_pendiente -= $monto;
+        \Illuminate\Support\Facades\DB::transaction(function () use ($monto) {
+            $cuenta = self::query()->whereKey($this->id)->lockForUpdate()->firstOrFail();
+            $cuenta->monto_pagado = (float) $cuenta->monto_pagado + $monto;
+            $cuenta->monto_pendiente = (float) $cuenta->monto_pendiente - $monto;
 
-        // Actualizar estado
-        if ($this->monto_pendiente <= 0) {
-            $this->estado = 'pagada';
-            $this->monto_pendiente = 0;
-        } elseif ($this->monto_pagado > 0) {
-            $this->estado = 'parcial';
-        }
+            if ($cuenta->monto_pendiente <= 0) {
+                $cuenta->estado = 'pagada';
+                $cuenta->monto_pendiente = 0;
+            } elseif ((float) $cuenta->monto_pagado > 0) {
+                $cuenta->estado = 'parcial';
+            }
 
-        $this->save();
-
-        // Actualizar saldo del cliente
-        $this->cliente->actualizarSaldo();
+            $cuenta->save();
+            $cuenta->loadMissing('cliente');
+            $cuenta->cliente?->actualizarSaldo();
+            $this->refresh();
+        });
     }
 
     /**
@@ -79,20 +81,25 @@ class CuentaPorCobrar extends Model
      */
     public function revertirPago(float $monto): void
     {
-        $this->monto_pagado = max(0, (float) $this->monto_pagado - $monto);
-        $this->monto_pendiente = min((float) $this->monto_total, (float) $this->monto_pendiente + $monto);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($monto) {
+            $cuenta = self::query()->whereKey($this->id)->lockForUpdate()->firstOrFail();
+            $cuenta->monto_pagado = max(0, (float) $cuenta->monto_pagado - $monto);
+            $cuenta->monto_pendiente = min((float) $cuenta->monto_total, (float) $cuenta->monto_pendiente + $monto);
 
-        if ($this->monto_pendiente >= (float) $this->monto_total) {
-            $this->estado = 'pendiente';
-            $this->monto_pendiente = (float) $this->monto_total;
-        } elseif ($this->monto_pagado > 0) {
-            $this->estado = 'parcial';
-        } else {
-            $this->estado = 'pendiente';
-        }
+            if ($cuenta->monto_pendiente >= (float) $cuenta->monto_total) {
+                $cuenta->estado = 'pendiente';
+                $cuenta->monto_pendiente = (float) $cuenta->monto_total;
+            } elseif ((float) $cuenta->monto_pagado > 0) {
+                $cuenta->estado = 'parcial';
+            } else {
+                $cuenta->estado = 'pendiente';
+            }
 
-        $this->save();
-        $this->cliente->actualizarSaldo();
+            $cuenta->save();
+            $cuenta->loadMissing('cliente');
+            $cuenta->cliente?->actualizarSaldo();
+            $this->refresh();
+        });
     }
 
     /**

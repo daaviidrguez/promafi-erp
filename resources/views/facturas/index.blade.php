@@ -43,7 +43,9 @@ $breadcrumbs = [
                     🔍 Buscar
                 </button>
             </div>
+            @can('facturas.crear')
             <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Nueva Factura</a>
+            @endcan
         </form>
     </div>
 </div>
@@ -156,7 +158,9 @@ $breadcrumbs = [
         <div class="empty-state-title">No hay facturas registradas</div>
         <div class="empty-state-text">Comienza creando tu primera factura</div>
         <div style="margin-top: 20px;">
+            @can('facturas.crear')
             <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Crear Primera Factura</a>
+            @endcan
         </div>
     </div>
     @endif

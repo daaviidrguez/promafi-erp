@@ -111,6 +111,8 @@ class FacturaController extends Controller
      */
     public function create(Request $request)
     {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
         $empresa = Empresa::principal();
 
         if (! $empresa) {
@@ -204,6 +206,8 @@ class FacturaController extends Controller
      */
     public function store(Request $request)
     {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
         $validated = $request->validate([
             'cliente_id' => 'required|exists:clientes,id',
             'fecha_emision' => 'required|date',
@@ -293,8 +297,9 @@ class FacturaController extends Controller
             }
             $total = $subtotal - $descuentoTotal + $ivaTotal - $retencionISR;
 
-            $serie = $empresa->serie_factura_credito ?? 'FB';
-            $folio = (int) ($empresa->folio_factura_credito ?? 1);
+            $folioReservado = Empresa::reservarFolioFacturaCredito($empresa->id);
+            $serie = $folioReservado['serie'];
+            $folio = $folioReservado['folio'];
 
             // Crear factura
             $factura = Factura::create([
@@ -386,8 +391,6 @@ class FacturaController extends Controller
                 }
             }
 
-            $empresa->incrementarFolioFacturaCredito();
-
             // Si es a crédito (PPD), crear cuenta por cobrar
             if ($factura->metodo_pago === 'PPD') {
                 $fechaVencimiento = now()->addDays($cliente->dias_credito);
@@ -477,6 +480,8 @@ class FacturaController extends Controller
      */
     public function edit(Factura $factura)
     {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
         if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden editar facturas en borrador.');
@@ -498,6 +503,8 @@ class FacturaController extends Controller
      */
     public function destroy(Factura $factura)
     {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
         if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden borrar facturas en borrador.');
@@ -538,6 +545,8 @@ class FacturaController extends Controller
      */
     public function update(Request $request, Factura $factura)
     {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
         if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden editar facturas en borrador.');
@@ -726,6 +735,8 @@ class FacturaController extends Controller
      */
     public function timbrar(Factura $factura)
     {
+        abort_unless(auth()->user()?->can('facturas.timbrar'), 403);
+
         if (! $factura->puedeTimbrar()) {
             return back()->with('error', 'Esta factura no puede ser timbrada');
         }

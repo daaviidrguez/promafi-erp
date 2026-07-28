@@ -153,36 +153,54 @@ class InventarioMovimiento extends Model
         if (!$producto->controla_inventario) {
             throw new \InvalidArgumentException('El producto no controla inventario');
         }
-        $stockAnterior = (float) $producto->stock;
-        $esEntrada = self::esEntrada($tipo);
-        $stockResultante = $esEntrada
-            ? $stockAnterior + $cantidad
-            : $stockAnterior - $cantidad;
-        if ($stockResultante < 0) {
-            throw new \InvalidArgumentException("Stock insuficiente para el producto {$producto->nombre}. Disponible: {$stockAnterior}");
-        }
-        $producto->update(['stock' => $stockResultante]);
 
-        $data = [
-            'producto_id' => $producto->id,
-            'tipo' => $tipo,
-            'cantidad' => $cantidad,
-            'stock_anterior' => $stockAnterior,
-            'stock_resultante' => $stockResultante,
-            'factura_id' => $facturaId,
-            'remision_id' => $remisionId,
-            'orden_compra_id' => $ordenCompraId,
-            'factura_compra_id' => $facturaCompraId,
-            'entrada_anticipada_id' => $entradaAnticipadaId,
-            'usuario_id' => $usuarioId ?? auth()->id(),
-            'observaciones' => $observaciones,
-        ];
+        return \Illuminate\Support\Facades\DB::transaction(function () use (
+            $producto,
+            $tipo,
+            $cantidad,
+            $usuarioId,
+            $facturaId,
+            $remisionId,
+            $ordenCompraId,
+            $facturaCompraId,
+            $observaciones,
+            $entradaAnticipadaId
+        ) {
+            $producto = Producto::query()->whereKey($producto->id)->lockForUpdate()->firstOrFail();
+            if (!$producto->controla_inventario) {
+                throw new \InvalidArgumentException('El producto no controla inventario');
+            }
 
-        if (in_array($tipo, [self::TIPO_ENTRADA_MANUAL, self::TIPO_SALIDA_MANUAL])) {
-            $data['folio'] = self::generarFolioManual();
-        }
+            $stockAnterior = (float) $producto->stock;
+            $esEntrada = self::esEntrada($tipo);
+            $stockResultante = $esEntrada
+                ? $stockAnterior + $cantidad
+                : $stockAnterior - $cantidad;
+            if ($stockResultante < 0) {
+                throw new \InvalidArgumentException("Stock insuficiente para el producto {$producto->nombre}. Disponible: {$stockAnterior}");
+            }
+            $producto->update(['stock' => $stockResultante]);
 
-        $mov = self::create($data);
-        return $mov;
+            $data = [
+                'producto_id' => $producto->id,
+                'tipo' => $tipo,
+                'cantidad' => $cantidad,
+                'stock_anterior' => $stockAnterior,
+                'stock_resultante' => $stockResultante,
+                'factura_id' => $facturaId,
+                'remision_id' => $remisionId,
+                'orden_compra_id' => $ordenCompraId,
+                'factura_compra_id' => $facturaCompraId,
+                'entrada_anticipada_id' => $entradaAnticipadaId,
+                'usuario_id' => $usuarioId ?? auth()->id(),
+                'observaciones' => $observaciones,
+            ];
+
+            if (in_array($tipo, [self::TIPO_ENTRADA_MANUAL, self::TIPO_SALIDA_MANUAL])) {
+                $data['folio'] = self::generarFolioManual();
+            }
+
+            return self::create($data);
+        });
     }
 }

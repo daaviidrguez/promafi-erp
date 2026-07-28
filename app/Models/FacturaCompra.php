@@ -165,18 +165,33 @@ class FacturaCompra extends Model
 
     /**
      * Folio consecutivo interno único (manual, Leer CFDI, registrar cuenta, importador).
+     * Debe ser seguro ante concurrencia (lock de filas + unique en BD).
      */
     public static function generarFolioInterno(): string
     {
-        $max = 0;
-        foreach (self::query()->whereNotNull('folio_interno')->where('folio_interno', 'like', 'EM-%')->pluck('folio_interno') as $f) {
-            $max = max($max, self::extraerSecuenciaFolioEm($f));
-        }
-        foreach (self::query()->whereNull('folio_interno')->where('folio', 'like', 'EM-%')->pluck('folio') as $f) {
-            $max = max($max, self::extraerSecuenciaFolioEm($f));
-        }
+        return \Illuminate\Support\Facades\DB::transaction(function () {
+            $candidatos = self::withTrashed()
+                ->where(function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->whereNotNull('folio_interno')->where('folio_interno', 'like', 'EM-%');
+                    })->orWhere(function ($q2) {
+                        $q2->whereNull('folio_interno')->where('folio', 'like', 'EM-%');
+                    });
+                })
+                ->lockForUpdate()
+                ->get(['folio_interno', 'folio']);
 
-        return 'EM-' . str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+            $max = 0;
+            foreach ($candidatos as $row) {
+                if (! empty($row->folio_interno) && ! str_starts_with((string) $row->folio_interno, 'EM-TMP-')) {
+                    $max = max($max, self::extraerSecuenciaFolioEm((string) $row->folio_interno));
+                } elseif (! empty($row->folio)) {
+                    $max = max($max, self::extraerSecuenciaFolioEm((string) $row->folio));
+                }
+            }
+
+            return 'EM-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+        });
     }
 
     /**

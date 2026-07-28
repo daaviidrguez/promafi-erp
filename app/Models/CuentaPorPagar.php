@@ -54,15 +54,19 @@ class CuentaPorPagar extends Model
 
     public function registrarPago(float $monto): void
     {
-        $this->monto_pagado += $monto;
-        $this->monto_pendiente -= $monto;
-        if ($this->monto_pendiente <= 0) {
-            $this->estado = 'pagada';
-            $this->monto_pendiente = 0;
-        } elseif ($this->monto_pagado > 0) {
-            $this->estado = 'parcial';
-        }
-        $this->save();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($monto) {
+            $cuenta = self::query()->whereKey($this->id)->lockForUpdate()->firstOrFail();
+            $cuenta->monto_pagado = (float) $cuenta->monto_pagado + $monto;
+            $cuenta->monto_pendiente = (float) $cuenta->monto_pendiente - $monto;
+            if ($cuenta->monto_pendiente <= 0) {
+                $cuenta->estado = 'pagada';
+                $cuenta->monto_pendiente = 0;
+            } elseif ((float) $cuenta->monto_pagado > 0) {
+                $cuenta->estado = 'parcial';
+            }
+            $cuenta->save();
+            $this->refresh();
+        });
     }
 
     public function calcularDiasVencido(): void

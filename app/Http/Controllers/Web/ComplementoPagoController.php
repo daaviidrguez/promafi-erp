@@ -155,8 +155,7 @@ class ComplementoPagoController extends Controller
             $empresa = Empresa::principal();
             $cliente = Cliente::findOrFail($validated['cliente_id']);
 
-            // Obtener siguiente folio
-            $folio = $empresa->folio_complemento ?? 1;
+            $folioReservado = Empresa::reservarFolioComplemento($empresa->id);
 
             // Relación de CFDI (SAT 2026): sustitución de complemento emitido con errores
             $uuidReferencia = !empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null;
@@ -165,8 +164,8 @@ class ComplementoPagoController extends Controller
             // Crear complemento CON TODOS LOS CAMPOS REQUERIDOS
             $complemento = ComplementoPago::create([
                 // Identificación
-                'serie' => $empresa->serie_complemento ?? 'P',
-                'folio' => $folio,
+                'serie' => $folioReservado['serie'],
+                'folio' => $folioReservado['folio'],
                 'estado' => 'borrador',
                 
                 // Relaciones
@@ -253,14 +252,6 @@ class ComplementoPagoController extends Controller
 
                 // El pago se aplica a la cuenta por cobrar solo al TIMBRAR el complemento (flujo fiscal correcto)
             }
-
-            // Incrementar folio del complemento
-            if (!isset($empresa->folio_complemento)) {
-                $empresa->folio_complemento = 2;
-            } else {
-                $empresa->folio_complemento++;
-            }
-            $empresa->save();
 
             DB::commit();
 

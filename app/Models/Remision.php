@@ -145,23 +145,32 @@ class Remision extends Model
 
     /**
      * Generar folio desde configuración de empresa (serie + folio).
-     * Reserva el folio incrementando el contador de la empresa.
+     * Reserva el folio incrementando el contador de la empresa (con lock).
      */
     public static function generarFolio(): string
     {
-        $empresa = \App\Models\Empresa::principal();
-        if ($empresa) {
-            $folio = $empresa->obtenerSiguienteFolioRemision();
-            $empresa->incrementarFolioRemision();
+        return \Illuminate\Support\Facades\DB::transaction(function () {
+            $empresa = \App\Models\Empresa::principal();
+            if ($empresa) {
+                $e = \App\Models\Empresa::query()->whereKey($empresa->id)->lockForUpdate()->first();
+                if ($e) {
+                    $folio = $e->obtenerSiguienteFolioRemision();
+                    $e->incrementarFolioRemision();
 
-            return $folio;
-        }
-        // Fallback si no hay empresa: REM-AÑO-0001
-        $year = date('Y');
-        $ultimo = self::where('folio', 'like', "REM-{$year}-%")->orderBy('id', 'desc')->first();
-        $numero = $ultimo && preg_match('/REM-'.$year.'-(\d{4})/', $ultimo->folio, $m) ? (int) $m[1] + 1 : 1;
+                    return $folio;
+                }
+            }
+            // Fallback si no hay empresa: REM-AÑO-0001
+            $year = date('Y');
+            $ultimo = self::query()
+                ->where('folio', 'like', "REM-{$year}-%")
+                ->lockForUpdate()
+                ->orderByDesc('id')
+                ->first();
+            $numero = $ultimo && preg_match('/REM-'.$year.'-(\d{4})/', $ultimo->folio, $m) ? (int) $m[1] + 1 : 1;
 
-        return 'REM-'.$year.'-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+            return 'REM-'.$year.'-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+        });
     }
 
     public function puedeEditarse(): bool

@@ -244,13 +244,18 @@ $clienteFacturaJson = $factura->cliente ? [
 
     {{-- Botones --}}
     <div class="card">
-        <div class="card-body" style="display: flex; gap: 12px; justify-content: flex-end;">
-            <a href="{{ route('facturas.show', $factura) }}" class="btn btn-light">Cancelar</a>
-            <button type="submit" class="btn btn-primary">✓ Guardar Cambios</button>
+        <div class="card-body" style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+            <div id="promafiAutosaveStatus" class="promafi-autosave-status" style="display:none;"></div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; width: 100%;">
+                <a href="{{ route('facturas.show', $factura) }}" class="btn btn-light">Cancelar</a>
+                <button type="submit" class="btn btn-primary">✓ Guardar Cambios</button>
+            </div>
         </div>
     </div>
 
 </form>
+
+@include('partials.form_local_autosave')
 
 @endsection
 
@@ -542,7 +547,129 @@ document.getElementById('formFactura').addEventListener('submit', function(e) {
     if (!document.querySelectorAll('#productosContainer tr').length) {
         e.preventDefault();
         alert('⚠️ Agrega al menos un concepto a la factura.');
+        return;
     }
+    if (window.facturaAutosave) {
+        window.facturaAutosave.close();
+    }
+});
+
+document.body.dataset.conexionBloqueo = '1';
+if (window.PromafiConexion) {
+    window.PromafiConexion.enableBloqueo();
+}
+
+function serializarFacturaAutosave() {
+    const form = document.getElementById('formFactura');
+    const productos = [];
+    document.querySelectorAll('#productosContainer tr').forEach(function (tr) {
+        productos.push({
+            producto_id: tr.querySelector('.input-producto-id')?.value || '',
+            descripcion: tr.querySelector('[name*="[descripcion]"]')?.value || '',
+            cantidad: parseFloat(tr.querySelector('[name*="[cantidad]"]')?.value) || 0,
+            valor_unitario: parseFloat(tr.querySelector('[name*="[valor_unitario]"]')?.value) || 0,
+            descuento: parseFloat(tr.querySelector('[name*="[descuento]"]')?.value) || 0,
+            tasa_iva: parseFloat(tr.querySelector('.input-tasa-iva')?.value || 0) || 0,
+        });
+    });
+    return {
+        contexto: {
+            tipo: 'edit',
+            facturaId: @json($factura->id),
+            editUrl: @json(route('facturas.edit', $factura)),
+            folio: @json($factura->folio_completo),
+        },
+        cliente_id: document.getElementById('cliente_id')?.value || '',
+        clienteLabel: document.getElementById('buscarCliente')?.value || '',
+        clienteTipoPersona: clienteTipoPersonaActual,
+        orden_compra: form.querySelector('[name="orden_compra"]')?.value || '',
+        fecha_emision: form.querySelector('[name="fecha_emision"]')?.value || '',
+        forma_pago: form.querySelector('[name="forma_pago"]')?.value || '',
+        metodo_pago: form.querySelector('[name="metodo_pago"]')?.value || '',
+        uso_cfdi: form.querySelector('[name="uso_cfdi"]')?.value || '',
+        observaciones: form.querySelector('[name="observaciones"]')?.value || '',
+        sustituir_cfdi: !!document.getElementById('checkSustituirCfdi')?.checked,
+        uuid_referencia: document.getElementById('inputUuidReferencia')?.value || '',
+        productos: productos,
+    };
+}
+
+function facturaAutosaveTieneContenido(data) {
+    if (!data) return false;
+    if (data.cliente_id) return true;
+    if (String(data.observaciones || '').trim()) return true;
+    if (String(data.orden_compra || '').trim()) return true;
+    if (data.sustituir_cfdi && String(data.uuid_referencia || '').trim()) return true;
+    const prods = data.productos || [];
+    if (prods.length > 1) return true;
+    return prods.some(function (p) {
+        if (String(p.descripcion || '').trim()) return true;
+        const precio = parseFloat(p.valor_unitario);
+        if (!Number.isNaN(precio) && precio > 0) return true;
+        const cant = parseFloat(p.cantidad);
+        if (!Number.isNaN(cant) && cant !== 1) return true;
+        return false;
+    });
+}
+
+function restaurarFacturaAutosave(data) {
+    if (!data) return;
+    const form = document.getElementById('formFactura');
+    if (data.cliente_id && data.clienteLabel) {
+        document.getElementById('cliente_id').value = data.cliente_id;
+        document.getElementById('buscarCliente').value = data.clienteLabel;
+        document.getElementById('infoCliente').style.display = 'block';
+    }
+    clienteTipoPersonaActual = data.clienteTipoPersona || 'fisica';
+    const setVal = function (name, val) {
+        const el = form.querySelector('[name="' + name + '"]');
+        if (el && val != null) el.value = val;
+    };
+    setVal('orden_compra', data.orden_compra);
+    setVal('fecha_emision', data.fecha_emision);
+    setVal('forma_pago', data.forma_pago);
+    setVal('metodo_pago', data.metodo_pago);
+    setVal('uso_cfdi', data.uso_cfdi);
+    setVal('observaciones', data.observaciones);
+    const checkSust = document.getElementById('checkSustituirCfdi');
+    if (checkSust) {
+        checkSust.checked = !!data.sustituir_cfdi;
+        if (typeof toggleBloqueCfdiSustituir === 'function') toggleBloqueCfdiSustituir();
+    }
+    const uuidHidden = document.getElementById('inputUuidReferencia');
+    const uuidDisplay = document.getElementById('inputUuidReferenciaDisplay');
+    if (uuidHidden) uuidHidden.value = data.uuid_referencia || '';
+    if (uuidDisplay) uuidDisplay.value = data.uuid_referencia || '';
+    document.getElementById('productosContainer').innerHTML = '';
+    productoIndex = 0;
+    document.getElementById('emptyProductos').style.display = 'none';
+    (data.productos || []).forEach(function (p) {
+        agregarProducto({
+            producto_id: p.producto_id,
+            nombre: p.descripcion,
+            cantidad: p.cantidad,
+            valor_unitario: p.valor_unitario,
+            descuento: p.descuento,
+            tasa_iva: p.tasa_iva,
+        });
+    });
+    calcularTotales();
+}
+
+window.facturaAutosave = window.PromafiFormAutosave.create({
+    form: '#formFactura',
+    statusEl: '#promafiAutosaveStatus',
+    key: @json('promafi:factura-draft:edit:' . auth()->id() . ':' . $factura->id),
+    pointerKey: @json('promafi:factura-pointer:' . auth()->id()),
+    modo: 'edit',
+    editUrl: @json(route('facturas.edit', $factura)),
+    folio: @json($factura->folio_completo),
+    entityId: @json($factura->id),
+    entityIdField: 'facturaId',
+    skipRestore: @json(old('cliente_id') !== null || $errors->any()),
+    serialize: serializarFacturaAutosave,
+    hasContent: facturaAutosaveTieneContenido,
+    restore: restaurarFacturaAutosave,
 });
 @if($factura->estado === 'borrador')
 // Relación de CFDI (sustitución)

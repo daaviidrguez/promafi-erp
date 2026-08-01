@@ -346,15 +346,20 @@ $breadcrumbs = [
 
 {{-- Botones --}}
 <div class="card">
-    <div class="card-body" style="display:flex; gap:12px; justify-content:flex-end;">
-        <a href="{{ route('cotizaciones.index') }}" class="btn btn-light">Cancelar</a>
-        <button type="submit" class="btn btn-primary">
-            ✓ Guardar Cotización
-        </button>
+    <div class="card-body" style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+        <div id="promafiAutosaveStatus" class="promafi-autosave-status" style="display:none;"></div>
+        <div style="display:flex; gap:12px; justify-content:flex-end; width:100%;">
+            <a href="{{ route('cotizaciones.index') }}" class="btn btn-light">Cancelar</a>
+            <button type="submit" class="btn btn-primary">
+                ✓ Guardar Cotización
+            </button>
+        </div>
     </div>
 </div>
 
 </form>
+
+@include('partials.form_local_autosave')
 
 {{-- Modal: cambios sin guardar --}}
 <div id="modalCambiosSinGuardar" class="modal">
@@ -1526,7 +1531,110 @@ document.getElementById('cotizacionForm').addEventListener('submit', e => {
         return;
     }
     syncImagenesAlFormulario();
+    if (window.cotizacionAutosave) {
+        window.cotizacionAutosave.close();
+    }
     allowNavigation = true;
+});
+
+document.body.dataset.conexionBloqueo = '1';
+if (window.PromafiConexion) {
+    window.PromafiConexion.enableBloqueo();
+}
+
+function cotizacionAutosaveTieneContenido(data) {
+    if (!data) return false;
+    if (data.cliente_id) return true;
+    const textos = [data.condiciones_pago, data.observaciones, data.referencia_comercial, data.referencia_url, data.referencia_url_2, data.referencia_url_3];
+    if (textos.some(t => String(t || '').trim() !== '')) return true;
+    const prods = data.productos || [];
+    if (prods.length > 1) return true;
+    return prods.some(p => {
+        if (String(p.nombre || '').trim() !== '') return true;
+        if (String(p.origen || '').trim() !== '') return true;
+        const precio = parseFloat(p.precio);
+        if (!Number.isNaN(precio) && precio > 0) return true;
+        const cant = parseFloat(p.cantidad);
+        if (!Number.isNaN(cant) && cant !== 1) return true;
+        return false;
+    });
+}
+
+function restaurarCotizacionAutosave(data) {
+    if (!data) return;
+    document.getElementById('cliente_id').value = data.cliente_id || '';
+    document.getElementById('buscarCliente').value = data.clienteLabel || '';
+    if (data.cliente_id && data.clienteLabel) {
+        document.getElementById('clienteInfo').style.display = 'block';
+        document.getElementById('clienteNombre').textContent = data.clienteLabel;
+        document.getElementById('cardListaPrecios').style.display = 'block';
+        fetchListasPreciosCliente(data.cliente_id);
+    }
+    clienteTipoPersona = data.clienteTipoPersona || 'fisica';
+    if (data.tipo_venta) document.getElementById('tipoVenta').value = data.tipo_venta;
+    if (data.dias_credito != null) document.getElementById('diasCredito').value = data.dias_credito;
+    onTipoVentaChange();
+    const form = document.getElementById('cotizacionForm');
+    const setVal = (name, val) => {
+        const el = form.querySelector('[name="' + name + '"]');
+        if (el && val != null) el.value = val;
+    };
+    setVal('forma_pago', data.forma_pago);
+    setVal('fecha', data.fecha);
+    setVal('fecha_vencimiento', data.fecha_vencimiento);
+    setVal('condiciones_pago', data.condiciones_pago);
+    setVal('observaciones', data.observaciones);
+    setVal('referencia_comercial', data.referencia_comercial);
+    setVal('referencia_url', data.referencia_url);
+    setVal('referencia_url_2', data.referencia_url_2);
+    setVal('referencia_url_3', data.referencia_url_3);
+    productos = Array.isArray(data.productos) ? data.productos.map(p => ({
+        id: p.id || null,
+        codigo: p.codigo || '',
+        origen: p.origen || '',
+        nombre: p.nombre || '',
+        cantidad: p.cantidad ?? 1,
+        unidad: p.unidad || 'PZA',
+        precio: p.precio ?? 0,
+        descuento: p.descuento ?? 0,
+        tasa_iva: p.tasa_iva,
+        manual: !!p.manual,
+        sugerencia_id: p.sugerencia_id || null,
+        imagenesExistentes: [],
+        imagenesUrls: [],
+        imagenesNuevas: [],
+        previewNuevas: [],
+    })) : [];
+    renderProductos();
+    captureInitialSnapshot();
+}
+
+window.cotizacionAutosave = window.PromafiFormAutosave.create({
+    form: '#cotizacionForm',
+    statusEl: '#promafiAutosaveStatus',
+    key: @json('promafi:cotizacion-draft:' . ($isEdit ? 'edit' : 'create') . ':' . auth()->id() . ':' . ($isEdit ? $cotizacion->id : 'new')),
+    pointerKey: @json('promafi:cotizacion-pointer:' . auth()->id()),
+    modo: @json($isEdit ? 'edit' : 'create'),
+    editUrl: @json($isEdit ? route('cotizaciones.create') . '?id=' . $cotizacion->id : ''),
+    folio: @json($isEdit ? $cotizacion->folio : $folio),
+    entityId: @json($isEdit ? $cotizacion->id : null),
+    entityIdField: 'cotizacionId',
+    skipRestore: @json(old('cliente_id') !== null || $errors->any()),
+    serialize() {
+        const snap = JSON.parse(getFormSnapshot());
+        return Object.assign({}, snap, {
+            contexto: {
+                tipo: isEditMode ? 'edit' : 'create',
+                cotizacionId: isEditMode ? @json($isEdit ? $cotizacion->id : null) : null,
+                editUrl: @json($isEdit ? route('cotizaciones.create') . '?id=' . $cotizacion->id : ''),
+                folio: @json($isEdit ? $cotizacion->folio : $folio),
+            },
+            clienteLabel: document.getElementById('buscarCliente').value || '',
+            clienteTipoPersona: clienteTipoPersona,
+        });
+    },
+    hasContent: cotizacionAutosaveTieneContenido,
+    restore: restaurarCotizacionAutosave,
 });
 </script>
 @endpush

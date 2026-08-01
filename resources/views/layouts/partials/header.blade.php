@@ -29,6 +29,8 @@
     {{-- Acciones --}}
     <div class="header-actions">
 
+        @include('partials.conexion_status', ['conexionPart' => 'navbar'])
+
         {{-- Notificaciones --}}
         <button class="header-icon-btn" title="Notificaciones" id="notificationsButton" onclick="toggleNotifications()">
             🔔

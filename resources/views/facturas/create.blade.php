@@ -227,13 +227,18 @@ $clientePreseleccionadoJson = $clientePreseleccionado ? [
 
     {{-- Botones --}}
     <div class="card">
-        <div class="card-body" style="display: flex; gap: 12px; justify-content: flex-end;">
-            <a href="{{ route('facturas.index') }}" class="btn btn-light">Cancelar</a>
-            <button type="submit" class="btn btn-primary">✓ Guardar Factura</button>
+        <div class="card-body" style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+            <div id="promafiAutosaveStatus" class="promafi-autosave-status" style="display:none;"></div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end; width: 100%;">
+                <a href="{{ route('facturas.index') }}" class="btn btn-light">Cancelar</a>
+                <button type="submit" class="btn btn-primary">✓ Guardar Factura</button>
+            </div>
         </div>
     </div>
 
 </form>
+
+@include('partials.form_local_autosave')
 
 {{-- Modal seleccionar CFDI a sustituir (relación tipo 04) --}}
 <div id="modalSeleccionarCfdiSustituir" class="modal">
@@ -406,9 +411,27 @@ function prefillFacturaDesdeRemision() {
 
 document.addEventListener('DOMContentLoaded', prefillFacturaDesdeRemision);
 
-function agregarProducto() {
+function agregarProducto(datos = null) {
     document.getElementById('emptyProductos').style.display = 'none';
     const i = productoIndex++;
+
+    const desc = datos ? (datos.nombre || datos.descripcion || '') : '';
+    const prodId = datos ? (datos.producto_id || '') : '';
+    const cant = datos ? datos.cantidad : 1;
+    const precio = datos ? datos.valor_unitario : '';
+    const descuento = datos ? (datos.descuento ?? 0) : 0;
+    const tasaIva = datos ? (datos.tasa_iva ?? 0) : 0;
+
+    let buscarValor = '';
+    if (prodId) {
+        const p = catalogoProductos.find(x => Number(x.id) === Number(prodId));
+        if (p) {
+            buscarValor = `${p.codigo || ''} — ${p.nombre || ''}`.trim();
+        } else if (datos?.codigo) {
+            buscarValor = `${datos.codigo} — ${desc}`.trim();
+        }
+    }
+
     const tr = document.createElement('tr');
     tr.id = `prod-${i}`;
     tr.innerHTML = `
@@ -418,29 +441,30 @@ function agregarProducto() {
                        class="form-control"
                        style="font-size: 13px; width: 100%;"
                        placeholder="Buscar producto por código o nombre..."
+                       value="${escapeHtml(buscarValor)}"
                        oninput="buscarProductosFila(${i}, this.value)"
                        onfocus="filaBusquedaActiva=${i}"
                        autocomplete="off">
             </div>
-            <input type="hidden" name="productos[${i}][producto_id]" class="input-producto-id" value="">
-            <input type="hidden" class="input-tasa-iva" value="0">
+            <input type="hidden" name="productos[${i}][producto_id]" class="input-producto-id" value="${prodId}">
+            <input type="hidden" class="input-tasa-iva" value="${tasaIva}">
             <input type="text" name="productos[${i}][descripcion]"
-                   placeholder="Descripción *" class="form-control" style="font-size: 13px; width: 100%; min-width: 500px;" required>
+                   placeholder="Descripción *" class="form-control" style="font-size: 13px; width: 100%; min-width: 500px;" value="${escapeHtml(desc)}" required>
         </td>
         <td class="td-center">
             <input type="number" name="productos[${i}][cantidad]"
                    class="form-control" style="text-align: center; width: 70px;"
-                   value="1" min="0.01" step="0.01" onchange="calcularTotales()" required>
+                   value="${cant}" min="0.01" step="0.01" onchange="calcularTotales()" required>
         </td>
         <td class="td-right">
             <input type="number" name="productos[${i}][valor_unitario]"
                    class="form-control" style="text-align: right; width: 100px;"
-                   min="0" step="0.01" onchange="calcularTotales()" required>
+                   value="${precio}" min="0" step="0.01" onchange="calcularTotales()" required>
         </td>
         <td class="td-right">
             <input type="number" name="productos[${i}][descuento]"
                    class="form-control" style="text-align: right; width: 80px;"
-                   value="0" min="0" step="0.01" onchange="calcularTotales()">
+                   value="${descuento}" min="0" step="0.01" onchange="calcularTotales()">
         </td>
         <td class="td-right text-mono fw-600" id="importe-${i}">$0.00</td>
         <td class="td-center">
@@ -451,6 +475,7 @@ function agregarProducto() {
         </td>
     `;
     document.getElementById('productosContainer').appendChild(tr);
+    calcularTotales();
 }
 
 function buscarProductosFila(i, query) {
@@ -575,7 +600,129 @@ document.getElementById('formFactura').addEventListener('submit', function(e) {
     if (!document.querySelectorAll('#productosContainer tr').length) {
         e.preventDefault();
         alert('⚠️ Agrega al menos un concepto a la factura.');
+        return;
     }
+    if (window.facturaAutosave) {
+        window.facturaAutosave.close();
+    }
+});
+
+document.body.dataset.conexionBloqueo = '1';
+if (window.PromafiConexion) {
+    window.PromafiConexion.enableBloqueo();
+}
+
+function serializarFacturaAutosave() {
+    const form = document.getElementById('formFactura');
+    const productos = [];
+    document.querySelectorAll('#productosContainer tr').forEach(function (tr) {
+        productos.push({
+            producto_id: tr.querySelector('.input-producto-id')?.value || '',
+            descripcion: tr.querySelector('[name*="[descripcion]"]')?.value || '',
+            cantidad: parseFloat(tr.querySelector('[name*="[cantidad]"]')?.value) || 0,
+            valor_unitario: parseFloat(tr.querySelector('[name*="[valor_unitario]"]')?.value) || 0,
+            descuento: parseFloat(tr.querySelector('[name*="[descuento]"]')?.value) || 0,
+            tasa_iva: parseFloat(tr.querySelector('.input-tasa-iva')?.value || 0) || 0,
+        });
+    });
+    return {
+        contexto: {
+            tipo: 'create',
+            facturaId: null,
+            editUrl: '',
+            folio: document.getElementById('visorFolio')?.textContent?.trim() || '',
+        },
+        cliente_id: document.getElementById('cliente_id')?.value || '',
+        clienteLabel: document.getElementById('buscarCliente')?.value || '',
+        clienteTipoPersona: clienteTipoPersonaActual,
+        orden_compra: form.querySelector('[name="orden_compra"]')?.value || '',
+        fecha_emision: form.querySelector('[name="fecha_emision"]')?.value || '',
+        forma_pago: form.querySelector('[name="forma_pago"]')?.value || '',
+        metodo_pago: form.querySelector('[name="metodo_pago"]')?.value || '',
+        uso_cfdi: form.querySelector('[name="uso_cfdi"]')?.value || '',
+        observaciones: form.querySelector('[name="observaciones"]')?.value || '',
+        sustituir_cfdi: !!document.getElementById('checkSustituirCfdi')?.checked,
+        uuid_referencia: document.getElementById('inputUuidReferencia')?.value || '',
+        productos: productos,
+    };
+}
+
+function facturaAutosaveTieneContenido(data) {
+    if (!data) return false;
+    if (data.cliente_id) return true;
+    if (String(data.observaciones || '').trim()) return true;
+    if (String(data.orden_compra || '').trim()) return true;
+    if (data.sustituir_cfdi && String(data.uuid_referencia || '').trim()) return true;
+    const prods = data.productos || [];
+    if (prods.length > 1) return true;
+    return prods.some(function (p) {
+        if (String(p.descripcion || '').trim()) return true;
+        const precio = parseFloat(p.valor_unitario);
+        if (!Number.isNaN(precio) && precio > 0) return true;
+        const cant = parseFloat(p.cantidad);
+        if (!Number.isNaN(cant) && cant !== 1) return true;
+        return false;
+    });
+}
+
+function restaurarFacturaAutosave(data) {
+    if (!data) return;
+    const form = document.getElementById('formFactura');
+    if (data.cliente_id && data.clienteLabel) {
+        document.getElementById('cliente_id').value = data.cliente_id;
+        document.getElementById('buscarCliente').value = data.clienteLabel;
+        document.getElementById('infoCliente').style.display = 'block';
+    }
+    clienteTipoPersonaActual = data.clienteTipoPersona || 'fisica';
+    const setVal = function (name, val) {
+        const el = form.querySelector('[name="' + name + '"]');
+        if (el && val != null) el.value = val;
+    };
+    setVal('orden_compra', data.orden_compra);
+    setVal('fecha_emision', data.fecha_emision);
+    setVal('forma_pago', data.forma_pago);
+    setVal('metodo_pago', data.metodo_pago);
+    setVal('uso_cfdi', data.uso_cfdi);
+    setVal('observaciones', data.observaciones);
+    const checkSust = document.getElementById('checkSustituirCfdi');
+    if (checkSust) {
+        checkSust.checked = !!data.sustituir_cfdi;
+        toggleBloqueCfdiSustituir();
+    }
+    const uuidHidden = document.getElementById('inputUuidReferencia');
+    const uuidDisplay = document.getElementById('inputUuidReferenciaDisplay');
+    if (uuidHidden) uuidHidden.value = data.uuid_referencia || '';
+    if (uuidDisplay) uuidDisplay.value = data.uuid_referencia || '';
+    document.getElementById('productosContainer').innerHTML = '';
+    productoIndex = 0;
+    document.getElementById('emptyProductos').style.display = 'none';
+    (data.productos || []).forEach(function (p) {
+        agregarProducto({
+            producto_id: p.producto_id,
+            nombre: p.descripcion,
+            cantidad: p.cantidad,
+            valor_unitario: p.valor_unitario,
+            descuento: p.descuento,
+            tasa_iva: p.tasa_iva,
+        });
+    });
+    calcularTotales();
+}
+
+window.facturaAutosave = window.PromafiFormAutosave.create({
+    form: '#formFactura',
+    statusEl: '#promafiAutosaveStatus',
+    key: @json('promafi:factura-draft:create:' . auth()->id()),
+    pointerKey: @json('promafi:factura-pointer:' . auth()->id()),
+    modo: 'create',
+    editUrl: '',
+    folio: @json($folioFactura ?? ''),
+    entityId: null,
+    entityIdField: 'facturaId',
+    skipRestore: @json(!empty($remisionId) || old('cliente_id') !== null || $errors->any()),
+    serialize: serializarFacturaAutosave,
+    hasContent: facturaAutosaveTieneContenido,
+    restore: restaurarFacturaAutosave,
 });
 
 // Relación de CFDI (sustitución)

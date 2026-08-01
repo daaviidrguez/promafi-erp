@@ -625,6 +625,28 @@ $breadcrumbs = [
 @endsection
 
 @push('scripts')
+@if(session('success'))
+<script>
+(function () {
+    try {
+        var userId = @json((int) auth()->id());
+        var facturaId = @json((int) $factura->id);
+        var pointerKey = 'promafi:factura-pointer:' + userId;
+        var editKey = 'promafi:factura-draft:edit:' + userId + ':' + facturaId;
+        var createKey = 'promafi:factura-draft:create:' + userId;
+        localStorage.removeItem(editKey);
+        localStorage.removeItem(createKey);
+        var pointerRaw = localStorage.getItem(pointerKey);
+        if (pointerRaw) {
+            var pointer = JSON.parse(pointerRaw);
+            if (pointer && (pointer.key === editKey || pointer.key === createKey)) {
+                localStorage.removeItem(pointerKey);
+            }
+        }
+    } catch (e) {}
+})();
+</script>
+@endif
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const linkVerFacturaPdf = document.getElementById('linkVerFacturaPdf');

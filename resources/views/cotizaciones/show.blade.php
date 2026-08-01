@@ -476,6 +476,28 @@ $breadcrumbs = [
 </div>
 
 @push('scripts')
+@if(session('success'))
+<script>
+(function () {
+    try {
+        var userId = @json((int) auth()->id());
+        var cotId = @json((int) $cotizacion->id);
+        var pointerKey = 'promafi:cotizacion-pointer:' + userId;
+        var editKey = 'promafi:cotizacion-draft:edit:' + userId + ':' + cotId;
+        var createKey = 'promafi:cotizacion-draft:create:' + userId + ':new';
+        localStorage.removeItem(editKey);
+        localStorage.removeItem(createKey);
+        var pointerRaw = localStorage.getItem(pointerKey);
+        if (pointerRaw) {
+            var pointer = JSON.parse(pointerRaw);
+            if (pointer && (pointer.key === editKey || pointer.key === createKey)) {
+                localStorage.removeItem(pointerKey);
+            }
+        }
+    } catch (e) {}
+})();
+</script>
+@endif
 <script>
 (function() {
     window.abrirModalAceptarVencida = function() {

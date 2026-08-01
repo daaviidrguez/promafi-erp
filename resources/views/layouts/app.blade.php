@@ -169,6 +169,8 @@
 
     @RegisterServiceWorkerScript
 
+    @include('partials.conexion_status', ['conexionPart' => 'body'])
+
     @stack('scripts')
 </body>
 </html>

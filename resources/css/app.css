@@ -310,10 +310,26 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
     line-height: 0;
+    overflow: visible;
 }
 .header-conexion-icon--online { color: var(--color-success); }
 .header-conexion-icon--offline { color: var(--color-danger); }
+/* Solo un icono a la vez: el atributo hidden en SVG no siempre aplica display:none */
+.header-conexion-svg {
+    display: none !important;
+    width: 18px;
+    height: 18px;
+    overflow: visible;
+    flex-shrink: 0;
+}
+.header-conexion-icon--online .header-conexion-svg--online,
+.header-conexion-icon--offline .header-conexion-svg--offline {
+    display: block !important;
+}
 .header-conexion-hora {
     font-size: 13px;
     font-weight: 600;
@@ -377,9 +393,20 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 }
 .conexion-bloqueante__icon {
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
     margin-bottom: 16px;
     opacity: 0.95;
     color: #f8fafc;
+    overflow: visible;
+}
+.conexion-bloqueante__icon svg {
+    display: block;
+    width: 48px;
+    height: 48px;
+    overflow: visible;
 }
 .conexion-bloqueante__title {
     margin: 0 0 12px;

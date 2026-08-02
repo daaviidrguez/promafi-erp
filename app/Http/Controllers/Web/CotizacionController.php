@@ -20,6 +20,7 @@ use App\Models\FacturaDetalle;
 use App\Models\FacturaImpuesto;
 use App\Models\CuentaPorCobrar;
 use App\Models\FormaPago;
+use App\Models\User;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -84,6 +85,11 @@ class CotizacionController extends Controller
             $query->where('fecha', '<=', $request->fecha_fin);
         }
 
+        // Filtro por asesor (solo útil cuando el usuario puede ver varias)
+        if ($request->filled('asesor_id') && !Auth::user()->isVendedor()) {
+            $query->where('usuario_id', $request->asesor_id);
+        }
+
         // Actualizar estado de vencidas automáticamente
         Cotizacion::vencidas()->update(['estado' => 'vencida']);
 
@@ -100,7 +106,14 @@ class CotizacionController extends Controller
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();
 
-        return view('cotizaciones.index', compact('cotizaciones', 'estadisticas', 'clientes'));
+        $asesores = Auth::user()->isVendedor()
+            ? collect()
+            : User::activos()
+                ->whereHas('role', fn ($q) => $q->where('name', 'vendedor'))
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+        return view('cotizaciones.index', compact('cotizaciones', 'estadisticas', 'clientes', 'asesores'));
     }
 
     /**

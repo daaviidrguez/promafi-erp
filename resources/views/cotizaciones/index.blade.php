@@ -80,6 +80,19 @@ $breadcrumbs = [
                         @endforeach
                     </select>
                 </div>
+                @if($asesores->isNotEmpty())
+                <div class="form-group">
+                    <label class="form-label">Asesor</label>
+                    <select name="asesor_id" class="form-control">
+                        <option value="">Todos</option>
+                        @foreach($asesores as $asesor)
+                        <option value="{{ $asesor->id }}" {{ (string) request('asesor_id') === (string) $asesor->id ? 'selected' : '' }}>
+                            {{ $asesor->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                </div>
+                @endif
                 <div class="form-group">
                     <label class="form-label">Desde</label>
                     <input type="date" name="fecha_inicio" value="{{ request('fecha_inicio') }}" class="form-control">
@@ -92,7 +105,7 @@ $breadcrumbs = [
                     <label class="form-label">&nbsp;</label>
                     <div style="display:flex; gap:8px;">
                         <button type="submit" class="btn btn-primary">Buscar</button>
-                        @if(request()->hasAny(['search','estado','fecha_inicio','fecha_fin']))
+                        @if(request()->hasAny(['search','estado','asesor_id','fecha_inicio','fecha_fin']))
                         <a href="{{ route('cotizaciones.index') }}" class="btn btn-light">✕</a>
                         @endif
                     </div>
@@ -110,6 +123,7 @@ $breadcrumbs = [
             <tr>
                 <th>Folio</th>
                 <th>Cliente</th>
+                <th>Asesor</th>
                 <th>Fecha</th>
                 <th>Vigencia</th>
                 <th class="td-right">Total</th>
@@ -129,6 +143,7 @@ $breadcrumbs = [
                     <div class="fw-600">{{ $c->cliente->nombre ?? $c->cliente_nombre }}</div>
                     <div class="text-muted" style="font-size:12px;">{{ $c->cliente->rfc ?? $c->cliente_rfc }}</div>
                 </td>
+                <td>{{ $c->usuario->name ?? '—' }}</td>
                 <td>{{ $c->fecha->format('d/m/Y') }}</td>
                 <td>
                     <span>{{ $c->fecha_vencimiento->format('d/m/Y') }}</span>
@@ -220,7 +235,7 @@ $breadcrumbs = [
         <div class="empty-state-icon">📋</div>
         <div class="empty-state-title">Sin cotizaciones</div>
         <div class="empty-state-text">
-            @if(request()->hasAny(['search','estado','fecha_inicio','fecha_fin']))
+            @if(request()->hasAny(['search','estado','asesor_id','fecha_inicio','fecha_fin']))
                 No hay resultados para tu búsqueda.
                 <a href="{{ route('cotizaciones.index') }}" style="color: var(--color-primary);">Limpiar filtros</a>
             @else

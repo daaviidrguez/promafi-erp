@@ -381,7 +381,7 @@ class Factura extends Model
         if (! empty($clavesPendientes)) {
             return 'Falta clave SAT válida (no provisional 01010101) en: '
                 . implode('; ', $clavesPendientes)
-                . '. Complétela en el catálogo; al volver a esta factura se sincronizará automáticamente (o use «Actualizar claves SAT»).';
+                . '. Complétela en el catálogo; al volver a esta factura se sincronizará automáticamente.';
         }
 
         if (! empty($unidadesPendientes)) {
@@ -454,6 +454,95 @@ class Factura extends Model
         }
 
         return $actualizados;
+    }
+
+    /**
+     * Estado de claves/unidad SAT en borrador tras intentar sincronizar desde catálogo.
+     * Define si hay que completar productos o si aún conviene mostrar «Actualizar claves SAT».
+     *
+     * @return array{
+     *     puede_sincronizar_desde_catalogo: bool,
+     *     pendiente_en_catalogo: bool,
+     *     partidas: list<array{
+     *         etiqueta: string,
+     *         producto_id: int|null,
+     *         falta_clave_catalogo: bool,
+     *         falta_unidad_catalogo: bool,
+     *         sincronizable: bool
+     *     }>
+     * }
+     */
+    public function diagnosticoDatosFiscalesBorrador(): array
+    {
+        $vacio = [
+            'puede_sincronizar_desde_catalogo' => false,
+            'pendiente_en_catalogo' => false,
+            'partidas' => [],
+        ];
+
+        if (! $this->esBorrador()) {
+            return $vacio;
+        }
+
+        $this->loadMissing(['detalles.producto']);
+        $partidas = [];
+
+        foreach ($this->detalles as $d) {
+            if (! $d->producto) {
+                continue;
+            }
+
+            $etiqueta = trim((string) ($d->descripcion ?: ($d->producto->nombre ?? 'partida')));
+            $productoId = $d->producto_id ? (int) $d->producto_id : null;
+
+            $claveDetalle = trim((string) ($d->clave_prod_serv ?? ''));
+            $claveProducto = trim((string) ($d->producto->clave_sat ?? ''));
+            $claveDetalleProvisional = ($claveDetalle === '' || $claveDetalle === '01010101');
+            $claveProductoLista = ($claveProducto !== '' && $claveProducto !== '01010101');
+
+            $unidadDetalle = trim((string) ($d->clave_unidad ?? ''));
+            $unidadProducto = trim((string) ($d->producto->clave_unidad_sat ?? ''));
+            $unidadDetalleVacia = $unidadDetalle === '';
+            $unidadProductoLista = $unidadProducto !== '';
+
+            $sincronizable = false;
+            $faltaClaveCatalogo = false;
+            $faltaUnidadCatalogo = false;
+
+            if ($claveDetalleProvisional) {
+                if ($claveProductoLista) {
+                    $sincronizable = true;
+                } else {
+                    $faltaClaveCatalogo = true;
+                }
+            }
+
+            if ($unidadDetalleVacia) {
+                if ($unidadProductoLista) {
+                    $sincronizable = true;
+                } else {
+                    $faltaUnidadCatalogo = true;
+                }
+            }
+
+            if (! $sincronizable && ! $faltaClaveCatalogo && ! $faltaUnidadCatalogo) {
+                continue;
+            }
+
+            $partidas[] = [
+                'etiqueta' => $etiqueta,
+                'producto_id' => $productoId,
+                'falta_clave_catalogo' => $faltaClaveCatalogo,
+                'falta_unidad_catalogo' => $faltaUnidadCatalogo,
+                'sincronizable' => $sincronizable,
+            ];
+        }
+
+        return [
+            'puede_sincronizar_desde_catalogo' => collect($partidas)->contains('sincronizable', true),
+            'pendiente_en_catalogo' => collect($partidas)->contains(fn ($p) => $p['falta_clave_catalogo'] || $p['falta_unidad_catalogo']),
+            'partidas' => $partidas,
+        ];
     }
 
     private function claveSatEfectivaPartida(string $claveDetalle, string $claveProducto): string

@@ -453,6 +453,11 @@ class FacturaController extends Controller
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario']);
 
         $mensajeSyncSat = null;
+        $datosFiscalesBorrador = [
+            'puede_sincronizar_desde_catalogo' => false,
+            'pendiente_en_catalogo' => false,
+            'partidas' => [],
+        ];
         if ($factura->esBorrador()) {
             $actualizados = $factura->sincronizarDatosFiscalesDesdeProductos();
             if ($actualizados > 0) {
@@ -461,6 +466,7 @@ class FacturaController extends Controller
                     ? 'Se actualizó la clave SAT desde el catálogo en 1 partida.'
                     : "Se actualizó la clave SAT desde el catálogo en {$actualizados} partidas.";
             }
+            $datosFiscalesBorrador = $factura->diagnosticoDatosFiscalesBorrador();
         }
 
         $ncBorrador = \App\Models\NotaCredito::where('factura_id', $factura->id)->where('estado', 'borrador')->first();
@@ -484,7 +490,7 @@ class FacturaController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
-        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura', 'mensajeSyncSat'));
+        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura', 'mensajeSyncSat', 'datosFiscalesBorrador'));
     }
 
     /**

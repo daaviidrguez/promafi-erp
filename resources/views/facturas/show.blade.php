@@ -319,16 +319,44 @@ $breadcrumbs = [
                 <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-primary w-full">✏️ Editar Factura</a>
                 @endcan
                 @canany(['facturas.crear', 'facturas.timbrar'])
+                @if(!empty($datosFiscalesBorrador['pendiente_en_catalogo']))
+                <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                    <strong>Faltan datos SAT en catálogo</strong> para poder timbrar.
+                    Complételos en el producto; al volver a esta factura se sincronizarán solos.
+                    <ul style="margin: 6px 0 0 14px; padding: 0;">
+                        @foreach($datosFiscalesBorrador['partidas'] as $partidaSat)
+                            @if($partidaSat['falta_clave_catalogo'] || $partidaSat['falta_unidad_catalogo'])
+                            <li>
+                                @if(!empty($partidaSat['producto_id']))
+                                    <a href="{{ route('productos.edit', $partidaSat['producto_id']) }}">{{ $partidaSat['etiqueta'] }}</a>
+                                @else
+                                    {{ $partidaSat['etiqueta'] }}
+                                @endif
+                                @if($partidaSat['falta_clave_catalogo'] && $partidaSat['falta_unidad_catalogo'])
+                                    <span class="text-muted">(clave y unidad)</span>
+                                @elseif($partidaSat['falta_clave_catalogo'])
+                                    <span class="text-muted">(clave SAT)</span>
+                                @else
+                                    <span class="text-muted">(unidad SAT)</span>
+                                @endif
+                            </li>
+                            @endif
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+                @if(!empty($datosFiscalesBorrador['puede_sincronizar_desde_catalogo']))
                 <form method="POST" action="{{ route('facturas.sincronizar-clave-sat', $factura->id) }}">
                     @csrf
                     <button type="submit" class="btn btn-outline w-full"
-                            title="Trae al borrador las claves SAT del catálogo solo si la partida aún tiene 01010101 o unidad vacía">
+                            title="El catálogo ya tiene clave/unidad, pero esta factura aún no las refleja">
                         🔄 Actualizar claves SAT
                     </button>
                 </form>
                 <p class="text-muted small mt-0 mb-0" style="margin-top:-4px;">
-                    Si ya cambió la clave en el catálogo, use este botón o recargue esta pantalla.
+                    El catálogo ya tiene datos listos; pulse para traerlos a este borrador (o recargue la página).
                 </p>
+                @endif
                 @endcanany
                 @can('facturas.timbrar')
                 @if($factura->puedeTimbrar())

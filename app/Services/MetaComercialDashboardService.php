@@ -5,56 +5,118 @@ namespace App\Services;
 use App\Models\Cliente;
 use App\Models\ClienteMetaComercial;
 use App\Models\Factura;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * Panel meta vs real (sin IVA) usando ClienteMetaComercial.
- * Mensual = monto fijo; Anual = monto / 12 para el mes consultado.
+ * Dashboard de ventas: meta del asesor (PSI) + avance por clientes con meta.
+ * Montos = subtotal sin IVA. Facturas timbradas por fecha_emision.
  */
 class MetaComercialDashboardService
 {
     /**
+     * Panel principal: meta del asesor/equipo vs TODAS sus facturas del mes.
+     *
      * @return array<string, mixed>
      */
-    public function build(Carbon $inicio, Carbon $fin, ?int $clienteId = null): array
+    public function buildEquipo(Carbon $inicio, Carbon $fin, ?int $asesorId = null): array
     {
-        $anio = (int) $inicio->year;
-        $clientesConMeta = $this->clientesConMetaEnAnio($anio);
+        if ($asesorId > 0) {
+            $asesor = $this->asesoresActivos()->firstWhere('id', $asesorId)
+                ?? User::query()->with('role')->find($asesorId);
 
-        if ($clienteId > 0) {
-            $cliente = $clientesConMeta->firstWhere('id', $clienteId)
-                ?? Cliente::query()->find($clienteId);
-
-            if ($cliente) {
-                return $this->buildParaCliente($cliente, $inicio, $fin, $anio);
+            if ($asesor && $asesor->puedeTenerMetaComercial()) {
+                return $this->buildParaAsesor($asesor, $inicio, $fin);
             }
         }
 
-        $meta = round((float) $clientesConMeta->sum(
-            fn (Cliente $c) => $this->metaMensualCliente($c, $anio)
-        ), 2);
+        $vendedores = $this->asesoresActivos();
+        $meta = round((float) $vendedores->sum(fn (User $u) => $u->metaVentasMensual()), 2);
+        $asesorIds = $vendedores->pluck('id');
 
-        $clienteIds = $clientesConMeta->pluck('id');
-
-        $facturas = $clienteIds->isEmpty()
+        $facturas = $asesorIds->isEmpty()
             ? collect()
             : $this->facturasTimbradas($inicio, $fin)
-                ->whereIn('cliente_id', $clienteIds)
-                ->get(['id', 'fecha_emision', 'subtotal', 'cliente_id']);
+                ->whereIn('usuario_id', $asesorIds)
+                ->get(['id', 'fecha_emision', 'subtotal', 'cliente_id', 'usuario_id']);
 
         return $this->armarMetricas($meta, $facturas, $inicio, $fin, [
-            'modo' => 'global',
-            'num_clientes_meta' => $clientesConMeta->count(),
-            'subtitulo' => 'Meta consolidada de '.$clientesConMeta->count()
-                .' cliente(s) con meta en '.$anio
-                .'. Facturación del mes (subtotal sin IVA).',
+            'modo' => 'equipo',
+            'num_asesores' => $vendedores->count(),
+            'subtitulo' => 'Meta total de '.$vendedores->count()
+                .' vendedor(es) activo(s). Todas las facturas del mes (subtotal sin IVA).',
         ]);
     }
 
     /**
-     * Clientes que tienen al menos una meta (anual o mensual) en el año.
+     * @return Collection<int, User>
+     */
+    public function asesoresActivos(): Collection
+    {
+        return User::query()
+            ->with('role')
+            ->activos()
+            ->whereHas('role', fn ($q) => $q->where('name', 'vendedor'))
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Avance por clientes que tienen meta (capa secundaria).
+     * Si hay asesor, solo suma facturas de ese asesor; si no, todas.
      *
+     * @return list<array<string, mixed>>
+     */
+    public function avancePorClientes(Carbon $inicio, Carbon $fin, ?int $asesorId = null): array
+    {
+        $anio = (int) $inicio->year;
+        $clientes = $this->clientesConMetaEnAnio($anio);
+
+        if ($clientes->isEmpty()) {
+            return [];
+        }
+
+        $query = $this->facturasTimbradas($inicio, $fin)
+            ->whereIn('cliente_id', $clientes->pluck('id'));
+
+        if ($asesorId > 0) {
+            $query->where('usuario_id', $asesorId);
+        }
+
+        $facturas = $query->get(['id', 'cliente_id', 'subtotal']);
+        $facturadoPorCliente = $facturas->groupBy('cliente_id')->map(
+            fn (Collection $g) => round((float) $g->sum(fn (Factura $f) => (float) $f->subtotal), 2)
+        );
+
+        $filas = [];
+        foreach ($clientes as $cliente) {
+            $meta = $this->metaMensualCliente($cliente, $anio);
+            if ($meta <= 0) {
+                continue;
+            }
+
+            $facturado = (float) ($facturadoPorCliente->get($cliente->id) ?? 0);
+            $pct = round(min(100, ($facturado / $meta) * 100), 1);
+            $faltante = round(max(0, $meta - $facturado), 2);
+
+            $filas[] = [
+                'cliente_id' => $cliente->id,
+                'nombre' => $cliente->nombre_comercial ?: $cliente->nombre,
+                'meta' => $meta,
+                'facturado' => $facturado,
+                'faltante' => $faltante,
+                'pct_avance' => $pct,
+                'num_facturas' => $facturas->where('cliente_id', $cliente->id)->count(),
+            ];
+        }
+
+        usort($filas, fn ($a, $b) => $b['pct_avance'] <=> $a['pct_avance']);
+
+        return $filas;
+    }
+
+    /**
      * @return Collection<int, Cliente>
      */
     public function clientesConMetaEnAnio(int $anio): Collection
@@ -64,28 +126,6 @@ class MetaComercialDashboardService
             ->with(['metasComerciales' => fn ($q) => $q->where('anio', $anio)])
             ->orderBy('nombre')
             ->get();
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function buildParaCliente(Cliente $cliente, Carbon $inicio, Carbon $fin, int $anio): array
-    {
-        if (! $cliente->relationLoaded('metasComerciales')) {
-            $cliente->load(['metasComerciales' => fn ($q) => $q->where('anio', $anio)]);
-        }
-
-        $meta = $this->metaMensualCliente($cliente, $anio);
-
-        $facturas = $this->facturasTimbradas($inicio, $fin)
-            ->where('cliente_id', $cliente->id)
-            ->get(['id', 'fecha_emision', 'subtotal', 'cliente_id']);
-
-        return $this->armarMetricas($meta, $facturas, $inicio, $fin, [
-            'modo' => 'cliente',
-            'cliente_nombre' => $cliente->nombre_comercial ?: $cliente->nombre,
-            'subtitulo' => 'Facturación del mes (subtotal sin IVA) vs meta del cliente (sin IVA).',
-        ]);
     }
 
     public function metaMensualCliente(Cliente $cliente, int $anio): float
@@ -105,6 +145,24 @@ class MetaComercialDashboardService
         }
 
         return 0.0;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildParaAsesor(User $user, Carbon $inicio, Carbon $fin): array
+    {
+        $meta = $user->metaVentasMensual();
+
+        $facturas = $this->facturasTimbradas($inicio, $fin)
+            ->where('usuario_id', $user->id)
+            ->get(['id', 'fecha_emision', 'subtotal', 'cliente_id', 'usuario_id']);
+
+        return $this->armarMetricas($meta, $facturas, $inicio, $fin, [
+            'modo' => 'asesor',
+            'asesor_nombre' => $user->name,
+            'subtitulo' => 'Todas las facturas del vendedor (subtotal sin IVA) vs meta mensual del asesor (sin IVA).',
+        ]);
     }
 
     /**
@@ -156,7 +214,7 @@ class MetaComercialDashboardService
             }
 
             $acumulado[] = $d <= $diaActual ? round($suma, 2) : null;
-            $objetivoLineal[] = round($meta * ($d / $diasMes), 2);
+            $objetivoLineal[] = $meta > 0 ? round($meta * ($d / $diasMes), 2) : 0.0;
         }
 
         return array_merge([

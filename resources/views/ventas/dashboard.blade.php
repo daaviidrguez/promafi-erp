@@ -2,7 +2,7 @@
 
 @section('title', 'Dashboard de Ventas')
 @section('page-title', '🎯 Dashboard de Ventas')
-@section('page-subtitle', 'Meta vs facturación sin IVA — {{ $mesLabel }}')
+@section('page-subtitle', 'Meta del asesor vs facturación sin IVA — ' . $mesLabel)
 
 @php
 $breadcrumbs = [
@@ -17,8 +17,8 @@ $breadcrumbs = [
 <div class="card" style="margin-bottom: 20px;">
     <div class="card-body" style="padding: 16px 20px;">
         <form method="GET" action="{{ route('ventas.dashboard') }}" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-            @if ($clienteId > 0)
-                <input type="hidden" name="cliente_id" value="{{ $clienteId }}">
+            @if ($asesorId > 0)
+                <input type="hidden" name="asesor_id" value="{{ $asesorId }}">
             @endif
             <div class="form-group" style="margin:0;">
                 <label class="form-label">Mes</label>
@@ -49,22 +49,22 @@ $breadcrumbs = [
             <div class="card-title">Meta de ventas — {{ $metaVentas['mes_label'] }}</div>
             <div style="font-size:13px; color:var(--color-gray-500); margin-top:4px;">
                 {{ $metaVentas['subtitulo'] ?? '' }}
-                @if (($metaVentas['modo'] ?? '') === 'cliente' && !empty($metaVentas['cliente_nombre']))
-                    <strong>{{ $metaVentas['cliente_nombre'] }}</strong>
+                @if (($metaVentas['modo'] ?? '') === 'asesor' && !empty($metaVentas['asesor_nombre']))
+                    <strong>{{ $metaVentas['asesor_nombre'] }}</strong>
                 @endif
             </div>
         </div>
         <form method="GET" action="{{ route('ventas.dashboard') }}" style="display:flex; align-items:center; gap:8px; margin:0;">
             <input type="hidden" name="mes" value="{{ $mes }}">
             <input type="hidden" name="anio" value="{{ $anio }}">
-            <label class="form-label" style="margin:0; white-space:nowrap;">Cliente</label>
-            <select name="cliente_id" class="form-control" style="min-width:200px;" onchange="this.form.submit()">
-                <option value="0" @selected($clienteId === 0)>
-                    Todos ({{ $clientesMeta->count() }} con meta)
+            <label class="form-label" style="margin:0; white-space:nowrap;">Asesor</label>
+            <select name="asesor_id" class="form-control" style="min-width:200px;" onchange="this.form.submit()">
+                <option value="0" @selected($asesorId === 0)>
+                    Todos ({{ $asesoresMeta->count() }} activos)
                 </option>
-                @foreach ($clientesMeta as $c)
-                    <option value="{{ $c->id }}" @selected($clienteId === (int) $c->id)>
-                        {{ $c->nombre_comercial ?: $c->nombre }}
+                @foreach ($asesoresMeta as $a)
+                    <option value="{{ $a->id }}" @selected($asesorId === (int) $a->id)>
+                        {{ $a->name }}
                     </option>
                 @endforeach
             </select>
@@ -137,6 +137,78 @@ $breadcrumbs = [
             </div>
         </div>
     </div>
+</div>
+
+{{-- Avance por clientes con meta --}}
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <div class="card-title">Avance por clientes con meta — {{ $mesLabel }}</div>
+    </div>
+    @if (count($avanceClientes) === 0)
+        <div class="card-body">
+            <div class="empty-state">
+                <div class="empty-state-icon">🎯</div>
+                <div class="empty-state-title">Sin clientes con meta en {{ $anio }}</div>
+                <div style="margin-top:6px; font-size:13px; color:var(--color-gray-500);">
+                    Define metas en la ficha del cliente → Gestión comercial.
+                </div>
+            </div>
+        </div>
+    @else
+        <div class="table-container" style="border:none; box-shadow:none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Cliente</th>
+                        <th class="td-right">Meta s/IVA</th>
+                        <th class="td-right">Facturado s/IVA</th>
+                        <th class="td-right">Faltante</th>
+                        <th class="td-center">Facturas</th>
+                        <th class="td-right">Avance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($avanceClientes as $i => $row)
+                        <tr>
+                            <td>{{ $i + 1 }}</td>
+                            <td>
+                                <a href="{{ route('clientes.show', $row['cliente_id']) }}" style="font-weight:600;">
+                                    {{ $row['nombre'] }}
+                                </a>
+                            </td>
+                            <td class="td-right text-mono">${{ number_format($row['meta'], 2) }}</td>
+                            <td class="td-right text-mono">${{ number_format($row['facturado'], 2) }}</td>
+                            <td class="td-right text-mono">${{ number_format($row['faltante'], 2) }}</td>
+                            <td class="td-center">{{ $row['num_facturas'] }}</td>
+                            <td class="td-right">
+                                <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
+                                    <div class="ven-meta-progress__track" style="width:64px;">
+                                        <div class="ven-meta-progress__fill" style="width: {{ min(100, $row['pct_avance']) }}%;"></div>
+                                    </div>
+                                    <strong class="text-mono"
+                                        style="color: {{ $row['pct_avance'] >= 100 ? 'var(--color-success)' : ($row['pct_avance'] >= 50 ? 'var(--color-info)' : 'var(--color-warning)') }};">
+                                        {{ number_format($row['pct_avance'], 1) }}%
+                                    </strong>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div class="card-body" style="padding-top:0;">
+            <p style="font-size:12px; color:var(--color-gray-500); margin:0;">
+                Solo clientes con meta comercial. El facturado
+                @if ($asesorId > 0)
+                    considera facturas del asesor seleccionado.
+                @else
+                    considera todas las facturas timbradas del mes.
+                @endif
+                El avance total del panel superior usa la meta del asesor y <strong>todas</strong> sus facturas (tengan o no meta de cliente).
+            </p>
+        </div>
+    @endif
 </div>
 
 {{-- KPIs operativos --}}
@@ -298,7 +370,7 @@ $breadcrumbs = [
         <div class="card-body" style="padding-top:0;">
             <p style="font-size:12px; color:var(--color-gray-500); margin:0;">
                 Montos por <code>fecha_emision</code> de facturas timbradas (subtotal sin IVA). La variación compara con el mes anterior.
-                Las metas se configuran en la ficha del cliente → Gestión comercial.
+                Meta del asesor: Usuarios → Gestión comercial. Meta por cliente: Clientes → Gestión comercial.
             </p>
         </div>
     @endif

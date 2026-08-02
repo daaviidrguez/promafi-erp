@@ -20,16 +20,21 @@ class VentasDashboardController extends Controller
 
         $anio = max(2020, min(2035, (int) $request->input('anio', now()->year)));
         $mes = max(1, min(12, (int) $request->input('mes', now()->month)));
-        $clienteId = $request->integer('cliente_id', 0);
+        $asesorId = $request->integer('asesor_id', 0);
 
         $inicioMes = Carbon::create($anio, $mes, 1)->startOfMonth();
         $finMes = $inicioMes->copy()->endOfMonth();
 
-        $clientesMeta = $metaService->clientesConMetaEnAnio($anio);
-        $metaVentas = $metaService->build(
+        $asesoresMeta = $metaService->asesoresActivos();
+        $metaVentas = $metaService->buildEquipo(
             $inicioMes,
             $finMes,
-            $clienteId > 0 ? $clienteId : null,
+            $asesorId > 0 ? $asesorId : null,
+        );
+        $avanceClientes = $metaService->avancePorClientes(
+            $inicioMes,
+            $finMes,
+            $asesorId > 0 ? $asesorId : null,
         );
 
         $data = $service->build($anio, $mes);
@@ -39,9 +44,10 @@ class VentasDashboardController extends Controller
             'anio' => $anio,
             'mes' => $mes,
             'mesLabel' => $mesLabel,
-            'clienteId' => $clienteId,
+            'asesorId' => $asesorId,
             'metaVentas' => $metaVentas,
-            'clientesMeta' => $clientesMeta,
+            'asesoresMeta' => $asesoresMeta,
+            'avanceClientes' => $avanceClientes,
         ]));
     }
 }

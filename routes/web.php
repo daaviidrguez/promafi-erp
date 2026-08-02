@@ -53,6 +53,7 @@ use App\Http\Controllers\Web\VentasDashboardController;
 use App\Http\Controllers\Web\UnidadMedidaSatController;
 use App\Http\Controllers\Web\UsoCfdiController;
 use App\Http\Controllers\Web\UsuarioController;
+use App\Http\Controllers\Web\UsuarioMetaComercialController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -449,6 +450,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/importador-cfdi', [ImportadorCfdiController::class, 'index'])->name('importador-cfdi.index');
     Route::post('/importador-cfdi', [ImportadorCfdiController::class, 'store'])->name('importador-cfdi.store');
     Route::resource('usuarios', UsuarioController::class)->parameters(['usuarios' => 'usuario']);
+    Route::put('/usuarios/{usuario}/meta-comercial', [UsuarioMetaComercialController::class, 'update'])
+        ->name('usuarios.meta-comercial.update');
     Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
     Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
     Route::get('/roles/{role}/editar', [RoleController::class, 'edit'])->name('roles.edit');

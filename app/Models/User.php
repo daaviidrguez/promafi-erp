@@ -44,6 +44,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'activo',
+        'meta_ventas_mensual',
     ];
 
     /**
@@ -63,7 +64,28 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed', // Laravel 11 automáticamente hashea
             'activo' => 'boolean',
+            'meta_ventas_mensual' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Meta mensual de ventas sin IVA (MXN). Sin valor → 0.
+     */
+    public function metaVentasMensual(): float
+    {
+        $meta = $this->meta_ventas_mensual;
+
+        return $meta !== null && (float) $meta > 0
+            ? (float) $meta
+            : 0.0;
+    }
+
+    /**
+     * ¿Puede tener meta comercial? (rol vendedor).
+     */
+    public function puedeTenerMetaComercial(): bool
+    {
+        return $this->isVendedor();
     }
 
     /**

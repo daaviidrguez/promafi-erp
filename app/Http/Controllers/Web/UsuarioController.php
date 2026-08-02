@@ -76,6 +76,13 @@ class UsuarioController extends Controller
         }
         $validated['activo'] = $request->boolean('activo', true);
         $usuario->update($validated);
+
+        // Si deja de ser vendedor, limpia meta comercial
+        $usuario->load('role');
+        if (! $usuario->puedeTenerMetaComercial() && $usuario->meta_ventas_mensual !== null) {
+            $usuario->update(['meta_ventas_mensual' => null]);
+        }
+
         return redirect()->route('usuarios.show', $usuario->id)->with('success', 'Usuario actualizado');
     }
 

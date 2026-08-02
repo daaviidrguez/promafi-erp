@@ -439,10 +439,26 @@ $breadcrumbs = [
 /* Descripción ancha, Origen = ancho Precio; columnas numéricas compactas */
 .table-productos-cotizacion thead th:nth-child(2) { padding: 11px 16px; }
 .table-productos-cotizacion thead th:not(:nth-child(2)) { padding: 11px 4px; white-space: nowrap; }
-.table-productos-cotizacion tbody td:nth-child(2) { padding: 12px 16px; }
+.table-productos-cotizacion tbody td { vertical-align: middle; }
+.table-productos-cotizacion tbody td:nth-child(2) { padding: 12px 16px; vertical-align: middle; }
 .table-productos-cotizacion tbody td:not(:nth-child(2)) { padding: 8px 4px; }
 .table-productos-cotizacion tbody td:nth-child(9) { padding-right: 6px; }
 .table-productos-cotizacion tbody td:last-child { padding: 8px 4px 8px 2px; }
+/* Descripción: apariencia de 1 línea; crece solo al envolver (estilo Excel "Ajustar texto") */
+.table-productos-cotizacion textarea.manual-desc-auto.form-control {
+    resize: none;
+    min-height: 0;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    line-height: 1.45;
+    font-size: 13px;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    box-sizing: border-box;
+    transition: none;
+}
 .partida-acciones { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .partida-acciones-btns { display: flex; gap: 3px; flex-wrap: wrap; justify-content: flex-end; }
 .partida-orden {
@@ -528,10 +544,6 @@ $breadcrumbs = [
     .table-productos-cotizacion tbody td:first-child,
     .table-productos-cotizacion thead th:nth-child(2) {
         min-width: 260px;
-    }
-    .table-productos-cotizacion .manual-desc-mobile {
-        min-height: 88px;
-        resize: vertical;
     }
 }
 
@@ -1309,7 +1321,6 @@ function renderProductos() {
         calcTotales(); return;
     }
     tbody.innerHTML = productos.map((p, i) => {
-        const isMobile = window.matchMedia('(max-width: 768px)').matches;
         const origenEsc = (p.origen || '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -1334,10 +1345,7 @@ function renderProductos() {
             <td>
                 ${p.manual
                     ? `<div class="search-box search-box-manual">
-                       ${isMobile
-                            ? `<textarea id="manualDesc_${i}" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control manual-desc-mobile" style="font-size:13px;" autocomplete="off" data-row="${i}">${nombreEsc}</textarea>`
-                            : `<input type="text" id="manualDesc_${i}" value="${nombreEsc}" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control" style="font-size:13px;" autocomplete="off" data-row="${i}">`
-                        }
+                       <textarea id="manualDesc_${i}" rows="1" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control manual-desc-auto" style="font-size:13px;" autocomplete="off" data-row="${i}">${nombreEsc}</textarea>
                        </div>
                        <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">
                        <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">`
@@ -1397,6 +1405,7 @@ function renderProductos() {
         </tr>`;
     }).join('');
     calcTotales();
+    requestAnimationFrame(() => autoResizeAllManualDescs());
 }
 
 function moverProducto(i, direccion) {
@@ -1422,6 +1431,8 @@ function upd(i, field, val) {
 
 function onManualDescInput(rowIndex, value) {
     upd(rowIndex, 'nombre', value);
+    const el = document.getElementById('manualDesc_' + rowIndex);
+    autoResizeManualDesc(el);
     clearTimeout(timerSugerencia[rowIndex]);
     const q = (value || '').trim();
     if (q.length < 3) {
@@ -1429,6 +1440,52 @@ function onManualDescInput(rowIndex, value) {
         return;
     }
     timerSugerencia[rowIndex] = setTimeout(() => buscarSugerencias(rowIndex, q), 280);
+}
+
+const MANUAL_DESC_MAX_LINES = 9;
+
+function autoResizeManualDesc(el) {
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    const cs = getComputedStyle(el);
+    const fontSize = parseFloat(cs.fontSize) || 13;
+    let lineHeight = parseFloat(cs.lineHeight);
+    if (!lineHeight || Number.isNaN(lineHeight)) lineHeight = fontSize * 1.45;
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    const fallbackMin = Math.ceil(lineHeight + padY + borderY);
+    const row = el.closest('tr');
+    const refInput = row && row.querySelector('.form-control-numeric');
+    const minH = (refInput && refInput.offsetHeight > 0) ? refInput.offsetHeight : fallbackMin;
+    const maxH = Math.ceil(lineHeight * MANUAL_DESC_MAX_LINES + padY + borderY);
+
+    el.style.overflowY = 'hidden';
+    el.style.height = minH + 'px';
+    const contentH = el.scrollHeight;
+    if (contentH <= minH + 1) {
+        el.style.height = minH + 'px';
+        el.style.overflowY = 'hidden';
+    } else if (contentH <= maxH) {
+        el.style.height = contentH + 'px';
+        el.style.overflowY = 'hidden';
+    } else {
+        el.style.height = maxH + 'px';
+        el.style.overflowY = 'auto';
+    }
+    repositionSugerenciaFlotante(el);
+}
+
+function autoResizeAllManualDescs() {
+    document.querySelectorAll('textarea.manual-desc-auto').forEach(autoResizeManualDesc);
+}
+
+function repositionSugerenciaFlotante(input) {
+    const flotante = document.getElementById('sugerenciaResultsFlotante');
+    if (!flotante || !flotante.classList.contains('show') || !input) return;
+    const rect = input.getBoundingClientRect();
+    flotante.style.top = (rect.bottom + 6) + 'px';
+    flotante.style.left = rect.left + 'px';
+    flotante.style.width = Math.max(rect.width, 420) + 'px';
+    flotante.style.minWidth = '380px';
 }
 
 function closeSugerenciaFlotante() {
@@ -1443,6 +1500,12 @@ function onManualDescKeydown(rowIndex, e) {
     const first = flotante.querySelector('.autocomplete-item');
     if (first) { first.click(); e.preventDefault(); }
 }
+
+let timerManualDescResize = null;
+window.addEventListener('resize', () => {
+    clearTimeout(timerManualDescResize);
+    timerManualDescResize = setTimeout(autoResizeAllManualDescs, 120);
+});
 
 async function buscarSugerencias(rowIndex, q) {
     try {

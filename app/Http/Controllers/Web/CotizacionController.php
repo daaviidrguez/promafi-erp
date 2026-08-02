@@ -1016,11 +1016,14 @@ class CotizacionController extends Controller
 
             DB::commit();
 
+            $mensaje = 'Producto '.$producto->codigo.' creado y asignado. Complete clave SAT en catálogo y stock antes de timbrar.';
+            session()->flash('success', $mensaje);
+
             return response()->json([
                 'success' => true,
                 'producto_id' => $producto->id,
                 'codigo' => $producto->codigo,
-                'message' => 'Producto ' . $producto->codigo . ' creado y asignado. Complete clave SAT en catálogo y stock antes de timbrar.',
+                'message' => $mensaje,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

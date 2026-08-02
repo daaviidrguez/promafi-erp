@@ -381,7 +381,7 @@ class Factura extends Model
         if (! empty($clavesPendientes)) {
             return 'Falta clave SAT válida (no provisional 01010101) en: '
                 . implode('; ', $clavesPendientes)
-                . '. Complétela en el catálogo; al volver a esta factura se sincronizará automáticamente.';
+                . '.';
         }
 
         if (! empty($unidadesPendientes)) {

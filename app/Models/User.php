@@ -81,11 +81,21 @@ class User extends Authenticatable
     }
 
     /**
-     * ¿Puede tener meta comercial? (rol vendedor).
+     * ¿Puede tener meta comercial? (asesores: vendedor y admin).
      */
     public function puedeTenerMetaComercial(): bool
     {
-        return $this->isVendedor();
+        return $this->hasAnyRole(['vendedor', 'admin']);
+    }
+
+    /**
+     * Roles que participan como asesores en el dashboard de ventas.
+     *
+     * @return list<string>
+     */
+    public static function rolesAsesoresComerciales(): array
+    {
+        return ['vendedor', 'admin'];
     }
 
     /**

@@ -31,9 +31,9 @@ class MetaComercialDashboardService
             }
         }
 
-        $vendedores = $this->asesoresActivos();
-        $meta = round((float) $vendedores->sum(fn (User $u) => $u->metaVentasMensual()), 2);
-        $asesorIds = $vendedores->pluck('id');
+        $asesores = $this->asesoresConMeta();
+        $meta = round((float) $asesores->sum(fn (User $u) => $u->metaVentasMensual()), 2);
+        $asesorIds = $asesores->pluck('id');
 
         $facturas = $asesorIds->isEmpty()
             ? collect()
@@ -43,13 +43,17 @@ class MetaComercialDashboardService
 
         return $this->armarMetricas($meta, $facturas, $inicio, $fin, [
             'modo' => 'equipo',
-            'num_asesores' => $vendedores->count(),
-            'subtitulo' => 'Meta total de '.$vendedores->count()
-                .' vendedor(es) activo(s). Todas las facturas del mes (subtotal sin IVA).',
+            'num_asesores' => $asesores->count(),
+            'subtitulo' => $asesores->isEmpty()
+                ? 'No hay asesores con meta definida (admin/vendedor). Define la meta en Usuarios → Gestión comercial.'
+                : 'Meta total de '.$asesores->count()
+                    .' asesor(es) con meta. Todas sus facturas del mes (subtotal sin IVA).',
         ]);
     }
 
     /**
+     * Asesores activos (admin + vendedor) para el filtro del dashboard.
+     *
      * @return Collection<int, User>
      */
     public function asesoresActivos(): Collection
@@ -57,9 +61,21 @@ class MetaComercialDashboardService
         return User::query()
             ->with('role')
             ->activos()
-            ->whereHas('role', fn ($q) => $q->where('name', 'vendedor'))
+            ->whereHas('role', fn ($q) => $q->whereIn('name', User::rolesAsesoresComerciales()))
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * Asesores activos con meta > 0 (consolidado "Todos").
+     *
+     * @return Collection<int, User>
+     */
+    public function asesoresConMeta(): Collection
+    {
+        return $this->asesoresActivos()
+            ->filter(fn (User $u) => $u->metaVentasMensual() > 0)
+            ->values();
     }
 
     /**

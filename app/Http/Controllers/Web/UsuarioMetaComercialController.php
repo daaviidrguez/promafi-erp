@@ -17,7 +17,7 @@ class UsuarioMetaComercialController extends Controller
 
         if (! $usuario->puedeTenerMetaComercial()) {
             return redirect()->route('usuarios.show', $usuario)
-                ->with('error', 'Solo los usuarios con rol vendedor pueden tener meta comercial.');
+                ->with('error', 'Solo admin y vendedor pueden tener meta comercial.');
         }
 
         $validated = $request->validate([

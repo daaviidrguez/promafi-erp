@@ -52,7 +52,8 @@ $puedeEditarMeta = auth()->user()?->isAdmin() || auth()->user()?->hasPermission(
                     </div>
                 </div>
                 <p style="margin:12px 0 0; font-size:13px; color:var(--color-gray-500);">
-                    Esta meta alimenta el avance total del Dashboard de Ventas. Las metas por cliente se definen en la ficha del cliente.
+                    Disponible para roles admin y vendedor. Alimenta el avance total del Dashboard de Ventas.
+                    Las metas por cliente se definen en la ficha del cliente.
                 </p>
             </div>
         </div>

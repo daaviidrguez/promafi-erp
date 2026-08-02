@@ -60,7 +60,7 @@ $breadcrumbs = [
             <label class="form-label" style="margin:0; white-space:nowrap;">Asesor</label>
             <select name="asesor_id" class="form-control" style="min-width:200px;" onchange="this.form.submit()">
                 <option value="0" @selected($asesorId === 0)>
-                    Todos ({{ $asesoresMeta->count() }} activos)
+                    Todos ({{ $asesoresMeta->filter(fn ($a) => $a->metaVentasMensual() > 0)->count() }} con meta)
                 </option>
                 @foreach ($asesoresMeta as $a)
                     <option value="{{ $a->id }}" @selected($asesorId === (int) $a->id)>

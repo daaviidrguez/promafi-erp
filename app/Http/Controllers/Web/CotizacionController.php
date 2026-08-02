@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Helpers\IsrResicoHelper;
 use App\Models\Cotizacion;
+use App\Models\CotizacionAdjunto;
 use App\Models\CotizacionDetalle;
 use App\Models\Cliente;
 use App\Models\Producto;
@@ -372,10 +373,117 @@ class CotizacionController extends Controller
             'detalles.producto',
             'usuario',
             'factura',
+            'adjuntos.usuario',
         ])->findOrFail($id);
         $this->authorizeCotizacion($cotizacion);
 
         return view('cotizaciones.show', compact('cotizacion'));
+    }
+
+    /**
+     * Subir documento de respaldo interno (PDF de proveedor, etc.).
+     */
+    public function subirAdjunto(Request $request, $id)
+    {
+        abort_unless(auth()->user()?->can('cotizaciones.adjuntos'), 403);
+
+        $cotizacion = Cotizacion::findOrFail($id);
+        $this->authorizeCotizacion($cotizacion);
+
+        $validated = $request->validate([
+            'archivo' => 'required|file|mimes:pdf|max:10240',
+            'nota' => 'nullable|string|max:255',
+        ], [
+            'archivo.required' => 'Selecciona un archivo PDF.',
+            'archivo.mimes' => 'Solo se permiten archivos PDF.',
+            'archivo.max' => 'El archivo no debe superar 10 MB.',
+        ]);
+
+        $file = $request->file('archivo');
+        $nombreOriginal = $file->getClientOriginalName();
+        $dir = storage_path('app/documentos/cotizacion_adjuntos/' . $cotizacion->id);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $filename = $file->hashName();
+        $file->move($dir, $filename);
+        $relativePath = 'documentos/cotizacion_adjuntos/' . $cotizacion->id . '/' . $filename;
+
+        CotizacionAdjunto::create([
+            'cotizacion_id' => $cotizacion->id,
+            'nombre_original' => $nombreOriginal,
+            'path' => $relativePath,
+            'mime_type' => 'application/pdf',
+            'size' => filesize(storage_path('app/' . $relativePath)) ?: null,
+            'nota' => $validated['nota'] ?? null,
+            'usuario_id' => Auth::id(),
+        ]);
+
+        return redirect()->route('cotizaciones.show', $cotizacion->id)
+            ->with('success', 'Documento de respaldo cargado correctamente.');
+    }
+
+    /**
+     * Ver PDF de respaldo en el navegador.
+     */
+    public function verAdjunto($cotizacionId, $adjuntoId)
+    {
+        $cotizacion = Cotizacion::findOrFail($cotizacionId);
+        $this->authorizeCotizacion($cotizacion);
+
+        $adjunto = CotizacionAdjunto::where('cotizacion_id', $cotizacion->id)
+            ->findOrFail($adjuntoId);
+
+        if (! $adjunto->existeEnDisco()) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return response()->file($adjunto->rutaAbsoluta(), [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . addslashes($adjunto->nombre_original) . '"',
+        ]);
+    }
+
+    /**
+     * Descargar documento de respaldo.
+     */
+    public function descargarAdjunto($cotizacionId, $adjuntoId)
+    {
+        $cotizacion = Cotizacion::findOrFail($cotizacionId);
+        $this->authorizeCotizacion($cotizacion);
+
+        $adjunto = CotizacionAdjunto::where('cotizacion_id', $cotizacion->id)
+            ->findOrFail($adjuntoId);
+
+        if (! $adjunto->existeEnDisco()) {
+            abort(404, 'Archivo no encontrado.');
+        }
+
+        return response()->download(
+            $adjunto->rutaAbsoluta(),
+            $adjunto->nombre_original
+        );
+    }
+
+    /**
+     * Eliminar documento de respaldo.
+     */
+    public function eliminarAdjunto($cotizacionId, $adjuntoId)
+    {
+        abort_unless(auth()->user()?->can('cotizaciones.adjuntos'), 403);
+
+        $cotizacion = Cotizacion::findOrFail($cotizacionId);
+        $this->authorizeCotizacion($cotizacion);
+
+        $adjunto = CotizacionAdjunto::where('cotizacion_id', $cotizacion->id)
+            ->findOrFail($adjuntoId);
+
+        $adjunto->eliminarDelDisco();
+        $adjunto->delete();
+
+        return redirect()->route('cotizaciones.show', $cotizacion->id)
+            ->with('success', 'Documento de respaldo eliminado.');
     }
 
 
@@ -823,12 +931,16 @@ class CotizacionController extends Controller
                 return back()->with('error', 'Esta cotización no puede eliminarse');
             }
 
-            // Eliminar PDF e imágenes de partidas si existen
+            // Eliminar PDF, adjuntos internos e imágenes de partidas si existen
             if ($cotizacion->pdf_path && file_exists(storage_path('app/' . $cotizacion->pdf_path))) {
                 unlink(storage_path('app/' . $cotizacion->pdf_path));
             }
 
-            $cotizacion->load('detalles');
+            $cotizacion->load(['detalles', 'adjuntos']);
+            foreach ($cotizacion->adjuntos as $adjunto) {
+                $adjunto->eliminarDelDisco();
+                $adjunto->delete();
+            }
             foreach ($cotizacion->detalles as $detalle) {
                 $detalle->eliminarImagenesDelDisco();
             }

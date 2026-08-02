@@ -141,6 +141,16 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/cotizaciones/{cotizacion}/descargar-pdf', [CotizacionController::class, 'descargarPDF'])->name('cotizaciones.descargar-pdf');
     Route::get('/cotizaciones/{cotizacion}/ver-pdf', [CotizacionController::class, 'verPDF'])->name('cotizaciones.ver-pdf');
 
+    // Documentos de respaldo internos (cotizaciones de proveedor, etc.)
+    Route::post('/cotizaciones/{cotizacion}/adjuntos', [CotizacionController::class, 'subirAdjunto'])
+        ->name('cotizaciones.adjuntos.store');
+    Route::get('/cotizaciones/{cotizacion}/adjuntos/{adjunto}', [CotizacionController::class, 'verAdjunto'])
+        ->name('cotizaciones.adjuntos.ver');
+    Route::get('/cotizaciones/{cotizacion}/adjuntos/{adjunto}/descargar', [CotizacionController::class, 'descargarAdjunto'])
+        ->name('cotizaciones.adjuntos.descargar');
+    Route::delete('/cotizaciones/{cotizacion}/adjuntos/{adjunto}', [CotizacionController::class, 'eliminarAdjunto'])
+        ->name('cotizaciones.adjuntos.destroy');
+
     // ========================================
     // COTIZACIONES DE COMPRA
     // ========================================

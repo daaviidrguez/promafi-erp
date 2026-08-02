@@ -342,6 +342,25 @@ $breadcrumbs = [
         </div>
     </div>
 
+    {{-- Documentos de respaldo: solo leyenda (upload en el show) --}}
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">📎 Documentos de respaldo</div>
+        </div>
+        <div class="card-body">
+            <p style="margin: 0; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                @if($isEdit)
+                    Después de guardar, puedes adjuntar PDFs de proveedor u otros soportes desde la ficha de la cotización.
+                    Son de uso interno y no se envían al cliente ni se incluyen en el PDF.
+                    <a href="{{ route('cotizaciones.show', $cotizacion->id) }}" style="margin-left: 4px;">Ir a la ficha →</a>
+                @else
+                    Después de guardar podrás adjuntar PDFs de proveedor u otros soportes desde la ficha de la cotización.
+                    Son de uso interno y no se envían al cliente ni se incluyen en el PDF.
+                @endif
+            </p>
+        </div>
+    </div>
+
 </div>
 
 {{-- Botones --}}

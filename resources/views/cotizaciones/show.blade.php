@@ -253,6 +253,89 @@ $breadcrumbs = [
         </div>
         @endif
 
+        {{-- Documentos de respaldo (uso interno) --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📎 Documentos de respaldo</div>
+                @if($cotizacion->adjuntos->count())
+                    <span class="badge badge-gray">{{ $cotizacion->adjuntos->count() }}</span>
+                @endif
+            </div>
+            <div class="card-body">
+                <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                    Archivos de uso interno (cotizaciones de proveedor u otros soportes).
+                    No se comparten con el cliente ni se incluyen en el PDF de la cotización.
+                </p>
+
+                @if($cotizacion->adjuntos->isEmpty())
+                    <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay documentos cargados.</p>
+                @else
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                        @foreach($cotizacion->adjuntos as $adjunto)
+                            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+                                <div style="min-width: 0; flex: 1;">
+                                    <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
+                                        📄 {{ $adjunto->nombre_original }}
+                                    </div>
+                                    <div style="margin-top: 4px; font-size: 12px; color: var(--color-gray-500);">
+                                        {{ $adjunto->created_at?->format('d/m/Y H:i') }}
+                                        · {{ $adjunto->tamanoLegible() }}
+                                        @if($adjunto->usuario)
+                                            · {{ $adjunto->usuario->name }}
+                                        @endif
+                                    </div>
+                                    @if($adjunto->nota)
+                                        <div style="margin-top: 6px; font-size: 12.5px; color: var(--color-gray-600);">
+                                            {{ $adjunto->nota }}
+                                        </div>
+                                    @endif
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0;">
+                                    <a href="{{ route('cotizaciones.adjuntos.ver', [$cotizacion->id, $adjunto->id]) }}"
+                                       target="_blank" class="btn btn-outline btn-sm">Ver</a>
+                                    <a href="{{ route('cotizaciones.adjuntos.descargar', [$cotizacion->id, $adjunto->id]) }}"
+                                       class="btn btn-light btn-sm">Descargar</a>
+                                    @can('cotizaciones.adjuntos')
+                                    <form method="POST"
+                                          action="{{ route('cotizaciones.adjuntos.destroy', [$cotizacion->id, $adjunto->id]) }}"
+                                          onsubmit="return confirm('¿Eliminar este documento de respaldo?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-light btn-sm" style="color: var(--color-danger, #b91c1c);">Eliminar</button>
+                                    </form>
+                                    @endcan
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                @can('cotizaciones.adjuntos')
+                <form method="POST"
+                      action="{{ route('cotizaciones.adjuntos.store', $cotizacion->id) }}"
+                      enctype="multipart/form-data"
+                      style="padding-top: 4px; border-top: 1px solid var(--color-gray-200);">
+                    @csrf
+                    <div class="info-label mb-8" style="margin-top: 12px;">Subir PDF</div>
+                    <div style="display: grid; gap: 10px;">
+                        <input type="file" name="archivo" accept=".pdf,application/pdf" class="form-control" required>
+                        <input type="text" name="nota" class="form-control"
+                               maxlength="255"
+                               placeholder="Nota opcional (ej. Truper, correo 12/mar)"
+                               value="{{ old('nota') }}">
+                        @error('archivo')
+                            <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                        @enderror
+                        @error('nota')
+                            <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                        @enderror
+                        <button type="submit" class="btn btn-primary" style="justify-self: start;">Subir documento</button>
+                    </div>
+                </form>
+                @endcan
+            </div>
+        </div>
+
     </div>
 
     {{-- Columna derecha --}}

@@ -48,6 +48,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
         // Listas de precios y cotizaciones
         'listas_precios_detalle',
         'listas_precios',
+        'cotizacion_adjuntos',
         'cotizaciones_detalle',
         'cotizaciones',
         // Remisiones y compras

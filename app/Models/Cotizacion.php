@@ -142,6 +142,15 @@ class Cotizacion extends Model
     }
 
     /**
+     * Documentos de respaldo internos (cotizaciones de proveedor, etc.).
+     * No se envían al cliente ni se incluyen en el PDF de la cotización.
+     */
+    public function adjuntos(): HasMany
+    {
+        return $this->hasMany(CotizacionAdjunto::class)->orderByDesc('created_at');
+    }
+
+    /**
      * Factura generada al convertir esta cotización (si aplica).
      */
     public function factura(): HasOne

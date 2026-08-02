@@ -44,6 +44,7 @@ use App\Http\Controllers\Web\RegimenFiscalController;
 use App\Http\Controllers\Web\RemisionController;
 use App\Http\Controllers\Web\ReporteController;
 use App\Http\Controllers\Web\RoleController;
+use App\Http\Controllers\Web\CatalogoTruperController;
 use App\Http\Controllers\Web\SugerenciaController;
 use App\Http\Controllers\Web\TableroAnualController;
 use App\Http\Controllers\Web\TableroController;
@@ -309,6 +310,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── SUGERENCIAS (partidas para cotizar manual) ─────
     Route::get('/sugerencias/buscar', [SugerenciaController::class, 'buscar'])->name('sugerencias.buscar');
     Route::resource('sugerencias', SugerenciaController::class)->parameters(['sugerencias' => 'sugerencia']);
+
+    // ───── CATÁLOGO TRUPER ─────
+    Route::get('/catalogo-truper', [CatalogoTruperController::class, 'index'])->name('catalogo-truper.index');
+    Route::post('/catalogo-truper/importar-lote', [CatalogoTruperController::class, 'importarLote'])->name('catalogo-truper.importar-lote');
 
     // ───── FACTURAS ───── ✅
     Route::get('/facturas-para-relacion/listar', [FacturaController::class, 'listarParaRelacion'])->name('facturas.listar-para-relacion');

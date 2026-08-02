@@ -117,6 +117,7 @@
                 || request()->routeIs('inventario.*')
                 || request()->routeIs('categorias.*')
                 || request()->routeIs('sugerencias.*')
+                || request()->routeIs('catalogo-truper.*')
                 || request()->routeIs('clientes.*')
                 || request()->routeIs('proveedores.*');
         @endphp
@@ -125,6 +126,7 @@
             || auth()->user()->can('inventario.ver')
             || auth()->user()->can('categorias.ver')
             || auth()->user()->can('sugerencias.ver')
+            || auth()->user()->can('catalogo_truper.ver')
             || auth()->user()->can('clientes.ver')
             || auth()->user()->can('proveedores.ver')
         )
@@ -142,6 +144,7 @@
                 @can('inventario.ver')<li><a href="{{ route('inventario.index') }}" class="sidebar-menu-link {{ request()->routeIs('inventario.*') ? 'active' : '' }}" title="Inventario"><span class="sidebar-menu-icon">📊</span><span class="sidebar-menu-text">Inventario</span></a></li>@endcan
                 @can('categorias.ver')<li><a href="{{ route('categorias.index') }}" class="sidebar-menu-link {{ request()->routeIs('categorias.*') ? 'active' : '' }}" title="Categorías"><span class="sidebar-menu-icon">🗂️</span><span class="sidebar-menu-text">Categorías</span></a></li>@endcan
                 @can('sugerencias.ver')<li><a href="{{ route('sugerencias.index') }}" class="sidebar-menu-link {{ request()->routeIs('sugerencias.*') ? 'active' : '' }}" title="Sugerencias"><span class="sidebar-menu-icon">💡</span><span class="sidebar-menu-text">Sugerencias</span></a></li>@endcan
+                @can('catalogo_truper.ver')<li><a href="{{ route('catalogo-truper.index') }}" class="sidebar-menu-link {{ request()->routeIs('catalogo-truper.*') ? 'active' : '' }}" title="Catálogo Truper"><span class="sidebar-menu-icon">🔧</span><span class="sidebar-menu-text">Catálogo Truper</span></a></li>@endcan
             </ul>
         </div>
         @endif

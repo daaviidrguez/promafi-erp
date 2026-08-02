@@ -425,6 +425,7 @@ $breadcrumbs = [
                 'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
                 'manual'    => (bool) $d->es_producto_manual,
                 'sugerencia_id' => $d->sugerencia_id,
+                'catalogo_truper_id' => null,
                 'imagenes_existentes' => $d->rutasImagenes(),
                 'imagenes_urls' => $d->imagenes_urls,
             ];
@@ -601,6 +602,7 @@ function getFormSnapshot() {
             tasa_iva: p.tasa_iva,
             manual: p.manual,
             sugerencia_id: p.sugerencia_id || null,
+            catalogo_truper_id: p.catalogo_truper_id || null,
         })),
     };
     return JSON.stringify(data);
@@ -782,6 +784,7 @@ function parseImportRows(rows) {
             tasa_iva,
             manual: true,
             sugerencia_id: null,
+            catalogo_truper_id: null,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         };
     }).filter(Boolean);
@@ -885,6 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tasa_iva: d.tasa_iva,
                 manual: d.manual,
                 sugerencia_id: d.sugerencia_id || null,
+                catalogo_truper_id: d.catalogo_truper_id || null,
                 imagenesExistentes: Array.isArray(d.imagenes_existentes) ? d.imagenes_existentes.slice() : [],
                 imagenesUrls: Array.isArray(d.imagenes_urls) ? d.imagenes_urls.slice() : [],
                 imagenesNuevas: [],
@@ -1131,11 +1135,23 @@ async function buscarProductos(q) {
         } else {
             box.innerHTML = data.map((item, idx) => {
                 const esc = (v) => (v || '').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-                const precio = item.tipo === 'sugerencia' ? item.precio_unitario : item.precio_venta;
-                const label = item.codigo ? `${esc(item.codigo)} — ${esc(item.nombre)}` : esc(item.nombre);
-                return `<div class="autocomplete-item ${item.tipo === 'sugerencia' ? 'autocomplete-item-sugerencia' : ''}" data-idx="${idx}" onclick="agregarDesdeBusqueda(window._busquedaProductosTemp[this.dataset.idx])">
+                let precio = item.precio_venta;
+                let badge = '📦 Producto';
+                let extraClass = '';
+                if (item.tipo === 'sugerencia') {
+                    precio = item.precio_unitario;
+                    badge = '💡 Sugerencia';
+                    extraClass = 'autocomplete-item-sugerencia';
+                } else if (item.tipo === 'truper') {
+                    precio = item.precio_venta;
+                    badge = '🔧 Truper';
+                    extraClass = 'autocomplete-item-truper';
+                }
+                const clave = item.tipo === 'truper' && item.clave ? ` · ${esc(item.clave)}` : '';
+                const label = item.codigo ? `${esc(item.codigo)}${clave} — ${esc(item.nombre)}` : esc(item.nombre);
+                return `<div class="autocomplete-item ${extraClass}" data-idx="${idx}" onclick="agregarDesdeBusqueda(window._busquedaProductosTemp[this.dataset.idx])">
                     <div class="autocomplete-item-name">${label}</div>
-                    <div class="autocomplete-item-sub">${item.tipo === 'sugerencia' ? '💡 Sugerencia' : '📦 Producto'} — $${parseFloat(precio).toFixed(2)}</div>
+                    <div class="autocomplete-item-sub">${badge} — $${parseFloat(precio).toFixed(2)}${item.unidad ? ' · ' + esc(item.unidad) : ''}</div>
                 </div>`;
             }).join('');
         }
@@ -1149,7 +1165,15 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: null, codigo: item.codigo || '-', origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
-            descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id,
+            descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id, catalogo_truper_id: null,
+            imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
+        });
+    } else if (item.tipo === 'truper') {
+        if (productos.find(x => x.catalogo_truper_id === item.id)) { alert('Este producto Truper ya está en la cotización'); return; }
+        productos.push({
+            id: null, codigo: item.codigo || '-', origen: item.clave || 'Truper', nombre: item.nombre,
+            cantidad: 1, unidad: (item.unidad || 'PZA').slice(0, 10), precio: parseFloat(item.precio_venta),
+            descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: null, catalogo_truper_id: item.id,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     } else {
@@ -1157,7 +1181,7 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: item.id, codigo: item.codigo, origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
-            descuento: 0, tasa_iva: item.tasa_iva, manual: false,
+            descuento: 0, tasa_iva: item.tasa_iva, manual: false, catalogo_truper_id: null,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     }
@@ -1182,7 +1206,7 @@ function agregarProducto(p) {
 function agregarManual() {
     productos.push({
         id: null, codigo: '-', origen: '', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16,
-        manual: true, sugerencia_id: null,
+        manual: true, sugerencia_id: null, catalogo_truper_id: null,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     renderProductos();
@@ -1347,8 +1371,11 @@ function renderProductos() {
                     ? `<div class="search-box search-box-manual">
                        <textarea id="manualDesc_${i}" rows="1" onchange="upd(${i},'nombre',this.value)" oninput="onManualDescInput(${i},this.value)" onkeydown="onManualDescKeydown(${i},event)" onfocus="lastSugerenciaRowIndex=${i}" placeholder="Descripción o código (3+ caracteres)..." class="form-control manual-desc-auto" style="font-size:13px;" autocomplete="off" data-row="${i}">${nombreEsc}</textarea>
                        </div>
+                       ${p.codigo && p.codigo !== '-' ? `<span class="producto-row-code">${(p.codigo || '').replace(/</g,'&lt;')}</span>` : ''}
                        <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">
-                       <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">`
+                       <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">
+                       <input type="hidden" name="productos[${i}][catalogo_truper_id]" value="${p.catalogo_truper_id || ''}">
+                       <input type="hidden" name="productos[${i}][codigo]" value="${(p.codigo || '').replace(/"/g,'&quot;')}">`
                     : `<div class="fw-600" style="font-size:13.5px;">${p.nombre}</div>
                        <span class="producto-row-code">${p.codigo}</span>`}
                 <input type="hidden" name="productos[${i}][producto_id]" value="${p.id || ''}">
@@ -1663,6 +1690,7 @@ function restaurarCotizacionAutosave(data) {
         tasa_iva: p.tasa_iva,
         manual: !!p.manual,
         sugerencia_id: p.sugerencia_id || null,
+        catalogo_truper_id: p.catalogo_truper_id || null,
         imagenesExistentes: [],
         imagenesUrls: [],
         imagenesNuevas: [],

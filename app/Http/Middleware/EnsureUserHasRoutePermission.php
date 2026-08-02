@@ -32,6 +32,7 @@ class EnsureUserHasRoutePermission
         'inventario' => 'inventario.ver',
         'categorias' => 'categorias.ver',
         'sugerencias' => 'sugerencias.ver',
+        'catalogo-truper' => 'catalogo_truper.ver',
         'entradas-anticipadas' => 'entradas_anticipadas.ver',
         'ordenes-compra' => 'ordenes_compra.ver',
         'compras' => 'compras.ver',

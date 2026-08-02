@@ -12,6 +12,7 @@ use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\ListaPrecio;
 use App\Models\Sugerencia;
+use App\Models\CatalogoTruper;
 use App\Models\Empresa;
 use App\Models\Factura;
 use App\Models\FacturaDetalle;
@@ -161,6 +162,8 @@ class CotizacionController extends Controller
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
             'productos.*.sugerencia_id' => 'nullable|exists:sugerencias,id',
+            'productos.*.catalogo_truper_id' => 'nullable|exists:catalogo_truper,id',
+            'productos.*.codigo' => 'nullable|string|max:50',
             'productos.*.imagenes_mantener' => 'nullable|array|max:3',
             'productos.*.imagenes_mantener.*' => 'nullable|string|max:500',
             'productos.*.imagenes' => 'nullable|array|max:3',
@@ -295,11 +298,15 @@ class CotizacionController extends Controller
                 }
 
                 $sugerenciaId = !empty($item['sugerencia_id']) ? (int) $item['sugerencia_id'] : null;
+                $catalogoTruperId = !empty($item['catalogo_truper_id']) ? (int) $item['catalogo_truper_id'] : null;
                 $esManual = $item['es_producto_manual'] ?? false;
                 $unidadDetalle = !empty($item['unidad']) ? $item['unidad'] : ($producto?->unidad ?? 'PZA');
+                if (strlen($unidadDetalle) > 10) {
+                    $unidadDetalle = substr($unidadDetalle, 0, 10);
+                }
 
-                // Si es partida manual sin sugerencia elegida, guardar/actualizar en sugerencias para futuras cotizaciones
-                if ($esManual && !$sugerenciaId && !empty(trim($item['descripcion'] ?? ''))) {
+                // Partida manual sin sugerencia ni Truper: guardar/actualizar en sugerencias para futuras cotizaciones
+                if ($esManual && !$sugerenciaId && !$catalogoTruperId && !empty(trim($item['descripcion'] ?? ''))) {
                     $sugerencia = Sugerencia::firstOrCreate(
                         [
                             'descripcion' => trim($item['descripcion']),
@@ -314,11 +321,16 @@ class CotizacionController extends Controller
                     $sugerenciaId = $sugerencia->id;
                 }
 
+                $codigoDetalle = $producto?->codigo
+                    ?? (!empty($item['codigo']) && trim((string) $item['codigo']) !== '' && trim((string) $item['codigo']) !== '-'
+                        ? trim((string) $item['codigo'])
+                        : '-');
+
                 CotizacionDetalle::create([
                     'cotizacion_id' => $cotizacion->id,
                     'producto_id' => $producto?->id,
                     'sugerencia_id' => $sugerenciaId,
-                    'codigo' => $producto?->codigo ?? '-',
+                    'codigo' => $codigoDetalle,
                     'descripcion' => $item['descripcion'],
                     'origen' => isset($item['origen']) ? (trim((string) $item['origen']) ?: null) : null,
                     'es_producto_manual' => $esManual,
@@ -849,7 +861,7 @@ class CotizacionController extends Controller
     }
 
     /**
-     * API: Búsqueda de productos y sugerencias (para cotizaciones create/edit)
+     * API: Búsqueda de productos, sugerencias y catálogo Truper (para cotizaciones create/edit)
      */
     public function buscarProductos(Request $request)
     {
@@ -899,6 +911,32 @@ class CotizacionController extends Controller
                     'nombre' => $s->descripcion,
                     'unidad' => $s->unidad ?? 'PZA',
                     'precio_unitario' => (float) $s->precio_unitario,
+                ];
+            }
+        }
+
+        // Catálogo Truper (mínimo 2 caracteres): precio = VENTA (medio mayoreo sin IVA)
+        if (strlen($search) >= 2) {
+            $term = '%' . addcslashes($search, '%_\\') . '%';
+            $truper = CatalogoTruper::query()
+                ->where(function ($q) use ($term) {
+                    $q->where('descripcion', 'like', $term)
+                        ->orWhere('codigo', 'like', $term)
+                        ->orWhere('clave', 'like', $term);
+                })
+                ->orderBy('codigo')
+                ->limit(10)
+                ->get(['id', 'codigo', 'clave', 'descripcion', 'unidad', 'venta']);
+
+            foreach ($truper as $t) {
+                $resultados[] = [
+                    'tipo' => 'truper',
+                    'id' => $t->id,
+                    'codigo' => $t->codigo,
+                    'clave' => $t->clave ?? '',
+                    'nombre' => $t->descripcion,
+                    'unidad' => $t->unidad ?? 'PZA',
+                    'precio_venta' => (float) $t->venta,
                 ];
             }
         }

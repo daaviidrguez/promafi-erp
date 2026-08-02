@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\ClaveProdServicioController;
 use App\Http\Controllers\Web\ClienteContactoController;
 use App\Http\Controllers\Web\ClienteController;
 use App\Http\Controllers\Web\ClienteDireccionEntregaController;
+use App\Http\Controllers\Web\ClienteMetaComercialController;
 use App\Http\Controllers\Web\ComplementoPagoController;
 use App\Http\Controllers\Web\CompraController;
 use App\Http\Controllers\Web\CotizacionCompraController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Web\CatalogoTruperController;
 use App\Http\Controllers\Web\SugerenciaController;
 use App\Http\Controllers\Web\TableroAnualController;
 use App\Http\Controllers\Web\TableroController;
+use App\Http\Controllers\Web\VentasDashboardController;
 use App\Http\Controllers\Web\UnidadMedidaSatController;
 use App\Http\Controllers\Web\UsoCfdiController;
 use App\Http\Controllers\Web\UsuarioController;
@@ -81,6 +83,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     // ───── DASHBOARD ─────
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/ventas/dashboard', [VentasDashboardController::class, 'index'])->name('ventas.dashboard');
     Route::get('/tablero', [TableroController::class, 'index'])->name('tablero.index');
     Route::get('/tablero-anual', [TableroAnualController::class, 'index'])->name('tablero-anual.index');
 
@@ -291,6 +294,12 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         ->name('clientes.direcciones-entrega.destroy');
     Route::get('/clientes/{cliente}/direcciones-entrega', [ClienteDireccionEntregaController::class, 'index'])
         ->name('clientes.direcciones-entrega.index');
+    Route::post('/clientes/{cliente}/metas-comerciales', [ClienteMetaComercialController::class, 'store'])
+        ->name('clientes.metas-comerciales.store');
+    Route::put('/clientes/{cliente}/metas-comerciales/{metaComercial}', [ClienteMetaComercialController::class, 'update'])
+        ->name('clientes.metas-comerciales.update');
+    Route::delete('/clientes/{cliente}/metas-comerciales/{metaComercial}', [ClienteMetaComercialController::class, 'destroy'])
+        ->name('clientes.metas-comerciales.destroy');
 
     // ───── PRODUCTOS ───── ✅
     Route::get('/productos/revision-precios', [ProductoRevisionPrecioController::class, 'index'])->name('productos.revision-precios');

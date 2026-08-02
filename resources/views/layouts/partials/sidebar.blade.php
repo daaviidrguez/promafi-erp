@@ -19,10 +19,11 @@
     <nav class="sidebar-nav">
 
         {{-- Principal (sin dropdown, enlaces directos) --}}
-        @can('dashboard.ver')
+        @if(auth()->user()?->hasPermission('dashboard.ver') || auth()->user()?->hasPermission('ventas.dashboard') || auth()->user()?->isAdmin())
         <div class="sidebar-section">
             <div class="sidebar-section-title">Principal</div>
             <ul class="sidebar-menu">
+                @can('dashboard.ver')
                 <li class="sidebar-menu-item">
                     <a href="{{ route('dashboard') }}"
                        class="sidebar-menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"
@@ -31,6 +32,18 @@
                         <span class="sidebar-menu-text">Dashboard</span>
                     </a>
                 </li>
+                @endcan
+                @can('ventas.dashboard')
+                <li class="sidebar-menu-item">
+                    <a href="{{ route('ventas.dashboard') }}"
+                       class="sidebar-menu-link {{ request()->routeIs('ventas.dashboard') ? 'active' : '' }}"
+                       title="Dashboard de Ventas">
+                        <span class="sidebar-menu-icon">🎯</span>
+                        <span class="sidebar-menu-text">Dashboard de Ventas</span>
+                    </a>
+                </li>
+                @endcan
+                @can('dashboard.ver')
                 <li class="sidebar-menu-item">
                     <a href="{{ route('tablero.index') }}"
                        class="sidebar-menu-link {{ request()->routeIs('tablero.index') ? 'active' : '' }}"
@@ -47,9 +60,10 @@
                         <span class="sidebar-menu-text">Tablero anual</span>
                     </a>
                 </li>
+                @endcan
             </ul>
         </div>
-        @endcan
+        @endif
 
         {{-- Reportes (dropdown) --}}
         @can('reportes.ver')

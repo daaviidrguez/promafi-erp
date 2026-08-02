@@ -213,7 +213,10 @@ class ClienteController extends Controller
             },
             'direccionesEntrega' => function($q) {
                 $q->orderByDesc('activo')->orderBy('id');
-            }
+            },
+            'metasComerciales' => function ($q) {
+                $q->orderByDesc('anio')->orderBy('periodo');
+            },
         ]);
 
         return view('clientes.show', compact('cliente', 'regimenEtiqueta', 'usoCfdiEtiqueta', 'formaPagoEtiqueta'));

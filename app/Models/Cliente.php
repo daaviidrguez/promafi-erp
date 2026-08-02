@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\ClienteContacto;
 use App\Models\ClienteDireccionEntrega;
+use App\Models\ClienteMetaComercial;
 use App\Services\ClienteCodigoGenerator;
 
 class Cliente extends Model
@@ -79,6 +80,14 @@ class Cliente extends Model
     public function direccionesEntrega()
     {
         return $this->hasMany(ClienteDireccionEntrega::class);
+    }
+
+    /**
+     * Metas comerciales del cliente (para dashboard de ventas).
+     */
+    public function metasComerciales()
+    {
+        return $this->hasMany(ClienteMetaComercial::class);
     }
 
     public function contactoPrincipal()

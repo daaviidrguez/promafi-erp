@@ -11,6 +11,7 @@ class EnsureUserHasRoutePermission
     /** Mapa: primer segmento del nombre de ruta => clave de permiso (null = no exigir). */
     protected array $routeToPermission = [
         'dashboard' => 'dashboard.ver',
+        'ventas' => 'ventas.dashboard',
         'tablero' => 'dashboard.ver',
         'tablero-anual' => 'dashboard.ver',
         'reportes' => 'reportes.ver',

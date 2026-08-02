@@ -271,6 +271,74 @@ $breadcrumbs = [
             @endif
         </div>
 
+        {{-- Gestión comercial --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🎯 Gestión comercial</div>
+                <button type="button"
+                        class="btn btn-primary btn-sm"
+                        onclick="abrirModalMetaComercialCrear()">➕ Nuevo</button>
+            </div>
+
+            @if($cliente->metasComerciales->count())
+                <div class="table-container" style="border:none; box-shadow:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Periodo</th>
+                                <th class="td-right">Meta sin IVA</th>
+                                <th>Notas</th>
+                                <th class="td-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($cliente->metasComerciales as $meta)
+                                <tr>
+                                    <td>{{ $meta->periodo_etiqueta }}</td>
+                                    <td class="td-right text-mono">
+                                        ${{ number_format($meta->monto_meta, 2, '.', ',') }}
+                                        @if($meta->esMensual())
+                                            <span style="color:var(--text-muted, #6b7280); font-size:12px;">/ mes</span>
+                                        @endif
+                                    </td>
+                                    <td style="white-space: pre-wrap;">{{ $meta->notas ?: '—' }}</td>
+                                    <td class="td-center">
+                                        <button type="button"
+                                                class="btn btn-light btn-sm btn-editar-meta"
+                                                data-id="{{ $meta->id }}"
+                                                data-anio="{{ $meta->anio }}"
+                                                data-periodo="{{ $meta->periodo }}"
+                                                data-monto="{{ $meta->monto_meta }}"
+                                                data-notas="{{ str_replace(["\r", "\n"], '\\n', $meta->notas ?? '') }}"
+                                                data-update-url="{{ route('clientes.metas-comerciales.update', [$cliente, $meta]) }}"
+                                                onclick="abrirModalMetaComercialEditar(this)">
+                                            ✏️
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-danger btn-sm btn-eliminar-meta"
+                                                data-delete-url="{{ route('clientes.metas-comerciales.destroy', [$cliente, $meta]) }}"
+                                                onclick="eliminarMetaComercial(this)">
+                                            🗑
+                                        </button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="card-body">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <div class="empty-state-title">Sin metas comerciales</div>
+                        <div class="empty-state-text" style="margin-top:6px; color:var(--text-muted, #6b7280); font-size:13px;">
+                            Define meta anual, mensual, o ambas para el mismo año.
+                        </div>
+                    </div>
+                </div>
+            @endif
+        </div>
+
         {{-- Facturas Recientes --}}
         <div class="card">
             <div class="card-header">
@@ -540,6 +608,63 @@ $breadcrumbs = [
     </div>
 </div>
 
+<div id="modalMetaComercial" class="modal" style="z-index: 3000;">
+    <div class="modal-box" style="max-width: 720px;">
+        <div class="modal-header">
+            <div class="modal-title" id="modalMetaComercialTitle">Nueva Meta</div>
+            <button type="button" class="modal-close" onclick="cerrarModalMetaComercial()">✕</button>
+        </div>
+
+        <form id="formMetaComercial"
+              action="{{ route('clientes.metas-comerciales.store', $cliente) }}"
+              method="POST">
+            @csrf
+            <div class="modal-body">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🎯 Meta comercial</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                            <div class="form-group">
+                                <label class="form-label">Año <span class="req">*</span></label>
+                                <input type="number" id="metaComercialAnio" name="anio" class="form-control"
+                                       min="2000" max="2100" required value="{{ now()->year }}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Periodo <span class="req">*</span></label>
+                                <select id="metaComercialPeriodo" name="periodo" class="form-control" required
+                                        onchange="actualizarEtiquetaMontoMeta()">
+                                    <option value="anual">Anual</option>
+                                    <option value="mensual">Mensual</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" id="metaComercialMontoLabel">Monto meta anual (MXN) <span class="req">*</span></label>
+                            <input type="number" id="metaComercialMonto" name="monto_meta" class="form-control"
+                                   step="0.01" min="0.01" required placeholder="0.00">
+                            <div id="metaComercialMontoHint" style="margin-top:6px; font-size:12px; color:var(--text-muted, #6b7280);">
+                                Meta total del año.
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Notas</label>
+                            <textarea id="metaComercialNotas" name="notas" class="form-control" rows="3"
+                                      placeholder="Opcional"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display:flex; gap:12px; justify-content:flex-end;">
+                <button type="button" class="btn btn-light" onclick="cerrarModalMetaComercial()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">✓ Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -745,6 +870,119 @@ $breadcrumbs = [
         .catch(err => {
             console.error(err);
             alert('Error al guardar dirección.');
+        });
+    });
+
+    function actualizarEtiquetaMontoMeta() {
+        const periodo = document.getElementById('metaComercialPeriodo')?.value || 'anual';
+        const label = document.getElementById('metaComercialMontoLabel');
+        const hint = document.getElementById('metaComercialMontoHint');
+        if (!label || !hint) return;
+
+        if (periodo === 'mensual') {
+            label.innerHTML = 'Monto meta mensual (MXN) <span class="req">*</span>';
+            hint.textContent = 'Monto fijo por mes; el dashboard puede escalarlo a meses o al año.';
+        } else {
+            label.innerHTML = 'Monto meta anual (MXN) <span class="req">*</span>';
+            hint.textContent = 'Meta total del año.';
+        }
+    }
+
+    function cerrarModalMetaComercial() {
+        document.getElementById('modalMetaComercial')?.classList.remove('show');
+    }
+
+    function abrirModalMetaComercialCrear() {
+        document.getElementById('modalMetaComercialTitle').textContent = 'Nueva Meta';
+        const form = document.getElementById('formMetaComercial');
+        form.action = @json(route('clientes.metas-comerciales.store', $cliente));
+
+        document.getElementById('metaComercialAnio').value = String(new Date().getFullYear());
+        document.getElementById('metaComercialPeriodo').value = 'anual';
+        document.getElementById('metaComercialMonto').value = '';
+        document.getElementById('metaComercialNotas').value = '';
+        actualizarEtiquetaMontoMeta();
+
+        form.querySelector('input[name="_method"]')?.remove();
+        document.getElementById('modalMetaComercial')?.classList.add('show');
+    }
+
+    function abrirModalMetaComercialEditar(btn) {
+        document.getElementById('modalMetaComercialTitle').textContent = 'Editar Meta';
+        const form = document.getElementById('formMetaComercial');
+        form.action = btn.dataset.updateUrl;
+
+        document.getElementById('metaComercialAnio').value = btn.dataset.anio || '';
+        document.getElementById('metaComercialPeriodo').value = btn.dataset.periodo || 'anual';
+        document.getElementById('metaComercialMonto').value = btn.dataset.monto || '';
+        document.getElementById('metaComercialNotas').value = (btn.dataset.notas || '').replace(/\\n/g, '\n');
+        actualizarEtiquetaMontoMeta();
+
+        if (!form.querySelector('input[name="_method"]')) {
+            const m = document.createElement('input');
+            m.type = 'hidden';
+            m.name = '_method';
+            m.value = 'PUT';
+            form.appendChild(m);
+        } else {
+            form.querySelector('input[name="_method"]').value = 'PUT';
+        }
+
+        document.getElementById('modalMetaComercial')?.classList.add('show');
+    }
+
+    function eliminarMetaComercial(btn) {
+        if (!confirm('¿Eliminar meta comercial?')) return;
+        const url = btn.dataset.deleteUrl;
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: new URLSearchParams({ _method: 'DELETE', _token: csrfToken })
+        })
+        .then(r => r.ok ? r.json().catch(() => ({})) : Promise.reject(r))
+        .then(() => window.location.reload())
+        .catch(err => {
+            console.error(err);
+            alert('Error al eliminar meta comercial.');
+        });
+    }
+
+    document.getElementById('formMetaComercial')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const actionUrl = form.action;
+        const formData = new FormData(form);
+
+        fetch(actionUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData
+        })
+        .then(async r => {
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) {
+                const msg = data?.errors
+                    ? Object.values(data.errors).flat().join('\n')
+                    : (data?.message || 'Error al guardar meta comercial.');
+                throw new Error(msg);
+            }
+            return data;
+        })
+        .then(() => {
+            cerrarModalMetaComercial();
+            window.location.reload();
+        })
+        .catch(err => {
+            console.error(err);
+            alert(err.message || 'Error al guardar meta comercial.');
         });
     });
 </script>

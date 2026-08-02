@@ -253,33 +253,16 @@ class Cotizacion extends Model
     }
 
     /**
-     * Puede convertir a factura: estado correcto, sin partidas manuales pendientes
-     * y stock suficiente en productos que controlan inventario.
+     * Puede convertir a factura: estado correcto y producto asignado en cada partida.
+     * Stock y datos fiscales del PAC se validan al timbrar la factura.
      */
     public function puedeConvertirAFactura(): bool
     {
-        if (\App\Models\Factura::withTrashed()->where('cotizacion_id', $this->id)->exists()) {
-            return false;
-        }
-        if (!$this->puedeFacturarse()) {
-            return false;
-        }
-        if ($this->tienePartidasSinProductoAsignado()) {
-            return false;
-        }
-        foreach ($this->detalles as $d) {
-            if (!$d->producto_id || !$d->producto) {
-                return false;
-            }
-            if ($d->producto->controla_inventario && !$d->producto->tieneStock((float) $d->cantidad)) {
-                return false;
-            }
-        }
-        return true;
+        return $this->motivoNoConvertirAFactura() === null;
     }
 
     /**
-     * Mensaje por el cual no se puede convertir a factura (partidas manuales, stock u otro)
+     * Mensaje por el cual no se puede convertir a factura (producto pendiente u otro).
      */
     public function motivoNoConvertirAFactura(): ?string
     {
@@ -292,17 +275,12 @@ class Cotizacion extends Model
         if ($this->tienePartidasSinProductoAsignado()) {
             return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
         }
-        $sinStock = [];
         foreach ($this->detalles as $d) {
-            if ($d->producto_id && $d->producto && $d->producto->controla_inventario) {
-                if (!$d->producto->tieneStock((float) $d->cantidad)) {
-                    $sinStock[] = $d->producto->nombre . ' (requiere ' . $d->cantidad . ', hay ' . $d->producto->stock . ')';
-                }
+            if (!$d->producto_id || !$d->producto) {
+                return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
             }
         }
-        if (!empty($sinStock)) {
-            return 'Falta stock: ' . implode('; ', $sinStock);
-        }
+
         return null;
     }
 

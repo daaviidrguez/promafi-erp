@@ -446,8 +446,7 @@ $breadcrumbs = [
                             ✅ Aceptar
                         </button>
                     @else
-                        <button type="submit" class="btn btn-success w-full"
-                                onclick="return confirm('¿Marcar esta cotización como aceptada?')">
+                        <button type="button" class="btn btn-success w-full" onclick="abrirModalAceptarCotizacion()">
                             ✅ Aceptar
                         </button>
                     @endif
@@ -463,10 +462,9 @@ $breadcrumbs = [
                 @if($cotizacion->puedeFacturarse())
                 @can('facturas.crear')
                 @if($cotizacion->puedeConvertirAFactura())
-                <form method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
+                <form id="formConvertirFacturaCotizacion" method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
                     @csrf
-                    <button type="submit" class="btn btn-primary w-full"
-                            onclick="return confirm('¿Convertir esta cotización en factura?')">
+                    <button type="button" class="btn btn-primary w-full" onclick="abrirModalConvertirFactura()">
                         💰 Convertir a Factura
                     </button>
                 </form>
@@ -495,6 +493,27 @@ $breadcrumbs = [
     </div>
 </div>
 
+{{-- Modal: Confirmar aceptación de cotización --}}
+@if($cotizacion->puedeAceptarse() && $cotizacion->estado !== 'vencida')
+<div id="modalAceptarCotizacion" class="modal">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="modal-header">
+            <div class="modal-title">Confirmar aceptación</div>
+            <button type="button" class="modal-close" onclick="cerrarModalAceptarCotizacion()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom:0;">
+                ¿Marcar esta cotización como <strong>aceptada</strong>?
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="cerrarModalAceptarCotizacion()">Cancelar</button>
+            <button type="button" class="btn btn-success" onclick="confirmarAceptarCotizacion()">Aceptar cotización</button>
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- Modal: Confirmar aceptación de cotización vencida --}}
 @if($cotizacion->estado === 'vencida')
 <div id="modalAceptarCotizacionVencida" class="modal">
@@ -519,6 +538,30 @@ $breadcrumbs = [
 </div>
 @endif
 
+{{-- Modal: Confirmar conversión a factura --}}
+@if($cotizacion->puedeFacturarse() && $cotizacion->puedeConvertirAFactura())
+@can('facturas.crear')
+<div id="modalConvertirFacturaCotizacion" class="modal">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="modal-header">
+            <div class="modal-title">Convertir a factura</div>
+            <button type="button" class="modal-close" onclick="cerrarModalConvertirFactura()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom:0;">
+                ¿Convertir esta cotización en una <strong>factura en borrador</strong>?
+                El stock y la clave SAT se validarán al timbrar.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="cerrarModalConvertirFactura()">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="confirmarConvertirFactura()">Convertir a factura</button>
+        </div>
+    </div>
+</div>
+@endcan
+@endif
+
 {{-- Modal: Asignar productos (instrucciones) --}}
 <div id="modalAsignarProductosCotizacion" class="modal">
     <div class="modal-box" style="max-width:560px;">
@@ -529,9 +572,11 @@ $breadcrumbs = [
         <div class="modal-body">
             <p class="text-muted" style="margin-bottom:8px;">
                 Debe seleccionar la <strong>lupita</strong> en las partidas para asignar un producto del catálogo.
+                Si aún no existe, puede crearlo de forma rápida desde ese mismo modal.
             </p>
             <p class="text-muted" style="margin-bottom:0;">
-                Cuando todas las partidas tengan producto asignado y exista stock (si aplica), se habilitará <strong>Convertir a factura</strong>.
+                Cuando todas las partidas tengan producto asignado se habilitará <strong>Convertir a factura</strong>.
+                El stock y la clave SAT se validan al <strong>timbrar</strong>.
             </p>
         </div>
         <div class="modal-footer">
@@ -555,8 +600,46 @@ $breadcrumbs = [
                 <p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>
             </div>
         </div>
+        @can('productos.crear')
+        <div class="modal-footer" style="flex-wrap:wrap; gap:8px; justify-content:space-between;">
+            <button type="button" class="btn btn-outline" onclick="abrirModalCrearProductoRapido()">¿Deseas crear el producto?</button>
+            <button type="button" class="btn btn-light" onclick="cerrarModalAsignarProducto()">Cerrar</button>
+        </div>
+        @endcan
     </div>
 </div>
+
+{{-- Modal: Creación rápida de producto --}}
+@can('productos.crear')
+<div id="modalCrearProductoRapidoCotizacion" class="modal">
+    <div class="modal-box" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-title">Creación rápida de producto</div>
+            <button type="button" class="modal-close" onclick="cerrarModalCrearProductoRapido()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom:12px;">
+                Se creará un producto provisional con código <span class="text-mono">PSI-…</span> automático.
+                Después podrá completar clave SAT y stock en el catálogo; esos datos se validan al timbrar.
+            </p>
+            <div class="form-group">
+                <label class="form-label">Código</label>
+                <input type="text" class="form-control text-mono" value="Automático (PSI-…)" disabled>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Nombre</label>
+                <input type="text" id="crearProductoRapidoNombre" class="form-control" readonly>
+            </div>
+            <p id="crearProductoRapidoAviso" class="text-muted small mt-2 mb-0" style="display:none;"></p>
+        </div>
+        <div class="modal-footer" style="flex-wrap:wrap; gap:8px; justify-content:flex-end;">
+            <button type="button" class="btn btn-light" onclick="cerrarModalCrearProductoRapido()">Cancelar</button>
+            <button type="button" class="btn btn-warning" id="btnCrearProductoRapidoForzar" style="display:none;" onclick="guardarProductoRapido(true)">Crear de todas formas</button>
+            <button type="button" class="btn btn-primary" id="btnCrearProductoRapidoGuardar" onclick="guardarProductoRapido(false)">Guardar y asignar</button>
+        </div>
+    </div>
+</div>
+@endcan
 
 @push('scripts')
 @if(session('success'))
@@ -583,6 +666,21 @@ $breadcrumbs = [
 @endif
 <script>
 (function() {
+    window.abrirModalAceptarCotizacion = function() {
+        const modal = document.getElementById('modalAceptarCotizacion');
+        if (modal) modal.classList.add('show');
+    };
+
+    window.cerrarModalAceptarCotizacion = function() {
+        const modal = document.getElementById('modalAceptarCotizacion');
+        if (modal) modal.classList.remove('show');
+    };
+
+    window.confirmarAceptarCotizacion = function() {
+        const form = document.getElementById('formAceptarCotizacion');
+        if (form) form.submit();
+    };
+
     window.abrirModalAceptarVencida = function() {
         const modal = document.getElementById('modalAceptarCotizacionVencida');
         if (modal) modal.classList.add('show');
@@ -598,9 +696,31 @@ $breadcrumbs = [
         if (form) form.submit();
     };
 
+    window.abrirModalConvertirFactura = function() {
+        const modal = document.getElementById('modalConvertirFacturaCotizacion');
+        if (modal) modal.classList.add('show');
+    };
+
+    window.cerrarModalConvertirFactura = function() {
+        const modal = document.getElementById('modalConvertirFacturaCotizacion');
+        if (modal) modal.classList.remove('show');
+    };
+
+    window.confirmarConvertirFactura = function() {
+        const form = document.getElementById('formConvertirFacturaCotizacion');
+        if (form) form.submit();
+    };
+
     const listarUrl = '{{ route("cotizaciones.buscar-productos") }}';
     const asignarUrlTpl = '{{ route("cotizaciones.detalles.asignar-producto", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
+    const crearRapidoUrlTpl = '{{ route("cotizaciones.detalles.crear-producto-rapido", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const detallesPartidas = @json($cotizacion->detalles->mapWithKeys(function ($d) {
+        return [$d->id => [
+            'descripcion' => (string) ($d->descripcion ?? ''),
+            'unidad' => (string) ($d->unidad ?? 'PZA'),
+        ]];
+    }));
     let detalleActual = null;
     let timer = null;
 
@@ -615,6 +735,93 @@ $breadcrumbs = [
     window.cerrarModalAsignarProducto = function() {
         document.getElementById('modalAsignarProductoCotizacion').classList.remove('show');
         detalleActual = null;
+    };
+
+    window.abrirModalCrearProductoRapido = function() {
+        if (!detalleActual) return;
+        const info = detallesPartidas[detalleActual] || detallesPartidas[String(detalleActual)] || {};
+        const nombreInput = document.getElementById('crearProductoRapidoNombre');
+        const aviso = document.getElementById('crearProductoRapidoAviso');
+        const btnForzar = document.getElementById('btnCrearProductoRapidoForzar');
+        if (nombreInput) nombreInput.value = info.descripcion || '';
+        if (aviso) {
+            aviso.style.display = 'none';
+            aviso.textContent = '';
+        }
+        if (btnForzar) btnForzar.style.display = 'none';
+        document.getElementById('modalAsignarProductoCotizacion').classList.remove('show');
+        const modalCrear = document.getElementById('modalCrearProductoRapidoCotizacion');
+        if (modalCrear) modalCrear.classList.add('show');
+    };
+
+    window.cerrarModalCrearProductoRapido = function() {
+        const modal = document.getElementById('modalCrearProductoRapidoCotizacion');
+        if (modal) modal.classList.remove('show');
+        const aviso = document.getElementById('crearProductoRapidoAviso');
+        const btnForzar = document.getElementById('btnCrearProductoRapidoForzar');
+        if (aviso) {
+            aviso.style.display = 'none';
+            aviso.textContent = '';
+        }
+        if (btnForzar) btnForzar.style.display = 'none';
+        if (detalleActual) {
+            document.getElementById('modalAsignarProductoCotizacion').classList.add('show');
+        }
+    };
+
+    window.guardarProductoRapido = function(forzar) {
+        if (!detalleActual) return;
+        const btnGuardar = document.getElementById('btnCrearProductoRapidoGuardar');
+        const btnForzar = document.getElementById('btnCrearProductoRapidoForzar');
+        const aviso = document.getElementById('crearProductoRapidoAviso');
+        if (btnGuardar) btnGuardar.disabled = true;
+        if (btnForzar) btnForzar.disabled = true;
+
+        const url = crearRapidoUrlTpl.replace('__DETALLE__', String(detalleActual));
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ forzar: !!forzar })
+        })
+            .then(async function(r) {
+                const resp = await r.json().catch(function() { return null; });
+                if (r.ok && resp && resp.success === true) {
+                    window.location.reload();
+                    return;
+                }
+                if (resp && resp.needs_confirm) {
+                    if (aviso) {
+                        aviso.style.display = 'block';
+                        aviso.textContent = resp.message || 'Ya existe un producto similar.';
+                    }
+                    if (btnForzar) btnForzar.style.display = '';
+                    return;
+                }
+                const msg = (resp && resp.message) ? resp.message : 'No se pudo crear el producto.';
+                if (aviso) {
+                    aviso.style.display = 'block';
+                    aviso.textContent = msg;
+                } else {
+                    alert(msg);
+                }
+            })
+            .catch(function() {
+                if (aviso) {
+                    aviso.style.display = 'block';
+                    aviso.textContent = 'No se pudo crear el producto.';
+                } else {
+                    alert('No se pudo crear el producto.');
+                }
+            })
+            .finally(function() {
+                if (btnGuardar) btnGuardar.disabled = false;
+                if (btnForzar) btnForzar.disabled = false;
+            });
     };
 
     document.getElementById('modalBuscarProductoCot').addEventListener('input', function() {

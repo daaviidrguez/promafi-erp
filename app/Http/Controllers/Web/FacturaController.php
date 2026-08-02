@@ -451,6 +451,18 @@ class FacturaController extends Controller
     public function show(Factura $factura)
     {
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario']);
+
+        $mensajeSyncSat = null;
+        if ($factura->esBorrador()) {
+            $actualizados = $factura->sincronizarDatosFiscalesDesdeProductos();
+            if ($actualizados > 0) {
+                $factura->load(['detalles.producto', 'detalles.impuestos']);
+                $mensajeSyncSat = $actualizados === 1
+                    ? 'Se actualizó la clave SAT desde el catálogo en 1 partida.'
+                    : "Se actualizó la clave SAT desde el catálogo en {$actualizados} partidas.";
+            }
+        }
+
         $ncBorrador = \App\Models\NotaCredito::where('factura_id', $factura->id)->where('estado', 'borrador')->first();
         $complementoBorrador = $factura->cliente_id ? \App\Models\ComplementoPago::where('cliente_id', $factura->cliente_id)->where('estado', 'borrador')->first() : null;
 
@@ -472,7 +484,33 @@ class FacturaController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
-        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura'));
+        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura', 'mensajeSyncSat'));
+    }
+
+    /**
+     * Sincroniza claves SAT / unidad desde el catálogo hacia partidas provisionales (solo borrador).
+     */
+    public function sincronizarClaveSat(Factura $factura)
+    {
+        abort_unless(auth()->user()?->can('facturas.crear') || auth()->user()?->can('facturas.timbrar'), 403);
+
+        if (! $factura->esBorrador()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'Solo se pueden actualizar claves SAT en facturas en borrador.');
+        }
+
+        $actualizados = $factura->sincronizarDatosFiscalesDesdeProductos();
+
+        if ($actualizados > 0) {
+            $msg = $actualizados === 1
+                ? 'Se actualizó la clave SAT desde el catálogo en 1 partida.'
+                : "Se actualizó la clave SAT desde el catálogo en {$actualizados} partidas.";
+
+            return redirect()->route('facturas.show', $factura)->with('success', $msg);
+        }
+
+        return redirect()->route('facturas.show', $factura)
+            ->with('info', 'No había partidas con clave provisional para actualizar, o el producto en catálogo aún tiene 01010101.');
     }
 
     /**
@@ -487,6 +525,8 @@ class FacturaController extends Controller
                 ->with('error', 'Solo se pueden editar facturas en borrador.');
         }
 
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
+        $factura->sincronizarDatosFiscalesDesdeProductos();
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
         $empresa = Empresa::principal();
         $clientes = Cliente::activos()->orderBy('nombre')->get();
@@ -737,8 +777,9 @@ class FacturaController extends Controller
     {
         abort_unless(auth()->user()?->can('facturas.timbrar'), 403);
 
-        if (! $factura->puedeTimbrar()) {
-            return back()->with('error', 'Esta factura no puede ser timbrada');
+        $motivoTimbrar = $factura->motivoNoTimbrar();
+        if ($motivoTimbrar !== null) {
+            return back()->with('error', $motivoTimbrar);
         }
 
         $lock = TimbradoConcurrencyGuard::acquire('factura', $factura->id);
@@ -749,9 +790,11 @@ class FacturaController extends Controller
         try {
             DB::beginTransaction();
             try {
-                $factura = Factura::lockForUpdate()->findOrFail($factura->id);
-                if (! $factura->puedeTimbrar()) {
-                    throw new \Exception('Esta factura no puede ser timbrada');
+                $factura = Factura::with(['detalles.producto'])->lockForUpdate()->findOrFail($factura->id);
+                $factura->sincronizarDatosFiscalesDesdeProductos();
+                $motivoTimbrar = $factura->motivoNoTimbrar();
+                if ($motivoTimbrar !== null) {
+                    throw new \Exception($motivoTimbrar);
                 }
 
                 // Llamar al servicio de timbrado

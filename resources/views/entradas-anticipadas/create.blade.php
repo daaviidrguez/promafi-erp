@@ -13,6 +13,28 @@ $lineasJson = json_encode($lineasPrecargadas);
 
 @section('content')
 
+@if ($errors->any())
+<div class="alert alert-error" id="flash-alert">
+    <span>✗</span>
+    <div>
+        <strong>No se pudo guardar la entrada anticipada:</strong>
+        <ul style="margin:6px 0 0 18px;padding:0;">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+</div>
+@endif
+
+@if($ordenCompra && empty($lineasPrecargadas))
+<div class="alert alert-warning">
+    <span>⚠</span>
+    Esta orden no tiene líneas con producto del catálogo pendiente de recibir.
+    Asigne productos en la orden de compra (o verifique que no esté ya recibida por completo) antes de crear la entrada.
+</div>
+@endif
+
 <form action="{{ route('entradas-anticipadas.store') }}" method="POST" id="eaForm">
 @csrf
 @if($ordenCompra)<input type="hidden" name="orden_compra_id" value="{{ $ordenCompra->id }}">@endif
@@ -28,11 +50,11 @@ $lineasJson = json_encode($lineasPrecargadas);
                 </div>
                 <div class="form-group">
                     <label class="form-label">Fecha de recepción <span class="req">*</span></label>
-                    <input type="date" name="fecha_recepcion" value="{{ date('Y-m-d') }}" required class="form-control">
+                    <input type="date" name="fecha_recepcion" value="{{ old('fecha_recepcion', date('Y-m-d')) }}" required class="form-control">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Observaciones</label>
-                    <textarea name="observaciones" rows="2" class="form-control"></textarea>
+                    <textarea name="observaciones" rows="2" class="form-control">{{ old('observaciones') }}</textarea>
                 </div>
             </div>
         </div>
@@ -43,13 +65,14 @@ $lineasJson = json_encode($lineasPrecargadas);
             <div class="card-body">
                 <div class="form-group search-box">
                     <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control">
-                    <input type="hidden" name="proveedor_id" id="proveedor_id" required>
+                    <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ old('proveedor_id') }}">
                     <div id="proveedorResults" class="autocomplete-results"></div>
                 </div>
                 <div id="proveedorInfo" style="display:none;margin-top:12px;padding:12px;background:var(--color-gray-50);border-radius:var(--radius-md);">
                     <span class="fw-600" id="proveedorNombre"></span>
                     <button type="button" onclick="limpiarProveedor()" class="btn btn-light btn-sm" style="margin-left:8px;">Cambiar</button>
                 </div>
+                <p id="proveedorError" class="text-danger small" style="display:none;margin:8px 0 0;">Seleccione un proveedor de la lista.</p>
             </div>
         </div>
         @else
@@ -90,6 +113,7 @@ $lineasJson = json_encode($lineasPrecargadas);
                         <tbody id="lineasBody"></tbody>
                     </table>
                 </div>
+                <p id="lineasError" class="text-danger small" style="display:none;margin:0;padding:12px 16px;">Agregue al menos un producto con cantidad mayor a 0.</p>
             </div>
         </div>
     </div>
@@ -108,8 +132,8 @@ $lineasJson = json_encode($lineasPrecargadas);
         </div>
         <div class="card">
             <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
-                <button type="submit" name="confirmar" value="0" class="btn btn-outline w-full">💾 Guardar borrador</button>
-                <button type="submit" name="confirmar" value="1" class="btn btn-primary w-full">✅ Confirmar recepción</button>
+                <button type="submit" name="confirmar" value="0" class="btn btn-outline w-full" id="btnGuardarBorrador" {{ ($ordenCompra && empty($lineasPrecargadas)) ? 'disabled' : '' }}>💾 Guardar borrador</button>
+                <button type="submit" name="confirmar" value="1" class="btn btn-primary w-full" id="btnConfirmarRecepcion" {{ ($ordenCompra && empty($lineasPrecargadas)) ? 'disabled' : '' }}>✅ Confirmar recepción</button>
                 <a href="{{ $ordenCompra ? route('ordenes-compra.show', $ordenCompra->id) : route('entradas-anticipadas.index') }}" class="btn btn-light w-full">← Cancelar</a>
             </div>
         </div>
@@ -254,6 +278,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (bp) bp.addEventListener('input', e => { if (e.target.value.length>=2) buscarProveedores(e.target.value); });
     const bpr = document.getElementById('buscarProducto');
     if (bpr) bpr.addEventListener('input', e => { if (e.target.value.length>=2) buscarProductos(e.target.value); });
+
+    const form = document.getElementById('eaForm');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            const proveedorEl = document.getElementById('proveedor_id');
+            const proveedorError = document.getElementById('proveedorError');
+            const lineasError = document.getElementById('lineasError');
+            let ok = true;
+
+            if (proveedorEl && !String(proveedorEl.value || '').trim()) {
+                ok = false;
+                if (proveedorError) proveedorError.style.display = 'block';
+            } else if (proveedorError) {
+                proveedorError.style.display = 'none';
+            }
+
+            const lineasValidas = lineas.filter(l => l.producto_id && parseFloat(l.cantidad_recibida) > 0);
+            if (!lineasValidas.length) {
+                ok = false;
+                if (lineasError) lineasError.style.display = 'block';
+            } else if (lineasError) {
+                lineasError.style.display = 'none';
+            }
+
+            if (!ok) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
 });
 </script>
 @endpush

@@ -112,6 +112,14 @@ class EntradaAnticipadaController extends Controller
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.codigo_proveedor' => 'nullable|string|max:100',
             'confirmar' => 'nullable|boolean',
+        ], [
+            'proveedor_id.required' => 'Seleccione un proveedor.',
+            'proveedor_id.exists' => 'El proveedor seleccionado no es válido.',
+            'productos.required' => 'Agregue al menos un producto recibido.',
+            'productos.min' => 'Agregue al menos un producto recibido.',
+            'productos.*.producto_id.required' => 'Cada línea debe tener un producto del catálogo.',
+            'productos.*.producto_id.exists' => 'Uno de los productos ya no existe en el catálogo.',
+            'productos.*.cantidad_recibida.min' => 'La cantidad recibida debe ser mayor a cero.',
         ]);
 
         try {

@@ -932,6 +932,183 @@ class CotizacionController extends Controller
     }
 
     /**
+     * Creación rápida de producto desde una partida (modal lupa) y asignación inmediata.
+     * Código PSI consecutivo; clave SAT provisional (se valida al timbrar).
+     */
+    public function crearProductoRapidoDetalle(Request $request, $cotizacion, CotizacionDetalle $detalle): JsonResponse
+    {
+        abort_unless(auth()->user()?->can('productos.crear'), 403);
+
+        $cotizacion = Cotizacion::with(['detalles'])->findOrFail($cotizacion);
+        $this->authorizeCotizacion($cotizacion);
+
+        if (! $cotizacion->puedeFacturarse()) {
+            return response()->json(['success' => false, 'message' => 'La cotización debe estar aceptada o enviada.'], 422);
+        }
+
+        if ((int) $detalle->cotizacion_id !== (int) $cotizacion->id) {
+            return response()->json(['success' => false, 'message' => 'La partida no pertenece a la cotización.'], 422);
+        }
+
+        $request->validate([
+            'forzar' => 'nullable|boolean',
+        ]);
+
+        $nombre = \Illuminate\Support\Str::limit(trim((string) $detalle->descripcion), 255);
+        if ($nombre === '') {
+            return response()->json(['success' => false, 'message' => 'La partida no tiene descripción para nombrar el producto.'], 422);
+        }
+
+        if (! $request->boolean('forzar')) {
+            $similar = $this->nombreProductoActivoSiDescripcionSuperaSimilitud($nombre);
+            if ($similar !== null) {
+                return response()->json([
+                    'success' => false,
+                    'needs_confirm' => true,
+                    'message' => 'El texto coincide con un producto existente («'
+                        . \Illuminate\Support\Str::limit($similar, 120)
+                        . '»). Busque en la lupita o confirme para crear uno nuevo de todas formas.',
+                ], 422);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            $psiNum = $this->obtenerSiguientePsiNumDesde(1);
+            $codigoPsi = 'PSI-' . $psiNum;
+            while (Producto::where('codigo', $codigoPsi)->exists()) {
+                $psiNum++;
+                $codigoPsi = 'PSI-' . $psiNum;
+            }
+
+            $tipoFactor = $detalle->tasa_iva === null ? 'Exento' : 'Tasa';
+            $tasaIva = $detalle->tasa_iva === null ? 0.0 : (float) $detalle->tasa_iva;
+
+            $producto = Producto::create([
+                'codigo' => $codigoPsi,
+                'nombre' => $nombre,
+                'descripcion' => $detalle->descripcion,
+                'categoria_id' => null,
+                'clave_sat' => '01010101',
+                'clave_unidad_sat' => 'H87',
+                'unidad' => $detalle->unidad ?? 'PZA',
+                'objeto_impuesto' => '02',
+                'tipo_impuesto' => '002',
+                'tipo_factor' => $tipoFactor,
+                'tasa_iva' => $tasaIva,
+                'precio_venta' => (float) $detalle->precio_unitario,
+                'costo' => 0,
+                'stock_minimo' => 0,
+                'stock_maximo' => 0,
+                'controla_inventario' => true,
+                'aplica_iva' => $tipoFactor !== 'Exento',
+                'tasa_ieps' => 0,
+                'stock' => 0,
+                'activo' => true,
+            ]);
+
+            $detalle->update([
+                'producto_id' => $producto->id,
+                'codigo' => $producto->codigo,
+                'unidad' => $detalle->unidad ?? $producto->unidad ?? 'PZA',
+                'es_producto_manual' => false,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'producto_id' => $producto->id,
+                'codigo' => $producto->codigo,
+                'message' => 'Producto ' . $producto->codigo . ' creado y asignado. Complete clave SAT en catálogo y stock antes de timbrar.',
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json(['success' => false, 'message' => 'No se pudo crear el producto: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Siguiente número libre del consecutivo PSI- (incluye soft-deleted).
+     */
+    private function obtenerSiguientePsiNumDesde(int $desde): int
+    {
+        $usados = Producto::withTrashed()
+            ->where('codigo', 'like', 'PSI-%')
+            ->pluck('codigo')
+            ->map(function ($codigo) {
+                if (! is_string($codigo)) {
+                    return null;
+                }
+                if (preg_match('/^PSI-(\d+)$/', $codigo, $m)) {
+                    return (int) $m[1];
+                }
+
+                return null;
+            })
+            ->filter(fn ($n) => $n !== null)
+            ->unique()
+            ->values()
+            ->all();
+
+        $set = array_flip($usados);
+        $n = max(1, $desde);
+        while (isset($set[$n])) {
+            $n++;
+        }
+
+        return $n;
+    }
+
+    /**
+     * @return string|null nombre del producto activo si similar_text > 80% y casi idéntico.
+     */
+    private function nombreProductoActivoSiDescripcionSuperaSimilitud(string $descripcion): ?string
+    {
+        $desc = mb_strtoupper(trim($descripcion));
+        if (mb_strlen($desc) < 10) {
+            return null;
+        }
+
+        foreach (Producto::query()->where('activo', true)->select(['id', 'nombre', 'descripcion'])->cursor() as $p) {
+            foreach ([$p->nombre, $p->descripcion] as $campo) {
+                if (! is_string($campo) || trim($campo) === '') {
+                    continue;
+                }
+                $cmp = mb_strtoupper(trim($campo));
+                if (mb_strlen($cmp) < 10) {
+                    continue;
+                }
+                $percent = 0.0;
+                similar_text($desc, $cmp, $percent);
+                if ($percent > 80 && $this->sonDescripcionesCasiIdenticasParaBloqueoSimilitud($desc, $cmp)) {
+                    return (string) $p->nombre;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function sonDescripcionesCasiIdenticasParaBloqueoSimilitud(string $a, string $b): bool
+    {
+        $na = preg_replace('/\s+/u', ' ', $a) ?? $a;
+        $nb = preg_replace('/\s+/u', ' ', $b) ?? $b;
+        if ($na === $nb) {
+            return true;
+        }
+        $lenA = mb_strlen($na);
+        $lenB = mb_strlen($nb);
+        if ($lenA === 0 || $lenB === 0) {
+            return false;
+        }
+        $ratio = min($lenA, $lenB) / max($lenA, $lenB);
+
+        return $ratio >= 0.85;
+    }
+
+    /**
      * Eliminar cotización
      */
     public function destroy($id)

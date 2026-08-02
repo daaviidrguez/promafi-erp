@@ -13,6 +13,13 @@ $breadcrumbs = [
 
 @section('content')
 
+@if(!empty($mensajeSyncSat ?? null))
+<div class="alert alert-success" id="flash-alert-sync-sat">
+    <span>✓</span>
+    {{ $mensajeSyncSat }}
+</div>
+@endif
+
 <div class="factura-show-layout responsive-grid">
 
     {{-- Columna izquierda --}}
@@ -311,12 +318,31 @@ $breadcrumbs = [
                 @can('facturas.crear')
                 <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-primary w-full">✏️ Editar Factura</a>
                 @endcan
+                @canany(['facturas.crear', 'facturas.timbrar'])
+                <form method="POST" action="{{ route('facturas.sincronizar-clave-sat', $factura->id) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-outline w-full"
+                            title="Trae al borrador las claves SAT del catálogo solo si la partida aún tiene 01010101 o unidad vacía">
+                        🔄 Actualizar claves SAT
+                    </button>
+                </form>
+                <p class="text-muted small mt-0 mb-0" style="margin-top:-4px;">
+                    Si ya cambió la clave en el catálogo, use este botón o recargue esta pantalla.
+                </p>
+                @endcanany
                 @can('facturas.timbrar')
+                @if($factura->puedeTimbrar())
                 <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}"
                       class="form-timbrar-protegido" data-loading-text="Timbrando factura…">
                     @csrf
                     <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>
                 </form>
+                @else
+                <button type="button" class="btn btn-primary w-full" disabled
+                        title="{{ $factura->motivoNoTimbrar() }}"
+                        style="opacity: 0.6; cursor: not-allowed;">Timbrar Factura</button>
+                <p class="text-muted small mt-1 mb-0">{{ $factura->motivoNoTimbrar() }}</p>
+                @endif
                 @endcan
                 @can('facturas.crear')
                 <button type="button"

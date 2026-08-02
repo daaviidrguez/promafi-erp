@@ -379,7 +379,7 @@ class EmpresaController extends Controller
                     ->timeout(15)
                     ->get($baseUrl . '/TaxEntity');
                 if ($response->successful()) {
-                    return back()->with('success', '✅ Conexión con Facturama correcta (' . ($provider === 'facturama_sandbox' ? 'sandbox' : 'producción') . '). Puedes timbrar facturas.');
+                    return back()->with('success', '✅ Conexión con Facturama correcta (' . ($provider === 'facturama_sandbox' ? 'sandbox' : 'producción') . '). Puedes timbrar facturas. Si aparece «Ruta de Blob invalida», vuelve a cargar el CSD y el logo en el Perfil fiscal de Facturama.');
                 }
                 $body = $response->json();
                 $msg = $body['Message'] ?? $body['message'] ?? $response->body();

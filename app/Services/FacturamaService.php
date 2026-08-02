@@ -143,6 +143,13 @@ class FacturamaService
                 $nombre = $body['Receiver']['Name'] ?? '';
                 $mensajeFinal = 'El nombre del receptor debe coincidir con el registrado en el SAT para el RFC ' . $rfc . '. Revisa en el cliente que el nombre sea exactamente el que aparece en la constancia de situación fiscal (sin abreviaturas, con acentos correctos). Nombre enviado: "' . $nombre . '". ' . $mensajeFinal;
             }
+            if (stripos($mensajeFinal, 'Blob') !== false) {
+                $entorno = (str_contains($this->baseUrl, 'sandbox')) ? 'sandbox' : 'producción';
+                $mensajeFinal = 'Facturama no pudo leer un archivo de tu perfil fiscal (CSD o logo) en ' . $entorno
+                    . '. Entra a Facturama → Perfil fiscal → vuelve a cargar el CSD (.cer + .key + contraseña) y, si tienes logo, cárgalo de nuevo. '
+                    . 'También revisa en «Nombres del CFDI» que la plantilla Id 1 (Factura) esté disponible. '
+                    . 'Este error no viene del ERP ni de documentos de cotización. Detalle PAC: ' . $mensajeFinal;
+            }
             return [
                 'success' => false,
                 'message' => 'Facturama (HTTP ' . $status . '):' . $statusHint . ' ' . $mensajeFinal,
@@ -1170,6 +1177,19 @@ class FacturamaService
     }
 
     /**
+     * Limpia texto para CFDI: espacios raros (NBSP, etc.) y caracteres de control.
+     */
+    protected function sanitizarTextoCfdi(?string $texto): string
+    {
+        $texto = (string) ($texto ?? '');
+        $texto = str_replace(["\xc2\xa0", "\xe2\x80\xaf", "\xe2\x80\x8b"], ' ', $texto);
+        $texto = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $texto) ?? $texto;
+        $texto = preg_replace('/\s+/u', ' ', $texto) ?? $texto;
+
+        return trim($texto);
+    }
+
+    /**
      * Construir el cuerpo JSON para POST /3/cfdis (formato Facturama API Web).
      * Validaciones según documentación: https://apisandbox.facturama.mx/docs/api/POST-3-cfdis
      */
@@ -1224,8 +1244,8 @@ class FacturamaService
             $items[] = [
                 'ProductCode' => $d->clave_prod_serv ?: '01010101',
                 'IdentificationNumber' => trim((string) ($d->no_identificacion ?? '')) !== '' ? $d->no_identificacion : 'N/A',
-                'Description' => $d->descripcion,
-                'Unit' => $d->unidad ?? 'Pieza',
+                'Description' => $this->sanitizarTextoCfdi($d->descripcion),
+                'Unit' => $this->sanitizarTextoCfdi($d->unidad ?? 'Pieza'),
                 'UnitCode' => $d->clave_unidad ?: 'H87',
                 'UnitPrice' => round((float) $d->valor_unitario, 6),
                 'Quantity' => (float) $d->cantidad,

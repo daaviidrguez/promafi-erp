@@ -333,11 +333,139 @@ class Factura extends Model
     }
 
     /**
-     * Verificar si puede ser timbrada
+     * Verificar si puede ser timbrada (stock, clave SAT y datos mínimos del PAC).
      */
     public function puedeTimbrar(): bool
     {
-        return $this->estado === 'borrador' && $this->total > 0;
+        return $this->motivoNoTimbrar() === null;
+    }
+
+    /**
+     * Motivo por el cual no se puede timbrar (null = listo para timbrar).
+     * Stock y clave SAT se exigen aquí, no al convertir cotización → factura borrador.
+     */
+    public function motivoNoTimbrar(): ?string
+    {
+        if ($this->estado !== 'borrador') {
+            return 'Solo se pueden timbrar facturas en borrador.';
+        }
+        if ((float) $this->total <= 0) {
+            return 'El total de la factura debe ser mayor a cero.';
+        }
+
+        $this->loadMissing(['detalles.producto']);
+
+        if ($this->detalles->isEmpty()) {
+            return 'La factura no tiene partidas para timbrar.';
+        }
+
+        $clavesPendientes = [];
+        $unidadesPendientes = [];
+        foreach ($this->detalles as $d) {
+            $etiqueta = trim((string) ($d->descripcion ?: ($d->producto->nombre ?? 'partida')));
+            $claveDetalle = trim((string) ($d->clave_prod_serv ?? ''));
+            $claveProducto = trim((string) ($d->producto->clave_sat ?? ''));
+            $claveEfectiva = $this->claveSatEfectivaPartida($claveDetalle, $claveProducto);
+            if ($claveEfectiva === '' || $claveEfectiva === '01010101') {
+                $clavesPendientes[] = $etiqueta;
+            }
+
+            $unidadDetalle = trim((string) ($d->clave_unidad ?? ''));
+            $unidadProducto = trim((string) ($d->producto->clave_unidad_sat ?? ''));
+            $unidadEfectiva = $unidadDetalle !== '' ? $unidadDetalle : $unidadProducto;
+            if ($unidadEfectiva === '') {
+                $unidadesPendientes[] = $etiqueta;
+            }
+        }
+
+        if (! empty($clavesPendientes)) {
+            return 'Falta clave SAT válida (no provisional 01010101) en: '
+                . implode('; ', $clavesPendientes)
+                . '. Complétela en el catálogo; al volver a esta factura se sincronizará automáticamente (o use «Actualizar claves SAT»).';
+        }
+
+        if (! empty($unidadesPendientes)) {
+            return 'Falta clave de unidad SAT en: '
+                . implode('; ', $unidadesPendientes)
+                . '. Complétela en el catálogo antes de timbrar.';
+        }
+
+        if (! $this->inventarioDescontadoEnRemision()) {
+            $sinStock = [];
+            foreach ($this->detalles as $d) {
+                $producto = $d->producto;
+                if ($producto && $producto->controla_inventario && ! $producto->tieneStock((float) $d->cantidad)) {
+                    $sinStock[] = $producto->nombre
+                        . ' (requiere ' . $d->cantidad . ', hay ' . $producto->stock . ')';
+                }
+            }
+            if (! empty($sinStock)) {
+                return 'Falta stock: ' . implode('; ', $sinStock);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Si la partida aún tiene clave provisional (o unidad vacía), toma datos del producto del catálogo.
+     * Solo aplica a borrador; no pisa claves SAT ya definidas a mano en la factura.
+     *
+     * @return int número de partidas actualizadas
+     */
+    public function sincronizarDatosFiscalesDesdeProductos(): int
+    {
+        if (! $this->esBorrador()) {
+            return 0;
+        }
+
+        $this->loadMissing(['detalles.producto']);
+        $actualizados = 0;
+
+        foreach ($this->detalles as $d) {
+            if (! $d->producto) {
+                continue;
+            }
+
+            $updates = [];
+            $claveDetalle = trim((string) ($d->clave_prod_serv ?? ''));
+            $claveProducto = trim((string) ($d->producto->clave_sat ?? ''));
+            if (($claveDetalle === '' || $claveDetalle === '01010101')
+                && $claveProducto !== ''
+                && $claveProducto !== '01010101') {
+                $updates['clave_prod_serv'] = $claveProducto;
+            }
+
+            $unidadDetalle = trim((string) ($d->clave_unidad ?? ''));
+            $unidadProducto = trim((string) ($d->producto->clave_unidad_sat ?? ''));
+            if ($unidadDetalle === '' && $unidadProducto !== '') {
+                $updates['clave_unidad'] = $unidadProducto;
+            }
+
+            if (! empty($updates)) {
+                $d->update($updates);
+                $actualizados++;
+            }
+        }
+
+        if ($actualizados > 0) {
+            $this->unsetRelation('detalles');
+            $this->load(['detalles.producto']);
+        }
+
+        return $actualizados;
+    }
+
+    private function claveSatEfectivaPartida(string $claveDetalle, string $claveProducto): string
+    {
+        if ($claveDetalle !== '' && $claveDetalle !== '01010101') {
+            return $claveDetalle;
+        }
+        if ($claveProducto !== '') {
+            return $claveProducto;
+        }
+
+        return $claveDetalle;
     }
 
     /**

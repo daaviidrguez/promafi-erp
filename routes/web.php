@@ -136,6 +136,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/cotizaciones/{cotizacion}/crear-productos-manuales', [CotizacionController::class, 'crearProductosDesdeManuales'])->name('cotizaciones.crear-productos-manuales');
     Route::post('/cotizaciones/{cotizacion}/detalles/{detalle}/asignar-producto', [CotizacionController::class, 'asignarProductoDetalle'])
         ->name('cotizaciones.detalles.asignar-producto');
+    Route::post('/cotizaciones/{cotizacion}/detalles/{detalle}/crear-producto-rapido', [CotizacionController::class, 'crearProductoRapidoDetalle'])
+        ->name('cotizaciones.detalles.crear-producto-rapido');
     Route::get('/cotizaciones/{cotizacion}/detalles/{detalle}/imagen/{indice}', [CotizacionController::class, 'verImagenPartida'])
         ->whereNumber('indice')
         ->name('cotizaciones.detalles.imagen');
@@ -339,6 +341,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/facturas-para-relacion/listar', [FacturaController::class, 'listarParaRelacion'])->name('facturas.listar-para-relacion');
     Route::resource('facturas', FacturaController::class);
     Route::post('/facturas/{factura}/timbrar', [FacturaController::class, 'timbrar'])->name('facturas.timbrar');
+    Route::post('/facturas/{factura}/sincronizar-clave-sat', [FacturaController::class, 'sincronizarClaveSat'])->name('facturas.sincronizar-clave-sat');
     Route::post('/facturas/{factura}/generar-pdf', [FacturaController::class, 'generarPDF'])->name('facturas.generar-pdf');
     Route::delete('/facturas/{factura}/cancelar', [FacturaController::class, 'cancelar'])->name('facturas.cancelar');
     Route::get('/facturas/{factura}/descargar-xml', [FacturaController::class, 'descargarXML'])->name('facturas.descargar-xml');

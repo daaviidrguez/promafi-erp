@@ -215,11 +215,12 @@ $breadcrumbs = [
                            class="btn btn-light btn-sm btn-icon" title="PDF">📄</a>
 
                         @if($c->puedeEliminarse())
-                        <form action="{{ route('cotizaciones.destroy', $c->id) }}" method="POST"
-                              onsubmit="return confirm('¿Eliminar esta cotización?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Eliminar">🗑️</button>
-                        </form>
+                        <button type="button"
+                                class="btn btn-danger btn-sm btn-icon"
+                                title="Eliminar"
+                                onclick="abrirModalEliminarCotizacion(@json(route('cotizaciones.destroy', $c->id)), @json($c->folio))">
+                            🗑️
+                        </button>
                         @endif
                     </div>
                 </td>
@@ -245,5 +246,51 @@ $breadcrumbs = [
     </div>
     @endif
 </div>
+
+{{-- Modal eliminar cotización (permanente) --}}
+<div id="modalEliminarCotizacion" class="modal">
+    <div class="modal-box" style="max-width: 480px;">
+        <div class="modal-header">
+            <div class="modal-title" style="color: var(--color-danger);">🗑️ Eliminar cotización</div>
+            <button type="button" class="modal-close" onclick="cerrarModalEliminarCotizacion()" aria-label="Cerrar">✕</button>
+        </div>
+        <form id="formEliminarCotizacion" method="POST" action="">
+            @csrf
+            @method('DELETE')
+            <div class="modal-body">
+                <p class="text-muted" style="margin-bottom: 0;">
+                    ¿Estás seguro de eliminar la cotización <strong id="modalEliminarCotizacionFolio"></strong>?
+                    Esta acción es irreversible y liberará el folio de forma permanente.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" onclick="cerrarModalEliminarCotizacion()">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-danger">Eliminar definitivamente</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+function abrirModalEliminarCotizacion(url, folio) {
+    const form = document.getElementById('formEliminarCotizacion');
+    const folioEl = document.getElementById('modalEliminarCotizacionFolio');
+    const modal = document.getElementById('modalEliminarCotizacion');
+    if (!form || !folioEl || !modal) return;
+
+    form.action = url;
+    folioEl.textContent = folio;
+    modal.classList.add('show');
+}
+
+function cerrarModalEliminarCotizacion() {
+    const modal = document.getElementById('modalEliminarCotizacion');
+    if (modal) modal.classList.remove('show');
+}
+</script>
+@endpush
 
 @endsection

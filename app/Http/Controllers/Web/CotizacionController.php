@@ -1112,15 +1112,18 @@ class CotizacionController extends Controller
     }
 
     /**
-     * Eliminar cotización
+     * Eliminar cotización de forma permanente (libera el folio).
      */
     public function destroy($id)
     {
+        DB::beginTransaction();
         try {
             $cotizacion = Cotizacion::findOrFail($id);
             $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeEliminarse()) {
+                DB::rollBack();
+
                 return back()->with('error', 'Esta cotización no puede eliminarse');
             }
 
@@ -1138,12 +1141,16 @@ class CotizacionController extends Controller
                 $detalle->eliminarImagenesDelDisco();
             }
 
-            $cotizacion->delete();
+            $cotizacion->forceDelete();
+
+            DB::commit();
 
             return redirect()->route('cotizaciones.index')
-                ->with('success', 'Cotización eliminada exitosamente');
+                ->with('success', 'Cotización eliminada permanentemente');
 
         } catch (\Exception $e) {
+            DB::rollBack();
+
             return back()->with('error', 'Error al eliminar: ' . $e->getMessage());
         }
     }

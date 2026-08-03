@@ -159,36 +159,69 @@ class Cotizacion extends Model
     }
 
     /**
+     * Siguiente folio de cotización disponible (sin reservar).
+     * Considera el contador de empresa y los folios ya usados (incl. soft-deleted).
+     */
+    public static function siguienteFolioDisponible(?Empresa $empresa = null): string
+    {
+        $empresa ??= Empresa::principal();
+        $serie = $empresa?->serie_cotizacion ?: 'COT';
+        $contador = (int) ($empresa?->folio_cotizacion ?? 1);
+        $numero = max($contador, self::maxNumeroFolioParaSerie($serie, false) + 1);
+
+        return $serie.'-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Generar folio desde configuración de empresa (serie + folio).
      * Reserva el folio incrementando el contador de la empresa (con lock).
+     * Si el contador quedó desfasado respecto a cotizaciones existentes, se re-sincroniza.
      */
     public static function generarFolio(): string
     {
         return \Illuminate\Support\Facades\DB::transaction(function () {
-            $empresa = \App\Models\Empresa::principal();
+            $empresa = Empresa::principal();
             if ($empresa) {
-                $e = \App\Models\Empresa::query()->whereKey($empresa->id)->lockForUpdate()->first();
+                $e = Empresa::query()->whereKey($empresa->id)->lockForUpdate()->first();
                 if ($e) {
-                    $folio = $e->obtenerSiguienteFolioCotizacion();
-                    $e->incrementarFolioCotizacion();
+                    $serie = $e->serie_cotizacion ?: 'COT';
+                    $numero = max((int) $e->folio_cotizacion, self::maxNumeroFolioParaSerie($serie, true) + 1);
+                    $folio = $serie.'-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+
+                    $e->folio_cotizacion = $numero + 1;
+                    $e->save();
 
                     return $folio;
                 }
             }
             // Fallback si no hay empresa: secuencia por último registro
-            $ultimo = self::query()->lockForUpdate()->orderByDesc('id')->first();
-            if (! $ultimo) {
-                return 'COT-0001';
-            }
-            $folio = $ultimo->folio;
-            if (preg_match('/^.+-(\d{4})$/', $folio, $m)) {
-                $numero = (int) $m[1] + 1;
-            } else {
-                $numero = 1;
-            }
+            $serie = 'COT';
+            $numero = self::maxNumeroFolioParaSerie($serie, true) + 1;
 
-            return 'COT-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
+            return $serie.'-'.str_pad((string) $numero, 4, '0', STR_PAD_LEFT);
         });
+    }
+
+    /**
+     * Máximo número de folio ya usado para una serie (incluye soft-deleted por unique).
+     */
+    private static function maxNumeroFolioParaSerie(string $serie, bool $lock = false): int
+    {
+        $max = 0;
+        $pattern = '/^'.preg_quote($serie, '/').'-(\d+)$/';
+
+        $query = self::withTrashed()->where('folio', 'like', $serie.'-%');
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        foreach ($query->pluck('folio') as $folio) {
+            if (preg_match($pattern, (string) $folio, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
+
+        return $max;
     }
 
     /**

@@ -1114,17 +1114,20 @@ class CotizacionController extends Controller
     /**
      * Eliminar cotización de forma permanente (libera el folio).
      */
-    public function destroy($id)
+    public function destroy($cotizacion)
     {
         DB::beginTransaction();
         try {
-            $cotizacion = Cotizacion::findOrFail($id);
+            $cotizacion = $cotizacion instanceof Cotizacion
+                ? $cotizacion
+                : Cotizacion::query()->findOrFail($cotizacion);
+
             $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeEliminarse()) {
                 DB::rollBack();
 
-                return back()->with('error', 'Esta cotización no puede eliminarse');
+                return back()->with('error', 'Esta cotización no puede eliminarse (solo borrador, rechazada o vencida)');
             }
 
             // Eliminar PDF, adjuntos internos e imágenes de partidas si existen
@@ -1141,6 +1144,7 @@ class CotizacionController extends Controller
                 $detalle->eliminarImagenesDelDisco();
             }
 
+            // Hard delete: libera folio (el soft delete lo dejaba ocupado por el unique)
             $cotizacion->forceDelete();
 
             DB::commit();

@@ -459,6 +459,15 @@ $breadcrumbs = [
                     </button>
                 @endif
 
+                @if($cotizacion->puedeCrearEntradaAnticipada())
+                @can('entradas_anticipadas.crear')
+                <a href="{{ route('cotizaciones.crear-entrada-anticipada', $cotizacion->id) }}"
+                   class="btn btn-outline w-full">
+                    📥 Crear entradas anticipadas
+                </a>
+                @endcan
+                @endif
+
                 @if($cotizacion->puedeFacturarse())
                 @can('facturas.crear')
                 @if($cotizacion->puedeConvertirAFactura())
@@ -619,16 +628,26 @@ $breadcrumbs = [
         </div>
         <div class="modal-body">
             <p class="text-muted" style="margin-bottom:12px;">
-                Se creará un producto provisional con código <span class="text-mono">PSI-…</span> automático.
-                Después podrá completar clave SAT y stock en el catálogo; esos datos se validan al timbrar.
+                Se creará un producto con código <span class="text-mono">PSI-…</span> automático.
+                La Clave Prod./Serv. es opcional: si no la conoce, se usa <span class="text-mono">01010101</span> provisional (se valida al timbrar).
             </p>
             <div class="form-group">
                 <label class="form-label">Código</label>
                 <input type="text" class="form-control text-mono" value="Automático (PSI-…)" disabled>
             </div>
-            <div class="form-group" style="margin-bottom:0;">
+            <div class="form-group">
                 <label class="form-label">Nombre</label>
                 <input type="text" id="crearProductoRapidoNombre" class="form-control" readonly>
+            </div>
+            <div class="form-group search-box" style="margin-bottom:0;">
+                <label class="form-label">Clave Prod./Serv. <span class="text-muted fw-400">(opcional)</span></label>
+                <input type="hidden" id="crearProductoRapidoClaveSat" value="01010101">
+                <input type="text" id="crearProductoRapidoClaveSatInput" class="form-control text-mono"
+                       value="01010101"
+                       placeholder="Buscar clave SAT o dejar 01010101…"
+                       autocomplete="off">
+                <div id="crearProductoRapidoClaveSatResults" class="autocomplete-results"></div>
+                <p class="text-muted small mb-0" style="margin-top:6px;">Escriba 2+ caracteres para buscar en el catálogo SAT.</p>
             </div>
             <p id="crearProductoRapidoAviso" class="text-muted small mt-2 mb-0" style="display:none;"></p>
         </div>
@@ -712,6 +731,7 @@ $breadcrumbs = [
     };
 
     const listarUrl = '{{ route("cotizaciones.buscar-productos") }}';
+    const buscarClaveSatUrl = '{{ route("productos.buscar-clave-sat") }}';
     const asignarUrlTpl = '{{ route("cotizaciones.detalles.asignar-producto", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
     const crearRapidoUrlTpl = '{{ route("cotizaciones.detalles.crear-producto-rapido", ["cotizacion" => $cotizacion->id, "detalle" => "__DETALLE__"]) }}';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -723,6 +743,27 @@ $breadcrumbs = [
     }));
     let detalleActual = null;
     let timer = null;
+    let timerClaveSat = null;
+
+    function resetClaveSatRapidaCot() {
+        const hid = document.getElementById('crearProductoRapidoClaveSat');
+        const inp = document.getElementById('crearProductoRapidoClaveSatInput');
+        const box = document.getElementById('crearProductoRapidoClaveSatResults');
+        if (hid) hid.value = '01010101';
+        if (inp) inp.value = '01010101';
+        if (box) box.classList.remove('show');
+    }
+
+    function claveSatDesdeInputsCot() {
+        const hid = document.getElementById('crearProductoRapidoClaveSat');
+        const inp = document.getElementById('crearProductoRapidoClaveSatInput');
+        const fromHid = (hid && hid.value) ? String(hid.value).trim() : '';
+        if (/^\d{8}$/.test(fromHid)) return fromHid;
+        let raw = (inp && inp.value) ? String(inp.value).trim() : '';
+        if (raw.indexOf(' - ') !== -1) raw = raw.split(' - ')[0].trim();
+        const digits = raw.replace(/\D+/g, '');
+        return digits;
+    }
 
     window.abrirModalAsignarProducto = function(detalleId) {
         detalleActual = detalleId;
@@ -749,6 +790,7 @@ $breadcrumbs = [
             aviso.textContent = '';
         }
         if (btnForzar) btnForzar.style.display = 'none';
+        resetClaveSatRapidaCot();
         document.getElementById('modalAsignarProductoCotizacion').classList.remove('show');
         const modalCrear = document.getElementById('modalCrearProductoRapidoCotizacion');
         if (modalCrear) modalCrear.classList.add('show');
@@ -764,6 +806,7 @@ $breadcrumbs = [
             aviso.textContent = '';
         }
         if (btnForzar) btnForzar.style.display = 'none';
+        resetClaveSatRapidaCot();
         if (detalleActual) {
             document.getElementById('modalAsignarProductoCotizacion').classList.add('show');
         }
@@ -774,6 +817,14 @@ $breadcrumbs = [
         const btnGuardar = document.getElementById('btnCrearProductoRapidoGuardar');
         const btnForzar = document.getElementById('btnCrearProductoRapidoForzar');
         const aviso = document.getElementById('crearProductoRapidoAviso');
+        const claveSat = claveSatDesdeInputsCot();
+        if (claveSat !== '' && !/^\d{8}$/.test(claveSat)) {
+            if (aviso) {
+                aviso.style.display = 'block';
+                aviso.textContent = 'La Clave Prod./Serv. debe tener 8 dígitos (o deje 01010101).';
+            }
+            return;
+        }
         if (btnGuardar) btnGuardar.disabled = true;
         if (btnForzar) btnForzar.disabled = true;
 
@@ -786,7 +837,7 @@ $breadcrumbs = [
                 'X-CSRF-TOKEN': csrfToken,
                 'X-Requested-With': 'XMLHttpRequest'
             },
-            body: JSON.stringify({ forzar: !!forzar })
+            body: JSON.stringify({ forzar: !!forzar, clave_sat: claveSat || '01010101' })
         })
             .then(async function(r) {
                 const resp = await r.json().catch(function() { return null; });
@@ -823,6 +874,58 @@ $breadcrumbs = [
                 if (btnForzar) btnForzar.disabled = false;
             });
     };
+
+    (function initClaveSatRapidaCot() {
+        const inp = document.getElementById('crearProductoRapidoClaveSatInput');
+        const hid = document.getElementById('crearProductoRapidoClaveSat');
+        const box = document.getElementById('crearProductoRapidoClaveSatResults');
+        if (!inp || !hid || !box) return;
+
+        function buscarClaveSat(q) {
+            fetch(buscarClaveSatUrl + '?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.length) {
+                        box.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+                    } else {
+                        box.innerHTML = data.map(function(item) {
+                            const clave = String(item.clave || '').replace(/"/g, '&quot;');
+                            const desc = String(item.descripcion || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                            const etiqueta = clave + ' - ' + desc;
+                            return '<div class="autocomplete-item" data-clave="' + clave + '" data-etiqueta="' + etiqueta.replace(/"/g, '&quot;') + '">' +
+                                '<div class="autocomplete-item-name">' + clave + ' - ' + desc + '</div></div>';
+                        }).join('');
+                        box.querySelectorAll('.autocomplete-item[data-clave]').forEach(function(el) {
+                            el.addEventListener('click', function() {
+                                hid.value = this.getAttribute('data-clave') || '';
+                                inp.value = this.getAttribute('data-etiqueta') || hid.value;
+                                box.classList.remove('show');
+                            });
+                        });
+                    }
+                    box.classList.add('show');
+                })
+                .catch(function() {});
+        }
+
+        inp.addEventListener('input', function() {
+            clearTimeout(timerClaveSat);
+            const raw = this.value.trim();
+            const q = raw.indexOf(' - ') !== -1 ? raw.split(' - ')[0].trim() : raw;
+            const digits = q.replace(/\D+/g, '');
+            if (/^\d{8}$/.test(digits)) {
+                hid.value = digits;
+            } else if (raw === '') {
+                hid.value = '';
+            }
+            if (q.length < 2) { box.classList.remove('show'); return; }
+            timerClaveSat = setTimeout(function() { buscarClaveSat(q); }, 280);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-box')) box.classList.remove('show');
+        });
+    })();
 
     document.getElementById('modalBuscarProductoCot').addEventListener('input', function() {
         clearTimeout(timer);

@@ -19,6 +19,7 @@ class EntradaAnticipada extends Model
         'folio',
         'estado',
         'orden_compra_id',
+        'cotizacion_id',
         'proveedor_id',
         'empresa_id',
         'fecha_recepcion',
@@ -47,6 +48,11 @@ class EntradaAnticipada extends Model
     public function ordenCompra(): BelongsTo
     {
         return $this->belongsTo(OrdenCompra::class);
+    }
+
+    public function cotizacion(): BelongsTo
+    {
+        return $this->belongsTo(Cotizacion::class);
     }
 
     public function proveedor(): BelongsTo

@@ -12,6 +12,7 @@ class EntradaAnticipadaDetalle extends Model
     protected $fillable = [
         'entrada_anticipada_id',
         'orden_compra_detalle_id',
+        'cotizacion_detalle_id',
         'producto_id',
         'codigo_proveedor',
         'descripcion',
@@ -49,6 +50,11 @@ class EntradaAnticipadaDetalle extends Model
     public function ordenCompraDetalle(): BelongsTo
     {
         return $this->belongsTo(OrdenCompraDetalle::class);
+    }
+
+    public function cotizacionDetalle(): BelongsTo
+    {
+        return $this->belongsTo(CotizacionDetalle::class, 'cotizacion_detalle_id');
     }
 
     public function producto(): BelongsTo

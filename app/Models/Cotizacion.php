@@ -142,6 +142,14 @@ class Cotizacion extends Model
     }
 
     /**
+     * Entradas anticipadas generadas desde esta cotización de venta.
+     */
+    public function entradasAnticipadas(): HasMany
+    {
+        return $this->hasMany(EntradaAnticipada::class);
+    }
+
+    /**
      * Documentos de respaldo internos (cotizaciones de proveedor, etc.).
      * No se envían al cliente ni se incluyen en el PDF de la cotización.
      */
@@ -292,6 +300,18 @@ class Cotizacion extends Model
     public function puedeConvertirAFactura(): bool
     {
         return $this->motivoNoConvertirAFactura() === null;
+    }
+
+    /**
+     * Puede iniciar el asistente cotización → entrada anticipada (estado aceptada/enviada).
+     */
+    public function puedeCrearEntradaAnticipada(): bool
+    {
+        if (! $this->puedeFacturarse()) {
+            return false;
+        }
+
+        return $this->detalles()->where('cantidad', '>', 0)->exists();
     }
 
     /**

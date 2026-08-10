@@ -67,6 +67,7 @@ class EntradaAnticipadaService
                 'folio' => EntradaAnticipada::generarFolio(),
                 'estado' => 'borrador',
                 'proveedor_id' => $proveedorId,
+                'cotizacion_id' => $encabezado['cotizacion_id'] ?? null,
                 'empresa_id' => $empresa->id,
                 'fecha_recepcion' => $encabezado['fecha_recepcion'] ?? now()->toDateString(),
                 'moneda' => $encabezado['moneda'] ?? 'MXN',
@@ -176,6 +177,7 @@ class EntradaAnticipadaService
             }
 
             $ordenDetalleId = isset($linea['orden_compra_detalle_id']) ? (int) $linea['orden_compra_detalle_id'] : null;
+            $cotizacionDetalleId = isset($linea['cotizacion_detalle_id']) ? (int) $linea['cotizacion_detalle_id'] : null;
             $ordenDetalle = null;
             if ($orden && $ordenDetalleId) {
                 $ordenDetalle = $orden->detalles->firstWhere('id', $ordenDetalleId);
@@ -215,6 +217,7 @@ class EntradaAnticipadaService
             EntradaAnticipadaDetalle::create([
                 'entrada_anticipada_id' => $ea->id,
                 'orden_compra_detalle_id' => $ordenDetalleId,
+                'cotizacion_detalle_id' => $cotizacionDetalleId ?: null,
                 'producto_id' => $productoId,
                 'codigo_proveedor' => $codigoProveedor,
                 'descripcion' => $linea['descripcion'] ?? $ordenDetalle?->descripcion ?? '',

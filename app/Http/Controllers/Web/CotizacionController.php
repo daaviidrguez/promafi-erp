@@ -21,6 +21,9 @@ use App\Models\FacturaImpuesto;
 use App\Models\CuentaPorCobrar;
 use App\Models\FormaPago;
 use App\Models\User;
+use App\Models\EntradaAnticipada;
+use App\Models\EntradaAnticipadaDetalle;
+use App\Services\EntradaAnticipadaService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -928,12 +931,15 @@ class CotizacionController extends Controller
                 : ((($producto->tipo_factor ?? 'Tasa') === 'Exento') ? null : (float) ($producto->tasa_iva ?? 0.16)),
         ]);
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'producto' => $this->payloadProductoAsignado($producto),
+        ]);
     }
 
     /**
      * Creación rápida de producto desde una partida (modal lupa) y asignación inmediata.
-     * Código PSI consecutivo; clave SAT provisional (se valida al timbrar).
+     * Código PSI consecutivo; clave SAT opcional (si vacía → 01010101 provisional).
      */
     public function crearProductoRapidoDetalle(Request $request, $cotizacion, CotizacionDetalle $detalle): JsonResponse
     {
@@ -952,7 +958,16 @@ class CotizacionController extends Controller
 
         $request->validate([
             'forzar' => 'nullable|boolean',
+            'clave_sat' => 'nullable|string|max:20',
         ]);
+
+        $claveSat = $this->normalizarClaveSatRapida($request->input('clave_sat'));
+        if ($claveSat === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La Clave Prod./Serv. debe tener 8 dígitos (o déjela vacía para usar 01010101 provisional).',
+            ], 422);
+        }
 
         $nombre = \Illuminate\Support\Str::limit(trim((string) $detalle->descripcion), 255);
         if ($nombre === '') {
@@ -989,7 +1004,7 @@ class CotizacionController extends Controller
                 'nombre' => $nombre,
                 'descripcion' => $detalle->descripcion,
                 'categoria_id' => null,
-                'clave_sat' => '01010101',
+                'clave_sat' => $claveSat,
                 'clave_unidad_sat' => 'H87',
                 'unidad' => $detalle->unidad ?? 'PZA',
                 'objeto_impuesto' => '02',
@@ -1016,13 +1031,17 @@ class CotizacionController extends Controller
 
             DB::commit();
 
-            $mensaje = 'Producto '.$producto->codigo.' creado y asignado. Complete clave SAT en catálogo y stock antes de timbrar.';
+            $esProvisional = $claveSat === '01010101';
+            $mensaje = $esProvisional
+                ? 'Producto '.$producto->codigo.' creado y asignado (clave SAT provisional 01010101). Complete clave SAT y stock en catálogo antes de timbrar.'
+                : 'Producto '.$producto->codigo.' creado y asignado con clave SAT '.$claveSat.'.';
             session()->flash('success', $mensaje);
 
             return response()->json([
                 'success' => true,
                 'producto_id' => $producto->id,
                 'codigo' => $producto->codigo,
+                'producto' => $this->payloadProductoAsignado($producto),
                 'message' => $mensaje,
             ]);
         } catch (\Exception $e) {
@@ -1030,6 +1049,306 @@ class CotizacionController extends Controller
 
             return response()->json(['success' => false, 'message' => 'No se pudo crear el producto: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Vacío → 01010101. Si hay valor, debe quedar en exactamente 8 dígitos.
+     * @return string|null null si el formato es inválido
+     */
+    private function normalizarClaveSatRapida(mixed $clave): ?string
+    {
+        $raw = trim((string) ($clave ?? ''));
+        if ($raw === '') {
+            return '01010101';
+        }
+
+        // Si viene "clave - descripción", tomar solo la clave.
+        if (str_contains($raw, ' - ')) {
+            $raw = trim(explode(' - ', $raw, 2)[0]);
+        }
+
+        $digitos = preg_replace('/\D+/', '', $raw) ?? '';
+        if ($digitos === '') {
+            return '01010101';
+        }
+
+        if (! preg_match('/^\d{8}$/', $digitos)) {
+            return null;
+        }
+
+        return $digitos;
+    }
+
+    /**
+     * Asistente: cotización aceptada/enviada → resolver catálogo → entradas anticipadas por proveedor.
+     */
+    public function crearEntradaAnticipada($cotizacion)
+    {
+        abort_unless(auth()->user()?->can('entradas_anticipadas.crear'), 403);
+
+        $cotizacion = Cotizacion::with(['detalles.producto', 'cliente'])->findOrFail($cotizacion);
+        $this->authorizeCotizacion($cotizacion);
+
+        if (! $cotizacion->puedeCrearEntradaAnticipada()) {
+            return redirect()->route('cotizaciones.show', $cotizacion->id)
+                ->with('error', 'La cotización debe estar aceptada o enviada y tener partidas con cantidad.');
+        }
+
+        $empresa = Empresa::principal();
+        if (! $empresa) {
+            return redirect()->route('dashboard')->with('error', 'Configura la empresa primero.');
+        }
+
+        $lineas = $this->lineasWizardEntradaAnticipada($cotizacion);
+        $entradasPrevias = $this->entradasPreviasDesdeCotizacion($cotizacion);
+
+        return view('cotizaciones.crear-entrada-anticipada', compact(
+            'cotizacion',
+            'empresa',
+            'lineas',
+            'entradasPrevias'
+        ));
+    }
+
+    /**
+     * Crea una entrada anticipada (un proveedor / un grupo) desde partidas de la cotización.
+     * Responde JSON para el asistente multi-proveedor.
+     */
+    public function storeEntradaAnticipada(Request $request, $cotizacion, EntradaAnticipadaService $service)
+    {
+        abort_unless(auth()->user()?->can('entradas_anticipadas.crear'), 403);
+
+        $cotizacion = Cotizacion::with(['detalles.producto'])->findOrFail($cotizacion);
+        $this->authorizeCotizacion($cotizacion);
+
+        if (! $cotizacion->puedeCrearEntradaAnticipada()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La cotización debe estar aceptada o enviada y tener partidas con cantidad.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'proveedor_id' => 'required|exists:proveedores,id',
+            'fecha_recepcion' => 'required|date',
+            'observaciones' => 'nullable|string',
+            'productos' => 'required|array|min:1',
+            'productos.*.detalle_id' => 'required|integer',
+            'productos.*.producto_id' => 'required|exists:productos,id',
+            'productos.*.descripcion' => 'required|string',
+            'productos.*.cantidad_recibida' => 'required|numeric|min:0.01',
+            'productos.*.precio_unitario_estimado' => 'required|numeric|min:0',
+            'productos.*.descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
+            'productos.*.tasa_iva' => 'nullable|numeric',
+            'confirmar' => 'nullable|boolean',
+        ], [
+            'proveedor_id.required' => 'Seleccione un proveedor para este grupo.',
+            'productos.required' => 'El grupo debe tener al menos una partida.',
+            'productos.min' => 'El grupo debe tener al menos una partida.',
+            'productos.*.cantidad_recibida.min' => 'La cantidad recibida debe ser mayor a cero.',
+        ]);
+
+        $usadas = $this->cantidadesEnEntradasActivasPorDetalle($cotizacion);
+        $detallesPorId = $cotizacion->detalles->keyBy('id');
+        $lineas = [];
+
+        foreach ($validated['productos'] as $linea) {
+            $detalle = $detallesPorId->get((int) $linea['detalle_id']);
+            if (! $detalle) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Una de las partidas no pertenece a esta cotización.',
+                ], 422);
+            }
+
+            $productoId = (int) $linea['producto_id'];
+            if ((int) $detalle->producto_id !== $productoId) {
+                $producto = Producto::where('activo', true)->find($productoId);
+                if (! $producto) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Uno de los productos ya no está activo en el catálogo.',
+                    ], 422);
+                }
+                $detalle->update([
+                    'producto_id' => $producto->id,
+                    'codigo' => $producto->codigo,
+                    'es_producto_manual' => false,
+                ]);
+            }
+
+            $yaUsada = (float) ($usadas[$detalle->id] ?? 0);
+            $pendiente = max(0, (float) $detalle->cantidad - $yaUsada);
+            $cantidad = (float) $linea['cantidad_recibida'];
+            if ($cantidad > $pendiente + 0.001) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La cantidad de «'.\Illuminate\Support\Str::limit((string) $detalle->descripcion, 80)
+                        .'» excede el pendiente ('.$pendiente.').',
+                ], 422);
+            }
+
+            $lineas[] = [
+                'producto_id' => $productoId,
+                'cotizacion_detalle_id' => $detalle->id,
+                'descripcion' => $linea['descripcion'],
+                'cantidad_ordenada' => (float) $detalle->cantidad,
+                'cantidad_recibida' => $cantidad,
+                'precio_unitario_estimado' => (float) $linea['precio_unitario_estimado'],
+                'descuento_porcentaje' => (float) ($linea['descuento_porcentaje'] ?? 0),
+                'tasa_iva' => $linea['tasa_iva'] ?? null,
+            ];
+
+            // Reserva local para validar varias líneas del mismo detalle en el mismo request.
+            $usadas[$detalle->id] = $yaUsada + $cantidad;
+        }
+
+        $obsBase = trim((string) ($validated['observaciones'] ?? ''));
+        $obsRef = 'Desde cotización '.$cotizacion->folio;
+        $observaciones = $obsBase === ''
+            ? $obsRef
+            : ($obsBase.(str_contains($obsBase, $cotizacion->folio) ? '' : ' · '.$obsRef));
+
+        try {
+            $ea = $service->crearDirecta((int) $validated['proveedor_id'], $lineas, [
+                'fecha_recepcion' => $validated['fecha_recepcion'],
+                'observaciones' => $observaciones,
+                'moneda' => $cotizacion->moneda ?? 'MXN',
+                'tipo_cambio' => $cotizacion->tipo_cambio ?? 1,
+                'cotizacion_id' => $cotizacion->id,
+            ]);
+
+            if ($request->boolean('confirmar')) {
+                $ea = $service->confirmar($ea);
+                $msg = 'Entrada '.$ea->folio.' confirmada. Mercancía registrada en inventario.';
+            } else {
+                $msg = 'Entrada '.$ea->folio.' guardada en borrador.';
+            }
+
+            $ea->load('proveedor');
+            $cotizacionFresh = $cotizacion->fresh(['detalles.producto']);
+            $lineasPayload = $this->lineasWizardEntradaAnticipada($cotizacionFresh);
+            $entradasPayload = $this->entradasPreviasDesdeCotizacion($cotizacionFresh);
+
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'entrada' => [
+                    'id' => $ea->id,
+                    'folio' => $ea->folio,
+                    'estado' => $ea->estado,
+                    'estado_etiqueta' => $ea->etiquetaEstado(),
+                    'proveedor' => $ea->proveedor?->nombre,
+                    'url' => route('entradas-anticipadas.show', $ea->id),
+                ],
+                'lineas' => $lineasPayload,
+                'entradas_previas' => $entradasPayload,
+                'pendientes' => collect($lineasPayload)
+                    ->filter(fn ($l) => $l['tiene_producto'] && (float) $l['pendiente'] > 0.001)
+                    ->count(),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * @return array<int, float> detalle_id => cantidad ya en EA activas
+     */
+    private function cantidadesEnEntradasActivasPorDetalle(Cotizacion $cotizacion): array
+    {
+        return EntradaAnticipadaDetalle::query()
+            ->whereNotNull('cotizacion_detalle_id')
+            ->whereHas('entradaAnticipada', function ($q) use ($cotizacion) {
+                $q->where('cotizacion_id', $cotizacion->id)
+                    ->where('estado', '!=', 'cancelada');
+            })
+            ->selectRaw('cotizacion_detalle_id, SUM(cantidad_recibida) as total')
+            ->groupBy('cotizacion_detalle_id')
+            ->pluck('total', 'cotizacion_detalle_id')
+            ->map(fn ($v) => (float) $v)
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function lineasWizardEntradaAnticipada(Cotizacion $cotizacion): array
+    {
+        $usadas = $this->cantidadesEnEntradasActivasPorDetalle($cotizacion);
+
+        return $cotizacion->detalles
+            ->filter(fn ($d) => (float) $d->cantidad > 0)
+            ->values()
+            ->map(function (CotizacionDetalle $d) use ($usadas) {
+                $producto = $d->producto;
+                $tasaIva = $producto
+                    ? EntradaAnticipadaDetalle::resolverTasaIva($producto, null)
+                    : ($d->tasa_iva !== null ? (float) $d->tasa_iva : 0.16);
+                $costoSugerido = $producto ? (float) ($producto->costo ?? 0) : 0.0;
+                $cantidad = (float) $d->cantidad;
+                $usada = (float) ($usadas[$d->id] ?? 0);
+                $pendiente = max(0, round($cantidad - $usada, 2));
+
+                return [
+                    'detalle_id' => $d->id,
+                    'producto_id' => $d->producto_id,
+                    'codigo' => $producto?->codigo ?? $d->codigo,
+                    'descripcion' => $d->descripcion,
+                    'unidad' => $d->unidad ?? $producto?->unidad ?? 'PZA',
+                    'cantidad' => $cantidad,
+                    'cantidad_en_ea' => $usada,
+                    'pendiente' => $pendiente,
+                    'precio_venta' => (float) $d->precio_unitario,
+                    'precio_unitario_estimado' => $costoSugerido,
+                    'costo_catalogo' => $costoSugerido,
+                    'tasa_iva' => $tasaIva,
+                    'tiene_producto' => (bool) $d->producto_id,
+                    // Campos de UI (paso 2 multi-proveedor); el cliente los gestiona.
+                    'proveedor_id' => null,
+                    'proveedor_etiqueta' => null,
+                    'cantidad_grupo' => $pendiente,
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function entradasPreviasDesdeCotizacion(Cotizacion $cotizacion): array
+    {
+        return EntradaAnticipada::with('proveedor')
+            ->where('cotizacion_id', $cotizacion->id)
+            ->where('estado', '!=', 'cancelada')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (EntradaAnticipada $ea) => [
+                'id' => $ea->id,
+                'folio' => $ea->folio,
+                'estado' => $ea->estado,
+                'estado_etiqueta' => $ea->etiquetaEstado(),
+                'proveedor' => $ea->proveedor?->nombre,
+                'url' => route('entradas-anticipadas.show', $ea->id),
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array{id:int,codigo:string,nombre:string,costo:float,tasa_iva:float|null}
+     */
+    private function payloadProductoAsignado(Producto $producto): array
+    {
+        return [
+            'id' => $producto->id,
+            'codigo' => (string) $producto->codigo,
+            'nombre' => (string) $producto->nombre,
+            'costo' => (float) ($producto->costo ?? 0),
+            'tasa_iva' => EntradaAnticipadaDetalle::resolverTasaIva($producto, null),
+        ];
     }
 
     /**

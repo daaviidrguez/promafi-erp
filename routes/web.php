@@ -133,6 +133,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/cotizaciones/{cotizacion}/aceptar', [CotizacionController::class, 'aceptar'])->name('cotizaciones.aceptar');
     Route::post('/cotizaciones/{cotizacion}/enviar', [CotizacionController::class, 'enviar'])->name('cotizaciones.enviar');
     Route::post('/cotizaciones/{cotizacion}/convertir-factura', [CotizacionController::class, 'convertirFactura'])->name('cotizaciones.convertir-factura');
+    Route::get('/cotizaciones/{cotizacion}/crear-entrada-anticipada', [CotizacionController::class, 'crearEntradaAnticipada'])
+        ->name('cotizaciones.crear-entrada-anticipada');
+    Route::post('/cotizaciones/{cotizacion}/crear-entrada-anticipada', [CotizacionController::class, 'storeEntradaAnticipada'])
+        ->name('cotizaciones.store-entrada-anticipada');
     Route::post('/cotizaciones/{cotizacion}/crear-productos-manuales', [CotizacionController::class, 'crearProductosDesdeManuales'])->name('cotizaciones.crear-productos-manuales');
     Route::post('/cotizaciones/{cotizacion}/detalles/{detalle}/asignar-producto', [CotizacionController::class, 'asignarProductoDetalle'])
         ->name('cotizaciones.detalles.asignar-producto');

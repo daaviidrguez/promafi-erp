@@ -32,6 +32,16 @@ if ($desdeEa) {
 }
 $previewCorreccionUtilidad = $previewCorreccionUtilidad ?? ['lineas' => 0, 'folios' => []];
 $hayPreviewUtilidad = $desdeEa && (int) ($previewCorreccionUtilidad['lineas'] ?? 0) > 0;
+$cfdiEaTotales = $desdeEa ? [
+    'total_cfdi' => $totalCfdiVista,
+    'total_ea' => $totalEaVista,
+    'subtotal_cfdi' => (float) ($datos['subtotal'] ?? 0),
+    'subtotal_ea' => (float) $entradaAnticipada->subtotal,
+    'desfase' => $desfaseTotalesEa,
+    'provisionales' => $eaCostosProvisionales,
+    'utilidad_lineas' => (int) ($previewCorreccionUtilidad['lineas'] ?? 0),
+    'utilidad_folios' => $previewCorreccionUtilidad['folios'] ?? [],
+] : null;
 @endphp
 
 @section('content')
@@ -426,16 +436,7 @@ $hayPreviewUtilidad = $desdeEa && (int) ($previewCorreccionUtilidad['lineas'] ??
     window.CFDI_EA_PRODUCTO_A_DETALLE = @json($mapEaProductoIds ?? []);
     window.CFDI_EA_DETALLE_POR_PRODUCTO = @json($mapEaDetallePorProducto ?? []);
     window.CFDI_DESDE_EA = @json($desdeEa);
-    window.CFDI_EA_TOTALES = @json($desdeEa ? [
-        'total_cfdi' => $totalCfdiVista,
-        'total_ea' => $totalEaVista,
-        'subtotal_cfdi' => (float) ($datos['subtotal'] ?? 0),
-        'subtotal_ea' => (float) $entradaAnticipada->subtotal,
-        'desfase' => $desfaseTotalesEa,
-        'provisionales' => $eaCostosProvisionales,
-        'utilidad_lineas' => (int) ($previewCorreccionUtilidad['lineas'] ?? 0),
-        'utilidad_folios' => $previewCorreccionUtilidad['folios'] ?? [],
-    ] : null);
+    window.CFDI_EA_TOTALES = @json($cfdiEaTotales);
     let filaActual = null;
     let timerModal = null;
     window.CFDI_IDX_LINEA_A_CREAR = null;

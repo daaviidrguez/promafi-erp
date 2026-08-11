@@ -19,6 +19,19 @@ $conceptos = $datos['conceptos'] ?? [];
 $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['fecha_emision'])->format('Y-m-d') : date('Y-m-d');
 $conceptosCount = count($conceptos);
 $desdeEa = (bool) $entradaAnticipada;
+$totalCfdiVista = (float) ($datos['total'] ?? 0);
+$totalEaVista = $desdeEa ? (float) $entradaAnticipada->total : 0;
+$desfaseTotalesEa = $desdeEa && abs($totalCfdiVista - $totalEaVista) > 0.05;
+$eaCostosProvisionales = false;
+if ($desdeEa) {
+    $eaCostosProvisionales = $totalEaVista <= 0.05;
+    if (! $eaCostosProvisionales && $entradaAnticipada->detalles->isNotEmpty()) {
+        $conCero = $entradaAnticipada->detalles->filter(fn ($d) => (float) $d->precio_unitario_estimado <= 0.0001)->count();
+        $eaCostosProvisionales = $conCero >= max(1, (int) ceil($entradaAnticipada->detalles->count() / 2));
+    }
+}
+$previewCorreccionUtilidad = $previewCorreccionUtilidad ?? ['lineas' => 0, 'folios' => []];
+$hayPreviewUtilidad = $desdeEa && (int) ($previewCorreccionUtilidad['lineas'] ?? 0) > 0;
 @endphp
 
 @section('content')
@@ -30,18 +43,38 @@ $desdeEa = (bool) $entradaAnticipada;
     <div class="alert alert-danger mb-3">{{ session('error') }}</div>
 @endif
 @if(!empty($entradaAnticipada))
-<div class="card mb-3" style="border-left:4px solid var(--color-info);">
+<div class="card mb-3" style="border-left:4px solid {{ $desfaseTotalesEa ? 'var(--color-warning, #b45309)' : 'var(--color-info)' }};">
     <div class="card-body" style="font-size:14px;line-height:1.5;">
         <strong>Entrada anticipada {{ $entradaAnticipada->folio }}</strong> — La mercancía ya está en inventario.
-        Al guardar se crea la compra vinculada; el total del CFDI debe coincidir con el de la entrada (incluye IVA).
+        Al guardar se crea la compra vinculada (sin volver a recibir stock).
         @if($entradaAnticipada->ordenCompra)
         <span class="text-muted"> · OC {{ $entradaAnticipada->ordenCompra->folio }}</span>
         @endif
         <p class="text-muted" style="margin:10px 0 0;font-size:13px;">
-            <strong>CFDI:</strong> subtotal ${{ number_format($datos['subtotal'] ?? 0, 2) }} · total ${{ number_format($datos['total'] ?? 0, 2) }}
+            <strong>CFDI:</strong> subtotal ${{ number_format($datos['subtotal'] ?? 0, 2) }} · total ${{ number_format($totalCfdiVista, 2) }}
             &nbsp;|&nbsp;
-            <strong>EA:</strong> subtotal ${{ number_format($entradaAnticipada->subtotal, 2) }} · IVA ${{ number_format($entradaAnticipada->iva, 2) }} · total ${{ number_format($entradaAnticipada->total, 2) }}
+            <strong>EA:</strong> subtotal ${{ number_format($entradaAnticipada->subtotal, 2) }} · IVA ${{ number_format($entradaAnticipada->iva, 2) }} · total ${{ number_format($totalEaVista, 2) }}
         </p>
+        @if($desfaseTotalesEa)
+        <p style="margin:10px 0 0;font-size:13px;color:var(--color-warning, #b45309);">
+            ⚠ Los totales no coinciden
+            @if($eaCostosProvisionales)
+            (la EA parece tener costos estimados en $0 / provisionales).
+            @else
+            (diferencia mayor a $0.05).
+            @endif
+            Al guardar se pedirá confirmación: se vinculará el CFDI y se actualizarán <strong>costo</strong> y <strong>costo promedio</strong> de los productos con los precios fiscales.
+        </p>
+        @endif
+        @if($hayPreviewUtilidad)
+        <p style="margin:10px 0 0;font-size:13px;color:var(--color-warning, #b45309);">
+            ⚠ Reporte de utilidad: hay <strong>{{ $previewCorreccionUtilidad['lineas'] }}</strong> partida(s) de venta timbrada(s) con costo unitario $0
+            @if(!empty($previewCorreccionUtilidad['folios']))
+            ({{ implode(', ', array_slice($previewCorreccionUtilidad['folios'], 0, 6)) }}{{ count($previewCorreccionUtilidad['folios']) > 6 ? '…' : '' }})
+            @endif
+            . Al guardar se corregirán con el costo fiscal del CFDI (solo snapshots provisionales).
+        </p>
+        @endif
     </div>
 </div>
 @elseif(!empty($ordenConversionCfdi))
@@ -54,6 +87,10 @@ $desdeEa = (bool) $entradaAnticipada;
 
 <form action="{{ route('compras.store-desde-cfdi') }}" method="POST" id="formCfdiCompra" data-cfdi-concepto-indices='@json(array_keys($conceptos))'>
 @csrf
+@if($desdeEa)
+<input type="hidden" name="confirmar_desfase_totales" id="confirmar_desfase_totales" value="{{ old('confirmar_desfase_totales', 0) }}">
+<input type="hidden" name="confirmar_correccion_utilidad" id="confirmar_correccion_utilidad" value="{{ old('confirmar_correccion_utilidad', 0) }}">
+@endif
 
 <div class="responsive-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
     <div>
@@ -389,6 +426,16 @@ $desdeEa = (bool) $entradaAnticipada;
     window.CFDI_EA_PRODUCTO_A_DETALLE = @json($mapEaProductoIds ?? []);
     window.CFDI_EA_DETALLE_POR_PRODUCTO = @json($mapEaDetallePorProducto ?? []);
     window.CFDI_DESDE_EA = @json($desdeEa);
+    window.CFDI_EA_TOTALES = @json($desdeEa ? [
+        'total_cfdi' => $totalCfdiVista,
+        'total_ea' => $totalEaVista,
+        'subtotal_cfdi' => (float) ($datos['subtotal'] ?? 0),
+        'subtotal_ea' => (float) $entradaAnticipada->subtotal,
+        'desfase' => $desfaseTotalesEa,
+        'provisionales' => $eaCostosProvisionales,
+        'utilidad_lineas' => (int) ($previewCorreccionUtilidad['lineas'] ?? 0),
+        'utilidad_folios' => $previewCorreccionUtilidad['folios'] ?? [],
+    ] : null);
     let filaActual = null;
     let timerModal = null;
     window.CFDI_IDX_LINEA_A_CREAR = null;
@@ -884,8 +931,93 @@ $desdeEa = (bool) $entradaAnticipada;
                 'Faltan productos por vincular. Usa la lupa en el detalle o completa la relación.',
                 { variant: 'warning', titulo: 'Productos pendientes' }
             );
+            return;
+        }
+
+        // EA: confirmar desfase de totales y/o corrección de utilidad antes de enviar.
+        if (window.CFDI_DESDE_EA && window.CFDI_EA_TOTALES) {
+            var t = window.CFDI_EA_TOTALES;
+            var confirmDesfaseInp = document.getElementById('confirmar_desfase_totales');
+            var confirmUtilInp = document.getElementById('confirmar_correccion_utilidad');
+            var necesitaDesfase = !!t.desfase && confirmDesfaseInp && String(confirmDesfaseInp.value) !== '1';
+            var necesitaUtilidad = (Number(t.utilidad_lineas) || 0) > 0 && confirmUtilInp && String(confirmUtilInp.value) !== '1';
+            if (necesitaDesfase || necesitaUtilidad) {
+                e.preventDefault();
+                confirmarImpactosEaYEnviar(formEl, { desfase: necesitaDesfase, utilidad: necesitaUtilidad });
+            }
         }
     });
+
+    function moneyFmt(n) {
+        var v = Number(n) || 0;
+        return '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function confirmarImpactosEaYEnviar(formEl, flags) {
+        flags = flags || {};
+        var t = window.CFDI_EA_TOTALES || {};
+        var lista = [];
+        var titulo = 'Confirmar vínculo CFDI';
+        if (flags.desfase) {
+            titulo = 'Confirmar desfase de totales';
+            lista.push('Total entrada anticipada: ' + moneyFmt(t.total_ea));
+            lista.push('Total CFDI: ' + moneyFmt(t.total_cfdi));
+            lista.push('Diferencia: ' + moneyFmt(Math.abs((Number(t.total_cfdi) || 0) - (Number(t.total_ea) || 0))));
+            if (t.provisionales) {
+                lista.push('La EA tiene costos estimados en $0 / provisionales (p. ej. creada desde cotización).');
+            }
+            lista.push('Al confirmar se vinculará la compra y se actualizará el costo y costo promedio de los productos con los precios del CFDI. El inventario no se vuelve a mover.');
+        }
+        if (flags.utilidad || (Number(t.utilidad_lineas) || 0) > 0) {
+            var folios = (t.utilidad_folios || []).slice(0, 8).join(', ');
+            lista.push('Reporte de utilidad: se corregirá el costo unitario en ' + (t.utilidad_lineas || 0) + ' partida(s) de venta timbrada(s) que estaban en $0'
+                + (folios ? ' (' + folios + ((t.utilidad_folios || []).length > 8 ? '…' : '') + ')' : '')
+                + '. Solo se tocan snapshots provisionales; no se reescribe un costo ya distinto de cero.');
+        }
+
+        mostrarConfirmacionCfdi(
+            flags.desfase
+                ? 'Los totales no coinciden. ¿Desea continuar de todas formas?'
+                : 'Se actualizarán costos del reporte de utilidad. ¿Desea continuar?',
+            {
+                titulo: titulo,
+                variant: 'warning',
+                lista: lista,
+                btnConfirm: 'Sí, vincular y actualizar costos',
+                btnCancel: 'Cancelar'
+            }
+        ).then(function(ok) {
+            if (!ok) return;
+            var confirmDesfaseInp = document.getElementById('confirmar_desfase_totales');
+            var confirmUtilInp = document.getElementById('confirmar_correccion_utilidad');
+            if (flags.desfase && confirmDesfaseInp) confirmDesfaseInp.value = '1';
+            if (confirmUtilInp) confirmUtilInp.value = '1';
+            if (window.CFDI_EA_TOTALES) {
+                window.CFDI_EA_TOTALES.desfase = false;
+                window.CFDI_EA_TOTALES.utilidad_lineas = 0;
+            }
+            formEl.submit();
+        });
+    }
+
+    @if($desdeEa && (session('ea_cfdi_requiere_confirmacion_desfase') || old('confirmar_desfase_totales')))
+    document.addEventListener('DOMContentLoaded', function() {
+        @if(session('ea_cfdi_requiere_confirmacion_desfase'))
+        var formEl = document.getElementById('formCfdiCompra');
+        if (formEl && window.CFDI_EA_TOTALES) {
+            window.CFDI_EA_TOTALES.desfase = true;
+            var confirmInp = document.getElementById('confirmar_desfase_totales');
+            if (confirmInp) confirmInp.value = '0';
+            var confirmUtil = document.getElementById('confirmar_correccion_utilidad');
+            if (confirmUtil) confirmUtil.value = '0';
+            confirmarImpactosEaYEnviar(formEl, {
+                desfase: true,
+                utilidad: (Number(window.CFDI_EA_TOTALES.utilidad_lineas) || 0) > 0
+            });
+        }
+        @endif
+    });
+    @endif
 
     @if(!$desdeEa && $proveedor)
     document.getElementById('proveedor_id').value = '{{ $proveedor->id }}';

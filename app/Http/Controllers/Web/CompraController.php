@@ -303,6 +303,7 @@ class CompraController extends Controller
             'productos.*.concepto_index' => 'required|integer|min:0',
             'productos.*.producto_id' => 'required|exists:productos,id',
             'productos.*.entrada_detalle_id' => 'nullable|exists:entradas_anticipadas_detalle,id',
+            'confirmar_desfase_totales' => 'nullable|boolean',
         ]);
 
         $conceptos = $datos['conceptos'] ?? [];
@@ -359,12 +360,16 @@ class CompraController extends Controller
                 }
             }
 
-            $fc = app(FacturaCompraDesdeEntradaAnticipadaService::class)->crearCompraDesdeCfdi(
+            $confirmarDesfase = $request->boolean('confirmar_desfase_totales');
+
+            $service = app(FacturaCompraDesdeEntradaAnticipadaService::class);
+            $fc = $service->crearCompraDesdeCfdi(
                 $ea,
                 $datos,
                 $productosForm,
                 $validated,
-                $this->pdfSubidoDesdeTempSesion($request)
+                $this->pdfSubidoDesdeTempSesion($request),
+                $confirmarDesfase
             );
 
             $this->limpiarPdfTempCfdiSesion($request);
@@ -374,8 +379,26 @@ class CompraController extends Controller
                 'compras_desde_entrada_anticipada_id',
             ]);
 
-            return redirect()->route('compras.show', $fc->id)
-                ->with('success', 'CFDI registrado y vinculado a la entrada anticipada '.$ea->folio.'.');
+            $msg = 'CFDI registrado y vinculado a la entrada anticipada '.$ea->folio.'.';
+            if ($confirmarDesfase) {
+                $msg .= ' Se actualizaron los costos de producto con los precios fiscales del CFDI.';
+            }
+            $corr = $service->ultimoResumenCorreccionUtilidad;
+            if (($corr['lineas'] ?? 0) > 0) {
+                $folios = implode(', ', array_slice($corr['folios'] ?? [], 0, 8));
+                $msg .= ' Reporte de utilidad: se corrigió el costo unitario en '.$corr['lineas'].' partida(s)';
+                if ($folios !== '') {
+                    $msg .= ' ('.$folios.(count($corr['folios']) > 8 ? '…' : '').')';
+                }
+                $msg .= '.';
+            }
+
+            return redirect()->route('compras.show', $fc->id)->with('success', $msg);
+        } catch (\App\Exceptions\TotalesEaCfdiRequierenConfirmacionException $e) {
+            return back()->withInput()
+                ->with('error', $e->getMessage())
+                ->with('ea_cfdi_requiere_confirmacion_desfase', true)
+                ->with('ea_cfdi_desfase', $e->toArray());
         } catch (\Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -431,7 +454,8 @@ class CompraController extends Controller
         }
 
         try {
-            $fc = app(FacturaCompraDesdeEntradaAnticipadaService::class)->crearCompraManual(
+            $service = app(FacturaCompraDesdeEntradaAnticipadaService::class);
+            $fc = $service->crearCompraManual(
                 $ea,
                 $validated,
                 $lineas,
@@ -440,8 +464,18 @@ class CompraController extends Controller
 
             $request->session()->forget('compras_desde_entrada_anticipada_id');
 
-            return redirect()->route('compras.show', $fc->id)
-                ->with('success', 'Compra registrada y vinculada a la entrada anticipada '.$ea->folio.'.');
+            $msg = 'Compra registrada y vinculada a la entrada anticipada '.$ea->folio.'.';
+            $corr = $service->ultimoResumenCorreccionUtilidad;
+            if (($corr['lineas'] ?? 0) > 0) {
+                $folios = implode(', ', array_slice($corr['folios'] ?? [], 0, 8));
+                $msg .= ' Reporte de utilidad: se corrigió el costo unitario en '.$corr['lineas'].' partida(s)';
+                if ($folios !== '') {
+                    $msg .= ' ('.$folios.(count($corr['folios']) > 8 ? '…' : '').')';
+                }
+                $msg .= '.';
+            }
+
+            return redirect()->route('compras.show', $fc->id)->with('success', $msg);
         } catch (\Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -876,6 +910,11 @@ class CompraController extends Controller
         }
 
         $folioInterno = FacturaCompra::generarFolioInterno();
+        $previewCorreccionUtilidad = ['lineas' => 0, 'folios' => []];
+        if ($entradaAnticipada) {
+            $previewCorreccionUtilidad = app(FacturaCompraDesdeEntradaAnticipadaService::class)
+                ->previsualizarCorreccionCostoTimbradoParaEa($entradaAnticipada);
+        }
 
         return view('compras.crear-desde-cfdi', compact(
             'datos',
@@ -889,7 +928,8 @@ class CompraController extends Controller
             'ordenConversionCfdi',
             'entradaAnticipada',
             'mapEaProductoIds',
-            'mapEaDetallePorProducto'
+            'mapEaDetallePorProducto',
+            'previewCorreccionUtilidad'
         ));
     }
 

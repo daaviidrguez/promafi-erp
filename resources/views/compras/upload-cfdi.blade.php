@@ -32,7 +32,13 @@ $breadcrumbs = $entradaAnticipada
             <div class="totales-row"><span>IVA EA</span><span class="monto text-mono">${{ number_format($entradaAnticipada->iva, 2) }}</span></div>
             <div class="totales-row grand"><span>Total EA</span><span class="monto">${{ number_format($entradaAnticipada->total, 2) }}</span></div>
         </div>
-        <p class="text-muted" style="margin:12px 0 0;font-size:13px;">Proveedor: <strong>{{ $entradaAnticipada->proveedor?->nombre }}</strong></p>
+        <p class="text-muted" style="margin:12px 0 0;font-size:13px;">
+            Proveedor actual: <strong>{{ $entradaAnticipada->proveedor?->nombre }}</strong>
+            @if($entradaAnticipada->proveedor?->rfc)
+            <span class="text-mono"> · {{ $entradaAnticipada->proveedor->rfc }}</span>
+            @endif
+            — Al vincular podrá cambiar la selección si el CFDI corresponde a otra razón social (mismo RFC del emisor).
+        </p>
     </div>
 </div>
 @elseif(!empty($ordenOrigenConversion))

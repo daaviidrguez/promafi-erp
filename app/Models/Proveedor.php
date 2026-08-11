@@ -72,6 +72,7 @@ class Proveedor extends Model
     {
         return $query->where(function ($q) use ($search) {
             $q->where('nombre', 'like', "%{$search}%")
+                ->orWhere('nombre_comercial', 'like', "%{$search}%")
                 ->orWhere('codigo', 'like', "%{$search}%")
                 ->orWhere('rfc', 'like', "%{$search}%");
         });

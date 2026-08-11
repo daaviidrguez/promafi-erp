@@ -137,9 +137,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
 
         $ea->loadMissing(['detalles.producto', 'proveedor', 'ordenCompra']);
         $proveedor = Proveedor::findOrFail((int) $encabezado['proveedor_id']);
-        if ((int) $proveedor->id !== (int) $ea->proveedor_id) {
-            throw new \RuntimeException('El proveedor del CFDI no coincide con la entrada anticipada.');
-        }
+        $this->asegurarRfcProveedorCoincideConCfdi($proveedor, $datos);
 
         $empresa = Empresa::principal();
         if (! $empresa) {
@@ -174,7 +172,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
 
         $ea->loadMissing('detalles');
         app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
-        $ea->refresh()->load('detalles');
+        $ea->refresh()->load(['detalles', 'proveedor', 'ordenCompra']);
 
         $totalCfdi = (float) ($datos['total'] ?? 0);
         $subtotalCfdi = (float) ($datos['subtotal'] ?? 0);
@@ -203,6 +201,8 @@ class FacturaCompraDesdeEntradaAnticipadaService
             $totalCfdi,
             $totalEa
         ) {
+            $notaReasignacion = $this->sincronizarProveedorEaConSeleccionCfdi($ea, $proveedor);
+
             $folioInterno = FacturaCompra::generarFolioInterno();
             $serie = $this->normalizarSerie((string) ($datos['serie'] ?? ''));
             $metodoPago = $encabezado['metodo_pago'] ?? ($datos['metodo_pago'] ?? 'PUE');
@@ -213,6 +213,9 @@ class FacturaCompraDesdeEntradaAnticipadaService
                     .' → CFDI $'.number_format($totalCfdi, 2)
                     .'. Se aplicaron precios fiscales a costo / costo promedio de productos.';
                 $obsBase = $obsBase === '' ? $notaDesfase : ($obsBase.' · '.$notaDesfase);
+            }
+            if ($notaReasignacion !== null) {
+                $obsBase = $obsBase === '' ? $notaReasignacion : ($obsBase.' · '.$notaReasignacion);
             }
 
             $fc = FacturaCompra::create([
@@ -359,6 +362,72 @@ class FacturaCompraDesdeEntradaAnticipadaService
         ]);
 
         $this->entradaAnticipadaService->revertirOrdenTrasCancelarFacturacionEa($ea->ordenCompra);
+    }
+
+    /**
+     * El proveedor elegido al vincular debe coincidir por RFC con el emisor del CFDI.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function asegurarRfcProveedorCoincideConCfdi(Proveedor $proveedor, array $datos): void
+    {
+        $rfcXml = strtoupper(preg_replace('/\s+/', '', (string) ($datos['rfc_emisor'] ?? '')));
+        $rfcProv = strtoupper(preg_replace('/\s+/', '', (string) ($proveedor->rfc ?? '')));
+
+        if ($rfcXml === '' || $rfcProv === '' || $rfcXml !== $rfcProv) {
+            throw new \RuntimeException(
+                'El RFC del proveedor seleccionado debe coincidir con el RFC emisor del CFDI'
+                .($rfcXml !== '' ? ' ('.$rfcXml.')' : '').'.'
+            );
+        }
+    }
+
+    /**
+     * Si el proveedor seleccionado difiere del de la EA, actualiza EA (y OC vinculada) y deja traza.
+     *
+     * @return string|null Nota de auditoría para observaciones de la compra
+     */
+    private function sincronizarProveedorEaConSeleccionCfdi(EntradaAnticipada $ea, Proveedor $proveedor): ?string
+    {
+        if ((int) $proveedor->id === (int) $ea->proveedor_id) {
+            return null;
+        }
+
+        $ea->loadMissing('proveedor', 'ordenCompra');
+        $anterior = $ea->proveedor;
+        $quien = auth()->user()?->name ?? ('#'.(auth()->id() ?? '0'));
+        $nota = sprintf(
+            'Proveedor reasignado al vincular CFDI (%s, %s): #%d %s (%s) → #%d %s (%s).',
+            now()->format('Y-m-d H:i'),
+            $quien,
+            $anterior?->id ?? 0,
+            $anterior?->nombre ?? '—',
+            $anterior?->rfc ?? '—',
+            $proveedor->id,
+            $proveedor->nombre,
+            $proveedor->rfc ?? '—'
+        );
+
+        $obsEa = trim((string) ($ea->observaciones ?? ''));
+        $ea->update([
+            'proveedor_id' => $proveedor->id,
+            'observaciones' => $obsEa === '' ? $nota : ($obsEa."\n".$nota),
+        ]);
+        $ea->setRelation('proveedor', $proveedor);
+
+        $oc = $ea->ordenCompra;
+        if ($oc && (int) $oc->proveedor_id !== (int) $proveedor->id) {
+            $obsOc = trim((string) ($oc->observaciones ?? ''));
+            $oc->update([
+                'proveedor_id' => $proveedor->id,
+                'proveedor_nombre' => $proveedor->nombre,
+                'proveedor_rfc' => $proveedor->rfc,
+                'proveedor_regimen_fiscal' => $proveedor->regimen_fiscal,
+                'observaciones' => $obsOc === '' ? $nota : ($obsOc."\n".$nota),
+            ]);
+        }
+
+        return $nota;
     }
 
     /**

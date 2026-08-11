@@ -321,8 +321,16 @@ class CompraController extends Controller
                 ->with('error', 'La entrada anticipada ya no admite facturación por CFDI.');
         }
 
-        if ((int) $validated['proveedor_id'] !== (int) $ea->proveedor_id) {
-            return back()->withInput()->with('error', 'El proveedor debe coincidir con el de la entrada anticipada.');
+        $proveedor = Proveedor::findOrFail((int) $validated['proveedor_id']);
+        $rfcXml = strtoupper(preg_replace('/\s+/', '', (string) ($datos['rfc_emisor'] ?? '')));
+        $rfcProv = strtoupper(preg_replace('/\s+/', '', (string) ($proveedor->rfc ?? '')));
+        if ($rfcXml === '' || $rfcProv === '' || $rfcXml !== $rfcProv) {
+            return back()->withInput()->with(
+                'error',
+                'El RFC del proveedor seleccionado debe coincidir con el RFC emisor del CFDI'
+                .($rfcXml !== '' ? ' ('.$rfcXml.')' : '')
+                .'.'
+            );
         }
 
         $productosForm = $validated['productos'];
@@ -346,14 +354,14 @@ class CompraController extends Controller
                     continue;
                 }
                 $noIdent = strtoupper(trim((string) ($conceptos[$idx]['no_identificacion'] ?? '')));
-                if ($noIdent === '' || ! $ea->proveedor) {
+                if ($noIdent === '') {
                     continue;
                 }
                 $producto = Producto::find((int) $p['producto_id']);
                 if (! $producto) {
                     continue;
                 }
-                $this->sincronizarCodigoProveedorProducto($producto, $ea->proveedor, $noIdent);
+                $this->sincronizarCodigoProveedorProducto($producto, $proveedor, $noIdent);
                 $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
                 if ($eaDet) {
                     $eaDet->update(['codigo_proveedor' => $noIdent]);
@@ -380,6 +388,9 @@ class CompraController extends Controller
             ]);
 
             $msg = 'CFDI registrado y vinculado a la entrada anticipada '.$ea->folio.'.';
+            if (is_string($fc->observaciones) && str_contains($fc->observaciones, 'Proveedor reasignado al vincular CFDI')) {
+                $msg .= ' Se actualizó el proveedor de la entrada al de la factura ('.$proveedor->nombre.').';
+            }
             if ($confirmarDesfase) {
                 $msg .= ' Se actualizaron los costos de producto con los precios fiscales del CFDI.';
             }
@@ -745,10 +756,16 @@ class CompraController extends Controller
                         return redirect()->route('entradas-anticipadas.index')
                             ->with('error', 'La entrada anticipada ya no admite facturación por CFDI.');
                     }
-                    $rfcXml = strtoupper(trim((string) ($result['datos']['rfc_emisor'] ?? '')));
-                    $rfcProv = strtoupper(trim((string) ($ea->proveedor?->rfc ?? '')));
+                    $rfcXml = strtoupper(preg_replace('/\s+/', '', (string) ($result['datos']['rfc_emisor'] ?? '')));
+                    $rfcProv = strtoupper(preg_replace('/\s+/', '', (string) ($ea->proveedor?->rfc ?? '')));
                     if ($rfcProv !== '' && $rfcXml !== '' && $rfcProv !== $rfcXml) {
-                        return back()->with('error', 'El RFC del emisor del CFDI no coincide con el proveedor de la entrada anticipada.');
+                        // No bloquear: en el formulario se podrá elegir el proveedor correcto (RFC del emisor).
+                        $request->session()->flash(
+                            'warning',
+                            'El RFC del CFDI ('.$rfcXml.') no coincide con el proveedor actual de la entrada ('
+                            .($ea->proveedor?->nombre ?? '—').' · '.$rfcProv
+                            .'). Seleccione el proveedor correcto al vincular; debe coincidir con el RFC del emisor.'
+                        );
                     }
                 } else {
                     $idOrd = (int) $request->session()->get('compras_desde_orden_compra_id', 0);
@@ -870,13 +887,9 @@ class CompraController extends Controller
         }
 
         $empresa = Empresa::principal();
-        if ($entradaAnticipada) {
-            $proveedor = $entradaAnticipada->proveedor;
-        } else {
-            $proveedor = ! empty($datos['rfc_emisor'])
-                ? Proveedor::whereRaw('UPPER(rfc) = UPPER(?)', [$datos['rfc_emisor']])->first()
-                : null;
-        }
+        $proveedorEaOriginal = $entradaAnticipada?->proveedor;
+        $rfcXmlNorm = strtoupper(preg_replace('/\s+/', '', (string) ($datos['rfc_emisor'] ?? '')));
+        $proveedor = $this->resolverProveedorParaCfdi($datos, $entradaAnticipada);
 
         // Mapeo: codigo de proveedor (NoIdentificacion) -> producto_id
         $productoProveedorMap = [];
@@ -920,6 +933,8 @@ class CompraController extends Controller
             'datos',
             'empresa',
             'proveedor',
+            'proveedorEaOriginal',
+            'rfcXmlNorm',
             'productoProveedorMap',
             'productosPorLinea',
             'descripcionPorIndiceLineaCfdi',
@@ -931,6 +946,44 @@ class CompraController extends Controller
             'mapEaDetallePorProducto',
             'previewCorreccionUtilidad'
         ));
+    }
+
+    /**
+     * Resuelve proveedor para el formulario CFDI: prioriza RFC del emisor;
+     * en EA, si el de la entrada ya calza por RFC se conserva; si no, sugiere el del RFC.
+     */
+    private function resolverProveedorParaCfdi(array $datos, ?EntradaAnticipada $entradaAnticipada): ?Proveedor
+    {
+        $rfcXml = strtoupper(preg_replace('/\s+/', '', (string) ($datos['rfc_emisor'] ?? '')));
+        $proveedorEa = $entradaAnticipada?->proveedor;
+
+        if ($entradaAnticipada) {
+            $rfcEa = strtoupper(preg_replace('/\s+/', '', (string) ($proveedorEa?->rfc ?? '')));
+            if ($proveedorEa && $rfcXml !== '' && $rfcEa === $rfcXml) {
+                return $proveedorEa;
+            }
+            if ($rfcXml !== '') {
+                $porRfc = Proveedor::query()
+                    ->whereRaw('UPPER(TRIM(rfc)) = ?', [$rfcXml])
+                    ->orderBy('id')
+                    ->first();
+                if ($porRfc) {
+                    return $porRfc;
+                }
+            }
+
+            // Si el RFC no calza, no fijar el de la EA: el usuario debe elegir / crear el correcto.
+            return null;
+        }
+
+        if ($rfcXml === '') {
+            return null;
+        }
+
+        return Proveedor::query()
+            ->whereRaw('UPPER(TRIM(rfc)) = ?', [$rfcXml])
+            ->orderBy('id')
+            ->first();
     }
 
     /**
@@ -1939,11 +1992,12 @@ class CompraController extends Controller
             Proveedor::activos()
                 ->buscar($q)
                 ->limit(15)
-                ->get(['id', 'codigo', 'nombre', 'rfc', 'dias_credito'])
+                ->get(['id', 'codigo', 'nombre', 'nombre_comercial', 'rfc', 'dias_credito'])
                 ->map(fn ($p) => [
                     'id' => $p->id,
                     'codigo' => $p->codigo,
                     'nombre' => $p->nombre,
+                    'nombre_comercial' => $p->nombre_comercial ?? '',
                     'etiqueta' => $p->etiqueta_con_codigo,
                     'rfc' => $p->rfc ?? '',
                     'dias_credito' => $p->dias_credito ?? 0,

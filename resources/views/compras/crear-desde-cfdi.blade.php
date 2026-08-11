@@ -49,6 +49,9 @@ $cfdiEaTotales = $desdeEa ? [
 @if(session('success'))
     <div class="alert alert-success mb-3">{{ session('success') }}</div>
 @endif
+@if(session('warning'))
+    <div class="alert alert-warning mb-3">{{ session('warning') }}</div>
+@endif
 @if(session('error'))
     <div class="alert alert-danger mb-3">{{ session('error') }}</div>
 @endif
@@ -135,31 +138,49 @@ $cfdiEaTotales = $desdeEa ? [
         <div class="card">
             <div class="card-header"><div class="card-title">🏭 Proveedor</div></div>
             <div class="card-body">
-                @if($desdeEa)
-                <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $entradaAnticipada->proveedor_id }}">
-                <p style="margin:0;">
-                    <span class="fw-600">{{ $entradaAnticipada->proveedor?->nombre }}</span>
-                    <span class="text-muted text-mono"> · {{ $entradaAnticipada->proveedor?->rfc }}</span>
-                </p>
-                <p class="text-muted small mt-2 mb-0">Proveedor fijado por la entrada anticipada.</p>
-                @else
+                @php
+                    $proveedorFormId = old('proveedor_id', $proveedor?->id ?? '');
+                    $proveedorEaId = $desdeEa ? (int) ($proveedorEaOriginal?->id ?? $entradaAnticipada->proveedor_id) : 0;
+                    $proveedorSeleccionadoDistintoEa = $desdeEa && $proveedorFormId && (int) $proveedorFormId !== $proveedorEaId;
+                    $rfcXmlVista = strtoupper(preg_replace('/\s+/', '', (string) ($rfcXmlNorm ?? $datos['rfc_emisor'] ?? '')));
+                @endphp
                 <div class="form-group search-box">
-                    <input type="text" id="buscarProveedor" placeholder="Buscar proveedor..." autocomplete="off" class="form-control"
-                           value="{{ $proveedor ? $proveedor->etiqueta_con_codigo : ($datos['rfc_emisor'] ?? ($datos['nombre_emisor'] ?? '')) }}">
-                    <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $proveedor?->id ?? '' }}">
+                    <input type="text" id="buscarProveedor" placeholder="Buscar por nombre, nombre comercial o RFC..." autocomplete="off" class="form-control"
+                           value="{{ $proveedor ? $proveedor->etiqueta_con_codigo : ($datos['nombre_emisor'] ?? ($datos['rfc_emisor'] ?? '')) }}">
+                    <input type="hidden" name="proveedor_id" id="proveedor_id" value="{{ $proveedorFormId }}">
                     <div id="proveedorResults" class="autocomplete-results"></div>
                 </div>
                 <p class="text-muted small mt-2 mb-0">
                     Emisor CFDI: {{ $datos['nombre_emisor'] ?? '—' }} (RFC: {{ $datos['rfc_emisor'] ?? '—' }})
                 </p>
+                @if($desdeEa)
+                <p class="text-muted small mt-2 mb-0">
+                    Entrada anticipada: <span class="fw-600">{{ $proveedorEaOriginal?->nombre ?? $entradaAnticipada->proveedor?->nombre ?? '—' }}</span>
+                    <span class="text-mono"> · {{ $proveedorEaOriginal?->rfc ?? $entradaAnticipada->proveedor?->rfc ?? '—' }}</span>
+                    @if($proveedorSeleccionadoDistintoEa)
+                    <span id="hintReasignacionProveedorEa" style="color:var(--color-warning, #b45309);"> — se actualizará al proveedor seleccionado al guardar.</span>
+                    @else
+                    <span id="hintReasignacionProveedorEa" style="color:var(--color-warning, #b45309);display:none;"> — se actualizará al proveedor seleccionado al guardar.</span>
+                    @endif
+                </p>
+                <p class="text-muted small mt-1 mb-0">
+                    Puede cambiar la selección (p. ej. razón social correcta). El RFC del proveedor debe coincidir con el del CFDI.
+                </p>
+                @endif
                 @if(!$proveedor && !empty($datos['rfc_emisor']))
                     <div class="mt-2">
-                        <p class="text-danger small mb-1" style="font-weight:700;">no existe proveedor</p>
+                        <p class="text-danger small mb-1" style="font-weight:700;">no existe proveedor con ese RFC</p>
                         <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('modalAgregarProveedorCfdi').classList.add('show')">
                             ➕ Agregar
                         </button>
                     </div>
-                @endif
+                @elseif($proveedor && $rfcXmlVista !== '' && strtoupper(preg_replace('/\s+/', '', (string) ($proveedor->rfc ?? ''))) !== $rfcXmlVista)
+                    <div class="mt-2">
+                        <p class="text-danger small mb-1" style="font-weight:700;">El proveedor seleccionado no coincide con el RFC del CFDI. Busque o agregue el correcto.</p>
+                        <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('modalAgregarProveedorCfdi').classList.add('show')">
+                            ➕ Agregar desde CFDI
+                        </button>
+                    </div>
                 @endif
             </div>
         </div>
@@ -503,6 +524,7 @@ $cfdiEaTotales = $desdeEa ? [
             document.getElementById('modalCfdiMensaje').classList.add('show');
         });
     }
+    window.mostrarAlertaCfdi = mostrarAlertaCfdi;
 
     function mostrarConfirmacionCfdi(mensaje, opts) {
         opts = opts || {};
@@ -1020,13 +1042,20 @@ $cfdiEaTotales = $desdeEa ? [
     });
     @endif
 
-    @if(!$desdeEa && $proveedor)
-    document.getElementById('proveedor_id').value = '{{ $proveedor->id }}';
-    document.getElementById('buscarProveedor').value = {!! json_encode($proveedor->etiqueta_con_codigo) !!};
+    @if($proveedor || old('proveedor_id'))
+    @php
+        $proveedorInitJs = old('proveedor_id')
+            ? \App\Models\Proveedor::find(old('proveedor_id'))
+            : $proveedor;
+    @endphp
+    @if($proveedorInitJs)
+    document.getElementById('proveedor_id').value = '{{ $proveedorInitJs->id }}';
+    var bpInit = document.getElementById('buscarProveedor');
+    if (bpInit) bpInit.value = {!! json_encode($proveedorInitJs->etiqueta_con_codigo) !!};
+    @endif
     @endif
 })();
 </script>
-@if(!$desdeEa)
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var buscarProveedor = document.getElementById('buscarProveedor');
@@ -1034,9 +1063,25 @@ document.addEventListener('DOMContentLoaded', function() {
     var proveedorResults = document.getElementById('proveedorResults');
     var proveedorId = document.getElementById('proveedor_id');
     var timerP = null;
+    var rfcCfdi = @json(strtoupper(preg_replace('/\s+/', '', (string) ($datos['rfc_emisor'] ?? ''))));
+    var desdeEa = @json($desdeEa);
+    var proveedorEaId = @json($desdeEa ? (int) ($proveedorEaOriginal?->id ?? $entradaAnticipada->proveedor_id) : 0);
+
+    function notaReasignacionEa(idSel) {
+        if (!desdeEa || !proveedorEaId) return;
+        var hint = document.getElementById('hintReasignacionProveedorEa');
+        if (!hint) return;
+        if (idSel && String(idSel) !== String(proveedorEaId)) {
+            hint.style.display = '';
+        } else {
+            hint.style.display = 'none';
+        }
+    }
+
     buscarProveedor.addEventListener('input', function() {
         clearTimeout(timerP);
         var q = this.value.trim();
+        proveedorId.value = '';
         if (q.length < 2) { proveedorResults.classList.remove('show'); proveedorResults.innerHTML = ''; return; }
         timerP = setTimeout(function() {
             fetch('{{ route("compras.buscar-proveedores") }}?q=' + encodeURIComponent(q))
@@ -1044,14 +1089,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(function(data) {
                     proveedorResults.innerHTML = data.length ? data.map(function(c) {
                         var etiqueta = etiquetaProveedor(c).replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                        return '<div class="autocomplete-item" data-id="' + c.id + '" data-nombre="' + etiqueta + '"><div class="autocomplete-item-name">' + etiqueta + '</div><div class="autocomplete-item-sub">' + (c.rfc || '') + '</div></div>';
+                        var sub = (c.rfc || '');
+                        if (c.nombre_comercial) sub += (sub ? ' · ' : '') + c.nombre_comercial;
+                        var rfcNorm = String(c.rfc || '').replace(/\s+/g, '').toUpperCase();
+                        var marcaRfc = (rfcCfdi && rfcNorm === rfcCfdi) ? ' <span style="color:var(--color-success, #15803d);font-size:12px;">RFC CFDI</span>' : '';
+                        return '<div class="autocomplete-item" data-id="' + c.id + '" data-nombre="' + etiqueta + '" data-rfc="' + rfcNorm + '"><div class="autocomplete-item-name">' + etiqueta + marcaRfc + '</div><div class="autocomplete-item-sub">' + sub + '</div></div>';
                     }).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
                     proveedorResults.classList.add('show');
                     proveedorResults.querySelectorAll('.autocomplete-item[data-id]').forEach(function(el) {
                         el.addEventListener('click', function() {
+                            var rfcSel = this.getAttribute('data-rfc') || '';
+                            if (rfcCfdi && rfcSel && rfcSel !== rfcCfdi) {
+                                mostrarAlertaCfdi(
+                                    'El RFC de ese proveedor (' + rfcSel + ') no coincide con el del CFDI (' + rfcCfdi + '). Elija el proveedor fiscal correcto.',
+                                    { variant: 'warning', titulo: 'RFC distinto' }
+                                );
+                                return;
+                            }
                             proveedorId.value = this.getAttribute('data-id');
                             buscarProveedor.value = this.getAttribute('data-nombre');
                             proveedorResults.classList.remove('show');
+                            notaReasignacionEa(proveedorId.value);
                         });
                     });
                 });
@@ -1060,9 +1118,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.search-box')) proveedorResults.classList.remove('show');
     });
+    notaReasignacionEa(proveedorId.value);
 });
 </script>
-@endif
 @endpush
 
 @endsection

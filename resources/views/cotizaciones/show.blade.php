@@ -78,7 +78,9 @@ $breadcrumbs = [
                             <th>Descripción</th>
                             <th class="td-center">Cant.</th>
                             <th class="td-center">Unidad</th>
-                            <th class="td-right">Precio Unit.</th>
+                            <th class="td-right" title="Costo unitario">C. unit.</th>
+                            <th class="td-center" title="% UTILIDAD">% Util.</th>
+                            <th class="td-right" title="Precio unitario de venta">P. unit.</th>
                             <th class="td-center">Desc %</th>
                             <th class="td-center">IVA</th>
                             <th class="td-right">Subtotal</th>
@@ -115,6 +117,14 @@ $breadcrumbs = [
                             <td class="td-center fw-600">{{ number_format($d->cantidad, 2) }}</td>
                             <td class="td-center">{{ $d->unidad ?? $d->producto->unidad ?? 'PZA' }}</td>
                             <td class="td-right text-mono">${{ number_format($d->precio_unitario, 2) }}</td>
+                            <td class="td-center">
+                                @if($d->utilidad !== null && (float) $d->utilidad > 0)
+                                    <span class="fw-600">{{ number_format((float) $d->utilidad, 2) }}%</span>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td class="td-right text-mono fw-600">${{ number_format($d->precioUnitarioVentaCalculado(), 2) }}</td>
                             <td class="td-center">
                                 @if($d->descuento_porcentaje > 0)
                                     <span style="color: var(--color-danger); font-weight: 700;">
@@ -201,6 +211,10 @@ $breadcrumbs = [
                     <div class="totales-row">
                         <span>Subtotal</span>
                         <span class="monto text-mono">${{ number_format($cotizacion->subtotal, 2) }}</span>
+                    </div>
+                    <div class="totales-row" title="Utilidad en pesos (uso interno; no se incluye en el PDF del cliente)">
+                        <span>Utilidad</span>
+                        <span class="monto text-mono">${{ number_format($cotizacion->utilidadTotal(), 2) }}</span>
                     </div>
                     @if($cotizacion->descuento > 0)
                     <div class="totales-row descuento">

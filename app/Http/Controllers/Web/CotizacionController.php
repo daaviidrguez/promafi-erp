@@ -175,6 +175,7 @@ class CotizacionController extends Controller
             'productos.*.cantidad' => 'required|numeric|min:0.01',
             'productos.*.unidad' => 'nullable|string|max:10',
             'productos.*.precio_unitario' => 'required|numeric|min:0',
+            'productos.*.utilidad' => 'nullable|numeric|min:0|lt:100',
             'productos.*.descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'productos.*.tasa_iva' => 'nullable|numeric',
             'productos.*.es_producto_manual' => 'nullable|boolean',
@@ -211,6 +212,7 @@ class CotizacionController extends Controller
             $ivaGeneral = 0;
 
             foreach ($validated['productos'] as $item) {
+                $item['utilidad'] = CotizacionDetalle::normalizarUtilidad($item['utilidad'] ?? null);
                 $importes = CotizacionDetalle::calcularImportes($item);
                 $subtotalGeneral += $importes['subtotal'];
                 $descuentoGeneral += $importes['descuento_monto'];
@@ -322,6 +324,12 @@ class CotizacionController extends Controller
                     $unidadDetalle = substr($unidadDetalle, 0, 10);
                 }
 
+                $utilidad = CotizacionDetalle::normalizarUtilidad($item['utilidad'] ?? null);
+                $precioVenta = CotizacionDetalle::precioUnitarioVenta(
+                    (float) $item['precio_unitario'],
+                    $utilidad
+                );
+
                 // Partida manual sin sugerencia ni Truper: guardar/actualizar en sugerencias para futuras cotizaciones
                 if ($esManual && !$sugerenciaId && !$catalogoTruperId && !empty(trim($item['descripcion'] ?? ''))) {
                     $sugerencia = Sugerencia::firstOrCreate(
@@ -331,10 +339,10 @@ class CotizacionController extends Controller
                         ],
                         [
                             'codigo' => null,
-                            'precio_unitario' => $item['precio_unitario'],
+                            'precio_unitario' => $precioVenta,
                         ]
                     );
-                    $sugerencia->update(['precio_unitario' => $item['precio_unitario']]);
+                    $sugerencia->update(['precio_unitario' => $precioVenta]);
                     $sugerenciaId = $sugerencia->id;
                 }
 
@@ -354,14 +362,15 @@ class CotizacionController extends Controller
                     'cantidad' => $item['cantidad'],
                     'unidad' => $unidadDetalle,
                     'precio_unitario' => $item['precio_unitario'],
+                    'utilidad' => $utilidad,
                     'descuento_porcentaje' => $item['descuento_porcentaje'] ?? 0,
                     'tasa_iva' => $item['tasa_iva'] ?? null,
                     'orden' => $index,
                     'imagenes' => $this->procesarImagenesPartida($request, $index, $cotizacion->id, $imagenesUsadas),
                 ]);
-                // Actualizar precio más reciente en la sugerencia para próximas cotizaciones
+                // Actualizar precio más reciente en la sugerencia para próximas cotizaciones (precio de venta)
                 if ($sugerenciaId) {
-                    Sugerencia::where('id', $sugerenciaId)->update(['precio_unitario' => $item['precio_unitario']]);
+                    Sugerencia::where('id', $sugerenciaId)->update(['precio_unitario' => $precioVenta]);
                 }
             }
 
@@ -703,7 +712,7 @@ class CotizacionController extends Controller
                     'tipo_factor' => 'Tasa',
                     'tasa_iva' => (float) ($detalle->tasa_iva ?? 0.16),
                     'aplica_iva' => true,
-                    'precio_venta' => (float) $detalle->precio_unitario,
+                    'precio_venta' => $detalle->precioUnitarioVentaCalculado(),
                     'stock' => 0,
                     'controla_inventario' => true,
                     'activo' => true,
@@ -814,7 +823,7 @@ class CotizacionController extends Controller
                 if (!$producto) {
                     continue;
                 }
-                $valorUnitario = (float) $d->precio_unitario;
+                $valorUnitario = $d->precioUnitarioVentaCalculado();
                 $cantidad = (float) $d->cantidad;
                 $descuentoMonto = (float) ($d->descuento_monto ?? 0);
                 $importe = $cantidad * $valorUnitario;
@@ -1011,7 +1020,7 @@ class CotizacionController extends Controller
                 'tipo_impuesto' => '002',
                 'tipo_factor' => $tipoFactor,
                 'tasa_iva' => $tasaIva,
-                'precio_venta' => (float) $detalle->precio_unitario,
+                'precio_venta' => $detalle->precioUnitarioVentaCalculado(),
                 'costo' => 0,
                 'stock_minimo' => 0,
                 'stock_maximo' => 0,
@@ -1302,7 +1311,7 @@ class CotizacionController extends Controller
                     'cantidad' => $cantidad,
                     'cantidad_en_ea' => $usada,
                     'pendiente' => $pendiente,
-                    'precio_venta' => (float) $d->precio_unitario,
+                    'precio_venta' => $d->precioUnitarioVentaCalculado(),
                     'precio_unitario_estimado' => $costoSugerido,
                     'costo_catalogo' => $costoSugerido,
                     'tasa_iva' => $tasaIva,

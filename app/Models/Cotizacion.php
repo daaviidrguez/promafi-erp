@@ -142,6 +142,20 @@ class Cotizacion extends Model
     }
 
     /**
+     * Utilidad total en pesos (suma de partidas con % utilidad).
+     * Solo uso interno; no se incluye en el PDF del cliente.
+     */
+    public function utilidadTotal(): float
+    {
+        $this->loadMissing('detalles');
+
+        return round(
+            (float) $this->detalles->sum(fn (CotizacionDetalle $d) => $d->utilidadMonto()),
+            2
+        );
+    }
+
+    /**
      * Entradas anticipadas generadas desde esta cotización de venta.
      */
     public function entradasAnticipadas(): HasMany

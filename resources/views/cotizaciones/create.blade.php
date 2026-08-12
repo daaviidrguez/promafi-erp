@@ -203,6 +203,7 @@ $breadcrumbs = [
                             <col style="width:76px;">
                             <col style="width:64px;">
                             <col style="width:92px;">
+                            <col style="width:72px;">
                             <col style="width:60px;">
                             <col style="width:70px;">
                             <col style="width:92px;">
@@ -215,7 +216,8 @@ $breadcrumbs = [
                                 <th>Descripción</th>
                                 <th class="td-center">Cantidad</th>
                                 <th class="td-center">Unidad</th>
-                                <th class="td-right">Precio</th>
+                                <th class="td-right" title="Costo unitario (sin IVA)">C. unit.</th>
+                                <th class="td-center" title="Margen % (ej. 30 = 30 %, no 0.30)">% Util.</th>
                                 <th class="td-center">Desc%</th>
                                 <th class="td-center">IVA</th>
                                 <th class="td-right">Subtotal</th>
@@ -225,7 +227,7 @@ $breadcrumbs = [
                         </thead>
                         <tbody id="productosBody">
                             <tr id="emptyRow">
-                                <td colspan="10">
+                                <td colspan="11">
                                     <div style="padding:40px 20px; text-align:center; color:var(--color-gray-500);">
                                         <div style="font-size:36px; margin-bottom:10px; opacity:0.3;">📦</div>
                                         <div class="fw-600">Sin productos agregados</div>
@@ -316,6 +318,11 @@ $breadcrumbs = [
                     <div class="totales-row">
                         <span>Subtotal</span>
                         <span class="monto text-mono" id="tSubtotal">$0.00</span>
+                    </div>
+
+                    <div class="totales-row" title="Utilidad en pesos (uso interno; no se incluye en el PDF del cliente)">
+                        <span>Utilidad</span>
+                        <span class="monto text-mono" id="tUtilidad">$0.00</span>
                     </div>
 
                     <div class="totales-row descuento" id="rowDescuento" style="display:none;">
@@ -440,6 +447,7 @@ $breadcrumbs = [
                 'cantidad'  => (float) $d->cantidad,
                 'unidad'    => $d->unidad ?? $d->producto->unidad ?? 'PZA',
                 'precio'    => (float) $d->precio_unitario,
+                'utilidad'  => $d->utilidad !== null ? (float) $d->utilidad : '',
                 'descuento' => (float) ($d->descuento_porcentaje ?? 0),
                 'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
                 'manual'    => (bool) $d->es_producto_manual,
@@ -455,14 +463,14 @@ $breadcrumbs = [
 @push('styles')
 <style>
 /* Tabla productos: scroll horizontal en móvil */
-.table-container .table-productos-cotizacion { min-width: 640px; }
-/* Descripción ancha, Origen = ancho Precio; columnas numéricas compactas */
+.table-container .table-productos-cotizacion { min-width: 720px; }
+/* Descripción ancha, Origen = ancho C. unit.; columnas numéricas compactas */
 .table-productos-cotizacion thead th:nth-child(2) { padding: 11px 16px; }
 .table-productos-cotizacion thead th:not(:nth-child(2)) { padding: 11px 4px; white-space: nowrap; }
 .table-productos-cotizacion tbody td { vertical-align: middle; }
 .table-productos-cotizacion tbody td:nth-child(2) { padding: 12px 16px; vertical-align: middle; }
 .table-productos-cotizacion tbody td:not(:nth-child(2)) { padding: 8px 4px; }
-.table-productos-cotizacion tbody td:nth-child(9) { padding-right: 6px; }
+.table-productos-cotizacion tbody td:nth-child(10) { padding-right: 6px; }
 .table-productos-cotizacion tbody td:last-child { padding: 8px 4px 8px 2px; }
 /* Descripción: apariencia de 1 línea; crece solo al envolver (estilo Excel "Ajustar texto") */
 .table-productos-cotizacion textarea.manual-desc-auto.form-control {
@@ -592,7 +600,29 @@ let allowNavigation = false;
 let pendingNavUrl = null;
 let pendingImportRows = null;
 
-const EXCEL_COLS = ['Origen', 'Descripción', 'Cantidad', 'Unidad', 'Precio', 'Desc%', 'IVA'];
+const EXCEL_COLS = ['Origen', 'Descripción', 'Cantidad', 'Unidad', 'Costo', '% Util.', 'Desc%', 'IVA'];
+
+function precioUnitarioVenta(costo, utilidad) {
+    const c = parseFloat(costo) || 0;
+    const util = parseFloat(utilidad);
+    if (!util || util <= 0) return Math.round(c * 100) / 100;
+    const margen = util / 100;
+    if (margen >= 1) return Math.round(c * 100) / 100;
+    return Math.round((c / (1 - margen)) * 100) / 100;
+}
+
+function utilidadMontoLinea(cantidad, costo, utilidad, descuentoPct) {
+    const util = parseFloat(utilidad);
+    if (!util || util <= 0) return 0;
+    const cant = parseFloat(cantidad) || 0;
+    const c = parseFloat(costo) || 0;
+    const d = Math.min(100, Math.max(0, parseFloat(descuentoPct) || 0));
+    const factor = 1 - (d / 100);
+    const precioVenta = precioUnitarioVenta(c, util);
+    const netoVenta = cant * precioVenta * factor;
+    const costoNeto = cant * c * factor;
+    return Math.round((netoVenta - costoNeto) * 100) / 100;
+}
 
 function getFormSnapshot() {
     const form = document.getElementById('cotizacionForm');
@@ -617,6 +647,7 @@ function getFormSnapshot() {
             cantidad: p.cantidad,
             unidad: p.unidad,
             precio: p.precio,
+            utilidad: p.utilidad === '' || p.utilidad == null ? '' : p.utilidad,
             descuento: p.descuento,
             tasa_iva: p.tasa_iva,
             manual: p.manual,
@@ -732,9 +763,9 @@ function descargarPlantilla() {
     }
     const ws = XLSX.utils.aoa_to_sheet([
         EXCEL_COLS,
-        ['', 'Ejemplo de producto o servicio', 1, 'PZA', 100, 0, '16%'],
+        ['', 'Ejemplo de producto o servicio', 1, 'PZA', 100, '', 0, '16%'],
     ]);
-    ws['!cols'] = [{ wch: 12 }, { wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Partidas');
     XLSX.writeFile(wb, 'plantilla_cotizacion.xlsx');
@@ -755,11 +786,12 @@ function exportarExcel() {
         p.cantidad,
         p.unidad || 'PZA',
         p.precio,
+        p.utilidad === '' || p.utilidad == null ? '' : p.utilidad,
         p.descuento || 0,
         tasaIvaToLabel(p.tasa_iva),
     ]);
     const ws = XLSX.utils.aoa_to_sheet([EXCEL_COLS, ...rows]);
-    ws['!cols'] = [{ wch: 12 }, { wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 8 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 42 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Partidas');
     XLSX.writeFile(wb, 'cotizacion_partidas.xlsx');
@@ -775,7 +807,8 @@ function parseImportRows(rows) {
         descripcion: ['descripcion', 'description', 'producto', 'nombre'],
         cantidad: ['cantidad', 'qty', 'quantity'],
         unidad: ['unidad', 'unit', 'uom'],
-        precio: ['precio', 'precio unitario', 'precio_unitario', 'price'],
+        precio: ['costo', 'c unit', 'c. unit', 'costo unitario', 'precio', 'precio unitario', 'precio_unitario', 'price'],
+        utilidad: ['% util', '% util.', 'utilidad', 'util', 'margen', '% utilidad'],
         descuento: ['desc%', 'desc', 'descuento', 'descuento_porcentaje'],
         iva: ['iva', 'tasa_iva', 'tasa iva'],
     };
@@ -788,6 +821,12 @@ function parseImportRows(rows) {
         const cantidad = Math.max(0.01, parseFloat(getExcelCell(row, aliases.cantidad)) || 1);
         const unidad = String(getExcelCell(row, aliases.unidad) || 'PZA').trim().slice(0, 10) || 'PZA';
         const precio = Math.max(0, parseFloat(getExcelCell(row, aliases.precio)) || 0);
+        const utilRaw = getExcelCell(row, aliases.utilidad);
+        let utilidad = '';
+        if (utilRaw !== '' && utilRaw != null) {
+            const u = parseFloat(utilRaw);
+            if (!Number.isNaN(u) && u > 0 && u < 100) utilidad = u;
+        }
         const descuento = Math.min(100, Math.max(0, parseFloat(getExcelCell(row, aliases.descuento)) || 0));
         const tasa_iva = parseTasaIva(getExcelCell(row, aliases.iva));
 
@@ -799,6 +838,7 @@ function parseImportRows(rows) {
             cantidad,
             unidad,
             precio,
+            utilidad,
             descuento,
             tasa_iva,
             manual: true,
@@ -846,6 +886,7 @@ function importarActualizarFilas() {
                 cantidad: item.cantidad,
                 unidad: item.unidad,
                 precio: item.precio,
+                utilidad: item.utilidad === '' || item.utilidad == null ? '' : item.utilidad,
                 descuento: item.descuento,
                 tasa_iva: item.tasa_iva,
             };
@@ -903,6 +944,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cantidad: d.cantidad,
                 unidad: d.unidad || 'PZA',
                 precio: d.precio,
+                utilidad: d.utilidad === '' || d.utilidad == null ? '' : d.utilidad,
                 descuento: d.descuento,
                 tasa_iva: d.tasa_iva,
                 manual: d.manual,
@@ -1114,7 +1156,7 @@ function cargarProductoListaByIdx(i) {
     productos.push({
         id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
-        descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+        utilidad: '', descuento: 0, tasa_iva: p.tasa_iva, manual: false,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     document.getElementById('buscarProductoLista').value = '';
@@ -1134,7 +1176,7 @@ if (btnCargar) btnCargar.addEventListener('click', async function() {
                 productos.push({
                     id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
                     cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
-                    descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+                    utilidad: '', descuento: 0, tasa_iva: p.tasa_iva, manual: false,
                     imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
                 });
             }
@@ -1184,7 +1226,7 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: null, codigo: item.codigo || '-', origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
-            descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id, catalogo_truper_id: null,
+            utilidad: '', descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id, catalogo_truper_id: null,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     } else if (item.tipo === 'truper') {
@@ -1192,7 +1234,7 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: null, codigo: item.codigo || '-', origen: item.clave || 'Truper', nombre: item.nombre,
             cantidad: 1, unidad: (item.unidad || 'PZA').slice(0, 10), precio: parseFloat(item.precio_venta),
-            descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: null, catalogo_truper_id: item.id,
+            utilidad: '', descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: null, catalogo_truper_id: item.id,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     } else {
@@ -1200,7 +1242,7 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: item.id, codigo: item.codigo, origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
-            descuento: 0, tasa_iva: item.tasa_iva, manual: false, catalogo_truper_id: null,
+            utilidad: '', descuento: 0, tasa_iva: item.tasa_iva, manual: false, catalogo_truper_id: null,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     }
@@ -1214,7 +1256,7 @@ function agregarProducto(p) {
     productos.push({
         id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio_venta),
-        descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+        utilidad: '', descuento: 0, tasa_iva: p.tasa_iva, manual: false,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     document.getElementById('buscarProducto').value = '';
@@ -1224,7 +1266,7 @@ function agregarProducto(p) {
 
 function agregarManual() {
     productos.push({
-        id: null, codigo: '-', origen: '', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, descuento: 0, tasa_iva: 0.16,
+        id: null, codigo: '-', origen: '', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, utilidad: '', descuento: 0, tasa_iva: 0.16,
         manual: true, sugerencia_id: null, catalogo_truper_id: null,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
@@ -1355,7 +1397,7 @@ function syncImagenesAlFormulario() {
 function renderProductos() {
     const tbody = document.getElementById('productosBody');
     if (!productos.length) {
-        tbody.innerHTML = `<tr id="emptyRow"><td colspan="10">
+        tbody.innerHTML = `<tr id="emptyRow"><td colspan="11">
             <div class="empty-state" style="padding:28px 20px;">
                 <div class="empty-state-icon">📦</div>
                 <div class="empty-state-title">Sin productos</div>
@@ -1374,11 +1416,14 @@ function renderProductos() {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
-        const sub = p.cantidad * p.precio;
+        if (p.utilidad === undefined || p.utilidad === null) p.utilidad = '';
+        const precioVenta = precioUnitarioVenta(p.precio, p.utilidad);
+        const sub = p.cantidad * precioVenta;
         const desc = sub * (p.descuento / 100);
         const base = sub - desc;
         const iva = p.tasa_iva != null ? base * p.tasa_iva : 0;
         const total = base + iva;
+        const utilVal = p.utilidad === '' || p.utilidad == null ? '' : p.utilidad;
         return `<tr>
             <td class="td-center">
                 <input type="text" name="productos[${i}][origen]" value="${origenEsc}" maxlength="100"
@@ -1409,8 +1454,14 @@ function renderProductos() {
                        onchange="upd(${i},'unidad',this.value)" class="form-control form-control-numeric" style="text-align:center; width:100%;" placeholder="PZA" maxlength="10">
             </td>
             <td class="td-center">
-                <input type="number" name="productos[${i}][precio_unitario]" value="${p.precio.toFixed(2)}" min="0" step="0.01"
-                       onchange="upd(${i},'precio',+this.value)" class="form-control form-control-numeric" style="text-align:right; width:100%;">
+                <input type="number" name="productos[${i}][precio_unitario]" value="${(parseFloat(p.precio)||0).toFixed(2)}" min="0" step="0.01"
+                       onchange="upd(${i},'precio',+this.value)" class="form-control form-control-numeric" style="text-align:right; width:100%;" title="Costo unitario">
+            </td>
+            <td class="td-center">
+                <input type="number" name="productos[${i}][utilidad]" value="${utilVal}" min="0" max="99.99" step="0.01"
+                       oninput="updUtilidadLive(${i}, this.value)"
+                       onchange="upd(${i},'utilidad',this.value===''?'':+this.value)" placeholder="—"
+                       class="form-control form-control-numeric" style="text-align:center; width:100%;" title="Margen % (ej. 30.28, no 0.30)">
             </td>
             <td class="td-center">
                 <input type="number" name="productos[${i}][descuento_porcentaje]" value="${p.descuento}" min="0" max="100"
@@ -1426,8 +1477,8 @@ function renderProductos() {
                     : `<span class="fw-600" style="font-size:13px;">${p.tasa_iva == null ? 'Exento' : (p.tasa_iva*100)+'%'}</span>
                        <input type="hidden" name="productos[${i}][tasa_iva]" value="${p.tasa_iva!=null?p.tasa_iva:''}">`}
             </td>
-            <td class="td-right text-mono" style="font-size:13px;">$${fmtMonto(sub)}</td>
-            <td class="td-right text-mono fw-bold" style="color: var(--color-secondary); font-size:13.5px;">$${fmtMonto(total)}</td>
+            <td class="td-right text-mono" data-line-sub="${i}" style="font-size:13px;" title="Precio venta: $${fmtMonto(precioVenta)}">$${fmtMonto(sub)}</td>
+            <td class="td-right text-mono fw-bold" data-line-total="${i}" style="color: var(--color-secondary); font-size:13.5px;">$${fmtMonto(total)}</td>
             <td class="td-right">
                 <div class="partida-acciones">
                     <div class="partida-orden">
@@ -1473,6 +1524,32 @@ function upd(i, field, val) {
     } else {
         renderProductos();
     }
+}
+
+/** Actualiza % Util. en vivo sin re-render (mantiene el foco al teclear). */
+function updUtilidadLive(i, raw) {
+    if (!productos[i]) return;
+    productos[i].utilidad = (raw === '' || raw == null) ? '' : (Number.isNaN(parseFloat(raw)) ? '' : parseFloat(raw));
+    actualizarLineaImportes(i);
+    calcTotales();
+}
+
+function actualizarLineaImportes(i) {
+    const p = productos[i];
+    if (!p) return;
+    const precioVenta = precioUnitarioVenta(p.precio, p.utilidad);
+    const sub = (parseFloat(p.cantidad) || 0) * precioVenta;
+    const desc = sub * ((parseFloat(p.descuento) || 0) / 100);
+    const base = sub - desc;
+    const iva = p.tasa_iva != null ? base * p.tasa_iva : 0;
+    const total = base + iva;
+    const subEl = document.querySelector(`[data-line-sub="${i}"]`);
+    const totEl = document.querySelector(`[data-line-total="${i}"]`);
+    if (subEl) {
+        subEl.textContent = '$' + fmtMonto(sub);
+        subEl.title = 'Precio venta: $' + fmtMonto(precioVenta);
+    }
+    if (totEl) totEl.textContent = '$' + fmtMonto(total);
 }
 
 function onManualDescInput(rowIndex, value) {
@@ -1591,6 +1668,7 @@ function aplicarSugerencia(rowIndex, el) {
     productos[rowIndex].nombre = desc;
     productos[rowIndex].unidad = unidad;
     productos[rowIndex].precio = precio;
+    productos[rowIndex].utilidad = '';
     productos[rowIndex].sugerencia_id = id;
     closeSugerenciaFlotante();
     renderProductos();
@@ -1609,15 +1687,18 @@ function quitarProducto(i) {
     }
 
 function calcTotales() {
-    let sub = 0, desc = 0, iva = 0;
+    let sub = 0, desc = 0, iva = 0, utilidad = 0;
     productos.forEach(p => {
-        const s = p.cantidad * p.precio;
+        const precioVenta = precioUnitarioVenta(p.precio, p.utilidad);
+        const s = p.cantidad * precioVenta;
         const d = s * (p.descuento / 100);
         sub += s; desc += d;
         if (p.tasa_iva != null) iva += (s - d) * p.tasa_iva;
+        utilidad += utilidadMontoLinea(p.cantidad, p.precio, p.utilidad, p.descuento);
     });
     const isr = aplicaRetencionIsrPm(clienteTipoPersona) ? calcularRetencionIsrPm(sub, desc) : 0;
     document.getElementById('tSubtotal').textContent = '$' + fmtMonto(sub);
+    document.getElementById('tUtilidad').textContent = '$' + fmtMonto(utilidad);
     document.getElementById('tDescuento').textContent = '−$' + fmtMonto(desc);
     document.getElementById('tIva').textContent = '$' + fmtMonto(iva);
     document.getElementById('tIsrRetenido').textContent = '−$' + fmtMonto(isr);
@@ -1705,6 +1786,7 @@ function restaurarCotizacionAutosave(data) {
         cantidad: p.cantidad ?? 1,
         unidad: p.unidad || 'PZA',
         precio: p.precio ?? 0,
+        utilidad: p.utilidad === '' || p.utilidad == null ? '' : p.utilidad,
         descuento: p.descuento ?? 0,
         tasa_iva: p.tasa_iva,
         manual: !!p.manual,

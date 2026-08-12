@@ -26,6 +26,7 @@ class CotizacionDetalle extends Model
         'cantidad',
         'unidad',
         'precio_unitario',
+        'utilidad',
         'descuento_porcentaje',
         'tasa_iva',
         'subtotal',
@@ -42,6 +43,7 @@ class CotizacionDetalle extends Model
         'es_producto_manual' => 'boolean',
         'cantidad' => 'decimal:2',
         'precio_unitario' => 'decimal:2',
+        'utilidad' => 'decimal:2',
         'descuento_porcentaje' => 'decimal:2',
         'tasa_iva' => 'decimal:4',
         'subtotal' => 'decimal:2',
@@ -130,17 +132,101 @@ class CotizacionDetalle extends Model
     }
 
     /**
-     * Calcular importes automáticamente
+     * Precio de venta a partir de costo (precio_unitario) y margen % (30 = 30 %, no 0.30).
+     * precio_venta = costo / (1 - margen). Si utilidad vacía/≤0, el costo es el precio neto.
+     */
+    public static function precioUnitarioVenta(float $costo, float|string|null $utilidad): float
+    {
+        if ($utilidad === null || $utilidad === '') {
+            return round($costo, 2);
+        }
+
+        $pct = (float) $utilidad;
+        if ($pct <= 0) {
+            return round($costo, 2);
+        }
+
+        $margen = $pct / 100;
+        if ($margen >= 1) {
+            return round($costo, 2);
+        }
+
+        return round($costo / (1 - $margen), 2);
+    }
+
+    /**
+     * Precio unitario de venta de esta partida (para show/PDF/factura).
+     */
+    public function precioUnitarioVentaCalculado(): float
+    {
+        return self::precioUnitarioVenta((float) $this->precio_unitario, $this->utilidad);
+    }
+
+    /**
+     * Utilidad en pesos de la línea (solo si hay % utilidad): neto venta − costo neto.
+     * Ambos netos ya consideran descuento %. Uso interno; no va al PDF del cliente.
+     */
+    public function utilidadMonto(): float
+    {
+        return self::utilidadMontoLinea(
+            (float) $this->cantidad,
+            (float) $this->precio_unitario,
+            $this->utilidad,
+            (float) ($this->descuento_porcentaje ?? 0)
+        );
+    }
+
+    /**
+     * Utilidad en pesos a partir de costo y margen %.
+     */
+    public static function utilidadMontoLinea(
+        float $cantidad,
+        float $costo,
+        float|string|null $utilidadPct,
+        float $descuentoPct = 0.0
+    ): float {
+        if ($utilidadPct === null || $utilidadPct === '' || (float) $utilidadPct <= 0) {
+            return 0.0;
+        }
+
+        $precioVenta = self::precioUnitarioVenta($costo, $utilidadPct);
+        $factorDesc = 1 - (max(0.0, min(100.0, $descuentoPct)) / 100);
+        $netoVenta = $cantidad * $precioVenta * $factorDesc;
+        $costoNeto = $cantidad * $costo * $factorDesc;
+
+        return round($netoVenta - $costoNeto, 2);
+    }
+
+    /**
+     * Normaliza utilidad del request: vacío → null.
+     */
+    public static function normalizarUtilidad(mixed $utilidad): ?float
+    {
+        if ($utilidad === null || $utilidad === '') {
+            return null;
+        }
+
+        return (float) $utilidad;
+    }
+
+    /**
+     * Calcular importes automáticamente (sobre precio de venta, no sobre costo).
      */
     public static function calcularImportes(array $datos): array
     {
         $cantidad = floatval($datos['cantidad']);
-        $precioUnitario = floatval($datos['precio_unitario']);
+        $costo = floatval($datos['precio_unitario']);
+        $utilidad = array_key_exists('utilidad', $datos)
+            ? self::normalizarUtilidad($datos['utilidad'])
+            : null;
+        $precioVenta = self::precioUnitarioVenta($costo, $utilidad);
         $descuentoPorcentaje = floatval($datos['descuento_porcentaje'] ?? 0);
-        $tasaIva = isset($datos['tasa_iva']) ? floatval($datos['tasa_iva']) : null;
+        $tasaIva = array_key_exists('tasa_iva', $datos) && $datos['tasa_iva'] !== null && $datos['tasa_iva'] !== ''
+            ? floatval($datos['tasa_iva'])
+            : null;
 
-        // Subtotal
-        $subtotal = $cantidad * $precioUnitario;
+        // Subtotal sobre precio de venta
+        $subtotal = $cantidad * $precioVenta;
 
         // Descuento
         $descuentoMonto = $subtotal * ($descuentoPorcentaje / 100);

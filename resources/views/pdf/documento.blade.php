@@ -413,7 +413,7 @@ body {
 @endif
 <td class="right">
     @if($esCotizacion)
-        ${{ number_format($d->precio_unitario ?? 0, 2) }}
+        ${{ number_format($d->precioUnitarioVentaCalculado(), 2) }}
     @elseif($esRemision)
         ${{ number_format($d->precio_unitario ?? $d->producto?->precio_venta ?? 0, 2) }}
     @else

@@ -1079,15 +1079,15 @@ class CompraController extends Controller
             'ea_detalle_id' => $enEa ? (int) $eaDet->id : null,
             'advertencias' => $advertencias,
             'requiere_confirmacion' => ! empty($advertencias),
-            'sugerir_actualizar_nombre' => ! $evalProducto['casi_identicas'] && trim($descripcionCfdi) !== '',
             'nombre_actual' => (string) $producto->nombre,
+            'descripcion_producto' => $enEa ? trim((string) $eaDet->descripcion) : (string) $producto->nombre,
             'descripcion_cfdi' => $descripcionCfdi,
             'no_identificacion' => trim((string) ($conceptos[$idx]['no_identificacion'] ?? '')),
         ]);
     }
 
     /**
-     * Vincula producto desde lupa en CFDI + EA: actualiza nombre (opcional) y código proveedor.
+     * Vincula producto desde lupa en CFDI + EA: sincroniza código proveedor; no altera el nombre comercial.
      */
     public function vincularProductoLineaCfdiEa(Request $request)
     {
@@ -1104,7 +1104,6 @@ class CompraController extends Controller
         $validated = $request->validate([
             'producto_id' => 'required|exists:productos,id',
             'concepto_index' => 'required|integer|min:0',
-            'actualizar_nombre' => 'nullable|boolean',
         ]);
 
         $conceptos = $datos['conceptos'] ?? [];
@@ -1125,14 +1124,6 @@ class CompraController extends Controller
 
         DB::beginTransaction();
         try {
-            if ($request->boolean('actualizar_nombre')) {
-                $nuevoNombre = mb_substr(trim((string) ($concepto['descripcion'] ?? '')), 0, 255);
-                if ($nuevoNombre !== '') {
-                    $producto->update(['nombre' => $nuevoNombre]);
-                    $producto->refresh();
-                }
-            }
-
             if ($noIdent !== '' && $ea->proveedor_id) {
                 $this->sincronizarCodigoProveedorProducto($producto, $ea->proveedor, $noIdent);
                 $codigoProveedorActualizado = true;
@@ -1154,14 +1145,16 @@ class CompraController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
-        $eaDetalleId = $ea->detalles->firstWhere('producto_id', $producto->id)?->id;
+        $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
+        $descripcionProducto = trim((string) ($eaDet?->descripcion ?: $producto->nombre));
 
         return response()->json([
             'ok' => true,
             'producto_id' => $producto->id,
             'codigo' => $producto->codigo,
             'nombre' => $producto->nombre,
-            'ea_detalle_id' => $eaDetalleId ? (int) $eaDetalleId : null,
+            'descripcion_producto' => $descripcionProducto,
+            'ea_detalle_id' => $eaDet ? (int) $eaDet->id : null,
             'codigo_proveedor_actualizado' => $codigoProveedorActualizado,
             'no_identificacion' => $noIdent,
         ]);

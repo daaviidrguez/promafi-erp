@@ -191,7 +191,7 @@ $cfdiEaTotales = $desdeEa ? [
                 <p class="text-muted small" style="padding:0 16px 12px;">
                     @if($desdeEa)
                     Use la lupa en <strong>Código</strong> para relacionar cada línea del CFDI con un producto del catálogo.
-                    No se pueden crear productos nuevos en este flujo. Si el nombre del CFDI difiere, podrá actualizar el catálogo al vincular.
+                    No se pueden crear productos nuevos en este flujo. Se muestran el código y el nombre del proveedor junto a los de su producto; el nombre comercial no se modifica.
                     @else
                     Use la lupa en <strong>Código</strong> para vincular cada línea a un producto; así "Recibir mercancía" registrará la entrada en inventario.
                     @endif
@@ -200,6 +200,7 @@ $cfdiEaTotales = $desdeEa ? [
                     <table>
                         <thead>
                             <tr>
+                                <th>Código proveedor</th>
                                 <th>Código</th>
                                 <th>Descripción</th>
                                 <th class="td-center">Cant.</th>
@@ -223,27 +224,34 @@ $cfdiEaTotales = $desdeEa ? [
                             if ($desdeEa && $productoVinculado) {
                                 $eaDetalleId = $mapEaProductoIds[$productoVinculado->id] ?? null;
                             }
+                            $descCfdi = trim((string) ($c['descripcion'] ?? ''));
+                            $nombreInterno = '';
+                            if ($productoVinculado) {
+                                $eaInfo = $mapEaDetallePorProducto[$productoVinculado->id] ?? [];
+                                $nombreInterno = trim((string) ($eaInfo['descripcion_ea'] ?? $productoVinculado->nombre ?? ''));
+                            }
+                            $mostrarNombreInterno = $nombreInterno !== ''
+                                && mb_strtoupper($nombreInterno) !== mb_strtoupper($descCfdi);
                             @endphp
                             <tr data-row="{{ $i }}">
+                                <td>
+                                    <span class="text-mono" style="font-size:13px;">{{ $noIdent !== '' ? $noIdent : '—' }}</span>
+                                    <input type="hidden" name="productos[{{ $i }}][concepto_index]" value="{{ $i }}">
+                                    <input type="hidden" name="productos[{{ $i }}][no_identificacion]" id="no_identificacion_{{ $i }}" value="{{ $noIdent }}">
+                                </td>
                                 <td>
                                     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;">
                                     <div style="display:flex;align-items:center;gap:6px;">
                                         <button type="button" class="btn btn-outline btn-sm btn-icon" title="Seleccionar producto" onclick="abrirModalProducto({{ $i }})">🔍</button>
-                                        <input type="hidden" name="productos[{{ $i }}][concepto_index]" value="{{ $i }}">
-                                        <input type="hidden" name="productos[{{ $i }}][no_identificacion]" id="no_identificacion_{{ $i }}" value="{{ $noIdent }}">
                                     <input type="hidden" name="productos[{{ $i }}][producto_id]" id="producto_id_{{ $i }}"
                                            value="{{ $productoVinculado?->id ?? '' }}">
                                     @if($desdeEa)
                                     <input type="hidden" name="productos[{{ $i }}][entrada_detalle_id]" id="entrada_detalle_id_{{ $i }}" value="{{ $eaDetalleId ?? '' }}">
                                     @endif
-                                    <span id="codigo_display_{{ $i }}" class="text-mono" style="font-size:13px;">
-                                        @if($productoVinculado)
-                                            {{ $noIdent !== '' ? $noIdent : $productoVinculado->codigo }}
-                                        @else
-                                            no existe producto
-                                        @endif
-                                    </span>
+                                    <span id="codigo_display_{{ $i }}" class="text-mono" style="font-size:13px;{{ $productoVinculado ? '' : 'display:none;' }}">{{ $productoVinculado?->codigo ?? '' }}</span>
+                                    <span id="codigo_sin_relacionar_{{ $i }}" class="text-muted small" style="{{ $productoVinculado ? 'display:none;' : '' }}">Sin relacionar</span>
                                     </div>
+                                    <div id="codigo_acciones_{{ $i }}" style="{{ $productoVinculado ? 'display:none;' : '' }}">
                                     @if(!$desdeEa && !$productoVinculado && $proveedor)
                                         <button type="button" class="btn btn-sm btn-outline" style="font-weight:700;" title="Crear producto desde esta partida del CFDI" onclick="solicitarCrearProductoLineaCfdi({{ $i }})">➕ Agregar</button>
                                     @elseif(!$desdeEa && !$productoVinculado && !$proveedor)
@@ -252,8 +260,12 @@ $cfdiEaTotales = $desdeEa ? [
                                         <span class="text-muted small">Use la lupa para relacionar</span>
                                     @endif
                                     </div>
+                                    </div>
                                 </td>
-                                <td>{{ $c['descripcion'] ?? '—' }}</td>
+                                <td>
+                                    <div class="fw-600" style="font-size:13px;line-height:1.35;">{{ $descCfdi !== '' ? $descCfdi : '—' }}</div>
+                                    <div id="nombre_producto_display_{{ $i }}" class="text-muted" style="font-size:12px;line-height:1.35;margin-top:2px;{{ $mostrarNombreInterno ? '' : 'display:none;' }}">{{ $mostrarNombreInterno ? $nombreInterno : '' }}</div>
+                                </td>
                                 <td class="td-center text-mono">{{ number_format($c['cantidad'] ?? 0, 2) }}</td>
                                 <td class="td-right text-mono">${{ number_format($c['valor_unitario'] ?? 0, 2) }}</td>
                                 <td class="td-right text-mono fw-600">${{ number_format($importeLinea + $ivaLinea, 2) }}</td>
@@ -464,10 +476,6 @@ $cfdiEaTotales = $desdeEa ? [
     let cfdiModalMensajeResolver = null;
     let cfdiModalMensajeModo = 'alerta';
 
-    function escHtmlCfdi(s) {
-        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
     function resetModalCfdiMensajeBody() {
         document.getElementById('modalCfdiMensajeTexto').textContent = '';
         document.getElementById('modalCfdiMensajeTexto').style.display = '';
@@ -574,20 +582,6 @@ $cfdiEaTotales = $desdeEa ? [
         );
     }
 
-    function mostrarConfirmacionActualizarNombreEa(nombreActual, descCfdi) {
-        var htmlExtra =
-            '<p style="margin:0 0 10px;line-height:1.6;color:var(--color-gray-700);">Nombre en catálogo:</p>' +
-            '<p style="margin:0 0 14px;padding:10px 12px;background:var(--color-gray-50);border-radius:var(--radius-md);font-size:14px;">«' + escHtmlCfdi(nombreActual) + '»</p>' +
-            '<p style="margin:0 0 10px;line-height:1.6;color:var(--color-gray-700);">¿Actualizar a la descripción del CFDI?</p>' +
-            '<p style="margin:0;padding:10px 12px;background:var(--color-gray-50);border-radius:var(--radius-md);font-size:14px;">«' + escHtmlCfdi(descCfdi) + '»</p>';
-        return mostrarConfirmacionCfdi('', {
-            titulo: 'Actualizar nombre del catálogo',
-            htmlExtra: htmlExtra,
-            btnConfirm: 'Sí, actualizar',
-            btnCancel: 'No, mantener actual'
-        });
-    }
-
     window.abrirModalProducto = function(rowIndex) {
         filaActual = rowIndex;
         document.getElementById('modalProducto').classList.add('show');
@@ -601,10 +595,49 @@ $cfdiEaTotales = $desdeEa ? [
         filaActual = null;
     };
 
-    function aplicarProductoEnFila(idx, id, codigo, noIdentFallback) {
+    function normalizarTextoCmpCfdi(s) {
+        return String(s || '').trim().toUpperCase();
+    }
+
+    function nombreInternoParaFila(id, nombreFallback) {
+        var map = window.CFDI_EA_DETALLE_POR_PRODUCTO || {};
+        var rec = map[id] || map[String(id)];
+        if (rec && rec.descripcion_ea) {
+            return rec.descripcion_ea;
+        }
+        return nombreFallback || '';
+    }
+
+    function actualizarDescripcionProductoFila(idx, nombreProducto) {
+        var el = document.getElementById('nombre_producto_display_' + idx);
+        if (!el) return;
+        var map = window.CFDI_DESCRIPCION_POR_INDICE || {};
+        var descCfdi = map[idx] !== undefined && map[idx] !== null ? map[idx] : map[String(idx)];
+        var nombre = String(nombreProducto || '').trim();
+        if (!nombre || normalizarTextoCmpCfdi(nombre) === normalizarTextoCmpCfdi(descCfdi)) {
+            el.textContent = '';
+            el.style.display = 'none';
+            return;
+        }
+        el.textContent = nombre;
+        el.style.display = '';
+    }
+
+    function aplicarProductoEnFila(idx, id, codigo, nombreProducto) {
         document.getElementById('producto_id_' + idx).value = id;
-        var noIdent = document.getElementById('no_identificacion_' + idx)?.value || noIdentFallback || '';
-        document.getElementById('codigo_display_' + idx).textContent = noIdent || codigo || id;
+        var codigoEl = document.getElementById('codigo_display_' + idx);
+        if (codigoEl) {
+            codigoEl.textContent = codigo || '';
+            codigoEl.style.display = codigo ? '' : 'none';
+        }
+        var sinRel = document.getElementById('codigo_sin_relacionar_' + idx);
+        if (sinRel) {
+            sinRel.style.display = id ? 'none' : '';
+        }
+        var acciones = document.getElementById('codigo_acciones_' + idx);
+        if (acciones) {
+            acciones.style.display = id ? 'none' : '';
+        }
         if (window.CFDI_DESDE_EA) {
             var eaMap = window.CFDI_EA_PRODUCTO_A_DETALLE || {};
             var eaDetInp = document.getElementById('entrada_detalle_id_' + idx);
@@ -612,6 +645,7 @@ $cfdiEaTotales = $desdeEa ? [
                 eaDetInp.value = eaMap[id] || eaMap[String(id)] || '';
             }
         }
+        actualizarDescripcionProductoFila(idx, nombreProducto || nombreInternoParaFila(id, ''));
     }
 
     async function seleccionarProductoDesdeLupa(id, codigo, nombre) {
@@ -620,7 +654,7 @@ $cfdiEaTotales = $desdeEa ? [
         var idx = filaActual;
 
         if (!window.CFDI_DESDE_EA) {
-            aplicarProductoEnFila(idx, id, codigo, '');
+            aplicarProductoEnFila(idx, id, codigo, nombre);
             cerrarModalProducto();
             return;
         }
@@ -649,14 +683,6 @@ $cfdiEaTotales = $desdeEa ? [
                 }
             }
 
-            var actualizarNombre = false;
-            if (evalData.sugerir_actualizar_nombre) {
-                actualizarNombre = await mostrarConfirmacionActualizarNombreEa(
-                    evalData.nombre_actual || nombre,
-                    evalData.descripcion_cfdi || ''
-                );
-            }
-
             var vincRes = await fetch(urlVincularProductoEa, {
                 method: 'POST',
                 headers: {
@@ -667,8 +693,7 @@ $cfdiEaTotales = $desdeEa ? [
                 },
                 body: JSON.stringify({
                     producto_id: id,
-                    concepto_index: idx,
-                    actualizar_nombre: actualizarNombre
+                    concepto_index: idx
                 })
             });
             var vincData = await vincRes.json();
@@ -677,8 +702,12 @@ $cfdiEaTotales = $desdeEa ? [
                 return;
             }
 
-            var noIdent = vincData.no_identificacion || document.getElementById('no_identificacion_' + idx)?.value || '';
-            aplicarProductoEnFila(idx, vincData.producto_id, vincData.codigo || codigo, noIdent);
+            aplicarProductoEnFila(
+                idx,
+                vincData.producto_id,
+                vincData.codigo || codigo,
+                vincData.descripcion_producto || vincData.nombre || nombre
+            );
 
             if (vincData.ea_detalle_id) {
                 var eaDetInp = document.getElementById('entrada_detalle_id_' + idx);
@@ -686,7 +715,7 @@ $cfdiEaTotales = $desdeEa ? [
             }
 
             if (vincData.codigo_proveedor_actualizado) {
-                console.info('Código de proveedor actualizado: ' + noIdent);
+                console.info('Código de proveedor actualizado: ' + (vincData.no_identificacion || ''));
             }
 
             cerrarModalProducto();

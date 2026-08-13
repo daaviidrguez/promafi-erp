@@ -190,8 +190,8 @@ $cfdiEaTotales = $desdeEa ? [
             <div class="card-body" style="padding:0;">
                 <p class="text-muted small" style="padding:0 16px 12px;">
                     @if($desdeEa)
-                    Use la lupa en <strong>Código</strong> para relacionar cada línea del CFDI con un producto del catálogo.
-                    No se pueden crear productos nuevos en este flujo. Se muestran el código y el nombre del proveedor junto a los de su producto; el nombre comercial no se modifica.
+                    Si el cruce es inequívoco, el producto de la entrada se selecciona solo. Use la lupa para confirmar o cambiar: al abrirla verá primero los productos de esta entrada.
+                    No se pueden crear productos nuevos en este flujo. El nombre comercial no se modifica.
                     @else
                     Use la lupa en <strong>Código</strong> para vincular cada línea a un producto; así "Recibir mercancía" registrará la entrada en inventario.
                     @endif
@@ -337,6 +337,7 @@ $cfdiEaTotales = $desdeEa ? [
         <div class="modal-body">
             <div class="form-group">
                 <input type="text" id="modalBuscarProducto" placeholder="Buscar por código o nombre..." class="form-control" autocomplete="off">
+                <p id="modalProductoHintEa" class="text-muted small mt-2 mb-0" style="display:none;">Productos de la entrada anticipada. Escriba para buscar en el catálogo.</p>
             </div>
             <div id="modalProductoLista" class="table-container" style="max-height:280px;overflow-y:auto;">
                 <p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>
@@ -468,6 +469,7 @@ $cfdiEaTotales = $desdeEa ? [
     window.CFDI_DESCRIPCIONES_CON_NOIDENT = @json($descripcionesConNoIdentCfdi ?? []);
     window.CFDI_EA_PRODUCTO_A_DETALLE = @json($mapEaProductoIds ?? []);
     window.CFDI_EA_DETALLE_POR_PRODUCTO = @json($mapEaDetallePorProducto ?? []);
+    window.CFDI_EA_PRODUCTOS_LUPA = @json($productosEaParaLupa ?? []);
     window.CFDI_DESDE_EA = @json($desdeEa);
     window.CFDI_EA_TOTALES = @json($cfdiEaTotales);
     let filaActual = null;
@@ -582,12 +584,80 @@ $cfdiEaTotales = $desdeEa ? [
         );
     }
 
+    function productosEaLupa() {
+        return Array.isArray(window.CFDI_EA_PRODUCTOS_LUPA) ? window.CFDI_EA_PRODUCTOS_LUPA : [];
+    }
+
+    function filtrarProductosEaLupa(q) {
+        var list = productosEaLupa();
+        var n = String(q || '').trim().toUpperCase();
+        if (!n) return list;
+        return list.filter(function(p) {
+            return String(p.codigo || '').toUpperCase().indexOf(n) !== -1
+                || String(p.nombre || '').toUpperCase().indexOf(n) !== -1;
+        });
+    }
+
+    function bindBotonesListaProductosLupa() {
+        document.querySelectorAll('#modalProductoLista button[data-id]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var id = this.getAttribute('data-id');
+                var codigo = this.getAttribute('data-codigo');
+                var nombre = this.getAttribute('data-nombre') || '';
+                if (filaActual !== null) {
+                    seleccionarProductoDesdeLupa(id, codigo, nombre);
+                }
+            });
+        });
+    }
+
+    function renderListaProductosLupa(list, emptyMsg) {
+        var div = document.getElementById('modalProductoLista');
+        if (!list || !list.length) {
+            div.innerHTML = '<p class="text-muted text-center py-3">' + (emptyMsg || 'Sin resultados.') + '</p>';
+            return;
+        }
+        div.innerHTML = '<table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead><tbody>' +
+            list.map(function(p) {
+                var codigo = (p.codigo || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                var nombre = (p.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                return '<tr><td class="text-mono">' + codigo + '</td><td>' + nombre + '</td><td><button type="button" class="btn btn-primary btn-sm" data-id="' + p.id + '" data-codigo="' + codigo + '" data-nombre="' + nombre + '">Seleccionar</button></td></tr>';
+            }).join('') + '</tbody></table>';
+        bindBotonesListaProductosLupa();
+    }
+
+    function mergeEaPrimeroEnCatalogo(catalogo, q) {
+        var ea = filtrarProductosEaLupa(q);
+        var seen = {};
+        var out = [];
+        ea.forEach(function(p) {
+            seen[String(p.id)] = true;
+            out.push(p);
+        });
+        (catalogo || []).forEach(function(p) {
+            if (!seen[String(p.id)]) {
+                seen[String(p.id)] = true;
+                out.push(p);
+            }
+        });
+        return out;
+    }
+
     window.abrirModalProducto = function(rowIndex) {
         filaActual = rowIndex;
         document.getElementById('modalProducto').classList.add('show');
         document.getElementById('modalBuscarProducto').value = '';
         document.getElementById('modalBuscarProducto').focus();
-        document.getElementById('modalProductoLista').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+        var hintEa = document.getElementById('modalProductoHintEa');
+        if (window.CFDI_DESDE_EA && productosEaLupa().length) {
+            if (hintEa) hintEa.style.display = '';
+            document.getElementById('modalBuscarProducto').placeholder = 'Filtrar la entrada o buscar en el catálogo...';
+            renderListaProductosLupa(productosEaLupa(), 'Esta entrada no tiene productos para relacionar.');
+        } else {
+            if (hintEa) hintEa.style.display = 'none';
+            document.getElementById('modalBuscarProducto').placeholder = 'Buscar por código o nombre...';
+            document.getElementById('modalProductoLista').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+        }
     };
 
     window.cerrarModalProducto = function() {
@@ -875,35 +945,24 @@ $cfdiEaTotales = $desdeEa ? [
     document.getElementById('modalBuscarProducto').addEventListener('input', function() {
         clearTimeout(timerModal);
         const q = this.value.trim();
+        var desdeEaConProductos = window.CFDI_DESDE_EA && productosEaLupa().length;
         if (q.length < 2) {
-            document.getElementById('modalProductoLista').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+            if (desdeEaConProductos) {
+                renderListaProductosLupa(
+                    filtrarProductosEaLupa(q),
+                    'Sin coincidencias en la entrada. Escriba 2 caracteres para buscar en el catálogo.'
+                );
+            } else {
+                document.getElementById('modalProductoLista').innerHTML = '<p class="text-muted text-center py-3">Escriba al menos 2 caracteres para buscar.</p>';
+            }
             return;
         }
         timerModal = setTimeout(function() {
             fetch(listarUrl + '?q=' + encodeURIComponent(q))
                 .then(function(r) { return r.json(); })
                 .then(function(list) {
-                    const div = document.getElementById('modalProductoLista');
-                    if (!list.length) {
-                        div.innerHTML = '<p class="text-muted text-center py-3">Sin resultados.</p>';
-                        return;
-                    }
-                    div.innerHTML = '<table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead><tbody>' +
-                        list.map(function(p) {
-                            const codigo = (p.codigo || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                            const nombre = (p.nombre || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-                            return '<tr><td class="text-mono">' + codigo + '</td><td>' + nombre + '</td><td><button type="button" class="btn btn-primary btn-sm" data-id="' + p.id + '" data-codigo="' + codigo + '" data-nombre="' + nombre + '">Seleccionar</button></td></tr>';
-                        }).join('') + '</tbody></table>';
-                    div.querySelectorAll('button[data-id]').forEach(function(btn) {
-                        btn.addEventListener('click', function() {
-                            const id = this.getAttribute('data-id');
-                            const codigo = this.getAttribute('data-codigo');
-                            const nombre = this.getAttribute('data-nombre') || '';
-                            if (filaActual !== null) {
-                                seleccionarProductoDesdeLupa(id, codigo, nombre);
-                            }
-                        });
-                    });
+                    var combinada = desdeEaConProductos ? mergeEaPrimeroEnCatalogo(list, q) : list;
+                    renderListaProductosLupa(combinada, 'Sin resultados.');
                 })
                 .catch(function() {
                     document.getElementById('modalProductoLista').innerHTML = '<p class="text-danger text-center py-3">Error al buscar.</p>';

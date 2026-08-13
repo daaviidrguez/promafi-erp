@@ -913,6 +913,27 @@ class CompraController extends Controller
             }
         }
 
+        $productosEaParaLupa = [];
+        if ($entradaAnticipada) {
+            $productosPorLinea = $this->autoseleccionarProductosEaInequivocos(
+                $datos['conceptos'] ?? [],
+                $productosPorLinea,
+                $entradaAnticipada,
+                $productoProveedorMap,
+                $request
+            );
+            $productosEaParaLupa = $entradaAnticipada->detalles
+                ->filter(fn ($d) => $d->producto)
+                ->unique('producto_id')
+                ->map(fn ($d) => [
+                    'id' => (int) $d->producto->id,
+                    'codigo' => (string) ($d->producto->codigo ?? ''),
+                    'nombre' => trim((string) ($d->descripcion ?: $d->producto->nombre)),
+                ])
+                ->values()
+                ->all();
+        }
+
         $descripcionPorIndiceLineaCfdi = [];
         $descripcionesConNoIdentCfdi = [];
         foreach (($datos['conceptos'] ?? []) as $i => $c) {
@@ -944,6 +965,7 @@ class CompraController extends Controller
             'entradaAnticipada',
             'mapEaProductoIds',
             'mapEaDetallePorProducto',
+            'productosEaParaLupa',
             'previewCorreccionUtilidad'
         ));
     }
@@ -1023,6 +1045,65 @@ class CompraController extends Controller
         }
 
         return response()->json(['similar' => false]);
+    }
+
+    /**
+     * Autoselecciona producto de la EA en líneas CFDI sin vínculo, solo si queda 1 concepto y 1 producto únicos.
+     *
+     * @param  array<int|string, mixed>  $conceptos
+     * @param  array<int, Producto>  $productosPorLinea
+     * @param  array<string, Producto>  $productoProveedorMap
+     * @return array<int, Producto>
+     */
+    private function autoseleccionarProductosEaInequivocos(
+        array $conceptos,
+        array $productosPorLinea,
+        EntradaAnticipada $ea,
+        array $productoProveedorMap,
+        Request $request
+    ): array {
+        $asignados = [];
+        foreach ($conceptos as $i => $c) {
+            $i = (int) $i;
+            $c = is_array($c) ? $c : [];
+            $noIdent = strtoupper(trim((string) ($c['no_identificacion'] ?? '')));
+            $porProv = ($noIdent !== '' && isset($productoProveedorMap[$noIdent]))
+                ? $productoProveedorMap[$noIdent]
+                : null;
+            $vinculado = $porProv ?? ($productosPorLinea[$i] ?? null);
+            if ($vinculado) {
+                $asignados[$i] = (int) $vinculado->id;
+            }
+        }
+
+        $indicesSinAsignar = [];
+        foreach ($conceptos as $i => $c) {
+            $i = (int) $i;
+            if (! isset($asignados[$i])) {
+                $indicesSinAsignar[] = $i;
+            }
+        }
+
+        $usados = array_values($asignados);
+        $disponibles = $ea->detalles
+            ->filter(fn ($d) => $d->producto_id && $d->producto)
+            ->unique('producto_id')
+            ->filter(fn ($d) => ! in_array((int) $d->producto_id, $usados, true))
+            ->values();
+
+        if (count($indicesSinAsignar) !== 1 || $disponibles->count() !== 1) {
+            return $productosPorLinea;
+        }
+
+        $det = $disponibles->first();
+        $idx = $indicesSinAsignar[0];
+        $productosPorLinea[$idx] = $det->producto;
+
+        $linea = (array) $request->session()->get('compras_cfdi_linea_producto', []);
+        $linea[$idx] = (int) $det->producto_id;
+        $request->session()->put('compras_cfdi_linea_producto', $linea);
+
+        return $productosPorLinea;
     }
 
     /**

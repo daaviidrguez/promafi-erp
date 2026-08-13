@@ -12,6 +12,7 @@ use App\Models\CuentaPorCobrar;
 use App\Models\Empresa;
 use App\Models\Factura;
 use App\Models\FacturaDetalle;
+use App\Models\FacturaSoporte;
 use App\Models\FacturaImpuesto;
 use App\Models\FormaPago;
 use App\Models\InventarioMovimiento;
@@ -450,7 +451,7 @@ class FacturaController extends Controller
      */
     public function show(Factura $factura)
     {
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario']);
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario']);
 
         $mensajeSyncSat = null;
         $datosFiscalesBorrador = [
@@ -1219,6 +1220,108 @@ class FacturaController extends Controller
         }
 
         return $this->pdfService->descargarPDF($factura->pdf_path, $factura->folio_completo.'.pdf');
+    }
+
+    /**
+     * Subir o reemplazar el acuse de recepción (factura firmada). Un archivo por factura.
+     */
+    public function subirSoporte(Request $request, Factura $factura)
+    {
+        abort_unless(auth()->user()?->can('facturas.soporte'), 403);
+
+        if (! $factura->puedeGestionarSoporte()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'El soporte de recepción está disponible cuando la factura ya no está en borrador.');
+        }
+
+        $request->validate([
+            'archivo' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ], [
+            'archivo.required' => 'Selecciona un archivo PDF o imagen.',
+            'archivo.mimes' => 'Solo se permiten PDF, JPG, PNG o WEBP.',
+            'archivo.max' => 'El archivo no debe superar 10 MB.',
+        ]);
+
+        $file = $request->file('archivo');
+        $nombreOriginal = $file->getClientOriginalName();
+        $mimeType = $file->getMimeType() ?: $file->getClientMimeType();
+        $dir = storage_path('app/documentos/factura_soportes/'.$factura->id);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $filename = $file->hashName();
+        $file->move($dir, $filename);
+        $relativePath = 'documentos/factura_soportes/'.$factura->id.'/'.$filename;
+        $size = filesize(storage_path('app/'.$relativePath)) ?: null;
+
+        $soporte = $factura->soporte;
+        if ($soporte) {
+            $soporte->eliminarDelDisco();
+            $soporte->update([
+                'nombre_original' => $nombreOriginal,
+                'path' => $relativePath,
+                'mime_type' => $mimeType,
+                'size' => $size,
+                'usuario_id' => auth()->id(),
+            ]);
+        } else {
+            FacturaSoporte::create([
+                'factura_id' => $factura->id,
+                'nombre_original' => $nombreOriginal,
+                'path' => $relativePath,
+                'mime_type' => $mimeType,
+                'size' => $size,
+                'usuario_id' => auth()->id(),
+            ]);
+        }
+
+        return redirect()->route('facturas.show', $factura)
+            ->with('success', $soporte ? 'Soporte de recepción reemplazado.' : 'Soporte de recepción cargado.');
+    }
+
+    /**
+     * Ver el acuse de recepción en el navegador.
+     */
+    public function verSoporte(Factura $factura)
+    {
+        $soporte = $factura->soporte;
+        if (! $soporte || ! $soporte->existeEnDisco()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'No hay soporte de recepción para esta factura.');
+        }
+
+        $nombre = str_replace(['"', "\r", "\n"], '', $soporte->nombre_original);
+
+        return response()->file($soporte->rutaAbsoluta(), [
+            'Content-Type' => $soporte->contentType(),
+            'Content-Disposition' => 'inline; filename="'.$nombre.'"',
+        ]);
+    }
+
+    /**
+     * Eliminar el acuse de recepción.
+     */
+    public function eliminarSoporte(Factura $factura)
+    {
+        abort_unless(auth()->user()?->can('facturas.soporte'), 403);
+
+        if (! $factura->puedeGestionarSoporte()) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'El soporte de recepción está disponible cuando la factura ya no está en borrador.');
+        }
+
+        $soporte = $factura->soporte;
+        if (! $soporte) {
+            return redirect()->route('facturas.show', $factura)
+                ->with('error', 'No hay soporte de recepción para eliminar.');
+        }
+
+        $soporte->eliminarDelDisco();
+        $soporte->delete();
+
+        return redirect()->route('facturas.show', $factura)
+            ->with('success', 'Soporte de recepción eliminado.');
     }
 
     /**

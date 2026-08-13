@@ -128,6 +128,20 @@ class Factura extends Model
     }
 
     /**
+     * Acuse interno: factura firmada por quien recibe.
+     * No forma parte del CFDI ni se incluye en el PDF fiscal.
+     */
+    public function soporte()
+    {
+        return $this->hasOne(FacturaSoporte::class);
+    }
+
+    public function puedeGestionarSoporte(): bool
+    {
+        return ! $this->esBorrador();
+    }
+
+    /**
      * Remisión que originó esta factura (si aplica). El inventario ya se descontó al marcar la remisión como enviada.
      */
     public function remisionVinculada()

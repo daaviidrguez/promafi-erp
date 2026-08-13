@@ -355,6 +355,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::post('/facturas/{factura}/actualizar-estatus-cancelacion', [FacturaController::class, 'actualizarEstatusCancelacion'])->name('facturas.actualizar-estatus-cancelacion');
     Route::get('/facturas/{factura}/ver-pdf', [FacturaController::class, 'verPDF'])->name('facturas.ver-pdf');
     Route::get('/facturas/{factura}/descargar-pdf', [FacturaController::class, 'descargarPDF'])->name('facturas.descargar-pdf');
+    Route::post('/facturas/{factura}/soporte', [FacturaController::class, 'subirSoporte'])->name('facturas.soporte.store');
+    Route::get('/facturas/{factura}/soporte', [FacturaController::class, 'verSoporte'])->name('facturas.soporte.ver');
+    Route::delete('/facturas/{factura}/soporte', [FacturaController::class, 'eliminarSoporte'])->name('facturas.soporte.destroy');
 
     // ───── LISTAS DE PRECIOS ─────
     Route::get('/listas-precios/crear', [ListaPrecioController::class, 'create'])->name('listas-precios.create');

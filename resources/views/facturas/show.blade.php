@@ -203,6 +203,82 @@ $breadcrumbs = [
         </div>
         @endif
 
+        {{-- Soporte de recepción (acuse interno, no forma parte del CFDI) --}}
+        <div class="card" id="soporte-recepcion">
+            <div class="card-header">
+                <div class="card-title">📎 Soporte de recepción</div>
+            </div>
+            <div class="card-body">
+                <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                    Factura firmada por quien recibe. Es un acuse interno; no se incluye en el CFDI ni en el PDF fiscal.
+                </p>
+
+                @if($factura->esBorrador())
+                    <p class="text-muted" style="margin: 0; font-size: 13px;">Disponible cuando la factura esté timbrada.</p>
+                @elseif($factura->soporte)
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+                        <div style="min-width: 0; flex: 1;">
+                            <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
+                                📄 {{ $factura->soporte->nombre_original }}
+                            </div>
+                            <div style="margin-top: 4px; font-size: 12px; color: var(--color-gray-500);">
+                                {{ $factura->soporte->updated_at?->format('d/m/Y H:i') }}
+                                · {{ $factura->soporte->tamanoLegible() }}
+                                @if($factura->soporte->usuario)
+                                    · {{ $factura->soporte->usuario->name }}
+                                @endif
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0;">
+                            <a href="{{ route('facturas.soporte.ver', $factura) }}"
+                               target="_blank" class="btn btn-outline btn-sm js-ver-soporte">Ver</a>
+                            @can('facturas.soporte')
+                            <form method="POST"
+                                  action="{{ route('facturas.soporte.destroy', $factura) }}"
+                                  onsubmit="return confirm('¿Eliminar el soporte de recepción?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-light btn-sm" style="color: var(--color-danger, #b91c1c);">Eliminar</button>
+                            </form>
+                            @endcan
+                        </div>
+                    </div>
+                    @can('facturas.soporte')
+                    <form method="POST"
+                          action="{{ route('facturas.soporte.store', $factura) }}"
+                          enctype="multipart/form-data"
+                          style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-gray-200);">
+                        @csrf
+                        <div class="info-label mb-8">Reemplazar archivo</div>
+                        <div style="display: grid; gap: 10px;">
+                            <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" class="form-control" required>
+                            @error('archivo')
+                                <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                            @enderror
+                            <button type="submit" class="btn btn-outline" style="justify-self: start;">Reemplazar</button>
+                        </div>
+                    </form>
+                    @endcan
+                @else
+                    <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay soporte de recepción.</p>
+                    @can('facturas.soporte')
+                    <form method="POST"
+                          action="{{ route('facturas.soporte.store', $factura) }}"
+                          enctype="multipart/form-data">
+                        @csrf
+                        <div style="display: grid; gap: 10px;">
+                            <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" class="form-control" required>
+                            @error('archivo')
+                                <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                            @enderror
+                            <button type="submit" class="btn btn-primary" style="justify-self: start;">Adjuntar</button>
+                        </div>
+                    </form>
+                    @endcan
+                @endif
+            </div>
+        </div>
+
     </div>
 
     {{-- Columna derecha --}}
@@ -313,6 +389,11 @@ $breadcrumbs = [
 
                 <a id="linkVerFacturaPdf" href="{{ route('facturas.ver-pdf', $factura->id) }}"
                    target="_blank" class="btn btn-outline w-full">👁️ Ver Factura</a>
+
+                @if($factura->soporte)
+                <a id="linkVerSoporteRecepcion" href="{{ route('facturas.soporte.ver', $factura) }}"
+                   target="_blank" class="btn btn-outline w-full js-ver-soporte">👁️ Ver soporte de recepción</a>
+                @endif
 
                 @if($factura->esBorrador())
                 @can('facturas.crear')
@@ -683,15 +764,14 @@ $breadcrumbs = [
 @endif
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const linkVerFacturaPdf = document.getElementById('linkVerFacturaPdf');
-    if (!linkVerFacturaPdf) return;
-
     const isMobile = window.matchMedia('(max-width: 1024px)').matches;
     const isStandalonePwa = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
     // En móvil/PWA abrir en el mismo flujo para que "atrás" regrese a la vista previa.
     if (isMobile || isStandalonePwa) {
-        linkVerFacturaPdf.removeAttribute('target');
+        document.querySelectorAll('#linkVerFacturaPdf, .js-ver-soporte').forEach(function (link) {
+            link.removeAttribute('target');
+        });
     }
 });
 </script>

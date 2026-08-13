@@ -22,15 +22,19 @@ $breadcrumbs = $entradaAnticipada
 <div class="card mb-3" style="max-width:600px;border-left:4px solid var(--color-info);">
     <div class="card-body" style="font-size:14px;">
         <strong>Entrada anticipada {{ $entradaAnticipada->folio }}</strong> — La mercancía ya está en inventario.
-        Al guardar se crea la compra vinculada; el total del CFDI debe coincidir con el de la entrada (incluye IVA).
+        Al guardar se crea la compra vinculada; el total del CFDI se compara con el saldo pendiente de facturar (incluye IVA).
         @if($entradaAnticipada->ordenCompra)
         <span class="text-muted"> · OC {{ $entradaAnticipada->ordenCompra->folio }}</span>
         @endif
+        @php $saldoUpload = $entradaAnticipada->importesSaldoPorFacturar(); @endphp
         <div class="totales-panel" style="max-width:320px;margin-top:12px;">
             <div class="totales-row"><span>Subtotal EA</span><span class="monto text-mono">${{ number_format($entradaAnticipada->subtotal, 2) }}</span></div>
             @if($entradaAnticipada->descuento > 0)<div class="totales-row descuento"><span>Descuento</span><span class="monto">−${{ number_format($entradaAnticipada->descuento, 2) }}</span></div>@endif
             <div class="totales-row"><span>IVA EA</span><span class="monto text-mono">${{ number_format($entradaAnticipada->iva, 2) }}</span></div>
             <div class="totales-row grand"><span>Total EA</span><span class="monto">${{ number_format($entradaAnticipada->total, 2) }}</span></div>
+            @if(abs((float) $entradaAnticipada->total - (float) $saldoUpload['total']) > 0.05)
+            <div class="totales-row"><span>Saldo por facturar</span><span class="monto text-mono">${{ number_format($saldoUpload['total'], 2) }}</span></div>
+            @endif
         </div>
         <p class="text-muted" style="margin:12px 0 0;font-size:13px;">
             Proveedor actual: <strong>{{ $entradaAnticipada->proveedor?->nombre }}</strong>

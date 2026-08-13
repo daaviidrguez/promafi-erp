@@ -121,7 +121,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
      *
      * @param  array<string, mixed>  $datos
      * @param  array<int, array<string, mixed>>  $productosForm
-     * @param  bool  $confirmarDesfaseTotales  Si true, permite |total CFDI − total EA| > 0.05 y aplica costos fiscales.
+     * @param  bool  $confirmarDesfaseTotales  Si true, permite |total CFDI − total de partidas cubiertas| > 0.05 y aplica costos fiscales.
      */
     public function crearCompraDesdeCfdi(
         EntradaAnticipada $ea,
@@ -176,7 +176,9 @@ class FacturaCompraDesdeEntradaAnticipadaService
 
         $totalCfdi = (float) ($datos['total'] ?? 0);
         $subtotalCfdi = (float) ($datos['subtotal'] ?? 0);
-        $totalEa = (float) $ea->total;
+        $refEa = $this->importesReferenciaEaParaLineas($ea, $lineas);
+        $totalEa = $refEa['total'];
+        $subtotalEa = $refEa['subtotal'];
         $hayDesfaseTotales = abs($totalCfdi - $totalEa) > 0.05;
 
         if ($hayDesfaseTotales && ! $confirmarDesfaseTotales) {
@@ -184,7 +186,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
                 $totalCfdi,
                 $totalEa,
                 $subtotalCfdi,
-                (float) $ea->subtotal,
+                $subtotalEa,
                 $this->eaTieneCostosProvisionales($ea)
             );
         }
@@ -209,7 +211,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
 
             $obsBase = trim((string) ($encabezado['observaciones'] ?? ''));
             if ($hayDesfaseTotales) {
-                $notaDesfase = 'Desfase de totales confirmado: EA $'.number_format($totalEa, 2)
+                $notaDesfase = 'Desfase de totales confirmado: partidas cubiertas $'.number_format($totalEa, 2)
                     .' → CFDI $'.number_format($totalCfdi, 2)
                     .'. Se aplicaron precios fiscales a costo / costo promedio de productos.';
                 $obsBase = $obsBase === '' ? $notaDesfase : ($obsBase.' · '.$notaDesfase);
@@ -320,7 +322,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
         $ea = EntradaAnticipada::with(['detalles.producto', 'ordenCompra'])
             ->find($fc->entrada_anticipada_id);
 
-        if (! $ea || (int) $ea->factura_compra_id !== (int) $fc->id) {
+        if (! $ea || (int) $fc->entrada_anticipada_id !== (int) $ea->id) {
             throw new \RuntimeException('La entrada anticipada vinculada no coincide con esta compra.');
         }
 
@@ -355,13 +357,37 @@ class FacturaCompraDesdeEntradaAnticipadaService
             ]);
         }
 
-        $ea->update([
-            'estado' => 'confirmada',
-            'factura_compra_id' => null,
-            'fecha_facturacion' => null,
-        ]);
+        $otras = FacturaCompra::query()
+            ->where('entrada_anticipada_id', $ea->id)
+            ->where('id', '!=', $fc->id)
+            ->where('estado', '!=', 'cancelada')
+            ->orderByDesc('id')
+            ->get();
 
-        $this->entradaAnticipadaService->revertirOrdenTrasCancelarFacturacionEa($ea->ordenCompra);
+        $ea->load('detalles');
+        $pendiente = $ea->detalles->contains(
+            fn ($d) => (float) $d->cantidad_facturada + 0.001 < (float) $d->cantidad_recibida
+        );
+
+        if ($otras->isEmpty()) {
+            $ea->update([
+                'estado' => 'confirmada',
+                'factura_compra_id' => null,
+                'fecha_facturacion' => null,
+            ]);
+        } else {
+            $ea->update([
+                'estado' => $pendiente ? 'parcialmente_facturada' : 'facturada',
+                'factura_compra_id' => $otras->first()->id,
+            ]);
+        }
+
+        if ($ea->ordenCompra) {
+            if ($otras->isEmpty() || $pendiente) {
+                $this->entradaAnticipadaService->revertirOrdenTrasCancelarFacturacionEa($ea->ordenCompra);
+            }
+            $this->entradaAnticipadaService->actualizarEstadoOrdenTrasFacturar($ea->ordenCompra->fresh());
+        }
     }
 
     /**
@@ -428,6 +454,43 @@ class FacturaCompraDesdeEntradaAnticipadaService
         }
 
         return $nota;
+    }
+
+    /**
+     * Totales estimados de la EA para las partidas que cubre este CFDI (saldo proporcional a la cantidad).
+     *
+     * @param  array<int, array<string, mixed>>  $lineas
+     * @return array{subtotal:float,total:float}
+     */
+    private function importesReferenciaEaParaLineas(EntradaAnticipada $ea, array $lineas): array
+    {
+        $subtotal = $total = 0.0;
+        foreach ($lineas as $linea) {
+            $eaDetalleId = (int) ($linea['entrada_detalle_id'] ?? 0);
+            $det = $eaDetalleId > 0
+                ? $ea->detalles->firstWhere('id', $eaDetalleId)
+                : ($ea->detallesConSaldoFacturable()->firstWhere('producto_id', $linea['producto_id'] ?? null)
+                    ?? $ea->detalles->firstWhere('producto_id', $linea['producto_id'] ?? null));
+            if (! $det) {
+                continue;
+            }
+            $recibida = (float) $det->cantidad_recibida;
+            if ($recibida <= 0.0001) {
+                continue;
+            }
+            $qty = (float) ($linea['cantidad'] ?? 0);
+            if ($qty <= 0) {
+                continue;
+            }
+            $factor = min(1, $qty / $recibida);
+            $subtotal += (float) $det->subtotal * $factor;
+            $total += (float) $det->total * $factor;
+        }
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'total' => round($total, 2),
+        ];
     }
 
     /**
@@ -538,7 +601,8 @@ class FacturaCompraDesdeEntradaAnticipadaService
             $eaDetalleId = (int) ($linea['entrada_detalle_id'] ?? 0);
             $det = $eaDetalleId > 0
                 ? $ea->detalles->firstWhere('id', $eaDetalleId)
-                : $ea->detalles->firstWhere('producto_id', $linea['producto_id']);
+                : ($ea->detallesConSaldoFacturable()->firstWhere('producto_id', $linea['producto_id'])
+                    ?? $ea->detalles->firstWhere('producto_id', $linea['producto_id']));
 
             if (! $det || ! $det->producto) {
                 continue;
@@ -586,7 +650,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
     public function previsualizarCorreccionCostoTimbradoParaEa(EntradaAnticipada $ea): array
     {
         $ea->loadMissing('detalles');
-        $productoIds = $ea->detalles
+        $productoIds = $ea->detallesConSaldoFacturable()
             ->pluck('producto_id')
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -707,7 +771,7 @@ class FacturaCompraDesdeEntradaAnticipadaService
 
     private function anotarDesfaseTotalesEnEa(EntradaAnticipada $ea, float $totalEa, float $totalCfdi): void
     {
-        $nota = 'CFDI vinculado con desfase de totales confirmado (EA $'
+        $nota = 'CFDI vinculado con desfase de totales confirmado (partidas cubiertas $'
             .number_format($totalEa, 2).' → CFDI $'.number_format($totalCfdi, 2)
             .'). Costos de producto actualizados con precios fiscales.';
         $obs = trim((string) ($ea->observaciones ?? ''));

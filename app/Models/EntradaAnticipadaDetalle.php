@@ -62,6 +62,26 @@ class EntradaAnticipadaDetalle extends Model
         return $this->belongsTo(Producto::class);
     }
 
+    public function cantidadPendienteFacturar(): float
+    {
+        return max(0, round((float) $this->cantidad_recibida - (float) $this->cantidad_facturada, 4));
+    }
+
+    public function tieneSaldoPorFacturar(): bool
+    {
+        return $this->cantidadPendienteFacturar() > 0.001;
+    }
+
+    public function factorSaldoPorFacturar(): float
+    {
+        $recibida = (float) $this->cantidad_recibida;
+        if ($recibida <= 0.0001) {
+            return 0.0;
+        }
+
+        return min(1, $this->cantidadPendienteFacturar() / $recibida);
+    }
+
     public static function calcularImportes(array $item): array
     {
         $tasa = $item['tasa_iva'] ?? null;

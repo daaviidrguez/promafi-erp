@@ -161,6 +161,7 @@ class EntradaAnticipadaController extends Controller
             'ordenCompra',
             'detalles.producto',
             'facturaCompra',
+            'facturasCompra',
             'usuario',
         ]);
 

@@ -24,7 +24,7 @@ $desdeEa = (bool) $entradaAnticipada;
     <div class="card-body" style="font-size:14px;line-height:1.5;">
         <strong>Entrada anticipada {{ $entradaAnticipada->folio }}</strong> — La mercancía ya está en inventario.
         Al guardar se crea la compra vinculada; no se volverá a recibir mercancía.
-        Puede ajustar precios e IVA según la factura del proveedor.
+        Puede ajustar precios e IVA según la factura del proveedor. Solo se precargan partidas con saldo pendiente.
         @if($entradaAnticipada->ordenCompra)
         <span class="text-muted"> · OC {{ $entradaAnticipada->ordenCompra->folio }}</span>
         @endif

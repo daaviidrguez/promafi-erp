@@ -17,7 +17,7 @@ class TotalesEaCfdiRequierenConfirmacionException extends RuntimeException
         public readonly bool $eaCostosProvisionales,
     ) {
         $msg = 'El total del CFDI ($'.number_format($totalCfdi, 2)
-            .') no coincide con el de la entrada anticipada ($'.number_format($totalEa, 2).'). '
+            .') no coincide con el de las partidas de la entrada que cubre este comprobante ($'.number_format($totalEa, 2).'). '
             .'Confirme para vincular aplicando los precios fiscales del CFDI a los costos de producto.';
 
         parent::__construct($msg);

@@ -336,7 +336,8 @@ class CompraController extends Controller
         $productosForm = $validated['productos'];
         foreach ($productosForm as $idx => $p) {
             if (empty($p['entrada_detalle_id'])) {
-                $det = $ea->detalles->firstWhere('producto_id', (int) $p['producto_id']);
+                $det = $ea->detallesConSaldoFacturable()->firstWhere('producto_id', (int) $p['producto_id'])
+                    ?? $ea->detalles->firstWhere('producto_id', (int) $p['producto_id']);
                 if ($det) {
                     $productosForm[$idx]['entrada_detalle_id'] = $det->id;
                 }
@@ -362,7 +363,8 @@ class CompraController extends Controller
                     continue;
                 }
                 $this->sincronizarCodigoProveedorProducto($producto, $proveedor, $noIdent);
-                $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
+                $eaDet = $ea->detallesConSaldoFacturable()->firstWhere('producto_id', $producto->id)
+                    ?? $ea->detalles->firstWhere('producto_id', $producto->id);
                 if ($eaDet) {
                     $eaDet->update(['codigo_proveedor' => $noIdent]);
                 }
@@ -697,7 +699,7 @@ class CompraController extends Controller
             if ($desdeEntradaAnticipada) {
                 $folioEa = $compra->entradaAnticipada?->folio ?? 'entrada anticipada';
 
-                return back()->with('success', "Compra cancelada. Se desvinculó la {$folioEa}; el inventario de la entrada se mantiene. Se canceló la cuenta por pagar si existía.");
+                return back()->with('success', "Compra cancelada. Se actualizó el saldo de la {$folioEa}; el inventario de la entrada se mantiene. Se canceló la cuenta por pagar si existía.");
             }
 
             $mensaje = $eraRecibida
@@ -858,12 +860,10 @@ class CompraController extends Controller
             app(EntradaAnticipadaService::class)->normalizarImportesDetalle($ea);
             $ea->refresh()->load(['detalles.producto', 'proveedor', 'ordenCompra']);
             $entradaAnticipada = $ea;
-            $mapEaProductoIds = $ea->detalles
-                ->filter(fn ($d) => $d->producto_id)
+            $mapEaProductoIds = $ea->detallesConSaldoFacturable()
                 ->mapWithKeys(fn ($d) => [(int) $d->producto_id => (int) $d->id])
                 ->all();
-            $mapEaDetallePorProducto = $ea->detalles
-                ->filter(fn ($d) => $d->producto_id)
+            $mapEaDetallePorProducto = $ea->detallesConSaldoFacturable()
                 ->mapWithKeys(fn ($d) => [
                     (int) $d->producto_id => [
                         'detalle_id' => (int) $d->id,
@@ -922,7 +922,7 @@ class CompraController extends Controller
                 $productoProveedorMap,
                 $request
             );
-            $productosEaParaLupa = $entradaAnticipada->detalles
+            $productosEaParaLupa = $entradaAnticipada->detallesConSaldoFacturable()
                 ->filter(fn ($d) => $d->producto)
                 ->unique('producto_id')
                 ->map(fn ($d) => [
@@ -945,9 +945,30 @@ class CompraController extends Controller
 
         $folioInterno = FacturaCompra::generarFolioInterno();
         $previewCorreccionUtilidad = ['lineas' => 0, 'folios' => []];
+        $saldoEaImportes = ['subtotal' => 0.0, 'iva' => 0.0, 'descuento' => 0.0, 'total' => 0.0];
+        $refEaImportes = $saldoEaImportes;
         if ($entradaAnticipada) {
             $previewCorreccionUtilidad = app(FacturaCompraDesdeEntradaAnticipadaService::class)
                 ->previsualizarCorreccionCostoTimbradoParaEa($entradaAnticipada);
+            $saldoEaImportes = $entradaAnticipada->importesSaldoPorFacturar();
+            $refEaImportes = $saldoEaImportes;
+            $idsVinculados = [];
+            $todasVinculadas = true;
+            foreach (($datos['conceptos'] ?? []) as $i => $c) {
+                $noIdent = strtoupper(trim((string) ($c['no_identificacion'] ?? '')));
+                $porProv = ($noIdent !== '' && isset($productoProveedorMap[$noIdent]))
+                    ? $productoProveedorMap[$noIdent]
+                    : null;
+                $p = $porProv ?? ($productosPorLinea[(int) $i] ?? null);
+                if (! $p) {
+                    $todasVinculadas = false;
+                    break;
+                }
+                $idsVinculados[] = (int) $p->id;
+            }
+            if ($todasVinculadas && $idsVinculados !== []) {
+                $refEaImportes = $entradaAnticipada->importesSaldoPorProductos($idsVinculados);
+            }
         }
 
         return view('compras.crear-desde-cfdi', compact(
@@ -966,6 +987,8 @@ class CompraController extends Controller
             'mapEaProductoIds',
             'mapEaDetallePorProducto',
             'productosEaParaLupa',
+            'saldoEaImportes',
+            'refEaImportes',
             'previewCorreccionUtilidad'
         ));
     }
@@ -1070,6 +1093,9 @@ class CompraController extends Controller
             $porProv = ($noIdent !== '' && isset($productoProveedorMap[$noIdent]))
                 ? $productoProveedorMap[$noIdent]
                 : null;
+            if ($porProv && ! $ea->detallesConSaldoFacturable()->firstWhere('producto_id', (int) $porProv->id)) {
+                $porProv = null;
+            }
             $vinculado = $porProv ?? ($productosPorLinea[$i] ?? null);
             if ($vinculado) {
                 $asignados[$i] = (int) $vinculado->id;
@@ -1085,8 +1111,8 @@ class CompraController extends Controller
         }
 
         $usados = array_values($asignados);
-        $disponibles = $ea->detalles
-            ->filter(fn ($d) => $d->producto_id && $d->producto)
+        $disponibles = $ea->detallesConSaldoFacturable()
+            ->filter(fn ($d) => $d->producto)
             ->unique('producto_id')
             ->filter(fn ($d) => ! in_array((int) $d->producto_id, $usados, true))
             ->values();
@@ -1136,8 +1162,10 @@ class CompraController extends Controller
 
         $eaId = (int) $request->session()->get('compras_desde_entrada_anticipada_id');
         $ea = EntradaAnticipada::with('detalles')->find($eaId);
-        $eaDet = $ea?->detalles->firstWhere('producto_id', $producto->id);
+        $eaDet = $ea?->detallesConSaldoFacturable()->firstWhere('producto_id', $producto->id)
+            ?? $ea?->detalles->firstWhere('producto_id', $producto->id);
         $enEa = $eaDet !== null;
+        $enSaldo = $enEa && $eaDet->tieneSaldoPorFacturar();
 
         $evalProducto = $this->evaluarDiferenciaDescripcionProducto($descripcionCfdi, (string) $producto->nombre);
         $evalEa = $enEa
@@ -1147,6 +1175,8 @@ class CompraController extends Controller
         $advertencias = [];
         if (! $enEa) {
             $advertencias[] = 'Este producto no está en la entrada anticipada. Verifique que sea el correcto.';
+        } elseif (! $enSaldo) {
+            $advertencias[] = 'Este producto ya está facturado en la entrada. Relacione el que aún tiene saldo pendiente.';
         }
         if ($evalProducto['diferencia_considerable']) {
             $advertencias[] = 'La descripción del CFDI difiere considerablemente del nombre en catálogo («'.mb_substr(trim($producto->nombre), 0, 80).'»).';
@@ -1209,7 +1239,8 @@ class CompraController extends Controller
                 $this->sincronizarCodigoProveedorProducto($producto, $ea->proveedor, $noIdent);
                 $codigoProveedorActualizado = true;
 
-                $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
+                $eaDet = $ea->detallesConSaldoFacturable()->firstWhere('producto_id', $producto->id)
+                    ?? $ea->detalles->firstWhere('producto_id', $producto->id);
                 if ($eaDet) {
                     $eaDet->update(['codigo_proveedor' => $noIdent]);
                 }
@@ -1226,7 +1257,8 @@ class CompraController extends Controller
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
-        $eaDet = $ea->detalles->firstWhere('producto_id', $producto->id);
+        $eaDet = $ea->detallesConSaldoFacturable()->firstWhere('producto_id', $producto->id)
+            ?? $ea->detalles->firstWhere('producto_id', $producto->id);
         $descripcionProducto = trim((string) ($eaDet?->descripcion ?: $producto->nombre));
 
         return response()->json([

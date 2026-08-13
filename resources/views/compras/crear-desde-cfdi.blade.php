@@ -20,14 +20,17 @@ $fechaEmision = isset($datos['fecha_emision']) ? \Carbon\Carbon::parse($datos['f
 $conceptosCount = count($conceptos);
 $desdeEa = (bool) $entradaAnticipada;
 $totalCfdiVista = (float) ($datos['total'] ?? 0);
-$totalEaVista = $desdeEa ? (float) $entradaAnticipada->total : 0;
+$saldoEaImportes = $saldoEaImportes ?? ['subtotal' => 0, 'iva' => 0, 'descuento' => 0, 'total' => 0];
+$refEaImportes = $refEaImportes ?? $saldoEaImportes;
+$totalEaVista = $desdeEa ? (float) ($refEaImportes['total'] ?? 0) : 0;
+$subtotalEaVista = $desdeEa ? (float) ($refEaImportes['subtotal'] ?? 0) : 0;
 $desfaseTotalesEa = $desdeEa && abs($totalCfdiVista - $totalEaVista) > 0.05;
 $eaCostosProvisionales = false;
 if ($desdeEa) {
     $eaCostosProvisionales = $totalEaVista <= 0.05;
-    if (! $eaCostosProvisionales && $entradaAnticipada->detalles->isNotEmpty()) {
-        $conCero = $entradaAnticipada->detalles->filter(fn ($d) => (float) $d->precio_unitario_estimado <= 0.0001)->count();
-        $eaCostosProvisionales = $conCero >= max(1, (int) ceil($entradaAnticipada->detalles->count() / 2));
+    if (! $eaCostosProvisionales && $entradaAnticipada->detallesConSaldoFacturable()->isNotEmpty()) {
+        $conCero = $entradaAnticipada->detallesConSaldoFacturable()->filter(fn ($d) => (float) $d->precio_unitario_estimado <= 0.0001)->count();
+        $eaCostosProvisionales = $conCero >= max(1, (int) ceil($entradaAnticipada->detallesConSaldoFacturable()->count() / 2));
     }
 }
 $previewCorreccionUtilidad = $previewCorreccionUtilidad ?? ['lineas' => 0, 'folios' => []];
@@ -36,7 +39,7 @@ $cfdiEaTotales = $desdeEa ? [
     'total_cfdi' => $totalCfdiVista,
     'total_ea' => $totalEaVista,
     'subtotal_cfdi' => (float) ($datos['subtotal'] ?? 0),
-    'subtotal_ea' => (float) $entradaAnticipada->subtotal,
+    'subtotal_ea' => $subtotalEaVista,
     'desfase' => $desfaseTotalesEa,
     'provisionales' => $eaCostosProvisionales,
     'utilidad_lineas' => (int) ($previewCorreccionUtilidad['lineas'] ?? 0),
@@ -66,7 +69,10 @@ $cfdiEaTotales = $desdeEa ? [
         <p class="text-muted" style="margin:10px 0 0;font-size:13px;">
             <strong>CFDI:</strong> subtotal ${{ number_format($datos['subtotal'] ?? 0, 2) }} · total ${{ number_format($totalCfdiVista, 2) }}
             &nbsp;|&nbsp;
-            <strong>EA:</strong> subtotal ${{ number_format($entradaAnticipada->subtotal, 2) }} · IVA ${{ number_format($entradaAnticipada->iva, 2) }} · total ${{ number_format($totalEaVista, 2) }}
+            <strong>Saldo EA a facturar:</strong> subtotal ${{ number_format($subtotalEaVista, 2) }} · total ${{ number_format($totalEaVista, 2) }}
+            @if(abs((float) $entradaAnticipada->total - (float) ($saldoEaImportes['total'] ?? 0)) > 0.05)
+            <span class="text-muted"> · EA original ${{ number_format($entradaAnticipada->total, 2) }}</span>
+            @endif
         </p>
         @if($desfaseTotalesEa)
         <p style="margin:10px 0 0;font-size:13px;color:var(--color-warning, #b45309);">
@@ -216,7 +222,10 @@ $cfdiEaTotales = $desdeEa ? [
                             $noIdent = trim((string) ($c['no_identificacion'] ?? ''));
                             $productoPorProveedorCodigo = null;
                             if ($proveedor && $noIdent !== '' && !empty($productoProveedorMap[strtoupper($noIdent)] ?? null)) {
-                                $productoPorProveedorCodigo = $productoProveedorMap[strtoupper($noIdent)] ?? null;
+                                $candidatoProv = $productoProveedorMap[strtoupper($noIdent)] ?? null;
+                                if ($candidatoProv && (! $desdeEa || ! empty($mapEaProductoIds[$candidatoProv->id] ?? null))) {
+                                    $productoPorProveedorCodigo = $candidatoProv;
+                                }
                             }
                             $productoLinea = $productosPorLinea[$i] ?? null;
                             $productoVinculado = $productoPorProveedorCodigo ?? $productoLinea;
@@ -1071,7 +1080,7 @@ $cfdiEaTotales = $desdeEa ? [
         var titulo = 'Confirmar vínculo CFDI';
         if (flags.desfase) {
             titulo = 'Confirmar desfase de totales';
-            lista.push('Total entrada anticipada: ' + moneyFmt(t.total_ea));
+            lista.push('Total partidas de la entrada cubiertas: ' + moneyFmt(t.total_ea));
             lista.push('Total CFDI: ' + moneyFmt(t.total_cfdi));
             lista.push('Diferencia: ' + moneyFmt(Math.abs((Number(t.total_cfdi) || 0) - (Number(t.total_ea) || 0))));
             if (t.provisionales) {

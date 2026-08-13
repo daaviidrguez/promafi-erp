@@ -80,6 +80,13 @@ class EntradaAnticipada extends Model
         return $this->belongsTo(FacturaCompra::class);
     }
 
+    public function facturasCompra(): HasMany
+    {
+        return $this->hasMany(FacturaCompra::class, 'entrada_anticipada_id')
+            ->where('estado', '!=', 'cancelada')
+            ->orderByDesc('id');
+    }
+
     public function movimientosInventario(): HasMany
     {
         return $this->hasMany(InventarioMovimiento::class);
@@ -109,19 +116,91 @@ class EntradaAnticipada extends Model
 
     public function puedeFacturarse(): bool
     {
-        return in_array($this->estado, ['confirmada', 'parcialmente_facturada'], true)
-            && ! $this->factura_compra_id;
+        if (! in_array($this->estado, ['confirmada', 'parcialmente_facturada'], true)) {
+            return false;
+        }
+
+        return $this->tieneSaldoPorFacturar();
     }
 
     public function puedeCancelarse(): bool
     {
         return in_array($this->estado, ['borrador', 'confirmada'], true)
-            && ! $this->factura_compra_id;
+            && ! $this->factura_compra_id
+            && ! $this->facturasCompra()->exists();
     }
 
     public function estaFacturada(): bool
     {
         return $this->estado === 'facturada';
+    }
+
+    public function tieneSaldoPorFacturar(): bool
+    {
+        $this->loadMissing('detalles');
+
+        return $this->detallesConSaldoFacturable()->isNotEmpty();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, EntradaAnticipadaDetalle>
+     */
+    public function detallesConSaldoFacturable()
+    {
+        $this->loadMissing('detalles');
+
+        return $this->detalles->filter(
+            fn ($d) => $d->producto_id && $d->tieneSaldoPorFacturar()
+        );
+    }
+
+    /**
+     * @return array{subtotal:float,iva:float,descuento:float,total:float}
+     */
+    public function importesSaldoPorFacturar(): array
+    {
+        return $this->importesSaldoPorDetalles($this->detallesConSaldoFacturable());
+    }
+
+    /**
+     * @param  array<int, int>  $productoIds
+     * @return array{subtotal:float,iva:float,descuento:float,total:float}
+     */
+    public function importesSaldoPorProductos(array $productoIds): array
+    {
+        $ids = array_map('intval', $productoIds);
+
+        return $this->importesSaldoPorDetalles(
+            $this->detallesConSaldoFacturable()->filter(
+                fn ($d) => in_array((int) $d->producto_id, $ids, true)
+            )
+        );
+    }
+
+    /**
+     * @param  iterable<EntradaAnticipadaDetalle>  $detalles
+     * @return array{subtotal:float,iva:float,descuento:float,total:float}
+     */
+    public function importesSaldoPorDetalles(iterable $detalles): array
+    {
+        $subtotal = $iva = $descuento = $total = 0.0;
+        foreach ($detalles as $d) {
+            $factor = $d->factorSaldoPorFacturar();
+            if ($factor <= 0) {
+                continue;
+            }
+            $subtotal += (float) $d->subtotal * $factor;
+            $iva += (float) $d->iva_monto * $factor;
+            $descuento += (float) $d->descuento_monto * $factor;
+            $total += (float) $d->total * $factor;
+        }
+
+        return [
+            'subtotal' => round($subtotal, 2),
+            'iva' => round($iva, 2),
+            'descuento' => round($descuento, 2),
+            'total' => round($total, 2),
+        ];
     }
 
     public function etiquetaEstado(): string

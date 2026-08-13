@@ -62,6 +62,7 @@
                 <td class="td-right text-mono">${{ number_format($ea->total, 2) }}</td>
                 <td class="td-center">
                     @if($ea->estado === 'confirmada')<span class="badge badge-info">Confirmada</span>
+                    @elseif($ea->estado === 'parcialmente_facturada')<span class="badge badge-warning">Parcialmente facturada</span>
                     @elseif($ea->estado === 'facturada')<span class="badge badge-success">Facturada</span>
                     @elseif($ea->estado === 'cancelada')<span class="badge badge-danger">Cancelada</span>
                     @elseif($ea->estado === 'borrador')<span class="badge badge-warning">Borrador</span>

@@ -269,7 +269,7 @@ $breadcrumbs = [
                     Esta compra proviene de la entrada anticipada <strong>{{ $compra->entradaAnticipada?->folio }}</strong>.
                     Al cancelar:
                     <ul style="margin: 8px 0 0 18px; padding: 0;">
-                        <li>Se desvinculará la entrada anticipada (volverá a estado <strong>confirmada</strong> para poder facturar de nuevo)</li>
+                        <li>Se revertirá esta factura sobre la entrada anticipada (el saldo de esas partidas volverá a pendiente; si hay otras compras, se conservan)</li>
                         <li>Se revertirá el ajuste de costo fiscal si aplicó</li>
                         <li><strong>No</strong> se modificará el inventario (ya registrado por la entrada anticipada)</li>
                         @if($compra->cuentaPorPagar)<li>Cancelación de la cuenta por pagar vinculada</li>@endif

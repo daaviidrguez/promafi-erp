@@ -8,6 +8,9 @@ $breadcrumbs = [
     ['title' => 'Entradas anticipadas', 'url' => route('entradas-anticipadas.index')],
     ['title' => $entrada->folio],
 ];
+$comprasVinculadas = $entrada->facturasCompra->isNotEmpty()
+    ? $entrada->facturasCompra
+    : collect($entrada->facturaCompra ? [$entrada->facturaCompra] : []);
 @endphp
 
 @section('content')
@@ -24,8 +27,15 @@ $breadcrumbs = [
                     @if($entrada->ordenCompra)
                     <div class="info-row"><div class="info-label">Orden de compra</div><div class="info-value"><a href="{{ route('ordenes-compra.show', $entrada->ordenCompra->id) }}">{{ $entrada->ordenCompra->folio }}</a></div></div>
                     @endif
-                    @if($entrada->facturaCompra)
-                    <div class="info-row"><div class="info-label">Compra vinculada</div><div class="info-value"><a href="{{ route('compras.show', $entrada->facturaCompra->id) }}">{{ $entrada->facturaCompra->folio_interno ?? $entrada->facturaCompra->folio }}</a></div></div>
+                    @if($comprasVinculadas->isNotEmpty())
+                    <div class="info-row">
+                        <div class="info-label">{{ $comprasVinculadas->count() > 1 ? 'Compras vinculadas' : 'Compra vinculada' }}</div>
+                        <div class="info-value">
+                            @foreach($comprasVinculadas as $fc)
+                                <div><a href="{{ route('compras.show', $fc->id) }}">{{ $fc->folio_interno ?? $fc->folio }}</a></div>
+                            @endforeach
+                        </div>
+                    </div>
                     @endif
                 </div>
             </div>
@@ -84,6 +94,9 @@ $breadcrumbs = [
                 @elseif($entrada->estado === 'confirmada')
                 <span class="badge badge-info" style="font-size:14px;">Confirmada</span>
                 <p style="margin-top:12px;font-size:13px;">Mercancía en inventario. Registre la factura cuando la reciba del proveedor.</p>
+                @elseif($entrada->estado === 'parcialmente_facturada')
+                <span class="badge badge-warning" style="font-size:14px;">Parcialmente facturada</span>
+                <p style="margin-top:12px;font-size:13px;">Hay partidas con saldo. Puede registrar otra factura (otro CFDI o compra manual) para completar.</p>
                 @elseif($entrada->estado === 'facturada')
                 <span class="badge badge-success" style="font-size:14px;">Facturada</span>
                 @elseif($entrada->estado === 'cancelada')
@@ -108,10 +121,14 @@ $breadcrumbs = [
                 </form>
                 @endif
                 @if($entrada->puedeFacturarse())
-                <a href="{{ route('entradas-anticipadas.facturar', $entrada->id) }}" class="btn btn-success w-full">🧾 Registrar factura</a>
+                <a href="{{ route('entradas-anticipadas.facturar', $entrada->id) }}" class="btn btn-success w-full">{{ $entrada->estado === 'parcialmente_facturada' ? '🧾 Registrar siguiente factura' : '🧾 Registrar factura' }}</a>
                 @endif
-                @if($entrada->facturaCompra)
-                <a href="{{ route('compras.show', $entrada->facturaCompra->id) }}" class="btn btn-outline w-full">🛒 Ver compra</a>
+                @if($comprasVinculadas->count() === 1)
+                <a href="{{ route('compras.show', $comprasVinculadas->first()->id) }}" class="btn btn-outline w-full">🛒 Ver compra</a>
+                @elseif($comprasVinculadas->count() > 1)
+                @foreach($comprasVinculadas as $fc)
+                <a href="{{ route('compras.show', $fc->id) }}" class="btn btn-outline w-full">🛒 Ver {{ $fc->folio_interno ?? $fc->folio }}</a>
+                @endforeach
                 @endif
                 @if($entrada->puedeCancelarse())
                 <form method="POST" action="{{ route('entradas-anticipadas.cancelar', $entrada->id) }}" onsubmit="return confirm('¿Cancelar esta entrada anticipada?');">@csrf

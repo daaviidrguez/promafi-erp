@@ -105,6 +105,7 @@ $breadcrumbs = [
                 <table>
                     <thead>
                         <tr>
+                            <th>Código proveedor</th>
                             <th>Código</th>
                             <th>Descripción</th>
                             <th class="td-center">Cant.</th>
@@ -114,10 +115,24 @@ $breadcrumbs = [
                     </thead>
                     <tbody>
                         @foreach($compra->detalles as $d)
-                        @php $totalLinea = ($d->importe ?? 0) - ($d->descuento ?? 0) + $d->impuestos->sum('importe'); @endphp
+                        @php
+                            $totalLinea = ($d->importe ?? 0) - ($d->descuento ?? 0) + $d->impuestos->sum('importe');
+                            $descCfdi = trim((string) ($d->descripcion ?? ''));
+                            $nombreInterno = trim((string) ($d->producto?->nombre ?? ''));
+                            $mostrarNombreInterno = $nombreInterno !== ''
+                                && mb_strtoupper($nombreInterno) !== mb_strtoupper($descCfdi);
+                            $codigoProv = trim((string) ($d->no_identificacion ?? ''));
+                            $codigoInterno = trim((string) ($d->producto?->codigo ?? ''));
+                        @endphp
                         <tr>
-                            <td class="text-mono">{{ $d->no_identificacion ?? '—' }}</td>
-                            <td>{{ $d->descripcion }}</td>
+                            <td class="text-mono">{{ $codigoProv !== '' ? $codigoProv : '—' }}</td>
+                            <td class="text-mono">{{ $codigoInterno !== '' ? $codigoInterno : '—' }}</td>
+                            <td>
+                                <div class="fw-600" style="font-size:13px;line-height:1.35;">{{ $descCfdi !== '' ? $descCfdi : '—' }}</div>
+                                @if($mostrarNombreInterno)
+                                <div class="text-muted" style="font-size:12px;line-height:1.35;margin-top:2px;">{{ $nombreInterno }}</div>
+                                @endif
+                            </td>
                             <td class="td-center">{{ number_format($d->cantidad, 2) }}</td>
                             <td class="td-right text-mono">${{ number_format($d->valor_unitario ?? 0, 2) }}</td>
                             <td class="td-right text-mono fw-600">${{ number_format($totalLinea, 2) }}</td>

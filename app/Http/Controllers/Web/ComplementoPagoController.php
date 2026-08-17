@@ -795,7 +795,10 @@ class ComplementoPagoController extends Controller
             $facturama = new FacturamaService($empresa);
             $resultado = $facturama->obtenerAcuseCancelacionPdfPorComplemento($complemento);
             if (! $resultado['success'] || empty($resultado['content'])) {
-                return back()->with('error', $resultado['message']);
+                $resultado = $this->pdfService->generarAcuseCancelacionPdf($complemento);
+            }
+            if (! $resultado['success'] || empty($resultado['content'])) {
+                return back()->with('error', $resultado['message'] ?: 'No se pudo generar el comprobante PDF de cancelación.');
             }
 
             $filename = 'AcuseCancelacion_'.($complemento->uuid ?? $complemento->folio_completo).'.pdf';

@@ -146,6 +146,12 @@ class EstatusCancelacionCfdi
 
         if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
             $acuse = ! empty($resultado['acuse']) ? ' Se guardó el acuse.' : '';
+            if ($estatusSat === 'No Encontrado') {
+                return 'Facturama reporta el CFDI como cancelado.'.$acuse.' La consulta SAT respondió «No Encontrado» (en sandbox es simulada; en producción el SAT puede tardar en indexar el UUID).'.$adminOps;
+            }
+            if ($estatusSat === 'Vigente') {
+                return 'Facturama lo marca cancelado, pero el SAT aún lo reporta vigente. Vuelva a consultar más tarde.'.$acuse.$adminOps;
+            }
 
             return 'El SAT canceló este CFDI.'.$acuse.$adminOps;
         }

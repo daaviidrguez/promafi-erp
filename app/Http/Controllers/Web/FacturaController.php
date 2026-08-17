@@ -1153,7 +1153,10 @@ class FacturaController extends Controller
             $facturama = new FacturamaService($empresa);
             $resultado = $facturama->obtenerAcuseCancelacionPdfPorFactura($factura);
             if (! $resultado['success'] || empty($resultado['content'])) {
-                return back()->with('error', $resultado['message']);
+                $resultado = $this->pdfService->generarAcuseCancelacionPdf($factura);
+            }
+            if (! $resultado['success'] || empty($resultado['content'])) {
+                return back()->with('error', $resultado['message'] ?: 'No se pudo generar el comprobante PDF de cancelación.');
             }
 
             $filename = 'AcuseCancelacion_'.($factura->uuid ?? $factura->folio_completo).'.pdf';

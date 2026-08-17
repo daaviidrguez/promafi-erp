@@ -733,44 +733,109 @@ class FacturamaService
     protected function descargarAcuseCancelacionDesdeFacturama(string $cfdiId, string $formato): ?array
     {
         $formatos = match (strtolower($formato)) {
-            'pdf' => ['pdf', 'Pdf', 'PDF'],
-            default => [$formato],
+            'pdf' => ['pdf', 'html'],
+            default => [strtolower($formato)],
         };
+        $prefijos = ['acuse', 'Acuse'];
+        $tipos = ['issued'];
 
-        foreach ($formatos as $format) {
-            $url = $this->baseUrl . '/Acuse/' . $format . '/issued/' . $cfdiId;
-            $res = $this->http()->acceptJson()->timeout(30)->get($url);
-            if (! $res->successful()) {
-                continue;
+        foreach ($prefijos as $prefijo) {
+            foreach ($formatos as $format) {
+                foreach ($tipos as $type) {
+                    $url = $this->baseUrl.'/'.$prefijo.'/'.$format.'/'.$type.'/'.$cfdiId;
+                    $pdf = $this->intentarDescargarAcuseUrl($url, strtolower($formato) === 'pdf');
+                    if ($pdf !== null) {
+                        return $pdf;
+                    }
+                }
             }
-            $body = $res->json();
-            if (! is_array($body)) {
-                continue;
-            }
-            $content = $body['Content'] ?? null;
-            if (empty($content)) {
-                continue;
-            }
-            $decoded = base64_decode($content, true);
-            if ($decoded === false || $decoded === '') {
-                continue;
-            }
-            if (strtolower($formato) === 'pdf' && ! str_starts_with($decoded, '%PDF')) {
-                continue;
-            }
-
-            $contentType = $body['ContentType'] ?? null;
-            if (! is_string($contentType) || $contentType === '') {
-                $contentType = strtolower($formato) === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-            }
-
-            return [
-                'content' => $decoded,
-                'content_type' => $contentType,
-            ];
         }
 
         return null;
+    }
+
+    /**
+     * @return array{content: string, content_type: string}|null
+     */
+    protected function intentarDescargarAcuseUrl(string $url, bool $convertirHtmlAPdf): ?array
+    {
+        $res = $this->http()->acceptJson()->timeout(30)->get($url);
+        $headerType = strtolower((string) $res->header('Content-Type'));
+        $raw = $res->body();
+
+        if ($res->successful() && str_starts_with($raw, '%PDF')) {
+            return ['content' => $raw, 'content_type' => 'application/pdf'];
+        }
+
+        if (! $res->successful()) {
+            Log::info('Facturama acuse no disponible', [
+                'url' => $url,
+                'http' => $res->status(),
+                'body' => mb_substr($raw, 0, 300),
+            ]);
+
+            return null;
+        }
+
+        $body = $res->json();
+        if (! is_array($body)) {
+            if ($convertirHtmlAPdf && (str_contains($headerType, 'html') || str_starts_with(ltrim($raw), '<'))) {
+                $pdf = $this->htmlAPdf($raw);
+                if ($pdf !== null) {
+                    return ['content' => $pdf, 'content_type' => 'application/pdf'];
+                }
+            }
+
+            return null;
+        }
+
+        $content = $body['Content'] ?? $body['content'] ?? null;
+        if (empty($content) || ! is_string($content)) {
+            return null;
+        }
+
+        $decoded = base64_decode($content, true);
+        if ($decoded === false || $decoded === '') {
+            $decoded = $content;
+        }
+
+        if (str_starts_with($decoded, '%PDF')) {
+            return ['content' => $decoded, 'content_type' => 'application/pdf'];
+        }
+
+        $contentType = strtolower((string) ($body['ContentType'] ?? $body['contentType'] ?? ''));
+        if ($convertirHtmlAPdf && (str_contains($contentType, 'html') || str_starts_with(ltrim($decoded), '<'))) {
+            $pdf = $this->htmlAPdf($decoded);
+            if ($pdf !== null) {
+                return ['content' => $pdf, 'content_type' => 'application/pdf'];
+            }
+        }
+
+        return null;
+    }
+
+    protected function htmlAPdf(string $html): ?string
+    {
+        $trimmed = trim($html);
+        if ($trimmed === '' || ! str_starts_with($trimmed, '<')) {
+            return null;
+        }
+
+        try {
+            $options = new \Dompdf\Options();
+            $options->set('isRemoteEnabled', true);
+            $options->set('isHtml5ParserEnabled', true);
+            $dompdf = new \Dompdf\Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('letter', 'portrait');
+            $dompdf->render();
+
+            return $dompdf->output();
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo convertir HTML de acuse a PDF', ['error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     /**
@@ -1155,6 +1220,72 @@ class FacturamaService
             || stripos($decoded, 'cancelacion') !== false
             || stripos($decoded, 'Acuse') !== false
             || stripos($decoded, 'EstatusUUID') !== false;
+    }
+
+    /**
+     * Extrae datos visibles del acuse XML (base64 o XML crudo) para el PDF local.
+     *
+     * @return array{uuid:?string,fecha:?string,rfc_emisor:?string,estatus:?string,codigo:?string,xml:string}
+     */
+    public static function parsearDatosAcuseXml(string $acuse): array
+    {
+        $xml = @base64_decode($acuse, true);
+        if ($xml === false || trim((string) $xml) === '' || ! str_starts_with(ltrim((string) $xml), '<')) {
+            $xml = $acuse;
+        }
+        $xml = trim((string) $xml);
+        $datos = [
+            'uuid' => null,
+            'fecha' => null,
+            'rfc_emisor' => null,
+            'estatus' => null,
+            'codigo' => null,
+            'xml' => $xml,
+        ];
+        if ($xml === '' || ! str_starts_with($xml, '<')) {
+            return $datos;
+        }
+
+        $prev = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        if (! $dom->loadXML($xml)) {
+            libxml_clear_errors();
+            libxml_use_internal_errors($prev);
+
+            return $datos;
+        }
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        $xpath = new \DOMXPath($dom);
+
+        $texto = function (string $local) use ($xpath): ?string {
+            $nodes = $xpath->query('//*[local-name()="'.$local.'"]');
+            if ($nodes && $nodes->length > 0 && trim($nodes->item(0)->textContent) !== '') {
+                return trim($nodes->item(0)->textContent);
+            }
+
+            return null;
+        };
+
+        $datos['uuid'] = $texto('UUID') ?? $texto('Uuid');
+        $datos['fecha'] = $texto('Fecha') ?? $texto('FechaCancelacion');
+        $datos['rfc_emisor'] = $texto('RfcEmisor') ?? $texto('Rfc');
+        $datos['estatus'] = $texto('EstatusUUID') ?? $texto('estatusuuid');
+        $datos['codigo'] = $texto('CodigoEstatus') ?? $datos['estatus'];
+
+        $root = $dom->documentElement;
+        if ($root) {
+            $fechaAttr = $root->getAttribute('Fecha');
+            if ($fechaAttr !== '' && $datos['fecha'] === null) {
+                $datos['fecha'] = $fechaAttr;
+            }
+            $rfcAttr = $root->getAttribute('RfcEmisor') ?: $root->getAttribute('Rfc');
+            if ($rfcAttr !== '' && $datos['rfc_emisor'] === null) {
+                $datos['rfc_emisor'] = $rfcAttr;
+            }
+        }
+
+        return $datos;
     }
 
     /**

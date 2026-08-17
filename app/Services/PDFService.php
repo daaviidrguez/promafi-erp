@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\ComplementoPago;
 use App\Models\Empresa;
 use App\Models\EntradaAnticipada;
+use App\Models\Factura;
 use App\Models\InventarioMovimiento;
 use App\Models\LogisticaEnvio;
 use Dompdf\Dompdf;
@@ -205,5 +207,46 @@ class PDFService
         file_put_contents($filepath, $dompdf->output());
 
         return 'documentos/kardex/'.now()->format('Y/m').'/'.$filename;
+    }
+
+    /**
+     * PDF del acuse de cancelación a partir del XML guardado en el ERP.
+     *
+     * @return array{success: bool, message: string, content: ?string, content_type: string}
+     */
+    public function generarAcuseCancelacionPdf(Factura|ComplementoPago $documento): array
+    {
+        $acuse = (string) ($documento->acuse_cancelacion ?? '');
+        if (trim($acuse) === '') {
+            return [
+                'success' => false,
+                'message' => 'No hay acuse de cancelación guardado para generar el PDF.',
+                'content' => null,
+                'content_type' => 'application/pdf',
+            ];
+        }
+
+        $empresa = $documento->empresa ?? Empresa::principal();
+        $datos = FacturamaService::parsearDatosAcuseXml($acuse);
+        $html = view('pdf.acuse-cancelacion', [
+            'doc' => $documento,
+            'empresa' => $empresa,
+            'datos' => $datos,
+        ])->render();
+
+        $options = new Options;
+        $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('letter', 'portrait');
+        $dompdf->render();
+
+        return [
+            'success' => true,
+            'message' => '',
+            'content' => $dompdf->output(),
+            'content_type' => 'application/pdf',
+        ];
     }
 }

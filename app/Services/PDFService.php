@@ -225,6 +225,14 @@ class PDFService
                 'content_type' => 'application/pdf',
             ];
         }
+        if (FacturamaService::decodificarAcuseCancelacionXml($acuse) === null) {
+            return [
+                'success' => false,
+                'message' => 'No hay un acuse XML válido disponible para generar el PDF.',
+                'content' => null,
+                'content_type' => 'application/pdf',
+            ];
+        }
 
         $empresa = $documento->empresa ?? Empresa::principal();
         $datos = FacturamaService::parsearDatosAcuseXml($acuse);

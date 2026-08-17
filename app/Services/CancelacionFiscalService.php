@@ -23,7 +23,7 @@ class CancelacionFiscalService
             $documento->estatus_cancelacion_pac ?? null,
             $statusNuevo
         );
-        if ($statusPac === null && ! empty($documento->acuse_cancelacion)) {
+        if ($statusPac === null && FacturamaService::decodificarAcuseCancelacionXml($documento->acuse_cancelacion) !== null) {
             $statusPac = 'canceled';
         }
         $estatusSat = EstatusCancelacionCfdi::normalizarEstatusSat($resultado['estatus_sat'] ?? null);
@@ -50,8 +50,9 @@ class CancelacionFiscalService
         if ($estatusSat !== null) {
             $updates['estatus_sat'] = $estatusSat;
         }
-        if (! empty($resultado['acuse'])) {
-            $updates['acuse_cancelacion'] = $resultado['acuse'];
+        $acuse = FacturamaService::normalizarAcuseCancelacionXml($resultado['acuse'] ?? null);
+        if ($acuse !== null) {
+            $updates['acuse_cancelacion'] = $acuse;
         }
 
         if ($codigo !== null && $codigo !== '') {
@@ -108,13 +109,19 @@ class CancelacionFiscalService
             $documento->estatus_cancelacion_pac ?? null,
             $resultado['status_pac'] ?? null
         );
-        if ($status === null && ! empty($documento->acuse_cancelacion)) {
+        $acuseGuardado = FacturamaService::normalizarAcuseCancelacionXml($documento->acuse_cancelacion);
+        if ($status === null && $acuseGuardado !== null) {
             $status = 'canceled';
         }
         $resultado['status_pac'] = $status;
 
-        if (empty($resultado['acuse']) && ! empty($documento->acuse_cancelacion)) {
-            $resultado['acuse'] = $documento->acuse_cancelacion;
+        $acuseNuevo = FacturamaService::normalizarAcuseCancelacionXml($resultado['acuse'] ?? null);
+        if ($acuseNuevo !== null) {
+            $resultado['acuse'] = $acuseNuevo;
+        } elseif ($acuseGuardado !== null) {
+            $resultado['acuse'] = $acuseGuardado;
+        } else {
+            $resultado['acuse'] = null;
         }
 
         $codigoNuevo = $resultado['codigo_estatus'] ?? null;

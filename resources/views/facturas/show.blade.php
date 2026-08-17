@@ -492,11 +492,11 @@ $breadcrumbs = [
                 @if($factura->estado === 'cancelada')
                     @if($factura->canceladaAnteSat() && !empty($factura->uuid))
                     <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">Comprobante de cancelación (PDF)</a>
+                       class="btn btn-outline w-full">Acuse de cancelación (PDF)</a>
                     @endif
-                    @if(!empty($factura->acuse_cancelacion))
+                    @if($factura->tieneAcuseCancelacionXmlValido())
                     <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">📄 XML cancelado</a>
+                       class="btn btn-outline w-full">📄 Acuse de cancelación (XML)</a>
                     @elseif($factura->pendienteCancelacionAntePac())
                     <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
                         El XML de cancelación estará disponible después de enviar el CFDI al PAC (acción «Cancelar factura»).
@@ -507,7 +507,7 @@ $breadcrumbs = [
                     </div>
                     @else
                     <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">📄 Obtener XML cancelado</a>
+                       class="btn btn-outline w-full">📄 Obtener acuse XML</a>
                     @endif
                 @endif
 

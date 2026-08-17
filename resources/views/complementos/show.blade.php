@@ -246,14 +246,14 @@ $breadcrumbs = [
                     @endif
                     @if($complemento->canceladaAnteSat() && !empty($complemento->uuid))
                     <a href="{{ route('complementos.descargar-pdf-acuse-cancelacion', $complemento->id) }}"
-                       class="btn btn-outline w-full">Comprobante de cancelación (PDF)</a>
+                       class="btn btn-outline w-full">Acuse de cancelación (PDF)</a>
                     @endif
-                    @if(!empty($complemento->acuse_cancelacion))
+                    @if($complemento->tieneAcuseCancelacionXmlValido())
                     <a href="{{ route('complementos.descargar-xml-cancelacion', $complemento->id) }}"
-                       class="btn btn-outline w-full">📄 XML cancelado</a>
+                       class="btn btn-outline w-full">📄 Acuse de cancelación (XML)</a>
                     @else
                     <a href="{{ route('complementos.obtener-acuse-cancelacion', $complemento->id) }}"
-                       class="btn btn-outline w-full">📄 Obtener XML cancelado</a>
+                       class="btn btn-outline w-full">📄 Obtener acuse XML</a>
                     @endif
                 @endif
 

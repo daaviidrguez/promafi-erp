@@ -1039,7 +1039,7 @@ class FacturaController extends Controller
         if ($factura->estado !== 'cancelada') {
             return back()->with('error', 'Solo aplica a facturas canceladas.');
         }
-        if (! empty($factura->acuse_cancelacion)) {
+        if ($factura->tieneAcuseCancelacionXmlValido()) {
             return back()->with('info', 'La factura ya tiene el acuse de cancelación guardado.');
         }
         $empresa = $factura->empresa ?? Empresa::principal();
@@ -1090,7 +1090,7 @@ class FacturaController extends Controller
             });
 
             $mensaje = $this->cancelacionFiscal->mensajePara($factura->fresh(), $resultado);
-            if (! empty($resultado['codigo_estatus'])) {
+            if (! ($resultado['cancelada_sat'] ?? false) && ! empty($resultado['codigo_estatus'])) {
                 $mensaje .= ' Código SAT '.$resultado['codigo_estatus'].': '.EstatusCancelacionCfdi::descripcionCodigo($resultado['codigo_estatus']).'.';
             }
             if ($factura->fresh()->canceladaAnteSat()) {
@@ -1120,9 +1120,9 @@ class FacturaController extends Controller
             return back()->with('error', 'No se tiene guardado el acuse de cancelación para esta factura.');
         }
 
-        $xml = base64_decode($acuseBase64, true);
-        if ($xml === false || trim($xml) === '') {
-            return back()->with('error', 'El acuse de cancelación guardado no es válido.');
+        $xml = FacturamaService::decodificarAcuseCancelacionXml($acuseBase64);
+        if ($xml === null) {
+            return back()->with('error', 'No hay un acuse XML válido disponible. Use «Obtener XML de cancelación» para solicitarlo nuevamente.');
         }
 
         $filename = 'AcuseCancelacion_'.($factura->uuid ?? $factura->folio_completo).'.xml';

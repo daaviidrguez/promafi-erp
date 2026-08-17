@@ -32,7 +32,13 @@
         </div>
         <div class="info-row">
             <div class="info-label">Estado SAT</div>
-            <div class="info-value-sm">{{ $document->estatus_sat ?: 'Sin consultar' }}</div>
+            <div class="info-value-sm">
+                {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
+                    $document->estatus_cancelacion_pac,
+                    $document->estatus_sat,
+                    $document->codigo_estatus_cancelacion
+                ) }}
+            </div>
         </div>
         @if($document->motivo_cancelacion)
         <div class="info-row">
@@ -57,7 +63,7 @@
             <div class="info-value-sm">{{ $document->fecha_cancelacion->format('d/m/Y H:i') }}</div>
         </div>
         @endif
-        @if($document->is_cancelable)
+        @if($document->is_cancelable && ! $document->canceladaAnteSat())
         <div class="info-row">
             <div class="info-label">¿Cancelable?</div>
             <div class="info-value-sm">{{ $document->is_cancelable }}</div>
@@ -135,6 +141,19 @@
             <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Bitácora</div>
             <div style="display: grid; gap: 8px;">
                 @foreach($eventos->take(12) as $evento)
+                    @php
+                        $mensajeEvento = \App\Services\EstatusCancelacionCfdi::esCanceladaSat(
+                            $evento->status_pac,
+                            $evento->estatus_sat,
+                            $evento->codigo_estatus
+                        )
+                            ? \App\Services\EstatusCancelacionCfdi::mensajeUsuario([
+                                'status_pac' => $evento->status_pac,
+                                'estatus_sat' => $evento->estatus_sat,
+                                'codigo_estatus' => $evento->codigo_estatus,
+                            ], $esAdmin)
+                            : $evento->mensaje;
+                    @endphp
                     <div style="border: 1px solid var(--color-gray-200); border-radius: var(--radius-sm); padding: 8px 10px;">
                         <div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
                             <strong>{{ $evento->etiquetaTipo() }}</strong>
@@ -146,12 +165,18 @@
                         @if($evento->status_pac || $evento->estatus_sat || $evento->codigo_estatus)
                             <div class="text-mono" style="font-size: 11px; margin-top: 4px;">
                                 @if($evento->status_pac) PAC: {{ $evento->status_pac }} @endif
-                                @if($evento->estatus_sat) · SAT: {{ $evento->estatus_sat }} @endif
+                                @if($evento->estatus_sat || $evento->status_pac)
+                                    · SAT: {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
+                                        $evento->status_pac,
+                                        $evento->estatus_sat,
+                                        $evento->codigo_estatus
+                                    ) }}
+                                @endif
                                 @if($evento->codigo_estatus) · {{ $evento->codigo_estatus }} @endif
                             </div>
                         @endif
-                        @if($evento->mensaje)
-                            <div style="margin-top: 4px;">{{ $evento->mensaje }}</div>
+                        @if($mensajeEvento)
+                            <div style="margin-top: 4px;">{{ $mensajeEvento }}</div>
                         @endif
                         @if(is_array($evento->payload) && (!empty($evento->payload['motivo_sat']) || !empty($evento->payload['uuid_sustitucion'])))
                             <div class="text-muted" style="font-size: 11px; margin-top: 4px;">

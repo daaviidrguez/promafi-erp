@@ -656,7 +656,7 @@ class FacturamaService
             }
         }
 
-        return ! empty($factura->acuse_cancelacion) ? $factura->acuse_cancelacion : null;
+        return self::normalizarAcuseCancelacionXml($factura->acuse_cancelacion);
     }
 
     /**
@@ -672,7 +672,7 @@ class FacturamaService
             }
         }
 
-        return ! empty($complemento->acuse_cancelacion) ? $complemento->acuse_cancelacion : null;
+        return self::normalizarAcuseCancelacionXml($complemento->acuse_cancelacion);
     }
 
     /**
@@ -906,7 +906,7 @@ class FacturamaService
             $acuse = $this->obtenerAcuseCancelacion($cfdiId, $detalle);
         }
         if ($canceladaEnPac && empty($acuse) && ! empty($acuseLocal)) {
-            $acuse = $acuseLocal;
+            $acuse = self::normalizarAcuseCancelacionXml($acuseLocal);
         }
 
         if (empty($codigoEstatus) && ! empty($acuse)) {
@@ -1017,15 +1017,21 @@ class FacturamaService
     protected function obtenerAcuseCancelacion(string $cfdiId, ?array $detallePrecargado = null): ?string
     {
         if (! empty($detallePrecargado['acuse'])) {
-            return $detallePrecargado['acuse'];
+            $acuse = self::normalizarAcuseCancelacionXml($detallePrecargado['acuse']);
+            if ($acuse !== null) {
+                return $acuse;
+            }
         }
 
         $detalle = $detallePrecargado ?? $this->obtenerEstadoCancelacionDesdeDetalle($cfdiId);
         if (! empty($detalle['acuse'])) {
-            return $detalle['acuse'];
+            $acuse = self::normalizarAcuseCancelacionXml($detalle['acuse']);
+            if ($acuse !== null) {
+                return $acuse;
+            }
         }
 
-        $formats = ['xml', 'Xml', 'XML', 'html', 'Html', 'HTML'];
+        $formats = ['xml', 'Xml', 'XML'];
         foreach ($formats as $format) {
             $url = $this->baseUrl . '/Acuse/' . $format . '/issued/' . $cfdiId;
             $res = $this->http()->acceptJson()->timeout(15)->get($url);
@@ -1037,9 +1043,9 @@ class FacturamaService
             if (empty($content)) {
                 continue;
             }
-            $decoded = base64_decode($content, true);
-            if ($decoded !== false && $this->contenidoPareceAcuseXml($decoded)) {
-                return $content;
+            $acuse = self::normalizarAcuseCancelacionXml($content);
+            if ($acuse !== null) {
+                return $acuse;
             }
         }
 
@@ -1180,13 +1186,19 @@ class FacturamaService
     {
         $acuse = $data['AcuseXmlBase64'] ?? $data['acuseXmlBase64'] ?? $data['AcuseXml'] ?? $data['acuseXml'] ?? $data['AcuseXmlFile'] ?? null;
         if ($acuse !== null && $acuse !== '') {
-            return (string) $acuse;
+            $acuseNormalizado = self::normalizarAcuseCancelacionXml((string) $acuse);
+            if ($acuseNormalizado !== null) {
+                return $acuseNormalizado;
+            }
         }
         foreach (array_keys($data) as $key) {
             if (stripos($key, 'acuse') !== false && (stripos($key, 'xml') !== false || stripos($key, 'base64') !== false)) {
                 $val = $data[$key];
                 if (is_string($val) && $val !== '') {
-                    return $val;
+                    $acuse = self::normalizarAcuseCancelacionXml($val);
+                    if ($acuse !== null) {
+                        return $acuse;
+                    }
                 }
             }
         }
@@ -1206,20 +1218,49 @@ class FacturamaService
         return null;
     }
 
-    protected function contenidoPareceAcuseXml(string $decoded): bool
+    public static function decodificarAcuseCancelacionXml(?string $acuse): ?string
     {
-        $trimmed = trim($decoded);
-        if ($trimmed === '') {
-            return false;
-        }
-        if (stripos($trimmed, '<?xml') !== 0 && stripos($trimmed, '<') !== 0) {
-            return false;
+        $acuse = trim((string) $acuse);
+        if ($acuse === '') {
+            return null;
         }
 
-        return stripos($decoded, 'Cancelacion') !== false
-            || stripos($decoded, 'cancelacion') !== false
-            || stripos($decoded, 'Acuse') !== false
-            || stripos($decoded, 'EstatusUUID') !== false;
+        $decoded = base64_decode($acuse, true);
+        $xml = $decoded !== false && str_starts_with(ltrim($decoded), '<')
+            ? $decoded
+            : $acuse;
+        $xml = trim($xml);
+        if ($xml === '' || ! str_starts_with($xml, '<')) {
+            return null;
+        }
+
+        $prev = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $cargado = $dom->loadXML($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        if (! $cargado || ! $dom->documentElement || strtolower($dom->documentElement->localName) === 'html') {
+            return null;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $marcadores = $xpath->query(
+            '//*[local-name()="EstatusUUID" or local-name()="CodigoEstatus" or local-name()="Folios"]'
+        );
+        $namespace = strtolower((string) $dom->documentElement->namespaceURI);
+
+        if ((! $marcadores || $marcadores->length === 0) && ! str_contains($namespace, 'cancelacfd')) {
+            return null;
+        }
+
+        return $xml;
+    }
+
+    public static function normalizarAcuseCancelacionXml(?string $acuse): ?string
+    {
+        $xml = self::decodificarAcuseCancelacionXml($acuse);
+
+        return $xml !== null ? base64_encode($xml) : null;
     }
 
     /**

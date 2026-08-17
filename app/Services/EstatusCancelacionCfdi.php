@@ -113,6 +113,15 @@ class EstatusCancelacionCfdi
         return false;
     }
 
+    public static function estatusSatParaUsuario(?string $statusPac, ?string $estatusSat, ?string $codigo = null): string
+    {
+        if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
+            return 'Cancelado';
+        }
+
+        return self::normalizarEstatusSat($estatusSat) ?? 'Sin consultar';
+    }
+
     public static function esRechazada(?string $statusPac, ?string $codigo = null): bool
     {
         if (self::normalizarStatusPac($statusPac) === 'rejected') {
@@ -141,19 +150,19 @@ class EstatusCancelacionCfdi
         $mensajePac = trim((string) ($resultado['mensaje_pac'] ?? ''));
         $expira = self::formatearFecha($resultado['expiration_date'] ?? null);
         $adminOps = $esAdmin
-            ? ' En el ERP ya se revirtieron inventario y saldo con la cancelación administrativa; no se vuelven a mover.'
+            ? ' La cancelación administrativa del ERP permanece registrada sin duplicar movimientos.'
             : '';
 
         if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
-            $acuse = ! empty($resultado['acuse']) ? ' Se guardó el acuse.' : '';
-            if ($estatusSat === 'No Encontrado') {
-                return 'Facturama reporta el CFDI como cancelado.'.$acuse.' La consulta SAT respondió «No Encontrado» (en sandbox es simulada; en producción el SAT puede tardar en indexar el UUID).'.$adminOps;
-            }
             if ($estatusSat === 'Vigente') {
-                return 'Facturama lo marca cancelado, pero el SAT aún lo reporta vigente. Vuelva a consultar más tarde.'.$acuse.$adminOps;
+                return 'La cancelación fue confirmada por el PAC, pero la consulta directa aún reporta el CFDI vigente. Consulte de nuevo más tarde.'.$adminOps;
             }
 
-            return 'El SAT canceló este CFDI.'.$acuse.$adminOps;
+            $codigoTxt = (string) $codigo === '202'
+                ? ' El código 202 indica que el UUID ya se encontraba cancelado.'
+                : '';
+
+            return 'Cancelación confirmada ante el SAT.'.$codigoTxt.$adminOps;
         }
 
         if ($statusPac === 'pending') {
@@ -186,7 +195,7 @@ class EstatusCancelacionCfdi
         }
 
         if ($estatusSat === 'No Encontrado') {
-            return 'El SAT no encontró este UUID. Verifique el timbrado o intente más tarde (el SAT puede tardar en indexar el CFDI).';
+            return 'La consulta de estatus no devolvió información para este UUID. Intente de nuevo más tarde.';
         }
 
         if ($estatusSat === 'Pendiente') {

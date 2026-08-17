@@ -710,9 +710,9 @@ class ComplementoPagoController extends Controller
         if ($complemento->estado !== 'cancelado' || empty($complemento->acuse_cancelacion)) {
             return back()->with('error', 'XML de cancelación no disponible.');
         }
-        $decoded = base64_decode($complemento->acuse_cancelacion, true);
-        if ($decoded === false) {
-            return back()->with('error', 'Contenido del acuse no válido.');
+        $decoded = FacturamaService::decodificarAcuseCancelacionXml($complemento->acuse_cancelacion);
+        if ($decoded === null) {
+            return back()->with('error', 'No hay un acuse XML válido disponible. Use «Obtener XML de cancelación» para solicitarlo nuevamente.');
         }
         return response($decoded, 200, [
             'Content-Type' => 'application/xml',
@@ -728,7 +728,7 @@ class ComplementoPagoController extends Controller
         if ($complemento->estado !== 'cancelado') {
             return back()->with('error', 'Solo aplica a complementos cancelados.');
         }
-        if (!empty($complemento->acuse_cancelacion)) {
+        if ($complemento->tieneAcuseCancelacionXmlValido()) {
             return back()->with('info', 'El acuse ya está guardado.');
         }
         $acuse = $this->pacService->obtenerAcuseCancelacionPorComplemento($complemento);
@@ -764,7 +764,7 @@ class ComplementoPagoController extends Controller
             $resultado = $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'consulta');
 
             $mensaje = $this->cancelacionFiscal->mensajePara($complemento->fresh(), $resultado);
-            if (! empty($resultado['codigo_estatus'])) {
+            if (! ($resultado['cancelada_sat'] ?? false) && ! empty($resultado['codigo_estatus'])) {
                 $mensaje .= ' Código SAT '.$resultado['codigo_estatus'].': '.EstatusCancelacionCfdi::descripcionCodigo($resultado['codigo_estatus']).'.';
             }
 

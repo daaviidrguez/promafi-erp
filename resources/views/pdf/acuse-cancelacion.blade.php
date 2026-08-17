@@ -12,13 +12,12 @@ h1 { font-size: 14pt; color: #0B3C5D; margin: 0 0 4px; }
 .label { color: #6B7280; font-size: 8pt; }
 .value { font-size: 10pt; }
 .mono { font-family: DejaVu Sans Mono, monospace; font-size: 8.5pt; word-break: break-all; }
-.xml { font-family: DejaVu Sans Mono, monospace; font-size: 6.5pt; background: #F3F4F6; padding: 8px; white-space: pre-wrap; word-break: break-all; }
 .banner { border: 2px solid #DC2626; color: #DC2626; text-align: center; padding: 8px; font-weight: bold; margin: 12px 0; }
 </style>
 </head>
 <body>
     <h1>Acuse de cancelación de CFDI</h1>
-    <div class="muted">{{ $empresa->nombre ?? $empresa->razon_social ?? 'Promafi' }} · Comprobante generado por el ERP a partir del acuse SAT/PAC</div>
+    <div class="muted">{{ $empresa->nombre ?? $empresa->razon_social ?? 'Promafi' }} · Representación impresa del acuse de cancelación</div>
 
     <div class="banner">CFDI CANCELADO</div>
 
@@ -33,18 +32,18 @@ h1 { font-size: 14pt; color: #0B3C5D; margin: 0 0 4px; }
         @if($doc->fecha_solicitud_cancelacion ?? null)
         <div class="row"><div class="label">Solicitud enviada</div><div class="value">{{ $doc->fecha_solicitud_cancelacion->format('d/m/Y H:i') }}</div></div>
         @endif
-        <div class="row"><div class="label">Estado PAC</div><div class="value">{{ $doc->estatus_cancelacion_pac ?: '—' }}</div></div>
-        <div class="row"><div class="label">Consulta SAT</div><div class="value">{{ $doc->estatus_sat ?: '—' }}</div></div>
+        <div class="row"><div class="label">Estado de cancelación</div><div class="value">{{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario($doc->estatus_cancelacion_pac, $doc->estatus_sat, $doc->codigo_estatus_cancelacion) }}</div></div>
         @if(!empty($datos['codigo']) || !empty($doc->codigo_estatus_cancelacion))
-        <div class="row"><div class="label">Código de estatus</div><div class="value">{{ $datos['codigo'] ?? $doc->codigo_estatus_cancelacion }}</div></div>
+        <div class="row"><div class="label">Código de estatus</div><div class="value">{{ $datos['codigo'] ?? $doc->codigo_estatus_cancelacion }} — {{ \App\Services\EstatusCancelacionCfdi::descripcionCodigo($datos['codigo'] ?? $doc->codigo_estatus_cancelacion) }}</div></div>
+        @endif
+        @if($doc->motivo_cancelacion ?? null)
+        <div class="row"><div class="label">Motivo de cancelación</div><div class="value">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($doc->motivo_cancelacion) }}</div></div>
+        @endif
+        @if($doc->uuid_sustitucion_cancelacion ?? null)
+        <div class="row"><div class="label">UUID que sustituye</div><div class="value mono">{{ $doc->uuid_sustitucion_cancelacion }}</div></div>
         @endif
     </div>
 
-    <p class="muted">Este PDF se genera en el ERP con el XML del acuse de cancelación. Facturama no siempre entrega el PDF del acuse (sobre todo en sandbox o cuando el SAT aún no indexa el UUID).</p>
-
-    @if(!empty($datos['xml']) && str_starts_with(ltrim($datos['xml']), '<'))
-    <div class="label">XML del acuse</div>
-    <div class="xml">{{ \Illuminate\Support\Str::limit($datos['xml'], 4000) }}</div>
-    @endif
+    <p class="muted">Documento generado a partir del acuse XML recibido durante el proceso de cancelación. El archivo XML permanece disponible como respaldo del expediente fiscal.</p>
 </body>
 </html>

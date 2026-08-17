@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Models\Concerns\HasDesgloseTotalesCfdi;
 use App\Services\EstatusCancelacionCfdi;
+use App\Services\FacturamaService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -300,6 +301,11 @@ class Factura extends Model
     public function cancelacionEventos()
     {
         return $this->morphMany(CfdiCancelacionEvento::class, 'cancelable');
+    }
+
+    public function tieneAcuseCancelacionXmlValido(): bool
+    {
+        return FacturamaService::decodificarAcuseCancelacionXml($this->acuse_cancelacion) !== null;
     }
 
     /**

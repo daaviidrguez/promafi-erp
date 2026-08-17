@@ -147,6 +147,15 @@ $breadcrumbs = [
                             @if($complemento->estatus_solicitud_label)
                                 <div class="text-muted" style="font-size: 12px; margin-top: 6px;">{{ $complemento->estatus_solicitud_label }}</div>
                             @endif
+                            @if($complemento->motivo_cancelacion)
+                                <div style="margin-top: 10px; padding: 10px 12px; background: var(--color-gray-50); border-radius: var(--radius-sm); text-align: left; font-size: 13px; line-height: 1.5;">
+                                    <div class="info-label" style="margin-bottom: 4px;">Motivo SAT (envío al PAC)</div>
+                                    <div>{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($complemento->motivo_cancelacion) }}</div>
+                                    @if($complemento->uuid_sustitucion_cancelacion)
+                                        <div class="text-mono" style="font-size: 11px; margin-top: 6px; word-break: break-all;">UUID sustituto: {{ $complemento->uuid_sustitucion_cancelacion }}</div>
+                                    @endif
+                                </div>
+                            @endif
                         @endif
                     </div>
                 </div>

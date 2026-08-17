@@ -243,6 +243,45 @@ class EstatusCancelacionCfdi
         return 'Cancelada';
     }
 
+    public static function descripcionMotivoSat(?string $motivo): string
+    {
+        return match ((string) $motivo) {
+            '01' => '01 — Comprobante emitido con errores con relación',
+            '02' => '02 — Comprobante emitido con errores sin relación',
+            '03' => '03 — No se llevó a cabo la operación',
+            '04' => '04 — Operación nominativa relacionada con factura global',
+            default => $motivo ? (string) $motivo : '—',
+        };
+    }
+
+    /**
+     * No degrada un estado PAC más fuerte (canceled > pending > rejected).
+     * Si la consulta nueva no trae Status, se conserva el guardado.
+     */
+    public static function resolverStatusPac(?string $guardado, ?string $nuevo): ?string
+    {
+        $rank = [
+            'canceled' => 40,
+            'pending' => 30,
+            'rejected' => 20,
+            'accepted' => 15,
+            'active' => 10,
+        ];
+        $g = self::normalizarStatusPac($guardado);
+        $n = self::normalizarStatusPac($nuevo);
+        if ($n === null) {
+            return $g;
+        }
+        if ($g === null) {
+            return $n;
+        }
+        if (($rank[$n] ?? 0) >= ($rank[$g] ?? 0)) {
+            return $n;
+        }
+
+        return $g;
+    }
+
     public static function formatearFecha(mixed $fecha): ?string
     {
         if ($fecha === null || $fecha === '') {

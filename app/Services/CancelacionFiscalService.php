@@ -18,7 +18,14 @@ class CancelacionFiscalService
     public function camposDesdeResultado(Factura|ComplementoPago $documento, array $resultado, bool $esSolicitud = false): array
     {
         $updates = [];
-        $statusPac = EstatusCancelacionCfdi::normalizarStatusPac($resultado['status_pac'] ?? null);
+        $statusNuevo = EstatusCancelacionCfdi::normalizarStatusPac($resultado['status_pac'] ?? null);
+        $statusPac = EstatusCancelacionCfdi::resolverStatusPac(
+            $documento->estatus_cancelacion_pac ?? null,
+            $statusNuevo
+        );
+        if ($statusPac === null && ! empty($documento->acuse_cancelacion)) {
+            $statusPac = 'canceled';
+        }
         $estatusSat = EstatusCancelacionCfdi::normalizarEstatusSat($resultado['estatus_sat'] ?? null);
         $codigo = $resultado['codigo_estatus'] ?? null;
         $esAdmin = $documento instanceof Factura && (bool) $documento->cancelacion_administrativa;
@@ -60,6 +67,8 @@ class CancelacionFiscalService
             } elseif (empty($documento->fecha_cancelacion)) {
                 $updates['fecha_cancelacion'] = now();
             }
+        } elseif ($esSolicitud && ($resultado['solicitud_aceptada'] ?? false) && $documento instanceof Factura && $esAdmin) {
+            $updates['fecha_cancelacion_pac'] = $documento->fecha_cancelacion_pac ?? now();
         }
 
         return $updates;
@@ -74,7 +83,8 @@ class CancelacionFiscalService
         array $resultado,
         string $tipoEvento,
         array $extraUpdates = []
-    ): void {
+    ): array {
+        $resultado = $this->fusionarConEstadoGuardado($documento, $resultado);
         $updates = array_merge($this->camposDesdeResultado($documento, $resultado, $tipoEvento === 'solicitud'), $extraUpdates);
         if ($updates !== []) {
             $documento->update($updates);
@@ -82,6 +92,61 @@ class CancelacionFiscalService
         }
 
         $this->registrarEvento($documento, $tipoEvento, $resultado);
+
+        return $resultado;
+    }
+
+    /**
+     * Conserva evidencia PAC ya guardada (canceled, acuse, código) si la consulta SAT/PAC viene incompleta.
+     *
+     * @param  array<string, mixed>  $resultado
+     * @return array<string, mixed>
+     */
+    public function fusionarConEstadoGuardado(Factura|ComplementoPago $documento, array $resultado): array
+    {
+        $status = EstatusCancelacionCfdi::resolverStatusPac(
+            $documento->estatus_cancelacion_pac ?? null,
+            $resultado['status_pac'] ?? null
+        );
+        if ($status === null && ! empty($documento->acuse_cancelacion)) {
+            $status = 'canceled';
+        }
+        $resultado['status_pac'] = $status;
+
+        if (empty($resultado['acuse']) && ! empty($documento->acuse_cancelacion)) {
+            $resultado['acuse'] = $documento->acuse_cancelacion;
+        }
+
+        $codigoNuevo = $resultado['codigo_estatus'] ?? null;
+        $codigoGuardado = $documento->codigo_estatus_cancelacion ?? null;
+        if (($codigoNuevo === null || $codigoNuevo === '') && $codigoGuardado && $codigoGuardado !== 'ADM') {
+            $resultado['codigo_estatus'] = $codigoGuardado;
+        }
+
+        if (empty($resultado['request_date']) && ! empty($documento->fecha_solicitud_cancelacion)) {
+            $resultado['request_date'] = $documento->fecha_solicitud_cancelacion;
+        }
+        if (empty($resultado['expiration_date']) && ! empty($documento->fecha_vencimiento_aceptacion)) {
+            $resultado['expiration_date'] = $documento->fecha_vencimiento_aceptacion;
+        }
+        if (empty($resultado['motivo_sat']) && ! empty($documento->motivo_cancelacion)) {
+            $resultado['motivo_sat'] = $documento->motivo_cancelacion;
+        }
+        if (empty($resultado['uuid_sustitucion']) && ! empty($documento->uuid_sustitucion_cancelacion)) {
+            $resultado['uuid_sustitucion'] = $documento->uuid_sustitucion_cancelacion;
+        }
+
+        $resultado['solicitud_aceptada'] = EstatusCancelacionCfdi::solicitudAceptadaPorPac($status)
+            || (bool) ($resultado['solicitud_aceptada'] ?? false);
+        $resultado['cancelada_sat'] = EstatusCancelacionCfdi::esCanceladaSat(
+            $status,
+            $resultado['estatus_sat'] ?? $documento->estatus_sat ?? null,
+            $resultado['codigo_estatus'] ?? null
+        );
+        $esAdmin = $documento instanceof Factura && (bool) $documento->cancelacion_administrativa;
+        $resultado['message'] = EstatusCancelacionCfdi::mensajeUsuario($resultado, $esAdmin);
+
+        return $resultado;
     }
 
     /**
@@ -90,9 +155,12 @@ class CancelacionFiscalService
     public function registrarEvento(Factura|ComplementoPago $documento, string $tipo, array $resultado): void
     {
         $payload = $resultado['payload'] ?? null;
-        if (is_array($payload)) {
-            $payload = $this->sanitizarPayload($payload);
-        }
+        $payload = is_array($payload) ? $this->sanitizarPayload($payload) : [];
+        $extra = array_filter([
+            'motivo_sat' => $resultado['motivo_sat'] ?? null,
+            'uuid_sustitucion' => $resultado['uuid_sustitucion'] ?? null,
+        ]);
+        $payload = array_merge($payload, $extra);
 
         CfdiCancelacionEvento::create([
             'cancelable_type' => $documento::class,
@@ -104,7 +172,7 @@ class CancelacionFiscalService
             'codigo_estatus' => $resultado['codigo_estatus'] ?? null,
             'is_cancelable' => $resultado['is_cancelable'] ?? null,
             'mensaje' => $resultado['message'] ?? $resultado['mensaje_pac'] ?? null,
-            'payload' => $payload,
+            'payload' => $payload === [] ? null : $payload,
         ]);
     }
 
@@ -114,6 +182,7 @@ class CancelacionFiscalService
     public function mensajePara(Factura|ComplementoPago $documento, array $resultado): string
     {
         $esAdmin = $documento instanceof Factura && (bool) $documento->cancelacion_administrativa;
+        $resultado = $this->fusionarConEstadoGuardado($documento, $resultado);
 
         return EstatusCancelacionCfdi::mensajeUsuario($resultado, $esAdmin);
     }

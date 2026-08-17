@@ -62,6 +62,7 @@ class ComplementoPago extends Model
         'fecha_vencimiento_aceptacion',
         'estatus_sat',
         'motivo_cancelacion',
+        'uuid_sustitucion_cancelacion',
         'uuid_referencia',
         'tipo_relacion',
         

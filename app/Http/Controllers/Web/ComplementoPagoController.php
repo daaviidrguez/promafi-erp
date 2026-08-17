@@ -633,10 +633,13 @@ class ComplementoPagoController extends Controller
                 throw new \Exception($resultado['message'] ?? 'No se pudo cancelar ante el PAC.');
             }
 
-            $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'solicitud', [
+            $resultado['motivo_sat'] = $validated['motivo_cancelacion'];
+            $resultado['uuid_sustitucion'] = $uuidSustituto;
+            $resultado = $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'solicitud', [
                 'estado' => 'cancelado',
                 'motivo_cancelacion' => $validated['motivo_cancelacion'],
                 'fecha_cancelacion' => $complemento->fecha_cancelacion ?? now(),
+                'uuid_sustitucion_cancelacion' => $uuidSustituto,
             ]);
 
             if ($resultado['solicitud_aceptada'] ?? false) {
@@ -758,7 +761,7 @@ class ComplementoPagoController extends Controller
                 return back()->with('error', $resultado['message'] ?: 'No se pudo consultar el estatus.');
             }
 
-            $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'consulta');
+            $resultado = $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'consulta');
 
             $mensaje = $this->cancelacionFiscal->mensajePara($complemento->fresh(), $resultado);
             if (! empty($resultado['codigo_estatus'])) {

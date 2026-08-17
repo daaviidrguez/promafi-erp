@@ -922,6 +922,9 @@ class FacturaController extends Controller
             $extra = [
                 'motivo_cancelacion' => $validated['motivo_cancelacion'],
             ];
+            if ($uuidSustituto) {
+                $extra['uuid_sustitucion_cancelacion'] = $uuidSustituto;
+            }
             if (! $fueCancelacionAdministrativaPrev) {
                 $extra['estado'] = 'cancelada';
                 if (empty($factura->fecha_cancelacion)) {
@@ -929,7 +932,9 @@ class FacturaController extends Controller
                 }
             }
 
-            $this->cancelacionFiscal->persistirResultado($factura, $resultado, 'solicitud', $extra);
+            $resultado['motivo_sat'] = $validated['motivo_cancelacion'];
+            $resultado['uuid_sustitucion'] = $uuidSustituto;
+            $resultado = $this->cancelacionFiscal->persistirResultado($factura, $resultado, 'solicitud', $extra);
 
             $pdfPath = $this->pdfService->generarFacturaPDF($factura->fresh());
             $factura->update(['pdf_path' => $pdfPath]);
@@ -1077,8 +1082,8 @@ class FacturaController extends Controller
                 return back()->with('error', $resultado['message'] ?: 'No se pudo consultar el estatus.');
             }
 
-            DB::transaction(function () use ($factura, $resultado) {
-                $this->cancelacionFiscal->persistirResultado($factura, $resultado, 'consulta');
+            DB::transaction(function () use ($factura, &$resultado) {
+                $resultado = $this->cancelacionFiscal->persistirResultado($factura, $resultado, 'consulta');
                 if ($this->cancelacionFiscal->debeRestaurarOperacionFactura($factura, $resultado)) {
                     $this->cancelacionFiscal->restaurarOperacionFactura($factura);
                 }

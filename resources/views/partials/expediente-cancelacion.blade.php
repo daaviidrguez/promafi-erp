@@ -34,6 +34,29 @@
             <div class="info-label">Estado SAT</div>
             <div class="info-value-sm">{{ $document->estatus_sat ?: 'Sin consultar' }}</div>
         </div>
+        @if($document->motivo_cancelacion)
+        <div class="info-row">
+            <div class="info-label">Motivo SAT</div>
+            <div class="info-value-sm">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($document->motivo_cancelacion) }}</div>
+        </div>
+        @endif
+        @if($document->uuid_sustitucion_cancelacion ?? null)
+        <div class="info-row">
+            <div class="info-label">UUID sustituto</div>
+            <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $document->uuid_sustitucion_cancelacion }}</div>
+        </div>
+        @endif
+        @if($esFactura && ($document->fecha_cancelacion_pac ?? null))
+        <div class="info-row">
+            <div class="info-label">Envío PAC/SAT</div>
+            <div class="info-value-sm">{{ $document->fecha_cancelacion_pac->format('d/m/Y H:i') }}</div>
+        </div>
+        @elseif(! $esFactura && ($document->fecha_cancelacion ?? null))
+        <div class="info-row">
+            <div class="info-label">Envío PAC/SAT</div>
+            <div class="info-value-sm">{{ $document->fecha_cancelacion->format('d/m/Y H:i') }}</div>
+        </div>
+        @endif
         @if($document->is_cancelable)
         <div class="info-row">
             <div class="info-label">¿Cancelable?</div>
@@ -129,6 +152,16 @@
                         @endif
                         @if($evento->mensaje)
                             <div style="margin-top: 4px;">{{ $evento->mensaje }}</div>
+                        @endif
+                        @if(is_array($evento->payload) && (!empty($evento->payload['motivo_sat']) || !empty($evento->payload['uuid_sustitucion'])))
+                            <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
+                                @if(!empty($evento->payload['motivo_sat']))
+                                    Motivo SAT: {{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($evento->payload['motivo_sat']) }}
+                                @endif
+                                @if(!empty($evento->payload['uuid_sustitucion']))
+                                    <div class="text-mono" style="word-break: break-all;">UUID sustituto: {{ $evento->payload['uuid_sustitucion'] }}</div>
+                                @endif
+                            </div>
                         @endif
                     </div>
                 @endforeach

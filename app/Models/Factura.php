@@ -51,6 +51,7 @@ class Factura extends Model
         'xml_path',
         'pdf_path',
         'motivo_cancelacion',
+        'uuid_sustitucion_cancelacion',
         'fecha_cancelacion',
         'fecha_cancelacion_pac',
         'acuse_cancelacion',

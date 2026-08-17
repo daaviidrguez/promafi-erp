@@ -69,11 +69,14 @@ class CancelacionFiscalService
         }
         if (! empty($resultado['request_date'])) {
             $updates['fecha_solicitud_cancelacion'] = $this->parseFecha($resultado['request_date']) ?? now();
-        } elseif ($esSolicitud && ($resultado['solicitud_aceptada'] ?? false) && empty($documento->fecha_solicitud_cancelacion)) {
+        } elseif ($esSolicitud && ($resultado['solicitud_aceptada'] ?? false)) {
             $updates['fecha_solicitud_cancelacion'] = now();
         }
         if (! empty($resultado['expiration_date'])) {
             $updates['fecha_vencimiento_aceptacion'] = $this->parseFecha($resultado['expiration_date']);
+        } elseif ($esSolicitud && ($resultado['solicitud_aceptada'] ?? false)) {
+            $inicio = $updates['fecha_solicitud_cancelacion'] ?? now();
+            $updates['fecha_vencimiento_aceptacion'] = Carbon::parse($inicio)->addWeekdays(3);
         }
         if ($estatusSat !== null) {
             $updates['estatus_sat'] = $estatusSat;

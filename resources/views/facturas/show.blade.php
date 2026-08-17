@@ -338,6 +338,12 @@ $breadcrumbs = [
                                     @if($factura->uuid_sustitucion_cancelacion)
                                         <div class="text-mono" style="font-size: 11px; margin-top: 6px; word-break: break-all;">UUID sustituto: {{ $factura->uuid_sustitucion_cancelacion }}</div>
                                     @endif
+                                    @if($facturaSustituta)
+                                        <div style="font-size: 12px; margin-top: 6px;">
+                                            Factura sustituta:
+                                            <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
+                                        </div>
+                                    @endif
                                 </div>
                             @endif
                         @endif
@@ -465,7 +471,14 @@ $breadcrumbs = [
                     @if($factura->puedeCancelar())
                     <button type="button"
                             onclick="document.getElementById('modalCancelar').classList.add('show')"
-                            class="btn btn-danger w-full">✗ Cancelar Factura</button>
+                            class="btn btn-danger w-full">
+                        {{ $factura->puedeReintentarCancelacionFiscal() ? '↻ Reenviar cancelación al SAT' : '✗ Cancelar Factura' }}
+                    </button>
+                    @elseif($factura->cancelacionFiscalVencidaSinResolver())
+                    <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                        El plazo de cancelación venció y el CFDI sigue vigente.
+                        Use <strong>Consultar estatus SAT</strong>; después podrá reenviar si continúa vigente.
+                    </div>
                     @elseif($factura->estaTimbrada() && $factura->tieneDocumentosRelacionados())
                     <div class="cancelar-factura-deshabilitado" style="display: flex; flex-direction: column; gap: 8px;">
                         <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
@@ -605,7 +618,11 @@ $breadcrumbs = [
                 </div>
                 @elseif($factura->puedeReintentarCancelacionFiscal())
                 <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
-                    El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
+                    @if($factura->cancelacionFiscalVencidaSinResolver())
+                        El plazo de la solicitud anterior venció y una consulta reciente confirma que el CFDI sigue vigente.
+                    @else
+                        El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
+                    @endif
                     El ERP permanece cancelado administrativamente; reenviar no restaura ni vuelve a mover inventario.
                 </div>
                 @endif
@@ -615,17 +632,17 @@ $breadcrumbs = [
                 <div class="form-group">
                     <label class="form-label">Motivo de Cancelación <span class="req">*</span></label>
                     <select name="motivo_cancelacion" id="cancelMotivo" class="form-control" required>
-                        <option value="01">01 - Comprobante emitido con errores con relación</option>
-                        <option value="02">02 - Comprobante emitido con errores sin relación</option>
-                        <option value="03">03 - No se llevó a cabo la operación</option>
-                        <option value="04">04 - Operación nominativa relacionada en factura global</option>
+                        <option value="01" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '01')>01 - Comprobante emitido con errores con relación</option>
+                        <option value="02" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '02')>02 - Comprobante emitido con errores sin relación</option>
+                        <option value="03" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '03')>03 - No se llevó a cabo la operación</option>
+                        <option value="04" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '04')>04 - Operación nominativa relacionada en factura global</option>
                     </select>
                 </div>
                 <div id="bloqueUuidSustituto" class="form-group" style="display: none;">
                     <label class="form-label">UUID Sustituto <span class="req">*</span></label>
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <input type="text" id="inputUuidSustitutoDisplay" class="form-control" readonly placeholder="Seleccione la factura que sustituye a esta" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
-                        <input type="hidden" name="uuid_sustituto" id="inputUuidSustituto" value="">
+                        <input type="text" id="inputUuidSustitutoDisplay" class="form-control" readonly placeholder="Seleccione la factura que sustituye a esta" value="{{ old('uuid_sustituto', $factura->uuid_sustitucion_cancelacion ?: ($facturaSustituta?->uuid ?? '')) }}" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                        <input type="hidden" name="uuid_sustituto" id="inputUuidSustituto" value="{{ old('uuid_sustituto', $factura->uuid_sustitucion_cancelacion ?: ($facturaSustituta?->uuid ?? '')) }}">
                         <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarSustituto()">
                             Seleccionar factura que sustituye
                         </button>
@@ -638,7 +655,9 @@ $breadcrumbs = [
                         onclick="document.getElementById('modalCancelar').classList.remove('show')">
                     Cerrar
                 </button>
-                <button type="submit" class="btn btn-danger">Confirmar Cancelación</button>
+                <button type="submit" class="btn btn-danger">
+                    {{ $factura->puedeReintentarCancelacionFiscal() ? 'Confirmar reenvío' : 'Confirmar Cancelación' }}
+                </button>
             </div>
         </form>
     </div>

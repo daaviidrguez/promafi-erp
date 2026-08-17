@@ -459,6 +459,7 @@ class FacturaController extends Controller
     public function show(Factura $factura)
     {
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user']);
+        $facturaSustituta = $factura->resolverFacturaSustituta();
 
         $mensajeSyncSat = null;
         $datosFiscalesBorrador = [
@@ -498,7 +499,7 @@ class FacturaController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
-        return view('facturas.show', compact('factura', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura', 'mensajeSyncSat', 'datosFiscalesBorrador'));
+        return view('facturas.show', compact('factura', 'facturaSustituta', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura', 'mensajeSyncSat', 'datosFiscalesBorrador'));
     }
 
     /**

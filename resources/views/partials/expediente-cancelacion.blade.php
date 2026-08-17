@@ -5,6 +5,10 @@
         : $document->cancelacionEventos()->with('user')->limit(20)->get();
     $esFactura = $document instanceof \App\Models\Factura;
     $esAdmin = $esFactura && (bool) ($document->cancelacion_administrativa ?? false);
+    $limiteAceptacion = $esFactura
+        ? $document->fechaLimiteCancelacionFiscal()
+        : ($document->fecha_vencimiento_aceptacion ?? null);
+    $facturaSustituta = $facturaSustituta ?? ($esFactura ? $document->resolverFacturaSustituta() : null);
 @endphp
 
 <div class="card" style="margin-top: 16px;">
@@ -15,7 +19,9 @@
         <div class="info-row">
             <div class="info-label">Estado PAC</div>
             <div class="info-value-sm">
-                @if($document->solicitudFiscalPendiente())
+                @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
+                    Plazo vencido · CFDI vigente
+                @elseif($document->solicitudFiscalPendiente())
                     Pendiente de cancelación SAT
                 @elseif($document->canceladaAnteSat())
                     Cancelado ante el SAT
@@ -33,11 +39,15 @@
         <div class="info-row">
             <div class="info-label">Estado SAT</div>
             <div class="info-value-sm">
-                {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
-                    $document->estatus_cancelacion_pac,
-                    $document->estatus_sat,
-                    $document->codigo_estatus_cancelacion
-                ) }}
+                @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
+                    Vigente · plazo de cancelación vencido
+                @else
+                    {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
+                        $document->estatus_cancelacion_pac,
+                        $document->estatus_sat,
+                        $document->codigo_estatus_cancelacion
+                    ) }}
+                @endif
             </div>
         </div>
         @if($document->motivo_cancelacion)
@@ -50,6 +60,17 @@
         <div class="info-row">
             <div class="info-label">UUID sustituto</div>
             <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $document->uuid_sustitucion_cancelacion }}</div>
+        </div>
+        @endif
+        @if($facturaSustituta)
+        <div class="info-row">
+            <div class="info-label">Factura sustituta</div>
+            <div class="info-value-sm">
+                <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">
+                    {{ $facturaSustituta->folio_completo }}
+                </a>
+                <div class="text-mono text-muted" style="font-size: 11px; word-break: break-all;">{{ $facturaSustituta->uuid }}</div>
+            </div>
         </div>
         @endif
         @if($esFactura && ($document->fecha_cancelacion_pac ?? null))
@@ -86,10 +107,15 @@
             <div class="info-value-sm">{{ $document->fecha_solicitud_cancelacion->format('d/m/Y H:i') }}</div>
         </div>
         @endif
-        @if($document->fecha_vencimiento_aceptacion)
+        @if($limiteAceptacion)
         <div class="info-row">
             <div class="info-label">Límite de aceptación</div>
-            <div class="info-value-sm">{{ $document->fecha_vencimiento_aceptacion->format('d/m/Y H:i') }}</div>
+            <div class="info-value-sm">
+                {{ $limiteAceptacion->format('d/m/Y H:i') }}
+                @if($esFactura && ! $document->fecha_vencimiento_aceptacion)
+                    <span class="text-muted">(estimado)</span>
+                @endif
+            </div>
         </div>
         @endif
         @if($document->mensaje_cancelacion_pac)
@@ -117,6 +143,16 @@
                     Cancelación administrativa en el ERP: inventario y saldo ya se revirtieron.
                     El CFDI sigue vigente ante el SAT hasta que use <strong>Cancelar factura</strong>
                     (después de facturar con relación, si aplica). El stock no se volverá a mover.
+                </div>
+            @elseif($document->cancelacionFiscalVencidaSinResolver())
+                <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
+                    El plazo de respuesta ya venció y el SAT todavía reporta el CFDI vigente.
+                    @if($document->cancelacionFiscalVencidaReintentable())
+                        Puede reenviar la cancelación; la consulta SAT vigente es reciente.
+                    @else
+                        Consulte nuevamente el estatus SAT antes de reenviar la cancelación.
+                    @endif
+                    El ERP permanece cancelado administrativamente y no duplicará movimientos.
                 </div>
             @elseif($document->solicitudFiscalPendiente())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
@@ -180,6 +216,12 @@
                                 @endif
                                 @if(!empty($evento->payload['uuid_sustitucion']))
                                     <div class="text-mono" style="word-break: break-all;">UUID sustituto: {{ $evento->payload['uuid_sustitucion'] }}</div>
+                                    @if($facturaSustituta && strcasecmp($facturaSustituta->uuid, $evento->payload['uuid_sustitucion']) === 0)
+                                        <div>
+                                            Factura sustituta:
+                                            <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                         @endif

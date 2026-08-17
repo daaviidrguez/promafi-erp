@@ -302,7 +302,7 @@ $breadcrumbs = [
                         @elseif($factura->estado === 'borrador')
                             <span class="badge badge-warning">📝 Borrador</span>
                         @else
-                            <span class="badge badge-danger">✗ {{ $factura->estado_etiqueta }}</span>
+                            <span class="badge badge-danger">{{ $factura->estado_etiqueta }}</span>
                             @if($factura->estado === 'cancelada' && ($factura->cancelacion_administrativa ?? false))
                                 @if($factura->fecha_cancelacion)
                                     <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
@@ -317,22 +317,8 @@ $breadcrumbs = [
                             @elseif($factura->fecha_cancelacion)
                                 <div class="text-muted" style="font-size: 11px; margin-top: 4px;">{{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}</div>
                             @endif
-                            @if($factura->cancelacion_administrativa ?? false)
-                                <div class="alert {{ $factura->pendienteCancelacionAntePac() ? 'alert-warning' : 'alert-info' }}" style="margin-top: 10px; margin-bottom: 0; text-align: left; font-size: 13px;">
-                                    @if($factura->pendienteCancelacionAntePac())
-                                        <strong>Cancelación administrativa (solo ERP).</strong> No cancela el CFDI ante el SAT.
-                                        <div style="margin-top: 8px;">El CFDI sigue vigente ante el SAT hasta que use <strong>«Cancelar factura»</strong> en acciones (cancelación ante el PAC). El inventario y el saldo ya se revirtieron en el ERP.</div>
-                                    @else
-                                        <div><strong>Cancelación administrativa (solo ERP).</strong></div>
-                                        <div style="margin-top: 8px;"><strong>Cancelación ante el PAC/SAT.</strong></div>
-                                    @endif
-                                    @if($factura->cancelacion_administrativa_motivo)
-                                        <div style="margin-top: 4px;">Motivo: {{ $factura->cancelacion_administrativa_motivo }}</div>
-                                    @endif
-                                    @if($factura->cancelacionAdministrativaUsuario)
-                                        <div class="text-muted" style="font-size: 12px; margin-top: 4px;">Usuario: {{ $factura->cancelacionAdministrativaUsuario->name }}</div>
-                                    @endif
-                                </div>
+                            @if($factura->estatus_solicitud_label)
+                                <div class="text-muted" style="font-size: 12px; margin-top: 6px;">{{ $factura->estatus_solicitud_label }}</div>
                             @endif
                         @endif
                     </div>
@@ -379,6 +365,10 @@ $breadcrumbs = [
                 @endif
             </div>
         </div>
+
+        @if($factura->estado === 'cancelada' || $factura->cancelacion_administrativa)
+            @include('partials.expediente-cancelacion', ['document' => $factura])
+        @endif
 
         {{-- Acciones --}}
         <div class="card">
@@ -440,7 +430,7 @@ $breadcrumbs = [
                 @endcan
                 @endif
 
-                @php $cfdiTimbradoAcciones = $factura->estaTimbrada() || $factura->pendienteCancelacionAntePac(); @endphp
+                @php $cfdiTimbradoAcciones = $factura->estaTimbrada() || ($factura->cancelacion_administrativa && !empty($factura->uuid)) || $factura->solicitudFiscalPendiente(); @endphp
                 @if($cfdiTimbradoAcciones)
                     @if($factura->xml_path)
                     <a href="{{ route('facturas.descargar-xml', $factura->id) }}"
@@ -472,18 +462,28 @@ $breadcrumbs = [
                     @endif
                 @endif
 
-                {{-- XML de cancelación: visible cuando la factura está cancelada (no depende de estaTimbrada) --}}
+                @if($factura->puedeConsultarEstatusCancelacion())
+                    <button type="button"
+                            class="btn btn-outline w-full js-actualizar-estatus-sat"
+                            data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
+                            data-folio="{{ $factura->folio_completo }}"
+                            data-tipo="factura">Consultar estatus SAT</button>
+                @endif
                 @if($factura->estado === 'cancelada')
-                    @if(! $factura->pendienteCancelacionAntePac() && !empty($factura->uuid))
+                    @if($factura->canceladaAnteSat() && !empty($factura->uuid))
                     <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">📑 Comprobante de cancelación (PDF)</a>
+                       class="btn btn-outline w-full">Comprobante de cancelación (PDF)</a>
                     @endif
                     @if(!empty($factura->acuse_cancelacion))
                     <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">📄 XML cancelado</a>
                     @elseif($factura->pendienteCancelacionAntePac())
                     <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                        El XML de cancelación estará disponible después de cancelar el CFDI ante el PAC (acción «Cancelar factura»).
+                        El XML de cancelación estará disponible después de enviar el CFDI al PAC (acción «Cancelar factura»).
+                    </div>
+                    @elseif($factura->solicitudFiscalPendiente())
+                    <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                        El acuse XML aparece cuando el SAT confirme la cancelación (el receptor aún no acepta o no vencen las 72 h). Use «Consultar estatus SAT».
                     </div>
                     @else
                     <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}"
@@ -579,7 +579,14 @@ $breadcrumbs = [
             <div class="modal-body">
                 @if($factura->pendienteCancelacionAntePac())
                 <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
-                    Esta factura ya fue <strong>cancelada administrativamente en el ERP</strong> (inventario y saldo revertidos). Al confirmar, solo se enviará la <strong>cancelación ante el PAC/SAT</strong>. No se volverán a registrar movimientos de inventario.
+                    Esta factura ya fue <strong>cancelada administrativamente en el ERP</strong> (inventario y saldo revertidos).
+                    Al confirmar, solo se enviará la <strong>cancelación ante el PAC/SAT</strong>. No se volverán a registrar movimientos de inventario,
+                    aunque después se haya facturado con relación el mismo stock.
+                </div>
+                @elseif($factura->puedeReintentarCancelacionFiscal())
+                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
+                    El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
+                    El ERP permanece cancelado administrativamente; reenviar no restaura ni vuelve a mover inventario.
                 </div>
                 @endif
                 <p class="text-muted" style="margin-bottom: 20px;">
@@ -736,6 +743,8 @@ $breadcrumbs = [
     </div>
 </div>
 @endif
+
+@include('partials.modal-actualizar-estatus-sat')
 
 @endsection
 

@@ -113,25 +113,27 @@ $breadcrumbs = [
                                 $tituloCancelFechas = $factura->fecha_cancelacion->format('d/m/Y H:i');
                             }
                         @endphp
-                        <span class="badge badge-danger" title="{{ $tituloCancelFechas }}">✗ Cancelada</span>
-                        @if($factura->codigo_estatus_cancelacion)
-                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);" title="Estatus de la solicitud (paso a paso)">
-                                {{ $factura->codigo_estatus_cancelacion }} — {{ $factura->estatus_solicitud_label }}
+                        <span class="badge badge-danger" title="{{ $tituloCancelFechas }}">{{ $factura->estado_etiqueta }}</span>
+                        @if($factura->estatus_solicitud_label)
+                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);">
+                                {{ $factura->estatus_solicitud_label }}
                             </div>
-                        @else
-                            <div style="font-size: 10px; margin-top: 4px; color: var(--color-gray-500);">Sin respuesta SAT aún</div>
+                        @elseif($factura->codigo_estatus_cancelacion)
+                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);">
+                                {{ $factura->codigo_estatus_cancelacion }}
+                            </div>
                         @endif
                     @endif
                 </td>
                 <td class="td-actions">
                     <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                        @if($factura->estado === 'cancelada')
+                        @if($factura->puedeConsultarEstatusCancelacion())
                             <button type="button"
                                     class="btn btn-outline-primary btn-sm btn-icon js-actualizar-estatus-sat"
-                                    title="Actualizar estatus"
+                                    title="Consultar estatus SAT"
                                     data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
                                     data-folio="{{ $factura->folio_completo }}"
-                                    data-tipo="factura">🔄</button>
+                                    data-tipo="factura">Consultar SAT</button>
                         @endif
                         <a href="{{ route('facturas.show', $factura->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>

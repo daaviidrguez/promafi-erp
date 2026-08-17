@@ -243,11 +243,33 @@ class PACService implements PACServiceInterface
 
     public function verificarEstado(string $uuid): array
     {
-        // TODO: Implementación real con servicio del SAT
-        return [
-            'success' => false,
-            'message' => 'Verificación no disponible',
-        ];
+        try {
+            $empresa = $this->getEmpresa();
+            if (! $empresa) {
+                return ['success' => false, 'message' => 'No hay empresa configurada.'];
+            }
+            $factura = Factura::where('uuid', $uuid)->first();
+            $complemento = $factura ? null : ComplementoPago::where('uuid', $uuid)->first();
+            $doc = $factura ?? $complemento;
+            if (! $doc) {
+                return ['success' => false, 'message' => 'No se encontró el CFDI en el ERP para consultar el SAT.'];
+            }
+            $facturama = new FacturamaService($empresa);
+            $rfcEmisor = $doc->rfc_emisor ?? $empresa->rfc ?? '';
+            $total = $factura ? $factura->total : $complemento->monto_total;
+
+            return $facturama->consultarEstatusSat(
+                $uuid,
+                (string) $rfcEmisor,
+                (string) ($doc->rfc_receptor ?? ''),
+                $total
+            );
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message' => 'Verificación no disponible: '.$e->getMessage(),
+            ];
+        }
     }
 
     protected function validarFactura(Factura $factura): bool

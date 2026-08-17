@@ -110,13 +110,11 @@ $breadcrumbs = [
                     @elseif($complemento->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        <span class="badge badge-danger" title="{{ $complemento->fecha_cancelacion ? $complemento->fecha_cancelacion->format('d/m/Y H:i') : '' }}">✗ Cancelado</span>
-                        @if($complemento->codigo_estatus_cancelacion)
-                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);" title="Estatus de la solicitud (paso a paso)">
-                                {{ $complemento->codigo_estatus_cancelacion }} — {{ $complemento->estatus_solicitud_label }}
+                        <span class="badge badge-danger" title="{{ $complemento->fecha_cancelacion ? $complemento->fecha_cancelacion->format('d/m/Y H:i') : '' }}">{{ $complemento->estado_etiqueta }}</span>
+                        @if($complemento->estatus_solicitud_label)
+                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);">
+                                {{ $complemento->estatus_solicitud_label }}
                             </div>
-                        @else
-                            <div style="font-size: 10px; margin-top: 4px; color: var(--color-gray-500);">Sin respuesta SAT aún</div>
                         @endif
                     @endif
                 </td>
@@ -125,10 +123,10 @@ $breadcrumbs = [
                         @if($complemento->estado === 'cancelado')
                             <button type="button"
                                     class="btn btn-outline-primary btn-sm btn-icon js-actualizar-estatus-sat"
-                                    title="Actualizar estatus"
+                                    title="Consultar estatus SAT"
                                     data-action="{{ route('complementos.actualizar-estatus-cancelacion', $complemento->id) }}"
                                     data-folio="{{ $complemento->folio_completo }}"
-                                    data-tipo="complemento">🔄</button>
+                                    data-tipo="complemento">Consultar SAT</button>
                         @endif
                         <a href="{{ route('complementos.show', $complemento->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>

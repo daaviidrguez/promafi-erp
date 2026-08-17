@@ -2,7 +2,7 @@
 <div id="modalActualizarEstatusSat" class="modal" onclick="if(event.target===this)cerrarModalActualizarEstatusSat()">
     <div class="modal-box" style="max-width: 480px;" onclick="event.stopPropagation()">
         <div class="modal-header">
-            <div class="modal-title">🔄 Actualizar estatus SAT</div>
+            <div class="modal-title">Consultar estatus SAT</div>
             <button type="button" class="modal-close" onclick="cerrarModalActualizarEstatusSat()" aria-label="Cerrar">✕</button>
         </div>
         <form id="formActualizarEstatusSat" method="POST" action="">
@@ -32,9 +32,9 @@
         form.action = actionUrl;
         var folioHtml = folio ? ' <strong>' + folio + '</strong>' : '';
         if (tipo === 'complemento') {
-            mensaje.innerHTML = '¿Consultar la respuesta actual del SAT para el complemento' + folioHtml + ' cancelado?';
+            mensaje.innerHTML = 'Se consultará Facturama y el SAT para el complemento' + folioHtml + '. El resultado dirá si sigue vigente, si está pendiente de aceptación o si ya se canceló. No se asume un código 201.';
         } else {
-            mensaje.innerHTML = '¿Consultar la respuesta actual del SAT para la factura' + folioHtml + ' cancelada?';
+            mensaje.innerHTML = 'Se consultará Facturama y el SAT para la factura' + folioHtml + '. El resultado dirá si sigue vigente, si está pendiente de aceptación o si ya se canceló. No se asume un código 201.';
         }
         document.getElementById('modalActualizarEstatusSat').classList.add('show');
     };

@@ -5,6 +5,7 @@ namespace App\Models;
 // UBICACIÓN: app/Models/Factura.php
 
 use App\Models\Concerns\HasDesgloseTotalesCfdi;
+use App\Services\EstatusCancelacionCfdi;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -54,6 +55,12 @@ class Factura extends Model
         'fecha_cancelacion_pac',
         'acuse_cancelacion',
         'codigo_estatus_cancelacion',
+        'estatus_cancelacion_pac',
+        'mensaje_cancelacion_pac',
+        'is_cancelable',
+        'fecha_solicitud_cancelacion',
+        'fecha_vencimiento_aceptacion',
+        'estatus_sat',
         'cotizacion_id',
         'observaciones',
         'uuid_referencia',
@@ -70,6 +77,8 @@ class Factura extends Model
         'fecha_timbrado' => 'datetime',
         'fecha_cancelacion' => 'datetime',
         'fecha_cancelacion_pac' => 'datetime',
+        'fecha_solicitud_cancelacion' => 'datetime',
+        'fecha_vencimiento_aceptacion' => 'datetime',
         'cancelacion_administrativa' => 'boolean',
         'cancelacion_administrativa_at' => 'datetime',
         'tipo_cambio' => 'decimal:6',
@@ -285,6 +294,11 @@ class Factura extends Model
     public function cancelacionAdministrativaUsuario()
     {
         return $this->belongsTo(User::class, 'cancelacion_administrativa_user_id');
+    }
+
+    public function cancelacionEventos()
+    {
+        return $this->morphMany(CfdiCancelacionEvento::class, 'cancelable');
     }
 
     /**
@@ -572,20 +586,48 @@ class Factura extends Model
     }
 
     /**
-     * Timbrada en el PAC pero cancelada solo en ERP; falta la cancelación ante el PAC/SAT.
+     * Timbrada en el PAC pero cancelada solo en ERP; falta enviar la cancelación ante el PAC/SAT.
      * El inventario y saldo ya se revirtieron en cancelación administrativa.
+     * No aplica si ya hay solicitud pending o si el SAT ya canceló.
      */
     public function pendienteCancelacionAntePac(): bool
     {
         return $this->estado === 'cancelada'
             && $this->cancelacion_administrativa
             && ! empty($this->uuid)
-            && (string) ($this->codigo_estatus_cancelacion ?? '') === 'ADM';
+            && ! $this->canceladaAnteSat()
+            && ! $this->solicitudFiscalPendiente()
+            && ! $this->cancelacionFiscalRechazada()
+            && empty($this->estatus_cancelacion_pac)
+            && empty($this->fecha_solicitud_cancelacion);
+    }
+
+    public function canceladaAnteSat(): bool
+    {
+        return EstatusCancelacionCfdi::esCanceladaSat(
+            $this->estatus_cancelacion_pac,
+            $this->estatus_sat,
+            $this->codigo_estatus_cancelacion
+        );
+    }
+
+    public function solicitudFiscalPendiente(): bool
+    {
+        return EstatusCancelacionCfdi::esPendientePac($this->estatus_cancelacion_pac);
+    }
+
+    public function cancelacionFiscalRechazada(): bool
+    {
+        return EstatusCancelacionCfdi::esRechazada(
+            $this->estatus_cancelacion_pac,
+            $this->codigo_estatus_cancelacion
+        );
     }
 
     /**
      * Verificar si puede ser cancelada ante el PAC (timbrada, o cancelada administrativamente pendiente de PAC).
      * Sin documentos relacionados que bloqueen (misma regla que flujo castada).
+     * Si ya hay solicitud pending, no reenviar: usar actualizar estatus.
      */
     public function puedeCancelar(): bool
     {
@@ -597,7 +639,23 @@ class Factura extends Model
             return true;
         }
 
-        return $this->pendienteCancelacionAntePac();
+        return $this->pendienteCancelacionAntePac() || $this->puedeReintentarCancelacionFiscal();
+    }
+
+    public function puedeReintentarCancelacionFiscal(): bool
+    {
+        return $this->estado === 'cancelada'
+            && $this->cancelacion_administrativa
+            && ! empty($this->uuid)
+            && ! $this->canceladaAnteSat()
+            && ! $this->solicitudFiscalPendiente()
+            && $this->cancelacionFiscalRechazada();
+    }
+
+    public function puedeConsultarEstatusCancelacion(): bool
+    {
+        return ! empty($this->uuid)
+            && ($this->estado === 'cancelada' || $this->cancelacion_administrativa);
     }
 
     /**
@@ -713,18 +771,14 @@ class Factura extends Model
             return 'Timbrada';
         }
         if ($this->estado === 'cancelada') {
-            if ($this->pendienteCancelacionAntePac()) {
-                return 'Cancelada (Administrativa — ERP)';
-            }
-            if ($this->cancelacion_administrativa) {
-                return 'Cancelada (Administrativa en ERP y ante el PAC/SAT)';
-            }
-            $cod = $this->codigo_estatus_cancelacion;
-            if ($cod && $cod !== 'ADM') {
-                return 'Cancelada ('.$cod.')';
-            }
-
-            return 'Cancelada';
+            return EstatusCancelacionCfdi::etiquetaListado(
+                $this->estado,
+                (bool) $this->cancelacion_administrativa,
+                $this->estatus_cancelacion_pac,
+                $this->estatus_sat,
+                $this->codigo_estatus_cancelacion,
+                $this->pendienteCancelacionAntePac()
+            );
         }
 
         return $this->estado ?? '—';
@@ -735,8 +789,29 @@ class Factura extends Model
      */
     public function getEstatusSolicitudLabelAttribute(): ?string
     {
-        if ($this->estado !== 'cancelada') {
+        if ($this->estado !== 'cancelada' && ! $this->cancelacion_administrativa) {
             return null;
+        }
+        if ($this->solicitudFiscalPendiente()) {
+            $hasta = $this->fecha_vencimiento_aceptacion
+                ? $this->fecha_vencimiento_aceptacion->format('d/m/Y H:i')
+                : null;
+
+            return $hasta
+                ? 'Pendiente de aceptación del receptor (hasta '.$hasta.')'
+                : 'Pendiente de aceptación del receptor (hasta 72 h)';
+        }
+        if ($this->canceladaAnteSat()) {
+            return 'Cancelada ante el SAT';
+        }
+        if ($this->cancelacionFiscalRechazada()) {
+            return 'Rechazada por el receptor · SAT vigente';
+        }
+        if ($this->pendienteCancelacionAntePac()) {
+            return 'Cancelación administrativa en ERP (pendiente de envío al SAT)';
+        }
+        if ($this->estatus_sat) {
+            return 'SAT: '.$this->estatus_sat;
         }
         $cod = $this->codigo_estatus_cancelacion;
         if ($cod === null || $cod === '') {
@@ -746,43 +821,9 @@ class Factura extends Model
         return self::descripcionCodigoCancelacion($cod);
     }
 
-    /**
-     * Descripción del código de estatus de cancelación SAT.
-     * Documentación: https://apisandbox.facturama.mx/docs
-     */
     public static function descripcionCodigoCancelacion(?string $codigo): string
     {
-        $map = [
-            'ADM' => 'Cancelación administrativa en ERP (pendiente ante PAC/SAT)',
-            '201' => 'Solicitud procesada',
-            '202' => 'Cancelada ante el SAT',
-            '203' => 'UUID no corresponde al emisor',
-            '204' => 'UUID no aplicable',
-            '205' => 'UUID no existe',
-            '206' => 'Pendiente de aceptación del receptor',
-            '207' => 'Motivo de cancelación no válido',
-            '208' => 'UUID sustitución no válido',
-            '209' => 'UUID sustitución no requerido',
-            '210' => 'UUID sustitución no existe',
-            '211' => 'Límite de tiempo para factura global',
-            '212' => 'Relación inválida o inexistente',
-            '213' => 'Rechazada por el receptor',
-            '301' => 'Sello inválido',
-            '302' => 'Certificado revocado/caduco',
-            '401' => 'Fecha fuera de rango',
-            '601' => 'No cancelable',
-        ];
-        $cod = (string) $codigo;
-        if (str_starts_with($cod, 'R-')) {
-            $num = substr($cod, 2);
-
-            return ($map[$num] ?? $num).' (Rechazada)';
-        }
-        if (str_starts_with($cod, 'R') || str_starts_with($cod, 'Rechazada')) {
-            return 'Rechazada';
-        }
-
-        return $map[$cod] ?? $codigo ?? '—';
+        return EstatusCancelacionCfdi::descripcionCodigo($codigo);
     }
 
     /**

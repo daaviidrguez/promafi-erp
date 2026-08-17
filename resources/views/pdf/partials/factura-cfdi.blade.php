@@ -202,6 +202,8 @@
         @endif
         @if($f->fecha_cancelacion_pac ?? null)
         <br><span style="font-size:8pt;">Cancelación ante PAC/SAT: {{ \Carbon\Carbon::parse($f->fecha_cancelacion_pac)->format('d/m/Y H:i') }}</span>
+        @elseif(($f->estatus_cancelacion_pac ?? null) === 'pending')
+        <br><span style="font-size:8pt;">Solicitud de cancelación SAT pendiente de aceptación</span>
         @endif
     @elseif($f->fecha_cancelacion)
     <br><span style="font-size:8pt;">Fecha de cancelación: {{ \Carbon\Carbon::parse($f->fecha_cancelacion)->format('d/m/Y H:i') }}</span>

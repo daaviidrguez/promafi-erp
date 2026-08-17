@@ -14,6 +14,8 @@ use App\Models\Cliente;
 use App\Models\Empresa;
 use App\Models\FormaPago;
 use App\Models\NotaCredito;
+use App\Services\CancelacionFiscalService;
+use App\Services\EstatusCancelacionCfdi;
 use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
@@ -25,7 +27,8 @@ class ComplementoPagoController extends Controller
 {
     public function __construct(
         protected PACServiceInterface $pacService,
-        protected PDFService $pdfService
+        protected PDFService $pdfService,
+        protected CancelacionFiscalService $cancelacionFiscal
     ) {}
 
     /**
@@ -273,7 +276,8 @@ class ComplementoPagoController extends Controller
         $complemento->load([
             'cliente',
             'pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar',
-            'usuario'
+            'usuario',
+            'cancelacionEventos.user',
         ]);
 
         return view('complementos.show', compact('complemento'));
@@ -626,33 +630,35 @@ class ComplementoPagoController extends Controller
             );
 
             if (!$resultado['success']) {
-                throw new \Exception($resultado['message']);
+                throw new \Exception($resultado['message'] ?? 'No se pudo cancelar ante el PAC.');
             }
 
-            $complemento->update([
+            $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'solicitud', [
                 'estado' => 'cancelado',
                 'motivo_cancelacion' => $validated['motivo_cancelacion'],
-                'fecha_cancelacion' => now(),
-                'acuse_cancelacion' => $resultado['acuse'] ?? null,
-                'codigo_estatus_cancelacion' => $resultado['codigo_estatus'] ?? '201',
+                'fecha_cancelacion' => $complemento->fecha_cancelacion ?? now(),
             ]);
 
-            // Revertir aplicación de pagos en cuentas por cobrar
-            $complemento->load('pagosRecibidos.documentosRelacionados.factura');
-            foreach ($complemento->pagosRecibidos as $pagoRecibido) {
-                foreach ($pagoRecibido->documentosRelacionados as $doc) {
-                    $cuenta = $doc->factura->cuentaPorCobrar;
-                    if ($cuenta) {
-                        $cuenta->revertirPago((float) $doc->monto_pagado);
+            if ($resultado['solicitud_aceptada'] ?? false) {
+                $complemento->load('pagosRecibidos.documentosRelacionados.factura');
+                foreach ($complemento->pagosRecibidos as $pagoRecibido) {
+                    foreach ($pagoRecibido->documentosRelacionados as $doc) {
+                        $cuenta = $doc->factura->cuentaPorCobrar;
+                        if ($cuenta) {
+                            $cuenta->revertirPago((float) $doc->monto_pagado);
+                        }
                     }
                 }
             }
 
             DB::commit();
             return redirect()->route('complementos.show', $complemento->id)
-                ->with('success', 'Complemento cancelado en el SAT correctamente.');
+                ->with('success', $this->cancelacionFiscal->mensajePara($complemento->fresh(), $resultado));
         } catch (\Exception $e) {
             DB::rollBack();
+            $this->cancelacionFiscal->registrarEvento($complemento, 'error', [
+                'message' => $e->getMessage(),
+            ]);
             return back()->with('error', 'Error al cancelar: ' . $e->getMessage());
         }
     }
@@ -736,7 +742,7 @@ class ComplementoPagoController extends Controller
      */
     public function actualizarEstatusCancelacion(ComplementoPago $complemento)
     {
-        if ($complemento->estado !== 'cancelado') {
+        if (! $complemento->puedeConsultarEstatusCancelacion()) {
             return back()->with('error', 'Solo se puede actualizar el estatus de complementos cancelados.');
         }
         $empresa = $complemento->empresa ?? \App\Models\Empresa::principal();
@@ -747,21 +753,17 @@ class ComplementoPagoController extends Controller
             $facturama = new FacturamaService($empresa);
             $resultado = $facturama->consultarEstatusCancelacionPorComplemento($complemento);
             if (! $resultado['success']) {
-                return back()->with('error', $resultado['message']);
+                $this->cancelacionFiscal->registrarEvento($complemento, 'error', $resultado);
+
+                return back()->with('error', $resultado['message'] ?: 'No se pudo consultar el estatus.');
             }
 
-            $updates = ['codigo_estatus_cancelacion' => $resultado['codigo_estatus']];
-            if (! empty($resultado['acuse'])) {
-                $updates['acuse_cancelacion'] = $resultado['acuse'];
-            }
-            $complemento->update($updates);
+            $this->cancelacionFiscal->persistirResultado($complemento, $resultado, 'consulta');
 
-            $mensaje = 'Estatus actualizado: '.ComplementoPago::descripcionCodigoCancelacion($resultado['codigo_estatus'])
-                .' (código '.$resultado['codigo_estatus'].').';
-            if (! empty($resultado['mensaje_pac'])) {
-                $mensaje .= ' '.$resultado['mensaje_pac'];
+            $mensaje = $this->cancelacionFiscal->mensajePara($complemento->fresh(), $resultado);
+            if (! empty($resultado['codigo_estatus'])) {
+                $mensaje .= ' Código SAT '.$resultado['codigo_estatus'].': '.EstatusCancelacionCfdi::descripcionCodigo($resultado['codigo_estatus']).'.';
             }
-            $mensaje .= ' Puedes descargar el comprobante en el detalle del complemento.';
 
             return back()->with('success', $mensaje);
         } catch (\Throwable $e) {
@@ -776,6 +778,9 @@ class ComplementoPagoController extends Controller
     {
         if ($complemento->estado !== 'cancelado') {
             return back()->with('error', 'Solo se puede descargar el comprobante de complementos cancelados.');
+        }
+        if (! $complemento->canceladaAnteSat()) {
+            return back()->with('error', 'El comprobante estará disponible cuando el SAT confirme la cancelación.');
         }
         if (empty($complemento->uuid)) {
             return back()->with('error', 'El complemento no tiene UUID timbrado.');

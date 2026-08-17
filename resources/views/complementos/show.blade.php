@@ -143,7 +143,10 @@ $breadcrumbs = [
                         @elseif($complemento->estado === 'borrador')
                             <span class="badge badge-warning">📝 Borrador</span>
                         @else
-                            <span class="badge badge-danger">✗ Cancelado</span>
+                            <span class="badge badge-danger">{{ $complemento->estado_etiqueta }}</span>
+                            @if($complemento->estatus_solicitud_label)
+                                <div class="text-muted" style="font-size: 12px; margin-top: 6px;">{{ $complemento->estatus_solicitud_label }}</div>
+                            @endif
                         @endif
                     </div>
                 </div>
@@ -175,6 +178,10 @@ $breadcrumbs = [
                 </div>
             </div>
         </div>
+
+        @if($complemento->estado === 'cancelado')
+            @include('partials.expediente-cancelacion', ['document' => $complemento])
+        @endif
 
         {{-- Acciones --}}
         <div class="card">
@@ -221,9 +228,16 @@ $breadcrumbs = [
                 @endif
 
                 @if($complemento->estado === 'cancelado')
-                    @if(!empty($complemento->uuid))
+                    @if($complemento->puedeConsultarEstatusCancelacion())
+                    <button type="button"
+                            class="btn btn-outline w-full js-actualizar-estatus-sat"
+                            data-action="{{ route('complementos.actualizar-estatus-cancelacion', $complemento->id) }}"
+                            data-folio="{{ $complemento->folio_completo }}"
+                            data-tipo="complemento">Consultar estatus SAT</button>
+                    @endif
+                    @if($complemento->canceladaAnteSat() && !empty($complemento->uuid))
                     <a href="{{ route('complementos.descargar-pdf-acuse-cancelacion', $complemento->id) }}"
-                       class="btn btn-outline w-full">📑 Comprobante de cancelación (PDF)</a>
+                       class="btn btn-outline w-full">Comprobante de cancelación (PDF)</a>
                     @endif
                     @if(!empty($complemento->acuse_cancelacion))
                     <a href="{{ route('complementos.descargar-xml-cancelacion', $complemento->id) }}"
@@ -377,5 +391,7 @@ $breadcrumbs = [
 </script>
 @endpush
 @endif
+
+@include('partials.modal-actualizar-estatus-sat')
 
 @endsection

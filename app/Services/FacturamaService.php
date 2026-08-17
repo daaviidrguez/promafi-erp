@@ -553,7 +553,7 @@ class FacturamaService
      * @param string $motivo 01|02|03|04 (SAT)
      * @param string|null $uuidSustitucion UUID del comprobante que sustituye (opcional)
      * @param string|null $pacCfdiId Id del CFDI en Facturama (si no se tiene, se intenta buscar por keyword)
-     * @return array ['success' => bool, 'message' => string, 'acuse' => string|null]
+     * @return array<string, mixed>
      */
     public function cancelarFactura(string $uuid, string $motivo, ?string $uuidSustitucion = null, ?string $pacCfdiId = null): array
     {
@@ -563,14 +563,19 @@ class FacturamaService
             if ($cfdiId === null) {
                 return [
                     'success' => false,
-                    'message' => 'No se encontró el CFDI en Facturama para el UUID indicado. Solo se pueden cancelar CFDI timbrados con Facturama (verifique que el complemento se timbró en este ambiente).',
+                    'solicitud_aceptada' => false,
+                    'message' => 'No se encontró el CFDI en Facturama para el UUID indicado. Solo se pueden cancelar CFDI timbrados con Facturama (verifique el ambiente sandbox/producción).',
+                    'acuse' => null,
+                    'codigo_estatus' => null,
+                    'status_pac' => null,
+                    'mensaje_pac' => null,
+                    'payload' => null,
                 ];
             }
         }
 
-        $type = 'issued';
         $params = [
-            'type' => $type,
+            'type' => 'issued',
             'motive' => in_array($motivo, ['01', '02', '03', '04'], true) ? $motivo : '02',
         ];
         if ($uuidSustitucion !== null && $uuidSustitucion !== '') {
@@ -584,9 +589,11 @@ class FacturamaService
             ->timeout(30)
             ->delete($url);
 
-        if (!$response->successful()) {
-            $body = $response->json();
-            $message = is_array($body) ? ($body['Message'] ?? $body['message'] ?? $response->body()) : $response->body();
+        $data = $response->json();
+        $data = is_array($data) ? $data : [];
+
+        if (! $response->successful()) {
+            $message = $data['Message'] ?? $data['message'] ?? $response->body();
             if (is_array($message)) {
                 $message = json_encode($message);
             }
@@ -595,35 +602,44 @@ class FacturamaService
                 'status' => $response->status(),
                 'response' => $response->body(),
             ]);
-            return [
+
+            return array_merge($this->resultadoCancelacionVacio(), [
                 'success' => false,
                 'message' => 'Facturama: ' . trim((string) $message),
-            ];
+                'mensaje_pac' => is_string($message) ? trim($message) : null,
+                'payload' => $data,
+            ]);
         }
 
-        $data = $response->json();
-        // Facturama puede devolver el acuse en distintas claves (sandbox vs producción)
-        $acuse = $data['AcuseXmlBase64'] ?? $data['acuseXmlBase64'] ?? $data['AcuseXml'] ?? $data['acuseXml'] ?? null;
-        if ($acuse === null && is_array($data)) {
-            foreach (array_keys($data) as $key) {
-                if (stripos($key, 'acuse') !== false && (stripos($key, 'xml') !== false || stripos($key, 'base64') !== false)) {
-                    $acuse = $data[$key];
-                    break;
-                }
+        Log::info('Facturama cancelación respuesta', [
+            'uuid' => $uuid,
+            'status_http' => $response->status(),
+            'status_pac' => $data['Status'] ?? $data['status'] ?? null,
+            'message' => $data['Message'] ?? $data['message'] ?? null,
+            'acuse_status' => $data['AcuseStatus'] ?? $data['AccusationStatus'] ?? null,
+        ]);
+
+        $parsed = $this->interpretarRespuestaCancelacion($data);
+        $statusPac = EstatusCancelacionCfdi::normalizarStatusPac($parsed['status_pac']);
+
+        if ($statusPac === 'canceled' && empty($parsed['acuse']) && $cfdiId) {
+            $parsed['acuse'] = $this->obtenerAcuseCancelacion($cfdiId);
+            if (! empty($parsed['acuse']) && empty($parsed['codigo_estatus'])) {
+                $parsed['codigo_estatus'] = self::extraerCodigoEstatusDelAcuse($parsed['acuse']);
             }
         }
-        // Si el DELETE no devolvió acuse, intentar obtenerlo con GET (documentación Facturama)
-        if (empty($acuse) && $cfdiId) {
-            $acuse = $this->obtenerAcuseCancelacion($cfdiId);
-        }
-        $codigoEstatus = $acuse ? self::extraerCodigoEstatusDelAcuse($acuse) : '201';
 
-        return [
-            'success' => true,
-            'message' => 'Factura cancelada en el SAT correctamente.',
-            'acuse' => $acuse,
-            'codigo_estatus' => $codigoEstatus,
-        ];
+        $solicitudAceptada = EstatusCancelacionCfdi::solicitudAceptadaPorPac($statusPac);
+        if ($statusPac === null) {
+            $solicitudAceptada = true;
+        }
+
+        $parsed['solicitud_aceptada'] = $solicitudAceptada;
+        $parsed['payload'] = $data;
+        $parsed['success'] = $solicitudAceptada && $statusPac !== 'active' && $statusPac !== 'rejected';
+        $parsed['message'] = EstatusCancelacionCfdi::mensajeUsuario($parsed);
+
+        return $parsed;
     }
 
     /**
@@ -760,91 +776,170 @@ class FacturamaService
     /**
      * Consultar estatus de cancelación ante Facturama/SAT (botón actualizar estatus).
      *
-     * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}
+     * @return array<string, mixed>
      */
     public function consultarEstatusCancelacionPorFactura(Factura $factura): array
     {
         return $this->consultarEstatusCancelacion(
             $factura->pac_cfdi_id ?? null,
             $factura->uuid ?? null,
-            $factura->acuse_cancelacion ?? null
+            $factura->acuse_cancelacion ?? null,
+            $factura->rfc_emisor ?? null,
+            $factura->rfc_receptor ?? null,
+            $factura->total ?? null
         );
     }
 
     /**
-     * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}
+     * @return array<string, mixed>
      */
     public function consultarEstatusCancelacionPorComplemento(ComplementoPago $complemento): array
     {
         return $this->consultarEstatusCancelacion(
             $complemento->pac_cfdi_id ?? null,
             $complemento->uuid ?? null,
-            $complemento->acuse_cancelacion ?? null
+            $complemento->acuse_cancelacion ?? null,
+            $complemento->rfc_emisor ?? null,
+            $complemento->rfc_receptor ?? null,
+            $complemento->monto_total ?? null
         );
     }
 
     /**
-     * @return array{success: bool, message: string, acuse: ?string, codigo_estatus: ?string, status_pac: ?string, mensaje_pac: ?string}
+     * @return array<string, mixed>
      */
-    public function consultarEstatusCancelacion(?string $pacCfdiId, ?string $uuid, ?string $acuseLocal = null): array
-    {
+    public function consultarEstatusCancelacion(
+        ?string $pacCfdiId,
+        ?string $uuid,
+        ?string $acuseLocal = null,
+        ?string $rfcEmisor = null,
+        ?string $rfcReceptor = null,
+        mixed $total = null
+    ): array {
         $cfdiId = $this->resolverCfdiId($pacCfdiId, $uuid, true);
         $detalle = $cfdiId ? $this->obtenerEstadoCancelacionDesdeDetalle($cfdiId) : null;
 
-        $statusPac = $detalle['status'] ?? null;
+        $statusPac = EstatusCancelacionCfdi::normalizarStatusPac($detalle['status'] ?? null);
+        if ($statusPac === 'active' && $uuid) {
+            $statusEnListado = $this->detectarStatusCancelacionEnListados($uuid);
+            if ($statusEnListado !== null) {
+                $statusPac = $statusEnListado;
+            } else {
+                $statusPac = null;
+            }
+        } elseif ($statusPac === null && $uuid) {
+            $statusPac = $this->detectarStatusCancelacionEnListados($uuid);
+        }
+
         $mensajePac = $detalle['message'] ?? null;
+        $isCancelable = $detalle['is_cancelable'] ?? null;
+        $codigoEstatus = $detalle['sat_acuse_status_code'] ?? null;
         $acuse = $detalle['acuse'] ?? null;
 
-        if (empty($acuse) && $cfdiId) {
+        $canceladaEnPac = $statusPac === 'canceled';
+        if ($canceladaEnPac && empty($acuse) && $cfdiId) {
             $acuse = $this->obtenerAcuseCancelacion($cfdiId, $detalle);
         }
-        if (empty($acuse) && ! empty($acuseLocal)) {
+        if ($canceladaEnPac && empty($acuse) && ! empty($acuseLocal)) {
             $acuse = $acuseLocal;
         }
 
-        $codigoEstatus = null;
-        if (! empty($acuse)) {
+        if (empty($codigoEstatus) && ! empty($acuse)) {
             $codigoEstatus = self::extraerCodigoEstatusDelAcuse($acuse);
-        } elseif (! empty($detalle['sat_acuse_status_code'])) {
-            $codigoEstatus = $detalle['sat_acuse_status_code'];
         }
 
-        $codigoEstatus = $this->normalizarCodigoEstatusCancelacion($codigoEstatus, $statusPac, $mensajePac);
-
-        $statusNormalizado = strtolower((string) $statusPac);
-        $canceladaEnPac = in_array($statusNormalizado, ['canceled', 'cancelled'], true);
-        $pendienteEnPac = $statusNormalizado === 'pending';
-        $rechazadaEnPac = in_array($statusNormalizado, ['rejected', 'reject'], true);
-
-        if ($canceladaEnPac || $pendienteEnPac || $rechazadaEnPac) {
-            return [
-                'success' => true,
-                'message' => '',
-                'acuse' => $acuse,
-                'codigo_estatus' => $codigoEstatus ?? ($canceladaEnPac ? '202' : ($pendienteEnPac ? '206' : 'R-213')),
-                'status_pac' => $statusPac,
-                'mensaje_pac' => $mensajePac,
-            ];
+        $estatusSat = null;
+        $satConsulta = null;
+        if (! empty($uuid) && ! empty($rfcEmisor) && ! empty($rfcReceptor) && $total !== null && $total !== '') {
+            $satConsulta = $this->consultarEstatusSat(
+                $uuid,
+                $rfcEmisor,
+                $rfcReceptor,
+                $total
+            );
+            if (! empty($satConsulta['estatus_sat'])) {
+                $estatusSat = $satConsulta['estatus_sat'];
+            }
+            if (empty($isCancelable) && ! empty($satConsulta['is_cancelable'])) {
+                $isCancelable = $satConsulta['is_cancelable'];
+            }
         }
 
-        if (! empty($acuse) || ! empty($codigoEstatus)) {
-            return [
-                'success' => true,
-                'message' => '',
-                'acuse' => $acuse,
-                'codigo_estatus' => $codigoEstatus ?? '201',
-                'status_pac' => $statusPac,
-                'mensaje_pac' => $mensajePac,
-            ];
-        }
-
-        return [
-            'success' => false,
-            'message' => 'No se pudo obtener la respuesta del SAT. Intente más tarde o verifique la factura en Facturama.',
-            'acuse' => null,
-            'codigo_estatus' => null,
+        $resultado = array_merge($this->resultadoCancelacionVacio(), [
+            'success' => true,
+            'acuse' => $acuse,
+            'codigo_estatus' => $codigoEstatus,
             'status_pac' => $statusPac,
             'mensaje_pac' => $mensajePac,
+            'is_cancelable' => $isCancelable,
+            'estatus_sat' => $estatusSat,
+            'request_date' => $detalle['request_date'] ?? null,
+            'expiration_date' => $detalle['expiration_date'] ?? null,
+            'solicitud_aceptada' => EstatusCancelacionCfdi::solicitudAceptadaPorPac($statusPac),
+            'payload' => [
+                'detalle_pac' => $detalle,
+                'consulta_sat' => $satConsulta,
+            ],
+        ]);
+        $resultado['cancelada_sat'] = EstatusCancelacionCfdi::esCanceladaSat($statusPac, $estatusSat, $codigoEstatus);
+        $resultado['message'] = EstatusCancelacionCfdi::mensajeUsuario($resultado);
+
+        return $resultado;
+    }
+
+    /**
+     * GET /cfdi/status — estado ante el SAT (consume folio en Facturama).
+     *
+     * @return array{success: bool, estatus_sat: ?string, is_cancelable: ?string, message: ?string, payload: ?array}
+     */
+    public function consultarEstatusSat(string $uuid, string $rfcEmisor, string $rfcReceptor, mixed $total): array
+    {
+        $totalFmt = number_format((float) $total, 2, '.', '');
+        $url = $this->baseUrl.'/cfdi/status?'.http_build_query([
+            'uuid' => $uuid,
+            'issuerRfc' => $rfcEmisor,
+            'receiverRfc' => $rfcReceptor,
+            'total' => $totalFmt,
+        ]);
+
+        try {
+            $res = $this->http()->acceptJson()->timeout(20)->get($url);
+        } catch (\Throwable $e) {
+            Log::warning('Facturama consulta SAT fallida', ['uuid' => $uuid, 'error' => $e->getMessage()]);
+
+            return [
+                'success' => false,
+                'estatus_sat' => null,
+                'is_cancelable' => null,
+                'message' => 'No se pudo consultar el SAT: '.$e->getMessage(),
+                'payload' => null,
+            ];
+        }
+
+        $data = $res->json();
+        $data = is_array($data) ? $data : [];
+        if (! $res->successful()) {
+            $message = $data['Message'] ?? $data['message'] ?? $res->body();
+
+            return [
+                'success' => false,
+                'estatus_sat' => null,
+                'is_cancelable' => null,
+                'message' => is_string($message) ? $message : 'Error al consultar estatus SAT',
+                'payload' => $data,
+            ];
+        }
+
+        $estatus = EstatusCancelacionCfdi::normalizarEstatusSat(
+            $data['Status'] ?? $data['status'] ?? $data['CfdiStatus'] ?? null
+        );
+
+        return [
+            'success' => true,
+            'estatus_sat' => $estatus,
+            'is_cancelable' => $data['IsCancelable'] ?? $data['isCancelable'] ?? null,
+            'message' => null,
+            'payload' => $data,
         ];
     }
 
@@ -889,7 +984,7 @@ class FacturamaService
     /**
      * GET detalle del CFDI en Facturama para leer Status y acuse de cancelación.
      *
-     * @return array{status: ?string, message: ?string, sat_acuse_status_code: ?string, acuse: ?string}|null
+     * @return array<string, mixed>|null
      */
     protected function obtenerEstadoCancelacionDesdeDetalle(string $cfdiId): ?array
     {
@@ -915,37 +1010,105 @@ class FacturamaService
     }
 
     /**
-     * @return array{status: ?string, message: ?string, sat_acuse_status_code: ?string, acuse: ?string}
+     * Prefiere el bloque de cancelación; el Status raíz suele ser el de la factura (active).
+     *
+     * @return array<string, mixed>
      */
     protected function parsearEstadoCancelacionDesdeRespuesta(array $data): array
     {
-        $bloques = [$data];
+        $bloquesCancelacion = [];
         foreach (['CancelationStatus', 'CancellationStatus', 'Cancelation', 'Cancellation'] as $clave) {
             if (isset($data[$clave]) && is_array($data[$clave])) {
-                $bloques[] = $data[$clave];
+                $bloquesCancelacion[] = $data[$clave];
             }
         }
 
-        $status = null;
-        $message = null;
-        $satCode = null;
-        $acuse = null;
+        $fuente = $bloquesCancelacion[0] ?? $data;
+        $statusBruto = $fuente['Status'] ?? $fuente['status'] ?? null;
+        $status = EstatusCancelacionCfdi::normalizarStatusPac(is_string($statusBruto) ? $statusBruto : null);
 
-        foreach ($bloques as $bloque) {
-            $status ??= $bloque['Status'] ?? $bloque['status'] ?? null;
-            $message ??= $bloque['Message'] ?? $bloque['message'] ?? null;
-            if (isset($bloque['SatAcuseStatusCode']) || isset($bloque['satAcuseStatusCode'])) {
-                $satCode ??= (string) ($bloque['SatAcuseStatusCode'] ?? $bloque['satAcuseStatusCode']);
-            }
-            $acuse ??= $this->extraerAcuseDePayload($bloque);
+        if ($bloquesCancelacion === [] && $status === 'active') {
+            $status = null;
         }
+
+        $message = $fuente['Message'] ?? $fuente['message'] ?? $data['Message'] ?? $data['message'] ?? null;
+        $isCancelable = $fuente['IsCancelable'] ?? $fuente['isCancelable'] ?? $data['IsCancelable'] ?? $data['isCancelable'] ?? null;
+        $satCode = $fuente['AcuseStatus'] ?? $fuente['AccusationStatus'] ?? $fuente['SatAcuseStatusCode'] ?? $fuente['satAcuseStatusCode']
+            ?? $data['AcuseStatus'] ?? $data['AccusationStatus'] ?? null;
+        $acuse = $this->extraerAcuseDePayload($fuente) ?? $this->extraerAcuseDePayload($data);
 
         return [
-            'status' => $status !== null ? (string) $status : null,
+            'status' => $status,
             'message' => $message !== null ? (string) $message : null,
-            'sat_acuse_status_code' => $satCode,
+            'is_cancelable' => $isCancelable !== null ? (string) $isCancelable : null,
+            'sat_acuse_status_code' => $satCode !== null && $satCode !== '' ? (string) $satCode : null,
             'acuse' => $acuse,
+            'request_date' => $fuente['RequestDate'] ?? $data['RequestDate'] ?? null,
+            'expiration_date' => $fuente['ExpirationDate'] ?? $data['ExpirationDate'] ?? null,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function interpretarRespuestaCancelacion(array $data): array
+    {
+        $parsed = $this->parsearEstadoCancelacionDesdeRespuesta($data);
+        $codigo = $parsed['sat_acuse_status_code'];
+        if ($codigo === null && ! empty($parsed['acuse'])) {
+            $codigo = self::extraerCodigoEstatusDelAcuse($parsed['acuse']);
+        }
+
+        return array_merge($this->resultadoCancelacionVacio(), [
+            'acuse' => $parsed['acuse'],
+            'codigo_estatus' => $codigo,
+            'status_pac' => $parsed['status'],
+            'mensaje_pac' => $parsed['message'],
+            'is_cancelable' => $parsed['is_cancelable'],
+            'request_date' => $parsed['request_date'],
+            'expiration_date' => $parsed['expiration_date'],
+            'response_date' => $data['ResponseDate'] ?? $data['CancelationDate'] ?? $data['CancellationDate'] ?? null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function resultadoCancelacionVacio(): array
+    {
+        return [
+            'success' => false,
+            'solicitud_aceptada' => false,
+            'cancelada_sat' => false,
+            'message' => '',
+            'acuse' => null,
+            'codigo_estatus' => null,
+            'status_pac' => null,
+            'mensaje_pac' => null,
+            'is_cancelable' => null,
+            'estatus_sat' => null,
+            'request_date' => null,
+            'expiration_date' => null,
+            'response_date' => null,
+            'payload' => null,
+        ];
+    }
+
+    protected function detectarStatusCancelacionEnListados(string $uuid): ?string
+    {
+        foreach (['pending', 'canceled'] as $status) {
+            $urls = [
+                $this->baseUrl.'/cfdi/issued?keyword='.urlencode($uuid).'&status='.$status.'&invoiceType=issued&page=1',
+                $this->baseUrl.'/cfdi/issued?keyword='.urlencode($uuid).'&status='.$status.'&page=1',
+            ];
+            foreach ($urls as $url) {
+                if ($this->buscarCfdiIdEnListaPorUuid($url, $uuid) !== null) {
+                    return $status;
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function extraerAcuseDePayload(array $data): ?string
@@ -994,52 +1157,24 @@ class FacturamaService
             || stripos($decoded, 'EstatusUUID') !== false;
     }
 
-    protected function normalizarCodigoEstatusCancelacion(?string $codigo, ?string $statusPac, ?string $mensajePac): ?string
-    {
-        $status = strtolower((string) $statusPac);
-        $msg = strtolower((string) $mensajePac);
-
-        if ($status === 'pending') {
-            return '206';
-        }
-        if (in_array($status, ['rejected', 'reject'], true)) {
-            return str_starts_with((string) $codigo, 'R-') ? $codigo : 'R-213';
-        }
-        if (in_array($status, ['canceled', 'cancelled'], true)) {
-            if ($codigo === null || $codigo === '' || in_array($codigo, ['201', '206'], true)) {
-                return '202';
-            }
-
-            return $codigo;
-        }
-        if ($msg !== '' && (str_contains($msg, 'sin acept') || str_contains($msg, 'plazo vencido') || str_contains($msg, 'plazo'))) {
-            if ($codigo === null || $codigo === '' || in_array($codigo, ['201', '206'], true)) {
-                return '202';
-            }
-        }
-
-        return $codigo;
-    }
-
     /**
      * Extrae el código de estatus SAT del acuse de cancelación (XML base64).
-     * Estructura SAT: Folios/EstatusUUID o CodigoEstatus.
+     * No inventa 201: si no hay código real, regresa null.
      *
      * @param string $acuseBase64 XML del acuse en base64
-     * @return string Código (201, 202, 601, etc.) o '201' por defecto
      */
-    public static function extraerCodigoEstatusDelAcuse(string $acuseBase64): string
+    public static function extraerCodigoEstatusDelAcuse(string $acuseBase64): ?string
     {
         $xml = @base64_decode($acuseBase64, true);
         if ($xml === false || trim($xml) === '') {
-            return '201';
+            return null;
         }
         $prev = libxml_use_internal_errors(true);
         $dom = new \DOMDocument();
         if (!$dom->loadXML($xml)) {
             libxml_clear_errors();
             libxml_use_internal_errors($prev);
-            return '201';
+            return null;
         }
         libxml_clear_errors();
         libxml_use_internal_errors($prev);
@@ -1060,7 +1195,7 @@ class FacturamaService
         if ($nodes->length > 0 && trim($nodes->item(0)->textContent) !== '') {
             return trim($nodes->item(0)->textContent);
         }
-        return '201';
+        return null;
     }
 
     /**

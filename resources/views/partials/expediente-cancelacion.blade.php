@@ -71,6 +71,18 @@
         @endif
 
         @if($esAdmin)
+            @if($document->cancelacion_administrativa_motivo)
+            <div class="info-row">
+                <div class="info-label">Motivo administrativo (ERP)</div>
+                <div class="info-value-sm">{{ $document->cancelacion_administrativa_motivo }}</div>
+            </div>
+            @endif
+            @if($document->cancelacionAdministrativaUsuario)
+            <div class="info-row">
+                <div class="info-label">Registró</div>
+                <div class="info-value-sm">{{ $document->cancelacionAdministrativaUsuario->name }}</div>
+            </div>
+            @endif
             @if($document->pendienteCancelacionAntePac())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
                     Cancelación administrativa en el ERP: inventario y saldo ya se revirtieron.

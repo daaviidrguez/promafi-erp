@@ -320,6 +320,21 @@ $breadcrumbs = [
                             @if($factura->estatus_solicitud_label)
                                 <div class="text-muted" style="font-size: 12px; margin-top: 6px;">{{ $factura->estatus_solicitud_label }}</div>
                             @endif
+                            @if($factura->cancelacion_administrativa ?? false)
+                                @if($factura->cancelacion_administrativa_motivo)
+                                    <div style="margin-top: 10px; padding: 10px 12px; background: var(--color-gray-50); border-radius: var(--radius-sm); text-align: left; font-size: 13px; line-height: 1.5;">
+                                        <div class="info-label" style="margin-bottom: 4px;">Motivo de cancelación administrativa</div>
+                                        <div>{{ $factura->cancelacion_administrativa_motivo }}</div>
+                                        @if($factura->cancelacionAdministrativaUsuario)
+                                            <div class="text-muted" style="font-size: 12px; margin-top: 6px;">Registró: {{ $factura->cancelacionAdministrativaUsuario->name }}</div>
+                                        @endif
+                                    </div>
+                                @endif
+                            @elseif($factura->motivo_cancelacion)
+                                <div class="text-muted" style="font-size: 12px; margin-top: 6px;">
+                                    Motivo SAT: {{ $factura->motivo_cancelacion }}
+                                </div>
+                            @endif
                         @endif
                     </div>
                 </div>

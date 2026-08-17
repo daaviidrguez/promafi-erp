@@ -915,7 +915,14 @@ class FacturamaService
 
         $estatusSat = null;
         $satConsulta = null;
-        if (! empty($uuid) && ! empty($rfcEmisor) && ! empty($rfcReceptor) && $total !== null && $total !== '') {
+        // GET /cfdi/status consume folio. Si el PAC ya confirma canceled, no hace falta.
+        $debeConsultarSat = $statusPac !== 'canceled'
+            && ! empty($uuid)
+            && ! empty($rfcEmisor)
+            && ! empty($rfcReceptor)
+            && $total !== null
+            && $total !== '';
+        if ($debeConsultarSat) {
             $satConsulta = $this->consultarEstatusSat(
                 $uuid,
                 $rfcEmisor,

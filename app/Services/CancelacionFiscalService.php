@@ -12,6 +12,33 @@ use Illuminate\Support\Str;
 class CancelacionFiscalService
 {
     /**
+     * Evita consultas duplicadas (doble clic / reenvío) que consumen folio en Facturama.
+     */
+    public function consultaEstatusReciente(Factura|ComplementoPago $documento, int $segundos = 60): bool
+    {
+        return $documento->cancelacionEventos()
+            ->where('tipo', 'consulta')
+            ->where('created_at', '>=', now()->subSeconds(max(1, $segundos)))
+            ->exists();
+    }
+
+    /**
+     * Lock corto contra dos POSTs concurrentes de la misma consulta.
+     */
+    public function adquirirLockConsultaEstatus(Factura|ComplementoPago $documento, int $segundos = 60): ?\Illuminate\Contracts\Cache\Lock
+    {
+        $clave = 'cfdi-consulta-estatus:'.$documento::class.':'.$documento->id;
+        $lock = \Illuminate\Support\Facades\Cache::lock($clave, max(5, $segundos));
+
+        return $lock->get() ? $lock : null;
+    }
+
+    public function mensajeConsultaDuplicada(): string
+    {
+        return 'Ya se consultó el estatus hace unos segundos. Espere un momento antes de volver a consultar (cada consulta puede consumir folio en Facturama).';
+    }
+
+    /**
      * @param  array<string, mixed>  $resultado
      * @return array<string, mixed>
      */

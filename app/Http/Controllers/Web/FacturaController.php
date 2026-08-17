@@ -1073,6 +1073,13 @@ class FacturaController extends Controller
         if (! $empresa) {
             return back()->with('error', 'No hay empresa configurada.');
         }
+        if ($this->cancelacionFiscal->consultaEstatusReciente($factura)) {
+            return back()->with('info', $this->cancelacionFiscal->mensajeConsultaDuplicada());
+        }
+        $lock = $this->cancelacionFiscal->adquirirLockConsultaEstatus($factura);
+        if (! $lock) {
+            return back()->with('info', $this->cancelacionFiscal->mensajeConsultaDuplicada());
+        }
         try {
             $facturama = new FacturamaService($empresa);
             $resultado = $facturama->consultarEstatusCancelacionPorFactura($factura);
@@ -1100,6 +1107,8 @@ class FacturaController extends Controller
             return back()->with('success', $mensaje);
         } catch (\Throwable $e) {
             return back()->with('error', 'Error al actualizar estatus: '.$e->getMessage());
+        } finally {
+            optional($lock)->release();
         }
     }
 

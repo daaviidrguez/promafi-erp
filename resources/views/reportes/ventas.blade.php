@@ -42,6 +42,16 @@ $breadcrumbs = [
                 'clienteIdValue' => $clienteId ?? '',
                 'clientes' => $clientes ?? collect(),
             ])
+            <label class="text-muted" style="font-size: 12px; font-weight: 600; align-self: center; margin: 0;">🧑‍💼 Vendedor</label>
+            <select name="usuario_id" class="form-control" style="width: auto; min-width: 190px;">
+                <option value="">Todos los vendedores</option>
+                <option value="sin_asignar" @selected($sinUsuario ?? false)>Sin usuario asignado</option>
+                @foreach($usuarios ?? [] as $usuario)
+                    <option value="{{ $usuario->id }}" @selected(!($sinUsuario ?? false) && ($usuarioId ?? null) === $usuario->id)>
+                        {{ $usuario->name }}
+                    </option>
+                @endforeach
+            </select>
             <button type="submit" class="btn btn-primary">Filtrar</button>
             <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('modalExportVentas').classList.add('show')">Exportar</button>
         </form>
@@ -59,8 +69,8 @@ $breadcrumbs = [
                 <td class="text-end fw-600">{{ $facturas->count() ?? 0 }}</td>
             </tr>
             <tr>
-                <td>Subtotal</td>
-                <td class="text-end">${{ number_format($subtotalVentas ?? 0, 2, '.', ',') }}</td>
+                <td>Subtotal sin IVA <span class="text-muted" style="font-size: 11px;">(criterio del ranking)</span></td>
+                <td class="text-end"><strong>${{ number_format($subtotalVentas ?? 0, 2, '.', ',') }}</strong></td>
             </tr>
             <tr>
                 <td>IVA</td>
@@ -85,6 +95,8 @@ $breadcrumbs = [
                 <th>Serie/Folio</th>
                 <th>Fecha</th>
                 <th>Cliente</th>
+                <th>Vendedor</th>
+                <th class="text-end">Subtotal s/IVA</th>
                 <th class="text-end">Total</th>
             </tr>
         </thead>
@@ -94,10 +106,12 @@ $breadcrumbs = [
                 <td>{{ $f->serie ?? '' }} {{ $f->folio }}</td>
                 <td>{{ $f->fecha_emision->format('d/m/Y') }}</td>
                 <td>{{ $f->cliente->nombre ?? $f->nombre_receptor ?? '-' }}</td>
+                <td>{{ $f->usuario->name ?? 'Sin usuario asignado' }}</td>
+                <td class="text-end">${{ number_format($f->subtotal, 2, '.', ',') }}</td>
                 <td class="text-end">${{ number_format($f->total, 2, '.', ',') }}</td>
             </tr>
             @empty
-            <tr><td colspan="4" class="text-center text-muted">No hay facturas en este período.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted">No hay facturas con los filtros seleccionados.</td></tr>
             @endforelse
         </tbody>
     </table>
@@ -113,6 +127,7 @@ $breadcrumbs = [
             <input type="hidden" name="mes" value="">
             <input type="hidden" name="año" value="">
             <input type="hidden" name="cliente_id" value="">
+            <input type="hidden" name="usuario_id" value="">
             <div class="modal-body">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Formato</label>
@@ -150,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
         formExport.querySelector('[name="mes"]').value = val('mes');
         formExport.querySelector('[name="año"]').value = val('año');
         formExport.querySelector('[name="cliente_id"]').value = val('cliente_id');
+        formExport.querySelector('[name="usuario_id"]').value = val('usuario_id');
     });
 })();
 </script>

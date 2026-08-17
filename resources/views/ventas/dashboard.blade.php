@@ -337,6 +337,9 @@ $breadcrumbs = [
                         <th class="td-right">% del total</th>
                         <th class="td-right">Mes anterior</th>
                         <th class="td-right">Variación</th>
+                        @can('reportes.ver')
+                            <th></th>
+                        @endcan
                     </tr>
                 </thead>
                 <tbody>
@@ -345,8 +348,19 @@ $breadcrumbs = [
                         @php
                             $pct = $totalRanking > 0 ? round(($row['monto'] / $totalRanking) * 100, 1) : 0;
                             $var = $row['variacion_pct'];
+                            $detalleUrl = route('reportes.ventas', [
+                                'mes' => $mes,
+                                'año' => $anio,
+                                'usuario_id' => $row['usuario_id'] ?? 'sin_asignar',
+                            ]);
                         @endphp
-                        <tr>
+                        <tr
+                            @can('reportes.ver')
+                                class="ven-ranking-row"
+                                data-href="{{ $detalleUrl }}"
+                                onclick="window.location.href = this.dataset.href"
+                            @endcan
+                        >
                             <td>{{ $i + 1 }}</td>
                             <td><strong>{{ $row['nombre'] }}</strong></td>
                             <td class="td-center">{{ $row['num_facturas'] }}</td>
@@ -362,6 +376,11 @@ $breadcrumbs = [
                                     <span style="color:var(--color-gray-400);">0%</span>
                                 @endif
                             </td>
+                            @can('reportes.ver')
+                                <td class="td-right">
+                                    <a href="{{ $detalleUrl }}" class="ven-ranking-link">Ver facturas →</a>
+                                </td>
+                            @endcan
                         </tr>
                     @endforeach
                 </tbody>
@@ -387,6 +406,9 @@ $breadcrumbs = [
 .ven-meta-progress__fill { height:100%; border-radius:999px; background:linear-gradient(90deg, var(--color-primary), var(--color-success)); }
 .ven-var { font-weight:600; font-family:var(--font-mono, ui-monospace, monospace); }
 .ven-var--up { color: var(--color-success); }
+.ven-ranking-row { cursor:pointer; transition:background-color .15s ease; }
+.ven-ranking-row:hover { background:var(--color-gray-50); }
+.ven-ranking-link { white-space:nowrap; font-size:12px; font-weight:600; }
 .ven-var--down { color: var(--color-danger); }
 @media (max-width: 1024px) {
     .tablero-grid-2 { grid-template-columns: 1fr; }

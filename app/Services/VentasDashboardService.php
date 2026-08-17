@@ -25,7 +25,7 @@ class VentasDashboardService
 
         $facturasHistorial = Factura::query()
             ->where('estado', 'timbrada')
-            ->where('fecha_emision', '>=', now()->copy()->subMonths(5)->startOfMonth())
+            ->where('fecha_emision', '>=', $inicioMes->copy()->subMonths(5)->startOfMonth())
             ->where('fecha_emision', '<=', $finMes->copy()->endOfDay())
             ->with(['usuario:id,name', 'cliente:id,nombre,nombre_comercial'])
             ->get(['id', 'fecha_emision', 'subtotal', 'total', 'usuario_id', 'cliente_id']);

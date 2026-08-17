@@ -22,6 +22,7 @@ class ReporteVentasMensualesExport implements FromArray, WithHeadings
             'Serie / Folio',
             'Fecha',
             'Cliente',
+            'Vendedor',
             'Subtotal',
             'IVA',
             'ISR retenido',
@@ -35,14 +36,16 @@ class ReporteVentasMensualesExport implements FromArray, WithHeadings
             $l['factura'],
             $l['fecha'],
             $l['cliente'],
+            $l['vendedor'],
             round($l['subtotal'], 2),
             round($l['iva'], 2),
             round($l['isr_retenido'], 2),
             round($l['total'], 2),
         ])->all();
 
-        $rows[] = ['', '', '', '', '', '', ''];
+        $rows[] = ['', '', '', '', '', '', '', ''];
         $rows[] = [
+            '',
             '',
             '',
             'Resumen del período',
@@ -51,7 +54,7 @@ class ReporteVentasMensualesExport implements FromArray, WithHeadings
             round($this->isrRetenidoVentas, 2),
             round($this->totalVentas, 2),
         ];
-        $rows[] = ['', '', 'Cantidad de facturas', $this->numFacturas, '', '', ''];
+        $rows[] = ['', '', '', 'Cantidad de facturas', $this->numFacturas, '', '', ''];
 
         return $rows;
     }

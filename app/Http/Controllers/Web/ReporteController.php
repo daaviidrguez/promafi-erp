@@ -17,6 +17,7 @@ use App\Models\FacturaDetalle;
 use App\Models\LogisticaEnvio;
 use App\Models\OrdenCompra;
 use App\Models\Producto;
+use App\Models\User;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -150,8 +151,10 @@ class ReporteController extends Controller
         $mes = (int) ($request->get('mes') ?? now()->month);
         $año = (int) ($request->get('año') ?? now()->year);
         $clienteId = $request->filled('cliente_id') ? (int) $request->get('cliente_id') : null;
-        $datos = $this->construirDatosReporteVentasMensuales($mes, $año, $clienteId);
+        [$usuarioId, $sinUsuario] = $this->filtroUsuarioVentas($request);
+        $datos = $this->construirDatosReporteVentasMensuales($mes, $año, $clienteId, $usuarioId, $sinUsuario);
         $datos['clientes'] = Cliente::activos()->orderBy('nombre')->get();
+        $datos['usuarios'] = User::query()->orderBy('name')->get(['id', 'name']);
 
         return view('reportes.ventas', $datos);
     }
@@ -170,14 +173,18 @@ class ReporteController extends Controller
             'mes' => 'required|integer|min:1|max:12',
             'año' => 'required|integer|min:2000|max:2100',
             'cliente_id' => 'nullable|exists:clientes,id',
+            'usuario_id' => ['nullable', 'regex:/^(sin_asignar|[1-9][0-9]*)$/'],
         ]);
 
         $clienteId = isset($validated['cliente_id']) ? (int) $validated['cliente_id'] : null;
+        [$usuarioId, $sinUsuario] = $this->filtroUsuarioVentas($request);
 
         $datos = $this->construirDatosReporteVentasMensuales(
             (int) $validated['mes'],
             (int) $validated['año'],
-            $clienteId
+            $clienteId,
+            $usuarioId,
+            $sinUsuario
         );
 
         $lineas = $this->lineasExportablesVentasMensuales($datos['facturas']);
@@ -204,6 +211,7 @@ class ReporteController extends Controller
             'mesNombre' => $mesNombre,
             'año' => $datos['año'],
             'clienteNombreFiltro' => $datos['clienteNombreFiltro'] ?? null,
+            'usuarioNombreFiltro' => $datos['usuarioNombreFiltro'] ?? null,
             'lineas' => $lineas,
             'numFacturas' => $datos['facturas']->count(),
             'subtotalVentas' => $datos['subtotalVentas'],
@@ -233,6 +241,9 @@ class ReporteController extends Controller
      *   mesNombre: string,
      *   clienteId: int|null,
      *   clienteNombreFiltro: string|null,
+     *   usuarioId: int|null,
+     *   sinUsuario: bool,
+     *   usuarioNombreFiltro: string|null,
      *   facturas: \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection,
      *   totalVentas: float,
      *   subtotalVentas: float,
@@ -240,8 +251,13 @@ class ReporteController extends Controller
      *   isrRetenidoVentas: float
      * }
      */
-    private function construirDatosReporteVentasMensuales(int $mes, int $año, ?int $clienteId = null): array
-    {
+    private function construirDatosReporteVentasMensuales(
+        int $mes,
+        int $año,
+        ?int $clienteId = null,
+        ?int $usuarioId = null,
+        bool $sinUsuario = false
+    ): array {
         $mes = max(1, min(12, $mes));
         $inicio = Carbon::create($año, $mes, 1)->startOfDay();
         $fin = $inicio->copy()->endOfMonth();
@@ -249,7 +265,9 @@ class ReporteController extends Controller
         $facturas = Factura::where('estado', 'timbrada')
             ->whereBetween('fecha_emision', [$inicio, $fin])
             ->when($clienteId, fn ($q) => $q->where('cliente_id', $clienteId))
-            ->with(['cliente', 'detalles.impuestos'])
+            ->when($sinUsuario, fn ($q) => $q->whereNull('usuario_id'))
+            ->when(! $sinUsuario && $usuarioId, fn ($q) => $q->where('usuario_id', $usuarioId))
+            ->with(['cliente', 'usuario:id,name', 'detalles.impuestos'])
             ->orderBy('fecha_emision')
             ->get();
 
@@ -269,12 +287,19 @@ class ReporteController extends Controller
             $clienteNombreFiltro = Cliente::where('id', $clienteId)->value('nombre');
         }
 
+        $usuarioNombreFiltro = $sinUsuario
+            ? 'Sin usuario asignado'
+            : ($usuarioId ? User::whereKey($usuarioId)->value('name') : null);
+
         return [
             'mes' => $mes,
             'año' => $año,
             'mesNombre' => $mesNombres[$mes] ?? (string) $mes,
             'clienteId' => $clienteId,
             'clienteNombreFiltro' => $clienteNombreFiltro,
+            'usuarioId' => $usuarioId,
+            'sinUsuario' => $sinUsuario,
+            'usuarioNombreFiltro' => $usuarioNombreFiltro,
             'facturas' => $facturas,
             'totalVentas' => $totalVentas,
             'subtotalVentas' => $subtotalVentas,
@@ -285,7 +310,7 @@ class ReporteController extends Controller
 
     /**
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection<int, Factura>  $facturas
-     * @return array<int, array{factura: string, fecha: string, cliente: string, subtotal: float, iva: float, isr_retenido: float, total: float}>
+     * @return array<int, array{factura: string, fecha: string, cliente: string, vendedor: string, subtotal: float, iva: float, isr_retenido: float, total: float}>
      */
     private function lineasExportablesVentasMensuales($facturas): array
     {
@@ -296,6 +321,7 @@ class ReporteController extends Controller
                 'factura' => $folio,
                 'fecha' => $f->fecha_emision->format('d/m/Y'),
                 'cliente' => $f->cliente->nombre ?? $f->nombre_receptor ?? '-',
+                'vendedor' => $f->usuario->name ?? 'Sin usuario asignado',
                 'subtotal' => (float) $f->subtotal,
                 'iva' => $this->ivaTrasladadoFactura($f),
                 'isr_retenido' => $f->desgloseTotalesCfdi()['totalRetenciones'],
@@ -304,6 +330,28 @@ class ReporteController extends Controller
         }
 
         return $lineas;
+    }
+
+    /**
+     * @return array{0: int|null, 1: bool}
+     */
+    private function filtroUsuarioVentas(Request $request): array
+    {
+        $valor = $request->input('usuario_id');
+        if ($valor === null || $valor === '') {
+            return [null, false];
+        }
+
+        if ($valor === 'sin_asignar') {
+            return [null, true];
+        }
+
+        $validado = validator(
+            ['usuario_id' => $valor],
+            ['usuario_id' => 'required|integer|min:1|exists:users,id']
+        )->validate();
+
+        return [(int) $validado['usuario_id'], false];
     }
 
     /**

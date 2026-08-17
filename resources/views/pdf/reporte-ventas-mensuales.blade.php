@@ -31,6 +31,9 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8pt; color: #1F29
     @if(!empty($clienteNombreFiltro))
         Cliente: {{ $clienteNombreFiltro }}<br>
     @endif
+    @if(!empty($usuarioNombreFiltro))
+        Vendedor: {{ $usuarioNombreFiltro }}<br>
+    @endif
     Generado: {{ now()->format('d/m/Y H:i')}}
 </div>
 
@@ -40,6 +43,7 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8pt; color: #1F29
             <th>Serie / Folio</th>
             <th>Fecha</th>
             <th>Cliente</th>
+            <th>Vendedor</th>
             <th class="right">Subtotal</th>
             <th class="right">IVA</th>
             <th class="right">ISR retenido</th>
@@ -52,6 +56,7 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8pt; color: #1F29
             <td>{{ $l['factura'] }}</td>
             <td>{{ $l['fecha'] }}</td>
             <td>{{ $l['cliente'] }}</td>
+            <td>{{ $l['vendedor'] }}</td>
             <td class="right">${{ number_format($l['subtotal'], 2, '.', ',') }}</td>
             <td class="right">${{ number_format($l['iva'], 2, '.', ',') }}</td>
             <td class="right">${{ number_format($l['isr_retenido'], 2, '.', ',') }}</td>
@@ -59,7 +64,7 @@ body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8pt; color: #1F29
         </tr>
         @empty
         <tr>
-            <td colspan="7" style="text-align:center;padding:16px;color:#6B7280;">No hay facturas en este período.</td>
+            <td colspan="8" style="text-align:center;padding:16px;color:#6B7280;">No hay facturas con los filtros seleccionados.</td>
         </tr>
         @endforelse
     </tbody>

@@ -16,7 +16,7 @@
             <div class="info-label">Estado PAC</div>
             <div class="info-value-sm">
                 @if($document->solicitudFiscalPendiente())
-                    Pendiente de aceptación del receptor
+                    Pendiente de cancelación SAT
                 @elseif($document->canceladaAnteSat())
                     Cancelado ante el SAT
                 @elseif($esFactura && $document->cancelacionFiscalRechazada())
@@ -120,8 +120,9 @@
                 </div>
             @elseif($document->solicitudFiscalPendiente())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
-                    La solicitud sí se envió al SAT. El receptor debe aceptar o dejar vencer el plazo.
-                    El ERP ya está cancelado administrativamente; no se duplican movimientos de inventario.
+                    La solicitud sí se envió al SAT, pero el CFDI todavía está vigente.
+                    El código 201 solo confirma que la petición fue recibida, no que ya se canceló.
+                    El ERP permanece cancelado administrativamente; no se duplican movimientos de inventario.
                 </div>
             @elseif($document->cancelacionFiscalRechazada())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
@@ -142,17 +143,11 @@
             <div style="display: grid; gap: 8px;">
                 @foreach($eventos->take(12) as $evento)
                     @php
-                        $mensajeEvento = \App\Services\EstatusCancelacionCfdi::esCanceladaSat(
-                            $evento->status_pac,
-                            $evento->estatus_sat,
-                            $evento->codigo_estatus
-                        )
-                            ? \App\Services\EstatusCancelacionCfdi::mensajeUsuario([
-                                'status_pac' => $evento->status_pac,
-                                'estatus_sat' => $evento->estatus_sat,
-                                'codigo_estatus' => $evento->codigo_estatus,
-                            ], $esAdmin)
-                            : $evento->mensaje;
+                        $mensajeEvento = \App\Services\EstatusCancelacionCfdi::mensajeUsuario([
+                            'status_pac' => $evento->status_pac,
+                            'estatus_sat' => $evento->estatus_sat,
+                            'codigo_estatus' => $evento->codigo_estatus,
+                        ], $esAdmin);
                     @endphp
                     <div style="border: 1px solid var(--color-gray-200); border-radius: var(--radius-sm); padding: 8px 10px;">
                         <div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">

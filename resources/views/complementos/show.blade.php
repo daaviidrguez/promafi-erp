@@ -248,10 +248,14 @@ $breadcrumbs = [
                     <a href="{{ route('complementos.descargar-pdf-acuse-cancelacion', $complemento->id) }}"
                        class="btn btn-outline w-full">Acuse de cancelación (PDF)</a>
                     @endif
-                    @if($complemento->tieneAcuseCancelacionXmlValido())
+                    @if($complemento->canceladaAnteSat() && $complemento->tieneAcuseCancelacionXmlValido())
                     <a href="{{ route('complementos.descargar-xml-cancelacion', $complemento->id) }}"
                        class="btn btn-outline w-full">📄 Acuse de cancelación (XML)</a>
-                    @else
+                    @elseif($complemento->solicitudFiscalPendiente())
+                    <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                        El acuse XML aparece cuando el SAT confirme la cancelación. El código 201 solo indica que la solicitud fue recibida. Use «Consultar estatus SAT».
+                    </div>
+                    @elseif($complemento->canceladaAnteSat())
                     <a href="{{ route('complementos.obtener-acuse-cancelacion', $complemento->id) }}"
                        class="btn btn-outline w-full">📄 Obtener acuse XML</a>
                     @endif

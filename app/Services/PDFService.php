@@ -233,6 +233,14 @@ class PDFService
                 'content_type' => 'application/pdf',
             ];
         }
+        if (method_exists($documento, 'canceladaAnteSat') && ! $documento->canceladaAnteSat()) {
+            return [
+                'success' => false,
+                'message' => 'El comprobante PDF estará disponible cuando el SAT confirme la cancelación.',
+                'content' => null,
+                'content_type' => 'application/pdf',
+            ];
+        }
 
         $empresa = $documento->empresa ?? Empresa::principal();
         $datos = FacturamaService::parsearDatosAcuseXml($acuse);

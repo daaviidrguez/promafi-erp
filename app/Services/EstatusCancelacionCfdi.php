@@ -103,20 +103,52 @@ class EstatusCancelacionCfdi
 
     public static function esCanceladaSat(?string $statusPac, ?string $estatusSat, ?string $codigo = null): bool
     {
-        if (self::normalizarStatusPac($statusPac) === 'canceled') {
-            return true;
+        $status = self::normalizarStatusPac($statusPac);
+        $sat = self::normalizarEstatusSat($estatusSat);
+        $codigo = (string) $codigo;
+
+        if ($sat === 'Vigente' || self::esRechazada($status, $codigo)) {
+            return false;
         }
-        if (self::normalizarEstatusSat($estatusSat) === 'Cancelado') {
+        if ($sat === 'Cancelado') {
             return true;
         }
 
-        return false;
+        if (in_array($status, ['accepted', 'expired'], true) || $codigo === '202') {
+            return true;
+        }
+        if ($codigo === '201') {
+            return false;
+        }
+
+        return $status === 'canceled';
+    }
+
+    public static function esPendienteCancelacion(?string $statusPac, ?string $estatusSat, ?string $codigo = null): bool
+    {
+        $status = self::normalizarStatusPac($statusPac);
+        $sat = self::normalizarEstatusSat($estatusSat);
+        $codigo = (string) $codigo;
+
+        if (self::esCanceladaSat($status, $sat, $codigo) || self::esRechazada($status, $codigo) || $status === 'active') {
+            return false;
+        }
+
+        return $status === 'pending'
+            || $codigo === '201'
+            || $sat === 'Pendiente'
+            || ($status === 'canceled' && $sat === 'Vigente');
     }
 
     public static function estatusSatParaUsuario(?string $statusPac, ?string $estatusSat, ?string $codigo = null): string
     {
         if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
             return 'Cancelado';
+        }
+        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo)) {
+            return self::normalizarEstatusSat($estatusSat) === 'Vigente'
+                ? 'Vigente · cancelación pendiente'
+                : 'Pendiente de cancelación';
         }
 
         return self::normalizarEstatusSat($estatusSat) ?? 'Sin consultar';
@@ -154,10 +186,6 @@ class EstatusCancelacionCfdi
             : '';
 
         if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
-            if ($estatusSat === 'Vigente') {
-                return 'La cancelación fue confirmada por el PAC, pero la consulta directa aún reporta el CFDI vigente. Consulte de nuevo más tarde.'.$adminOps;
-            }
-
             $codigoTxt = (string) $codigo === '202'
                 ? ' El código 202 indica que el UUID ya se encontraba cancelado.'
                 : '';
@@ -165,10 +193,12 @@ class EstatusCancelacionCfdi
             return 'Cancelación confirmada ante el SAT.'.$codigoTxt.$adminOps;
         }
 
-        if ($statusPac === 'pending') {
-            $plazo = $expira ? ' El receptor tiene hasta el '.$expira.' para aceptar o rechazar.' : ' El receptor tiene hasta 72 horas para aceptar o rechazar.';
+        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo)) {
+            $plazo = $expira
+                ? ' El receptor tiene hasta el '.$expira.' para aceptar o rechazar.'
+                : ' El proceso puede requerir la aceptación del receptor.';
 
-            return 'La solicitud de cancelación sí se envió al SAT. El CFDI todavía está vigente.'.$plazo.' Si no responde, se cancelará sola.'.$adminOps;
+            return 'La solicitud de cancelación fue recibida, pero el CFDI todavía está vigente ante el SAT.'.$plazo.' Consulte nuevamente hasta obtener la confirmación final.'.$adminOps;
         }
 
         if (self::esRechazada($statusPac, $codigo)) {
@@ -232,10 +262,10 @@ class EstatusCancelacionCfdi
                 ? 'Cancelada en ERP y ante el SAT'
                 : 'Cancelada ante el SAT';
         }
-        if ($statusPac === 'pending') {
+        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo)) {
             return $esAdmin
-                ? 'Cancelada en ERP · Pendiente de aceptación SAT'
-                : 'Solicitud enviada · Pendiente de aceptación SAT';
+                ? 'Cancelada en ERP · Pendiente de cancelación SAT'
+                : 'Solicitud enviada · Pendiente de cancelación SAT';
         }
         if (self::esRechazada($statusPac, $codigo)) {
             return $esAdmin

@@ -494,7 +494,7 @@ $breadcrumbs = [
                     <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">Acuse de cancelación (PDF)</a>
                     @endif
-                    @if($factura->tieneAcuseCancelacionXmlValido())
+                    @if($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido())
                     <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">📄 Acuse de cancelación (XML)</a>
                     @elseif($factura->pendienteCancelacionAntePac())
@@ -503,9 +503,9 @@ $breadcrumbs = [
                     </div>
                     @elseif($factura->solicitudFiscalPendiente())
                     <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                        El acuse XML aparece cuando el SAT confirme la cancelación (el receptor aún no acepta o no vencen las 72 h). Use «Consultar estatus SAT».
+                        El acuse XML aparece cuando el SAT confirme la cancelación. El código 201 solo indica que la solicitud fue recibida. Use «Consultar estatus SAT».
                     </div>
-                    @else
+                    @elseif($factura->canceladaAnteSat())
                     <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}"
                        class="btn btn-outline w-full">📄 Obtener acuse XML</a>
                     @endif

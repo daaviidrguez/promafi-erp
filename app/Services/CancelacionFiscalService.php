@@ -50,11 +50,12 @@ class CancelacionFiscalService
             $documento->estatus_cancelacion_pac ?? null,
             $statusNuevo
         );
-        if ($statusPac === null && FacturamaService::decodificarAcuseCancelacionXml($documento->acuse_cancelacion) !== null) {
-            $statusPac = 'canceled';
-        }
         $estatusSat = EstatusCancelacionCfdi::normalizarEstatusSat($resultado['estatus_sat'] ?? null);
         $codigo = $resultado['codigo_estatus'] ?? null;
+        if ($statusPac === null && FacturamaService::decodificarAcuseCancelacionXml($documento->acuse_cancelacion) !== null
+            && EstatusCancelacionCfdi::esCanceladaSat('canceled', $estatusSat, is_string($codigo) ? $codigo : null)) {
+            $statusPac = 'canceled';
+        }
         $esAdmin = $documento instanceof Factura && (bool) $documento->cancelacion_administrativa;
 
         if ($statusPac !== null) {
@@ -137,7 +138,9 @@ class CancelacionFiscalService
             $resultado['status_pac'] ?? null
         );
         $acuseGuardado = FacturamaService::normalizarAcuseCancelacionXml($documento->acuse_cancelacion);
-        if ($status === null && $acuseGuardado !== null) {
+        $codigoFusion = $resultado['codigo_estatus'] ?? $documento->codigo_estatus_cancelacion ?? null;
+        $estatusSatFusion = $resultado['estatus_sat'] ?? $documento->estatus_sat ?? null;
+        if ($status === null && $acuseGuardado !== null && EstatusCancelacionCfdi::esCanceladaSat('canceled', $estatusSatFusion, $codigoFusion)) {
             $status = 'canceled';
         }
         $resultado['status_pac'] = $status;

@@ -181,7 +181,11 @@ class ComplementoPago extends Model
 
     public function solicitudFiscalPendiente(): bool
     {
-        return EstatusCancelacionCfdi::esPendientePac($this->estatus_cancelacion_pac);
+        return EstatusCancelacionCfdi::esPendienteCancelacion(
+            $this->estatus_cancelacion_pac,
+            $this->estatus_sat,
+            $this->codigo_estatus_cancelacion
+        );
     }
 
     public function puedeConsultarEstatusCancelacion(): bool
@@ -225,8 +229,8 @@ class ComplementoPago extends Model
                 : null;
 
             return $hasta
-                ? 'Pendiente de aceptación del receptor (hasta '.$hasta.')'
-                : 'Pendiente de aceptación del receptor (hasta 72 h)';
+                ? 'Pendiente de cancelación SAT (hasta '.$hasta.')'
+                : 'Pendiente de cancelación SAT';
         }
         if ($this->canceladaAnteSat()) {
             return 'Cancelado ante el SAT';

@@ -915,8 +915,9 @@ class FacturamaService
 
         $estatusSat = null;
         $satConsulta = null;
-        // GET /cfdi/status consume folio. Si el PAC ya confirma canceled, no hace falta.
-        $debeConsultarSat = $statusPac !== 'canceled'
+        // GET /cfdi/status consume folio. Si ya hay cancelación fiscal firme, no hace falta.
+        $canceladaSatFirme = EstatusCancelacionCfdi::esCanceladaSat($statusPac, null, $codigoEstatus);
+        $debeConsultarSat = ! $canceladaSatFirme
             && ! empty($uuid)
             && ! empty($rfcEmisor)
             && ! empty($rfcReceptor)

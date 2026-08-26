@@ -312,6 +312,8 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/productos/revision-precios', [ProductoRevisionPrecioController::class, 'index'])->name('productos.revision-precios');
     Route::post('/productos/revision-precios/aplicar', [ProductoRevisionPrecioController::class, 'aplicar'])->name('productos.revision-precios.aplicar');
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
+    Route::get('/productos/plantilla', [ProductoController::class, 'descargarPlantilla'])->name('productos.plantilla');
+    Route::post('/productos/importar-lote', [ProductoController::class, 'importarLote'])->name('productos.importar-lote');
     Route::get('/catalogo-online', [CatalogoOnlineController::class, 'index'])->name('catalogo-online.index');
     Route::put('/catalogo-online/productos/{producto}', [CatalogoOnlineController::class, 'updateProducto'])->name('catalogo-online.productos.update');
     Route::resource('productos', ProductoController::class);
@@ -339,6 +341,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     // ───── CATÁLOGO TRUPER ─────
     Route::get('/catalogo-truper', [CatalogoTruperController::class, 'index'])->name('catalogo-truper.index');
+    Route::get('/catalogo-truper/exportar-para-productos', [CatalogoTruperController::class, 'exportarParaProductos'])->name('catalogo-truper.exportar-para-productos');
     Route::post('/catalogo-truper/importar-lote', [CatalogoTruperController::class, 'importarLote'])->name('catalogo-truper.importar-lote');
 
     // ───── FACTURAS ───── ✅

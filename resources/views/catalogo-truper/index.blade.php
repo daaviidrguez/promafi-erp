@@ -1,11 +1,16 @@
 @extends('layouts.app')
 @section('title', 'Catálogo Truper')
 @section('page-title', '🔧 Catálogo Truper')
-@section('page-subtitle', 'Productos Truper: costo (distribuidor) y venta (medio mayoreo) sin IVA')
+@section('page-subtitle', 'Productos Truper: costo (distribuidor) y venta (medio mayoreo) sin IVA. Exporta en formato Productos para migrar al catálogo maestro.')
 @section('page-actions')
-    @can('catalogo_truper.importar')
-    <button type="button" class="btn btn-primary" onclick="toggleImportarTruper()">📥 Importar</button>
-    @endcan
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        @can('catalogo_truper.exportar')
+        <a href="{{ route('catalogo-truper.exportar-para-productos') }}" class="btn btn-light">📤 Exportar para Productos</a>
+        @endcan
+        @can('catalogo_truper.importar')
+        <button type="button" class="btn btn-primary" onclick="toggleImportarTruper()">📥 Importar</button>
+        @endcan
+    </div>
 @endsection
 
 @php

@@ -3,6 +3,15 @@
 @section('title', 'Productos')
 @section('page-title', '📦 Productos')
 @section('page-subtitle', 'Catálogo de productos y servicios')
+@section('page-actions')
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        @can('productos.importar')
+        <a href="{{ route('productos.plantilla') }}" class="btn btn-light">📄 Plantilla</a>
+        <button type="button" class="btn btn-light" onclick="toggleImportarProductos()">📥 Importar</button>
+        @endcan
+        <a href="{{ route('productos.create') }}" class="btn btn-primary">➕ Nuevo Producto</a>
+    </div>
+@endsection
 
 @php
 $breadcrumbs = [
@@ -17,6 +26,44 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
 @endphp
 
 @section('content')
+
+@can('productos.importar')
+<div id="formImportarProductos" class="card" style="display:none; margin-bottom:16px;">
+    <div class="card-body">
+        <p class="text-muted" style="margin:0 0 12px; font-size:13px;">
+            Usa la <strong>plantilla</strong> o el Excel exportado desde Catálogo Truper.
+            Columnas: <strong>codigo</strong>, <strong>nombre</strong>, <strong>marca</strong>, <strong>descripcion</strong>,
+            <strong>clave_sat</strong>, <strong>clave_unidad_sat</strong>, <strong>unidad</strong>,
+            <strong>objeto_impuesto</strong>, <strong>tipo_impuesto</strong>, <strong>tipo_factor</strong>, <strong>tasa_iva</strong>,
+            <strong>costo</strong>, <strong>precio_venta</strong>, <strong>precio_mayoreo</strong>, <strong>precio_minimo</strong>,
+            <strong>stock_minimo</strong>, <strong>controla_inventario</strong>, <strong>aplica_iva</strong>, <strong>activo</strong>
+            (1/0 en booleanos). Si el código ya existe se <strong>actualiza</strong> (no borra el catálogo ni modifica el stock).
+            Se sube en bloques de 500.
+        </p>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <input type="file" id="productosExcelInput" accept=".xlsx,.xls,.csv" class="form-control" style="max-width:360px;">
+            <button type="button" id="productosImportBtn" class="btn btn-primary" onclick="iniciarImportProductos()">Subir e importar</button>
+            <a href="{{ route('productos.plantilla') }}" class="btn btn-light">📄 Descargar plantilla</a>
+        </div>
+        <div id="productosImportError" class="alert alert-danger" style="display:none;margin-top:12px;"></div>
+    </div>
+</div>
+
+<div id="productosProgressOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:28px 32px; width:min(440px, 92vw); box-shadow:0 20px 50px rgba(0,0,0,.25);">
+        <div style="font-size:17px; font-weight:700; margin-bottom:6px;">Importando productos</div>
+        <div id="productosProgressLabel" class="text-muted" style="font-size:13px; margin-bottom:14px;">Preparando archivo…</div>
+        <div style="height:12px; background:#e5e7eb; border-radius:999px; overflow:hidden;">
+            <div id="productosProgressBar" style="height:100%; width:0%; background:var(--color-primary, #1e3a5f); transition:width .2s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:13px; font-variant-numeric:tabular-nums;">
+            <span id="productosProgressCount">0 / 0</span>
+            <span id="productosProgressPct">0%</span>
+        </div>
+        <div id="productosProgressStats" class="text-muted" style="font-size:12px; margin-top:10px;">No cierres ni cambies de página.</div>
+    </div>
+</div>
+@endcan
 
 <form method="GET" action="{{ route('productos.index') }}" id="form-productos-filtros">
     <input type="hidden" name="sort" value="{{ $sort ?? 'nombre' }}">
@@ -53,7 +100,6 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
                 </a>
                 @endif
             </div>
-            <a href="{{ route('productos.create') }}" class="btn btn-primary">➕ Nuevo Producto</a>
         </div>
     </div>
 </div>
@@ -263,8 +309,11 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
     <div class="empty-state">
         <div class="empty-state-icon">📦</div>
         <div class="empty-state-title">No hay productos registrados</div>
-        <div class="empty-state-text">Comienza agregando tu primer producto al catálogo</div>
-        <div style="margin-top: 20px;">
+        <div class="empty-state-text">Crea un producto o importa el Excel exportado desde Catálogo Truper (plantilla Productos).</div>
+        <div style="margin-top: 20px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+            @can('productos.importar')
+            <button type="button" class="btn btn-light" onclick="toggleImportarProductos(true)">📥 Importar Excel</button>
+            @endcan
             <a href="{{ route('productos.create') }}" class="btn btn-primary">➕ Crear Primer Producto</a>
         </div>
     </div>
@@ -325,5 +374,197 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
 .btn-col-filter:hover { opacity: 0.92; }
 </style>
 @endpush
+
+@can('productos.importar')
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function () {
+    const LOTE = 500;
+    const URL_LOTE = @json(route('productos.importar-lote'));
+    const CSRF = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+    window.toggleImportarProductos = function (forceShow) {
+        const el = document.getElementById('formImportarProductos');
+        if (!el) return;
+        if (forceShow === true) {
+            el.style.display = 'block';
+            return;
+        }
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    };
+
+    function normKey(k) {
+        return String(k || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+    }
+
+    function pick(row, keys) {
+        const map = {};
+        Object.keys(row || {}).forEach(function (k) { map[normKey(k)] = row[k]; });
+        for (let i = 0; i < keys.length; i++) {
+            const t = normKey(keys[i]);
+            if (map[t] !== undefined && map[t] !== null && map[t] !== '') return map[t];
+        }
+        return '';
+    }
+
+    function toNum(v) {
+        if (v === null || v === undefined || v === '') return 0;
+        if (typeof v === 'number') return v;
+        const s = String(v).replace(/[$,\s]/g, '');
+        const n = parseFloat(s);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    function toCodigo(v) {
+        if (v === null || v === undefined || v === '') return '';
+        if (typeof v === 'number') return String(Math.trunc(v));
+        return String(v).trim();
+    }
+
+    function toBool(v, def) {
+        if (v === null || v === undefined || v === '') return def ? 1 : 0;
+        if (typeof v === 'boolean') return v ? 1 : 0;
+        if (typeof v === 'number') return v === 1 ? 1 : 0;
+        const s = String(v).trim().toLowerCase();
+        if (['1', 'true', 'si', 'sí', 'yes', 'activo'].indexOf(s) >= 0) return 1;
+        if (['0', 'false', 'no', 'inactivo'].indexOf(s) >= 0) return 0;
+        return def ? 1 : 0;
+    }
+
+    function mapRow(row) {
+        return {
+            codigo: toCodigo(pick(row, ['codigo', 'code'])),
+            nombre: String(pick(row, ['nombre', 'name', 'descripcion']) || '').trim(),
+            marca: String(pick(row, ['marca', 'brand']) || '').trim(),
+            descripcion: String(pick(row, ['descripcion', 'description']) || '').trim(),
+            clave_sat: toCodigo(pick(row, ['clave_sat', 'clavesat', 'codigo_sat'])),
+            clave_unidad_sat: String(pick(row, ['clave_unidad_sat', 'claveunidadsat']) || '').trim(),
+            unidad: String(pick(row, ['unidad']) || '').trim(),
+            objeto_impuesto: String(pick(row, ['objeto_impuesto', 'objetoimpuesto']) || '').trim(),
+            tipo_impuesto: String(pick(row, ['tipo_impuesto', 'tipoimpuesto']) || '').trim(),
+            tipo_factor: String(pick(row, ['tipo_factor', 'tipofactor']) || '').trim(),
+            tasa_iva: toNum(pick(row, ['tasa_iva', 'tasaiva', 'iva'])),
+            costo: toNum(pick(row, ['costo', 'cost'])),
+            precio_venta: toNum(pick(row, ['precio_venta', 'precioventa', 'venta'])),
+            precio_mayoreo: toNum(pick(row, ['precio_mayoreo', 'preciomayoreo'])),
+            precio_minimo: toNum(pick(row, ['precio_minimo', 'preciominimo'])),
+            stock_minimo: toNum(pick(row, ['stock_minimo', 'stockminimo'])),
+            controla_inventario: toBool(pick(row, ['controla_inventario', 'controlainventario']), true),
+            aplica_iva: toBool(pick(row, ['aplica_iva', 'aplicaiva']), true),
+            activo: toBool(pick(row, ['activo']), true),
+        };
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('productosImportError');
+        if (!el) return;
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function setProgress(done, total, stats) {
+        const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+        const overlay = document.getElementById('productosProgressOverlay');
+        const bar = document.getElementById('productosProgressBar');
+        if (overlay) overlay.style.display = 'flex';
+        if (bar) bar.style.width = pct + '%';
+        document.getElementById('productosProgressCount').textContent = done.toLocaleString() + ' / ' + total.toLocaleString();
+        document.getElementById('productosProgressPct').textContent = pct + '%';
+        document.getElementById('productosProgressLabel').textContent = done < total
+            ? 'Procesando bloque… no cierres ni cambies de página.'
+            : 'Importación terminada.';
+        if (stats) {
+            document.getElementById('productosProgressStats').textContent =
+                'Creados: ' + stats.creados.toLocaleString()
+                + ' · Actualizados: ' + stats.actualizados.toLocaleString()
+                + ' · Omitidos: ' + stats.omitidos.toLocaleString();
+        }
+    }
+
+    async function enviarLote(items) {
+        const res = await fetch(URL_LOTE, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': CSRF,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ items: items }),
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            const msg = data.message
+                || (data.errors ? Object.values(data.errors).flat().join(' ') : null)
+                || ('Error HTTP ' + res.status);
+            throw new Error(msg);
+        }
+        return data;
+    }
+
+    window.iniciarImportProductos = async function () {
+        const input = document.getElementById('productosExcelInput');
+        const btn = document.getElementById('productosImportBtn');
+        const err = document.getElementById('productosImportError');
+        if (err) err.style.display = 'none';
+
+        if (!input || !input.files || !input.files.length) {
+            showError('Selecciona un archivo Excel.');
+            return;
+        }
+        if (typeof XLSX === 'undefined') {
+            showError('No se pudo cargar la librería Excel. Recarga la página.');
+            return;
+        }
+
+        btn.disabled = true;
+        window.__productosImporting = true;
+        window.onbeforeunload = function () {
+            return window.__productosImporting ? 'La importación está en curso. Si sales se cancelará.' : undefined;
+        };
+        setProgress(0, 0, { creados: 0, actualizados: 0, omitidos: 0 });
+        document.getElementById('productosProgressLabel').textContent = 'Leyendo Excel…';
+
+        try {
+            const buf = await input.files[0].arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            if (!rawRows.length) throw new Error('El Excel no tiene filas de datos.');
+
+            const items = rawRows.map(mapRow).filter(function (r) { return r.codigo || r.nombre; });
+            const total = items.length;
+            let done = 0;
+            const stats = { creados: 0, actualizados: 0, omitidos: 0 };
+            setProgress(0, total, stats);
+
+            for (let i = 0; i < total; i += LOTE) {
+                const lote = items.slice(i, i + LOTE);
+                const result = await enviarLote(lote);
+                done += lote.length;
+                stats.creados += result.creados || 0;
+                stats.actualizados += result.actualizados || 0;
+                stats.omitidos += result.omitidos || 0;
+                setProgress(done, total, stats);
+            }
+
+            window.__productosImporting = false;
+            window.onbeforeunload = null;
+            window.location.href = @json(route('productos.index'))
+                + '?imported=1&c=' + stats.creados + '&a=' + stats.actualizados + '&o=' + stats.omitidos;
+        } catch (e) {
+            console.error(e);
+            window.__productosImporting = false;
+            window.onbeforeunload = null;
+            document.getElementById('productosProgressOverlay').style.display = 'none';
+            showError(e.message || 'Error al importar.');
+            btn.disabled = false;
+        }
+    };
+})();
+</script>
+@endpush
+@endcan
 
 @endsection

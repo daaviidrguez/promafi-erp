@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Exports\CatalogoTruperParaProductosExport;
 use App\Http\Controllers\Controller;
 use App\Models\CatalogoTruper;
 use App\Services\CatalogoTruperImportService;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CatalogoTruperController extends Controller
 {
@@ -27,6 +30,25 @@ class CatalogoTruperController extends Controller
         }
 
         return view('catalogo-truper.index', compact('items', 'search'));
+    }
+
+    /**
+     * Exporta el catálogo Truper en formato de plantilla Productos
+     * (para revisar y luego importar en Productos).
+     */
+    public function exportarParaProductos(): BinaryFileResponse
+    {
+        if (! auth()->user()->can('catalogo_truper.exportar') && ! auth()->user()->isAdmin()) {
+            abort(403, 'No tienes permiso para exportar el catálogo Truper.');
+        }
+
+        $filename = 'truper_para_productos_'.now()->format('Y-m-d_His').'.xlsx';
+
+        return Excel::download(
+            new CatalogoTruperParaProductosExport,
+            $filename,
+            \Maatwebsite\Excel\Excel::XLSX
+        );
     }
 
     /**

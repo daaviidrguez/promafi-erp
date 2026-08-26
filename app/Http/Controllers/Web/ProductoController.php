@@ -4,15 +4,19 @@ namespace App\Http\Controllers\Web;
 
 // UBICACIÓN: app/Http/Controllers/Web/ProductoController.php
 
+use App\Exports\ProductoPlantillaExport;
 use App\Http\Controllers\Controller;
 use App\Models\Producto;
 use App\Models\CategoriaProducto;
 use App\Models\ClaveProdServicio;
 use App\Models\UnidadMedidaSat;
 use App\Models\Proveedor;
+use App\Services\ProductoImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProductoController extends Controller
 {
@@ -148,6 +152,15 @@ class ProductoController extends Controller
         $hayFiltros = $search || $categoria_id || $hayFiltrosColumna;
         $mostrarTablaFiltros = $productos->isNotEmpty() || $hayFiltros || Producto::exists();
 
+        if ($request->boolean('imported') && ! session()->has('success')) {
+            session()->flash('success', sprintf(
+                'Importación completada: %s creados, %s actualizados, %s omitidos.',
+                number_format((int) $request->get('c', 0)),
+                number_format((int) $request->get('a', 0)),
+                number_format((int) $request->get('o', 0))
+            ));
+        }
+
         return view('productos.index', compact(
             'productos',
             'categorias',
@@ -219,6 +232,66 @@ class ProductoController extends Controller
             ->limit(15)
             ->get(['id', 'clave', 'descripcion']);
         return response()->json($items);
+    }
+
+    /**
+     * Descarga plantilla Excel para importar productos.
+     */
+    public function descargarPlantilla(): BinaryFileResponse
+    {
+        if (! auth()->user()->can('productos.importar') && ! auth()->user()->isAdmin()) {
+            abort(403, 'No tienes permiso para descargar la plantilla de productos.');
+        }
+
+        return Excel::download(
+            new ProductoPlantillaExport,
+            'plantilla_productos.xlsx',
+            \Maatwebsite\Excel\Excel::XLSX
+        );
+    }
+
+    /**
+     * Importa un lote de hasta 500 filas (AJAX, progreso en frontend).
+     * Upsert por codigo: crea o actualiza; no modifica stock ni vacía el catálogo.
+     */
+    public function importarLote(Request $request, ProductoImportService $service)
+    {
+        if (! auth()->user()->can('productos.importar') && ! auth()->user()->isAdmin()) {
+            abort(403, 'No tienes permiso para importar productos.');
+        }
+
+        $validated = $request->validate([
+            'items' => 'required|array|min:1|max:500',
+            'items.*.codigo' => 'nullable',
+            'items.*.nombre' => 'nullable|string',
+            'items.*.marca' => 'nullable|string',
+            'items.*.descripcion' => 'nullable|string',
+            'items.*.clave_sat' => 'nullable|string',
+            'items.*.clave_unidad_sat' => 'nullable|string',
+            'items.*.unidad' => 'nullable|string',
+            'items.*.objeto_impuesto' => 'nullable|string',
+            'items.*.tipo_impuesto' => 'nullable|string',
+            'items.*.tipo_factor' => 'nullable|string',
+            'items.*.tasa_iva' => 'nullable|numeric',
+            'items.*.costo' => 'nullable|numeric',
+            'items.*.precio_venta' => 'nullable|numeric',
+            'items.*.precio_mayoreo' => 'nullable|numeric',
+            'items.*.precio_minimo' => 'nullable|numeric',
+            'items.*.stock_minimo' => 'nullable|numeric',
+            'items.*.controla_inventario' => 'nullable',
+            'items.*.aplica_iva' => 'nullable',
+            'items.*.activo' => 'nullable',
+        ]);
+
+        $result = $service->upsertFilas($validated['items']);
+
+        return response()->json([
+            'ok' => true,
+            'creados' => $result['creados'],
+            'actualizados' => $result['actualizados'],
+            'omitidos' => $result['omitidos'],
+            'procesados' => count($validated['items']),
+        ]);
     }
 
     public function store(Request $request)

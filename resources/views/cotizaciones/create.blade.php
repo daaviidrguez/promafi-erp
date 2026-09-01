@@ -462,13 +462,19 @@ $breadcrumbs = [
 
 @push('styles')
 <style>
-/* Tabla productos: scroll horizontal en móvil */
-.table-container .table-productos-cotizacion { min-width: 720px; }
+/* Tabla productos: scroll horizontal; min-width = columnas fijas (~810px) + descripción (200px) */
+.table-container .table-productos-cotizacion { min-width: 1010px; }
 /* Descripción ancha, Origen = ancho C. unit.; columnas numéricas compactas */
 .table-productos-cotizacion thead th:nth-child(2) { padding: 11px 16px; }
 .table-productos-cotizacion thead th:not(:nth-child(2)) { padding: 11px 4px; white-space: nowrap; }
 .table-productos-cotizacion tbody td { vertical-align: middle; }
+.table-productos-cotizacion th:nth-child(2),
+.table-productos-cotizacion td:nth-child(2) { min-width: 200px; }
 .table-productos-cotizacion tbody td:nth-child(2) { padding: 12px 16px; vertical-align: middle; }
+.table-productos-cotizacion tbody td:nth-child(2) .fw-600 {
+    overflow-wrap: break-word;
+    word-break: normal;
+}
 .table-productos-cotizacion tbody td:not(:nth-child(2)) { padding: 8px 4px; }
 .table-productos-cotizacion tbody td:nth-child(10) { padding-right: 6px; }
 .table-productos-cotizacion tbody td:last-child { padding: 8px 4px 8px 2px; }
@@ -483,7 +489,7 @@ $breadcrumbs = [
     font-size: 13px;
     white-space: pre-wrap;
     overflow-wrap: break-word;
-    word-break: break-word;
+    word-break: normal;
     box-sizing: border-box;
     transition: none;
 }
@@ -561,17 +567,13 @@ $breadcrumbs = [
 }
 
 @media (max-width: 768px) {
-    /* Solo móvil: descripción más ancha y scroll horizontal estable */
+    /* Móvil: scroll horizontal estable; descripción con ancho mínimo usable */
     .table-container .table-productos-cotizacion {
-        min-width: calc(100vw + 220px);
+        min-width: 1010px;
     }
-    .table-productos-cotizacion colgroup col:first-child {
-        width: 48vw !important;
-        min-width: 260px;
-    }
-    .table-productos-cotizacion tbody td:first-child,
-    .table-productos-cotizacion thead th:nth-child(2) {
-        min-width: 260px;
+    .table-productos-cotizacion th:nth-child(2),
+    .table-productos-cotizacion td:nth-child(2) {
+        min-width: 200px;
     }
 }
 

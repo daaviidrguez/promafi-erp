@@ -2,13 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\CatalogoTruper;
 use App\Models\Producto;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Importación masiva de productos (upsert por codigo).
- * Columnas alineadas con plantilla / export Truper→Productos.
+ * Columnas alineadas con la plantilla de Productos.
  */
 class ProductoImportService
 {
@@ -35,14 +34,14 @@ class ProductoImportService
     ];
 
     /**
-     * Fila de ejemplo / valores por defecto al migrar desde Truper.
+     * Valores por defecto al importar filas incompletas / plantilla.
      *
      * @return array<string, mixed>
      */
     public static function defaults(): array
     {
         return [
-            'marca' => 'Truper',
+            'marca' => '',
             'clave_sat' => '01010101',
             'clave_unidad_sat' => 'H87',
             'unidad' => 'Pieza',
@@ -55,46 +54,6 @@ class ProductoImportService
             'controla_inventario' => 1,
             'aplica_iva' => 1,
             'activo' => 1,
-        ];
-    }
-
-    /**
-     * Mapea un registro Truper a una fila de plantilla Productos.
-     *
-     * @return list<mixed>
-     */
-    public static function mapFromTruper(CatalogoTruper $item): array
-    {
-        $defaults = self::defaults();
-        $nombre = trim((string) $item->descripcion);
-        $claveSat = trim((string) ($item->codigo_sat ?? ''));
-        if ($claveSat === '' || strlen($claveSat) > 8) {
-            $claveSat = $defaults['clave_sat'];
-        }
-
-        $costo = (float) $item->costo;
-        $venta = (float) $item->venta;
-
-        return [
-            strtoupper(trim((string) $item->codigo)),
-            mb_substr($nombre, 0, 255),
-            $defaults['marca'],
-            $nombre,
-            $claveSat,
-            $defaults['clave_unidad_sat'],
-            self::mapUnidad((string) ($item->unidad ?? '')),
-            $defaults['objeto_impuesto'],
-            $defaults['tipo_impuesto'],
-            $defaults['tipo_factor'],
-            $defaults['tasa_iva'],
-            $costo,
-            $venta,
-            $venta,
-            $defaults['precio_minimo'],
-            $defaults['stock_minimo'],
-            $defaults['controla_inventario'],
-            $defaults['aplica_iva'],
-            $defaults['activo'],
         ];
     }
 

@@ -452,7 +452,6 @@ $breadcrumbs = [
                 'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
                 'manual'    => (bool) $d->es_producto_manual,
                 'sugerencia_id' => $d->sugerencia_id,
-                'catalogo_truper_id' => null,
                 'imagenes_existentes' => $d->rutasImagenes(),
                 'imagenes_urls' => $d->imagenes_urls,
             ];
@@ -654,7 +653,6 @@ function getFormSnapshot() {
             tasa_iva: p.tasa_iva,
             manual: p.manual,
             sugerencia_id: p.sugerencia_id || null,
-            catalogo_truper_id: p.catalogo_truper_id || null,
         })),
     };
     return JSON.stringify(data);
@@ -845,7 +843,6 @@ function parseImportRows(rows) {
             tasa_iva,
             manual: true,
             sugerencia_id: null,
-            catalogo_truper_id: null,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         };
     }).filter(Boolean);
@@ -951,7 +948,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tasa_iva: d.tasa_iva,
                 manual: d.manual,
                 sugerencia_id: d.sugerencia_id || null,
-                catalogo_truper_id: d.catalogo_truper_id || null,
                 imagenesExistentes: Array.isArray(d.imagenes_existentes) ? d.imagenes_existentes.slice() : [],
                 imagenesUrls: Array.isArray(d.imagenes_urls) ? d.imagenes_urls.slice() : [],
                 imagenesNuevas: [],
@@ -1205,13 +1201,8 @@ async function buscarProductos(q) {
                     precio = item.precio_unitario;
                     badge = '💡 Sugerencia';
                     extraClass = 'autocomplete-item-sugerencia';
-                } else if (item.tipo === 'truper') {
-                    precio = item.precio_venta;
-                    badge = '🔧 Truper';
-                    extraClass = 'autocomplete-item-truper';
                 }
-                const clave = item.tipo === 'truper' && item.clave ? ` · ${esc(item.clave)}` : '';
-                const label = item.codigo ? `${esc(item.codigo)}${clave} — ${esc(item.nombre)}` : esc(item.nombre);
+                const label = item.codigo ? `${esc(item.codigo)} — ${esc(item.nombre)}` : esc(item.nombre);
                 return `<div class="autocomplete-item ${extraClass}" data-idx="${idx}" onclick="agregarDesdeBusqueda(window._busquedaProductosTemp[this.dataset.idx])">
                     <div class="autocomplete-item-name">${label}</div>
                     <div class="autocomplete-item-sub">${badge} — $${parseFloat(precio).toFixed(2)}${item.unidad ? ' · ' + esc(item.unidad) : ''}</div>
@@ -1228,15 +1219,7 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: null, codigo: item.codigo || '-', origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
-            utilidad: '', descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id, catalogo_truper_id: null,
-            imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
-        });
-    } else if (item.tipo === 'truper') {
-        if (productos.find(x => x.catalogo_truper_id === item.id)) { alert('Este producto Truper ya está en la cotización'); return; }
-        productos.push({
-            id: null, codigo: item.codigo || '-', origen: item.clave || 'Truper', nombre: item.nombre,
-            cantidad: 1, unidad: (item.unidad || 'PZA').slice(0, 10), precio: parseFloat(item.precio_venta),
-            utilidad: '', descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: null, catalogo_truper_id: item.id,
+            utilidad: '', descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     } else {
@@ -1244,7 +1227,7 @@ function agregarDesdeBusqueda(item) {
         productos.push({
             id: item.id, codigo: item.codigo, origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
-            utilidad: '', descuento: 0, tasa_iva: item.tasa_iva, manual: false, catalogo_truper_id: null,
+            utilidad: '', descuento: 0, tasa_iva: item.tasa_iva, manual: false,
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     }
@@ -1269,7 +1252,7 @@ function agregarProducto(p) {
 function agregarManual() {
     productos.push({
         id: null, codigo: '-', origen: '', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, utilidad: '', descuento: 0, tasa_iva: 0.16,
-        manual: true, sugerencia_id: null, catalogo_truper_id: null,
+        manual: true, sugerencia_id: null,
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     renderProductos();
@@ -1440,7 +1423,6 @@ function renderProductos() {
                        ${p.codigo && p.codigo !== '-' ? `<span class="producto-row-code">${(p.codigo || '').replace(/</g,'&lt;')}</span>` : ''}
                        <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">
                        <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">
-                       <input type="hidden" name="productos[${i}][catalogo_truper_id]" value="${p.catalogo_truper_id || ''}">
                        <input type="hidden" name="productos[${i}][codigo]" value="${(p.codigo || '').replace(/"/g,'&quot;')}">`
                     : `<div class="fw-600" style="font-size:13.5px;">${p.nombre}</div>
                        <span class="producto-row-code">${p.codigo}</span>`}
@@ -1793,7 +1775,6 @@ function restaurarCotizacionAutosave(data) {
         tasa_iva: p.tasa_iva,
         manual: !!p.manual,
         sugerencia_id: p.sugerencia_id || null,
-        catalogo_truper_id: p.catalogo_truper_id || null,
         imagenesExistentes: [],
         imagenesUrls: [],
         imagenesNuevas: [],

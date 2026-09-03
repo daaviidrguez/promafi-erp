@@ -31,7 +31,7 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
 <div id="formImportarProductos" class="card" style="display:none; margin-bottom:16px;">
     <div class="card-body">
         <p class="text-muted" style="margin:0 0 12px; font-size:13px;">
-            Usa la <strong>plantilla</strong> o el Excel exportado desde Catálogo Truper.
+            Usa la <strong>plantilla</strong> de Productos.
             Columnas: <strong>codigo</strong>, <strong>nombre</strong>, <strong>marca</strong>, <strong>descripcion</strong>,
             <strong>clave_sat</strong>, <strong>clave_unidad_sat</strong>, <strong>unidad</strong>,
             <strong>objeto_impuesto</strong>, <strong>tipo_impuesto</strong>, <strong>tipo_factor</strong>, <strong>tasa_iva</strong>,
@@ -309,7 +309,7 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
     <div class="empty-state">
         <div class="empty-state-icon">📦</div>
         <div class="empty-state-title">No hay productos registrados</div>
-        <div class="empty-state-text">Crea un producto o importa el Excel exportado desde Catálogo Truper (plantilla Productos).</div>
+        <div class="empty-state-text">Crea un producto o importa un Excel con la plantilla de Productos.</div>
         <div style="margin-top: 20px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
             @can('productos.importar')
             <button type="button" class="btn btn-light" onclick="toggleImportarProductos(true)">📥 Importar Excel</button>

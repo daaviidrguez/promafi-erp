@@ -19,9 +19,9 @@ class ProductoPlantillaExport implements FromArray, WithHeadings
 
         return [
             [
-                'TRU-EJEMPLO',
+                'PROD-EJEMPLO',
                 'Desarmador punta plana 1/4"',
-                $d['marca'],
+                'Ejemplo',
                 'Desarmador punta plana 1/4" — ejemplo de plantilla',
                 $d['clave_sat'],
                 $d['clave_unidad_sat'],

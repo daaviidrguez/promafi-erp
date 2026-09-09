@@ -75,4 +75,25 @@ class CancelacionAdministrativaController extends Controller
             ->route('facturas.show', $factura->id)
             ->with('success', 'Factura cancelada administrativamente en el ERP. Revise auditoría y saldos del cliente.');
     }
+
+    public function revertir(Request $request, Factura $factura, CancelacionAdministrativaFacturaService $service): RedirectResponse
+    {
+        $request->validate([
+            'motivo' => 'required|string|min:10|max:2000',
+        ]);
+
+        try {
+            $service->revertir($factura, $request->input('motivo'), $request);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('facturas.show', $factura->id)
+                ->with('error', 'No se pudo reactivar: '.$e->getMessage());
+        }
+
+        return redirect()
+            ->route('facturas.show', $factura->id)
+            ->with('success', 'Cancelación administrativa revertida. La factura volvió a timbrada en el ERP; el CFDI nunca se canceló ante el SAT.');
+    }
 }

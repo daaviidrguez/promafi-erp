@@ -392,7 +392,7 @@ $breadcrumbs = [
             </div>
         </div>
 
-        @if($factura->estado === 'cancelada' || $factura->cancelacion_administrativa)
+        @if($factura->estado === 'cancelada' || $factura->cancelacion_administrativa || $factura->cancelacionesAdministrativas->isNotEmpty())
             @include('partials.expediente-cancelacion', ['document' => $factura])
         @endif
 
@@ -502,6 +502,23 @@ $breadcrumbs = [
                             data-folio="{{ $factura->folio_completo }}"
                             data-tipo="factura">Consultar estatus SAT</button>
                 @endif
+
+                @can('cancelaciones_administrativas.revertir')
+                    @if($factura->cancelacion_administrativa ?? false)
+                        @if($puedeReactivarCancelacionAdmin ?? false)
+                        <button type="button"
+                                onclick="document.getElementById('modalReactivarCancelAdmin').classList.add('show')"
+                                class="btn btn-primary w-full">↻ Reactivar cancelación administrativa</button>
+                        @elseif($motivoNoReactivarCancelacionAdmin)
+                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;"
+                                title="{{ $motivoNoReactivarCancelacionAdmin }}">↻ Reactivar cancelación administrativa</button>
+                        <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                            {{ $motivoNoReactivarCancelacionAdmin }}
+                        </div>
+                        @endif
+                    @endif
+                @endcan
+
                 @if($factura->estado === 'cancelada')
                     @if($factura->canceladaAnteSat() && !empty($factura->uuid))
                     <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}"
@@ -662,6 +679,42 @@ $breadcrumbs = [
         </form>
     </div>
 </div>
+
+@can('cancelaciones_administrativas.revertir')
+@if(($puedeReactivarCancelacionAdmin ?? false) && ($factura->cancelacion_administrativa ?? false))
+<div id="modalReactivarCancelAdmin" class="modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title">Reactivar cancelación administrativa</div>
+            <button class="modal-close"
+                    onclick="document.getElementById('modalReactivarCancelAdmin').classList.remove('show')">✕</button>
+        </div>
+        <form method="POST" action="{{ route('facturas.reactivar-cancelacion-administrativa', $factura->id) }}">
+            @csrf
+            <div class="modal-body">
+                <div class="alert alert-info" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
+                    Reactiva solo el estado en el ERP (vuelve a <strong>timbrada</strong>).
+                    El CFDI <strong>nunca se canceló ante el SAT</strong>; se reaplica inventario y cartera si se revirtieron en la cancelación administrativa.
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Motivo de reactivación <span class="req">*</span></label>
+                    <textarea name="motivo" class="form-control" rows="4" required minlength="10" maxlength="2000"
+                              placeholder="Explique por qué se deshace la cancelación administrativa (mín. 10 caracteres).">{{ old('motivo') }}</textarea>
+                    <p class="form-hint" style="margin-top: 6px;">Registro obligatorio para auditoría.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light"
+                        onclick="document.getElementById('modalReactivarCancelAdmin').classList.remove('show')">
+                    Cerrar
+                </button>
+                <button type="submit" class="btn btn-primary">Confirmar reactivación</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+@endcan
 
 {{-- Modal seleccionar factura sustituta (para motivo 01) --}}
 <div id="modalSeleccionarSustituto" class="modal">

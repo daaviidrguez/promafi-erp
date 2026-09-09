@@ -22,6 +22,7 @@ use App\Models\MetodoPago;
 use App\Models\Producto;
 use App\Models\Remision;
 use App\Models\UsoCfdi;
+use App\Services\CancelacionAdministrativaFacturaService;
 use App\Services\CancelacionFiscalService;
 use App\Services\EstatusCancelacionCfdi;
 use App\Services\FacturamaService;
@@ -458,8 +459,15 @@ class FacturaController extends Controller
      */
     public function show(Factura $factura)
     {
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user']);
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user', 'cancelacionesAdministrativas.user']);
         $facturaSustituta = $factura->resolverFacturaSustituta();
+        $puedeReactivarCancelacionAdmin = false;
+        $motivoNoReactivarCancelacionAdmin = null;
+        if ($factura->cancelacion_administrativa) {
+            $checkReactivar = app(CancelacionAdministrativaFacturaService::class)->puedeReactivar($factura);
+            $puedeReactivarCancelacionAdmin = (bool) $checkReactivar['ok'];
+            $motivoNoReactivarCancelacionAdmin = $checkReactivar['mensaje'];
+        }
 
         $mensajeSyncSat = null;
         $datosFiscalesBorrador = [
@@ -499,7 +507,17 @@ class FacturaController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
-        return view('facturas.show', compact('factura', 'facturaSustituta', 'ncBorrador', 'complementoBorrador', 'historialEnviosFactura', 'mensajeSyncSat', 'datosFiscalesBorrador'));
+        return view('facturas.show', compact(
+            'factura',
+            'facturaSustituta',
+            'ncBorrador',
+            'complementoBorrador',
+            'historialEnviosFactura',
+            'mensajeSyncSat',
+            'datosFiscalesBorrador',
+            'puedeReactivarCancelacionAdmin',
+            'motivoNoReactivarCancelacionAdmin'
+        ));
     }
 
     /**

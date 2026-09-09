@@ -5,17 +5,29 @@
         : $document->cancelacionEventos()->with('user')->limit(20)->get();
     $esFactura = $document instanceof \App\Models\Factura;
     $esAdmin = $esFactura && (bool) ($document->cancelacion_administrativa ?? false);
+    $soloHistorialAdmin = $esFactura
+        && ! $esAdmin
+        && $document->estado === 'timbrada'
+        && ($document->relationLoaded('cancelacionesAdministrativas')
+            ? $document->cancelacionesAdministrativas->isNotEmpty()
+            : $document->cancelacionesAdministrativas()->exists());
     $limiteAceptacion = $esFactura
         ? $document->fechaLimiteCancelacionFiscal()
         : ($document->fecha_vencimiento_aceptacion ?? null);
     $facturaSustituta = $facturaSustituta ?? ($esFactura ? $document->resolverFacturaSustituta() : null);
+    $bitacoraAdmin = $esFactura
+        ? ($document->relationLoaded('cancelacionesAdministrativas')
+            ? $document->cancelacionesAdministrativas->sortByDesc('id')
+            : $document->cancelacionesAdministrativas()->with('user')->orderByDesc('id')->limit(12)->get())
+        : collect();
 @endphp
 
 <div class="card" style="margin-top: 16px;">
     <div class="card-header">
-        <div class="card-title">Cancelación fiscal (PAC / SAT)</div>
+        <div class="card-title">{{ $soloHistorialAdmin ? 'Historial de cancelación administrativa (ERP)' : 'Cancelación fiscal (PAC / SAT)' }}</div>
     </div>
     <div class="card-body" style="font-size: 13px; line-height: 1.5;">
+        @unless($soloHistorialAdmin)
         <div class="info-row">
             <div class="info-label">Estado PAC</div>
             <div class="info-value-sm">
@@ -142,7 +154,9 @@
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
                     Cancelación administrativa en el ERP: inventario y saldo ya se revirtieron.
                     El CFDI sigue vigente ante el SAT hasta que use <strong>Cancelar factura</strong>
-                    (después de facturar con relación, si aplica). El stock no se volverá a mover.
+                    (después de facturar con relación, si aplica). El stock no se volverá a mover al enviar al SAT.
+                    Si la cancelación administrativa fue por error, puede <strong>reactivar</strong> la factura en el ERP
+                    (permiso de reactivación) mientras no haya envío al PAC.
                 </div>
             @elseif($document->cancelacionFiscalVencidaSinResolver())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
@@ -173,7 +187,27 @@
                 </div>
             @endif
         @endif
+        @endunless
 
+        @if($esFactura && $bitacoraAdmin->isNotEmpty())
+            <div class="info-label" style="margin-top: {{ $soloHistorialAdmin ? '0' : '16px' }}; margin-bottom: 8px;">Bitácora administrativa (ERP)</div>
+            <div style="display: grid; gap: 8px;">
+                @foreach($bitacoraAdmin->take(12) as $eventoAdmin)
+                    <div style="border: 1px solid var(--color-gray-200); border-radius: var(--radius-sm); padding: 8px 10px;">
+                        <div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                            <strong>{{ ($eventoAdmin->tipo ?? 'cancelacion') === 'reversion' ? 'Reactivación' : 'Cancelación administrativa' }}</strong>
+                            <span class="text-muted" style="font-size: 11px;">{{ $eventoAdmin->created_at?->format('d/m/Y H:i') }}</span>
+                        </div>
+                        @if($eventoAdmin->user)
+                            <div class="text-muted" style="font-size: 11px;">{{ $eventoAdmin->user->name }}</div>
+                        @endif
+                        <div style="margin-top: 4px; font-size: 12px;">{{ $eventoAdmin->motivo }}</div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        @unless($soloHistorialAdmin)
         @if($eventos->isNotEmpty())
             <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Bitácora</div>
             <div style="display: grid; gap: 8px;">
@@ -229,5 +263,6 @@
                 @endforeach
             </div>
         @endif
+        @endunless
     </div>
 </div>

@@ -2,7 +2,7 @@
 
 @section('title', 'Cancelaciones administrativas')
 @section('page-title', '🛑 Cancelaciones administrativas')
-@section('page-subtitle', 'Cancelación solo en ERP (sin PAC). Revoca saldo del cliente; inventario solo si hubo salida por timbrado.')
+@section('page-subtitle', 'Cancelación solo en ERP (sin PAC). Revoca saldo del cliente; inventario solo si hubo salida por timbrado. La reactivación se hace desde el detalle de la factura.')
 
 @php
 $breadcrumbs = [

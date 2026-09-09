@@ -454,6 +454,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
         Route::get('/cancelaciones-administrativas', [CancelacionAdministrativaController::class, 'index'])->name('cancelaciones-administrativas.index');
         Route::post('/cancelaciones-administrativas/{factura}', [CancelacionAdministrativaController::class, 'ejecutar'])->name('cancelaciones-administrativas.ejecutar');
     });
+    Route::post('/facturas/{factura}/reactivar-cancelacion-administrativa', [CancelacionAdministrativaController::class, 'revertir'])
+        ->name('facturas.reactivar-cancelacion-administrativa')
+        ->middleware('can:cancelaciones_administrativas.revertir');
     Route::get('/importador-cfdi', [ImportadorCfdiController::class, 'index'])->name('importador-cfdi.index');
     Route::post('/importador-cfdi', [ImportadorCfdiController::class, 'store'])->name('importador-cfdi.store');
     Route::resource('usuarios', UsuarioController::class)->parameters(['usuarios' => 'usuario']);

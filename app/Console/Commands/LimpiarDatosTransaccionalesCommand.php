@@ -46,6 +46,7 @@ class LimpiarDatosTransaccionalesCommand extends Command
         'factura_cancelaciones_administrativas',
         'factura_soportes',
         'facturas',
+        'folios_factura_liberados',
         // Listas de precios y cotizaciones
         'listas_precios_detalle',
         'listas_precios',

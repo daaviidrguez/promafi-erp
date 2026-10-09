@@ -163,9 +163,50 @@ class Empresa extends Model
     public function obtenerSiguienteFolioFacturaCredito(): string
     {
         $serie = $this->serie_factura_credito ?? 'FB';
-        $folio = (int) ($this->folio_factura_credito ?? 1);
+        $folio = $this->resolverSiguienteFolioFacturaCredito();
 
         return $serie.'-'.str_pad((string) $folio, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Siguiente folio disponible: primero un folio liberado por un borrador eliminado,
+     * si no, el contador; nunca un folio que ya exista en facturas.
+     */
+    private function resolverSiguienteFolioFacturaCredito(bool $limpiarLiberadosOcupados = false): int
+    {
+        $serie = $this->serie_factura_credito ?? 'FB';
+        $contador = (int) ($this->folio_factura_credito ?? 1);
+
+        $liberados = FolioFacturaLiberado::query()
+            ->where('empresa_id', $this->id)
+            ->where('serie', $serie)
+            ->where('folio', '<', $contador)
+            ->orderBy('folio')
+            ->get();
+
+        foreach ($liberados as $liberado) {
+            if (! self::folioFacturaOcupado($serie, $liberado->folio)) {
+                return $liberado->folio;
+            }
+            if ($limpiarLiberadosOcupados) {
+                $liberado->delete();
+            }
+        }
+
+        $folio = max(1, $contador);
+        while (self::folioFacturaOcupado($serie, $folio)) {
+            $folio++;
+        }
+
+        return $folio;
+    }
+
+    public static function folioFacturaOcupado(string $serie, int $folio): bool
+    {
+        return Factura::withTrashed()
+            ->where('serie', $serie)
+            ->where('folio', $folio)
+            ->exists();
     }
 
     /**
@@ -185,10 +226,68 @@ class Empresa extends Model
     {
         $e = self::query()->whereKey($empresaId)->lockForUpdate()->firstOrFail();
         $serie = $e->serie_factura_credito ?? 'FB';
-        $folio = (int) ($e->folio_factura_credito ?? 1);
-        $e->incrementarFolioFacturaCredito();
+        $folio = $e->resolverSiguienteFolioFacturaCredito(true);
+
+        FolioFacturaLiberado::query()
+            ->where('empresa_id', $e->id)
+            ->where('serie', $serie)
+            ->where('folio', $folio)
+            ->delete();
+
+        $contador = (int) ($e->folio_factura_credito ?? 1);
+        if ($folio >= $contador) {
+            $e->forceFill(['folio_factura_credito' => $folio + 1])->save();
+        }
 
         return ['serie' => $serie, 'folio' => $folio];
+    }
+
+    /**
+     * Regresa al flujo el folio de un borrador eliminado. Debe llamarse dentro de DB::transaction,
+     * después de borrar la factura.
+     */
+    public static function liberarFolioFacturaCredito(int $empresaId, string $serie, int $folio): void
+    {
+        $e = self::query()->whereKey($empresaId)->lockForUpdate()->firstOrFail();
+
+        if (self::folioFacturaOcupado($serie, $folio)) {
+            return;
+        }
+
+        $serieActual = $e->serie_factura_credito ?? 'FB';
+        $contador = (int) ($e->folio_factura_credito ?? 1);
+
+        if ($serie !== $serieActual) {
+            FolioFacturaLiberado::query()->firstOrCreate(['empresa_id' => $e->id, 'serie' => $serie, 'folio' => $folio]);
+
+            return;
+        }
+
+        if ($folio >= $contador) {
+            return;
+        }
+
+        if ($folio !== $contador - 1) {
+            FolioFacturaLiberado::query()->firstOrCreate(['empresa_id' => $e->id, 'serie' => $serie, 'folio' => $folio]);
+
+            return;
+        }
+
+        $contador = $folio;
+        while ($contador > 1) {
+            $anterior = FolioFacturaLiberado::query()
+                ->where('empresa_id', $e->id)
+                ->where('serie', $serie)
+                ->where('folio', $contador - 1)
+                ->first();
+            if (! $anterior || self::folioFacturaOcupado($serie, $contador - 1)) {
+                break;
+            }
+            $anterior->delete();
+            $contador--;
+        }
+
+        $e->forceFill(['folio_factura_credito' => $contador])->save();
     }
 
     /**

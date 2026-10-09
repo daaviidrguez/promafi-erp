@@ -89,7 +89,21 @@ class EmpresaController extends Controller
         // FACTURACIÓN
         // ===============================
         'serie_factura_credito' => 'required|string|max:5',
-        'folio_factura_credito' => 'required|integer|min:1',
+        'folio_factura_credito' => [
+            'required',
+            'integer',
+            'min:1',
+            function ($attribute, $value, $fail) use ($request) {
+                $actual = Empresa::principal();
+                $serie = (string) $request->input('serie_factura_credito', 'FB');
+                $sinCambios = $actual
+                    && (int) $actual->folio_factura_credito === (int) $value
+                    && (string) ($actual->serie_factura_credito ?? 'FB') === $serie;
+                if (! $sinCambios && Empresa::folioFacturaOcupado($serie, (int) $value)) {
+                    $fail('El folio '.$serie.'-'.str_pad((string) (int) $value, 4, '0', STR_PAD_LEFT).' ya está ocupado por otra factura. Elige un folio libre.');
+                }
+            },
+        ],
         'serie_nota_credito' => 'required|string|max:5',
         'folio_nota_credito' => 'required|integer|min:1',
         'serie_nota_debito' => 'required|string|max:5',

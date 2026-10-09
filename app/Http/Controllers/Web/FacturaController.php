@@ -594,10 +594,15 @@ class FacturaController extends Controller
             $factura->detalles()->delete();
             $factura->forceDelete();
 
+            $empresaId = $factura->empresa_id ?? Empresa::principal()?->id;
+            if ($empresaId && $factura->serie !== null && $factura->folio !== null) {
+                Empresa::liberarFolioFacturaCredito((int) $empresaId, (string) $factura->serie, (int) $factura->folio);
+            }
+
             DB::commit();
 
             return redirect()->route('facturas.index')
-                ->with('success', 'Factura en borrador eliminada correctamente.');
+                ->with('success', 'Factura en borrador eliminada correctamente. El folio '.$factura->folio_completo.' quedó disponible.');
         } catch (\Throwable $e) {
             DB::rollBack();
 

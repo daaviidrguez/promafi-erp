@@ -179,7 +179,7 @@ $clientePreseleccionadoJson = $clientePreseleccionado ? [
                     <div id="bloqueCfdiSustituir" class="form-group" style="display: none;">
                         <label class="form-label">CFDI a sustituir (UUID)</label>
                         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                            <input type="text" id="inputUuidReferenciaDisplay" class="form-control" readonly placeholder="Seleccione el CFDI emitido con errores" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                            <input type="text" id="inputUuidReferenciaDisplay" class="form-control" readonly placeholder="Seleccione el CFDI emitido con errores" value="{{ old('uuid_referencia') }}" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
                             <input type="hidden" name="uuid_referencia" id="inputUuidReferencia" value="{{ old('uuid_referencia') }}">
                             <input type="hidden" name="tipo_relacion" id="inputTipoRelacion" value="04">
                             <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarCfdiSustituir()">

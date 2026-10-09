@@ -1,0 +1,28 @@
+---
+description: Cómo escribir y correr tests (PHPUnit) en promafi-erp
+globs: tests/**/*.php
+alwaysApply: false
+---
+
+# Tests en promafi-erp
+
+## Correr
+```bash
+php artisan test --filter=NombreDelTest
+```
+- Requiere MySQL local con la base `promafi_erp_testing` (definida en `phpunit.xml`; usuario y contraseña salen de `.env`).
+- Si no existe, crearla (nunca usar `promafi_erp`, `RefreshDatabase` borra todas las tablas):
+  `CREATE DATABASE promafi_erp_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+- No usar SQLite: varias migraciones usan SQL exclusivo de MySQL (`ALTER TABLE ... MODIFY`, `ENUM`).
+- `tests/Feature/ExampleTest.php` falla desde antes (`/` redirige a login); ignorarlo.
+
+## Escribir
+- Feature tests en `tests/Feature`, con `use RefreshDatabase;`. No hay factories de modelos: insertar datos mínimos con `DB::table(...)`.
+- Usuario con todos los permisos: rol `admin` (lo crea una migración); `Gate::before` y el middleware `route.permission` lo dejan pasar.
+  ```php
+  User::create([..., 'role_id' => DB::table('roles')->where('name', 'admin')->value('id'), 'activo' => true]);
+  ```
+- `empresas` exige `rfc, razon_social, regimen_fiscal, calle, numero_exterior, colonia, estado, codigo_postal` y `activo = true` (`Empresa::principal()`).
+- Facturas: el cliente necesita `codigo_postal` de 5 dígitos y `regimen_fiscal`; sembrar `formas_pago`, `metodos_pago` y `usos_cfdi` con las claves usadas. Usar `metodo_pago = PUE` para no generar cuenta por cobrar.
+- Ejemplo de referencia: `tests/Feature/FacturaRelacionCfdiTest.php`.
+- Para confirmar que un test detecta el bug: `git stash push -- <archivo corregido>`, correr el test (debe fallar), `git stash pop`.

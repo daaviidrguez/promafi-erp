@@ -182,7 +182,7 @@ $clienteFacturaJson = $factura->cliente ? [
                         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                             <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
                                 <input type="checkbox" id="checkSustituirCfdi" name="sustituir_cfdi" value="1"
-                                       {{ old('sustituir_cfdi', $factura->uuid_referencia ? 1 : 0) ? 'checked' : '' }}>
+                                       {{ (session()->hasOldInput() ? old('sustituir_cfdi') : $factura->uuid_referencia) ? 'checked' : '' }}>
                                 <span>Sí, esta factura sustituye un CFDI previo</span>
                             </label>
                         </div>
@@ -522,18 +522,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     @if($factura->estado === 'borrador')
     // Inicializar bloque Relación CFDI según si ya hay uuid_referencia
-    if (document.getElementById('checkSustituirCfdi')) {
-        const check = document.getElementById('checkSustituirCfdi');
-        const bloque = document.getElementById('bloqueCfdiSustituir');
-        function toggleBloqueCfdiSustituir() {
-            const checked = check.checked;
-            bloque.style.display = checked ? 'block' : 'none';
-            if (!checked) limpiarCfdiSustituir();
-        }
-        check.addEventListener('change', toggleBloqueCfdiSustituir);
-        if (check.checked || document.getElementById('inputUuidReferencia').value) {
-            bloque.style.display = 'block';
-        }
+    const checkSustituir = document.getElementById('checkSustituirCfdi');
+    if (checkSustituir) {
+        checkSustituir.addEventListener('change', toggleBloqueCfdiSustituir);
+        if (checkSustituir.checked) toggleBloqueCfdiSustituir();
     }
     @endif
 });
@@ -634,7 +626,7 @@ function restaurarFacturaAutosave(data) {
     const checkSust = document.getElementById('checkSustituirCfdi');
     if (checkSust) {
         checkSust.checked = !!data.sustituir_cfdi;
-        if (typeof toggleBloqueCfdiSustituir === 'function') toggleBloqueCfdiSustituir();
+        toggleBloqueCfdiSustituir();
     }
     const uuidHidden = document.getElementById('inputUuidReferencia');
     const uuidDisplay = document.getElementById('inputUuidReferenciaDisplay');
@@ -674,6 +666,11 @@ window.facturaAutosave = window.PromafiFormAutosave.create({
 @if($factura->estado === 'borrador')
 // Relación de CFDI (sustitución)
 const listarParaRelacionUrl = '{{ route("facturas.listar-para-relacion") }}';
+function toggleBloqueCfdiSustituir() {
+    const checked = document.getElementById('checkSustituirCfdi').checked;
+    document.getElementById('bloqueCfdiSustituir').style.display = checked ? 'block' : 'none';
+    if (!checked) limpiarCfdiSustituir();
+}
 function abrirModalSeleccionarCfdiSustituir() {
     document.getElementById('modalSeleccionarCfdiSustituir').classList.add('show');
     document.getElementById('cargandoCfdiSustituir').style.display = 'block';

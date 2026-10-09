@@ -225,7 +225,6 @@ class FacturaController extends Controller
             'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
             'observaciones' => 'nullable|string',
             // Puede contener uno o más UUID separados por coma (Relación CFDI tipo 04)
-            // Puede contener uno o más UUID separados por coma (Relación CFDI tipo 04)
             'uuid_referencia' => 'nullable|string|max:500',
             'tipo_relacion' => 'nullable|string|in:01,02,03,04',
             'productos' => 'required|array|min:1',
@@ -238,13 +237,7 @@ class FacturaController extends Controller
             'orden_compra' => 'nullable|string|max:200',
         ]);
 
-        // Normalizar y limitar uuid_referencia para evitar overflow en DB
-        if (! empty($validated['uuid_referencia'])) {
-            $uuids = preg_split('/[,;\s]+/', $validated['uuid_referencia']) ?: [];
-            $uuids = array_values(array_unique(array_filter(array_map('trim', $uuids))));
-            $normalized = implode(', ', $uuids);
-            $validated['uuid_referencia'] = Str::limit($normalized, 500, '');
-        }
+        $relacionCfdi = $this->normalizarRelacionCfdi($request, $validated);
 
         $empresa = Empresa::principal();
         $cliente = Cliente::findOrFail($validated['cliente_id']);
@@ -336,8 +329,8 @@ class FacturaController extends Controller
                 'descuento' => $descuentoTotal,
                 'total' => $total,
                 'observaciones' => $validated['observaciones'],
-                'uuid_referencia' => ! empty(trim($validated['uuid_referencia'] ?? '')) ? trim($validated['uuid_referencia']) : null,
-                'tipo_relacion' => ! empty($validated['uuid_referencia']) ? ($validated['tipo_relacion'] ?? '04') : null,
+                'uuid_referencia' => $relacionCfdi['uuid_referencia'],
+                'tipo_relacion' => $relacionCfdi['tipo_relacion'],
                 'usuario_id' => auth()->id(),
                 'orden_compra' => $validated['orden_compra'] ?? $remisionVincular?->orden_compra ?? null,
             ]);
@@ -633,6 +626,9 @@ class FacturaController extends Controller
             'uso_cfdi' => 'required|string|exists:usos_cfdi,clave',
             'observaciones' => 'nullable|string',
             'orden_compra' => 'nullable|string|max:200',
+            // Puede contener uno o más UUID separados por coma (Relación CFDI tipo 04)
+            'uuid_referencia' => 'nullable|string|max:500',
+            'tipo_relacion' => 'nullable|string|in:01,02,03,04',
             'productos' => 'required|array|min:1',
             'productos.*.producto_id' => 'nullable|exists:productos,id',
             'productos.*.descripcion' => 'required|string',
@@ -640,6 +636,8 @@ class FacturaController extends Controller
             'productos.*.valor_unitario' => 'required|numeric|min:0',
             'productos.*.descuento' => 'nullable|numeric|min:0',
         ]);
+
+        $relacionCfdi = $this->normalizarRelacionCfdi($request, $validated);
 
         $empresa = Empresa::principal();
         $cliente = Cliente::findOrFail($validated['cliente_id']);
@@ -700,6 +698,8 @@ class FacturaController extends Controller
                 'total' => $total,
                 'observaciones' => $validated['observaciones'],
                 'orden_compra' => $validated['orden_compra'] ?? $factura->orden_compra,
+                'uuid_referencia' => $relacionCfdi['uuid_referencia'],
+                'tipo_relacion' => $relacionCfdi['tipo_relacion'],
             ]);
 
             // Eliminar detalles e impuestos anteriores
@@ -1357,5 +1357,29 @@ class FacturaController extends Controller
         file_put_contents($filepath, $xml);
 
         return 'facturas/'.now()->format('Y/m').'/'.$filename;
+    }
+
+    /**
+     * Normaliza la relación CFDI (uno o más UUID separados por coma) y su tipo.
+     * Sin la casilla "sustituir_cfdi" o sin UUID, ambos campos quedan en null para que la relación se elimine.
+     *
+     * @return array{uuid_referencia: ?string, tipo_relacion: ?string}
+     */
+    protected function normalizarRelacionCfdi(Request $request, array $validated): array
+    {
+        $uuidReferencia = $request->boolean('sustituir_cfdi') ? ($validated['uuid_referencia'] ?? '') : '';
+        $tipoRelacion = $validated['tipo_relacion'] ?? null;
+
+        $uuids = preg_split('/[,;\s]+/', (string) $uuidReferencia) ?: [];
+        $uuids = array_values(array_unique(array_filter(array_map('trim', $uuids))));
+
+        if ($uuids === []) {
+            return ['uuid_referencia' => null, 'tipo_relacion' => null];
+        }
+
+        return [
+            'uuid_referencia' => Str::limit(implode(', ', $uuids), 500, ''),
+            'tipo_relacion' => $tipoRelacion ?: '04',
+        ];
     }
 }

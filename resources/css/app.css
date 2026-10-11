@@ -651,12 +651,49 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 /* ========== FORMS ========== */
 .form-grid    { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .form-grid-filtros { grid-template-columns: 2fr 1fr 1fr 1fr auto; }
-.cotizacion-show-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; }
+.cotizacion-show-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; }
 .cotizacion-create-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
 .cotizacion-create-bottom-grid { display: grid; grid-template-columns: 7fr 3fr 3fr; gap: 20px; }
-.cotizacion-show-referencia-totales-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+
+/* Show de cotización: cabecera (Cliente | Información) a la misma altura */
+.cotizacion-show-header-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch; margin-bottom: 20px; }
+.cotizacion-show-header-grid > .card { margin-bottom: 0; height: 100%; }
+.cotizacion-show-header-grid .info-grid-2 { margin-bottom: 0; }
+
+.cotizacion-show-totales { display: flex; justify-content: flex-end; }
+.cotizacion-show-totales .totales-panel { width: 100%; max-width: 400px; }
+
+.cotizacion-show-interno-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); column-gap: 20px; align-items: start; }
+
+/* Acciones fijas: el sticky requiere que ningún ancestro sea contenedor de scroll */
+.cotizacion-show-acciones {
+    position: sticky;
+    top: calc(var(--header-height) + 20px);
+    max-height: calc(100vh - var(--header-height) - var(--footer-height) - 40px);
+    display: flex;
+    flex-direction: column;
+}
+.cotizacion-show-acciones .card-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.cotizacion-show-acciones-resumen {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    padding: 12px 14px; background: var(--color-gray-50);
+    border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);
+}
+.cotizacion-show-acciones-resumen .monto { font-family: var(--font-mono); font-weight: 700; font-size: 17px; color: var(--color-primary); }
+.cotizacion-show-acciones-divider { height: 1px; background: var(--color-gray-200); margin: 4px 0; }
+.cotizacion-show-acciones-pdf { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+@media (min-width: 1025px) {
+    html:has(.cotizacion-show-layout),
+    body:has(.cotizacion-show-layout) { overflow-x: clip; }
+    .content-wrapper:has(.cotizacion-show-layout) { overflow-x: visible; }
+}
+@media (max-width: 1024px) {
+    .cotizacion-show-acciones { position: static; max-height: none; }
+    .cotizacion-show-layout > .cotizacion-show-aside { order: -1; }
+}
 @media (max-width: 768px) {
-    .cotizacion-show-referencia-totales-grid { grid-template-columns: 1fr; }
+    .cotizacion-show-header-grid { grid-template-columns: 1fr; }
 }
 .factura-show-layout,
 .factura-create-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }

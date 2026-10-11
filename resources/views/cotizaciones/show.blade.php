@@ -14,10 +14,27 @@ $breadcrumbs = [
 
 @section('content')
 
-<div class="cotizacion-show-layout responsive-grid">
+@php
+    $estados = [
+        'borrador'  => ['badge-warning',  '📝 Borrador'],
+        'enviada'   => ['badge-info',     '📧 Enviada'],
+        'aceptada'  => ['badge-success',  '✅ Aceptada'],
+        'facturada' => ['badge-primary',  '💰 Facturada'],
+        'rechazada' => ['badge-danger',   '✗ Rechazada'],
+        'vencida'   => ['badge-gray',     '⏰ Vencida'],
+    ];
+    [$badgeClass, $badgeLabel] = $estados[$cotizacion->estado] ?? ['badge-gray', $cotizacion->estado];
+    if ($cotizacion->estado === 'facturada' && $cotizacion->factura?->estado === 'timbrada') {
+        $badgeClass = 'badge-success';
+    }
 
-    {{-- Columna izquierda --}}
-    <div>
+    $puedeCrearFactura = $cotizacion->puedeFacturarse() && auth()->user()?->can('facturas.crear');
+    $verFacturaComoPrincipal = ! $cotizacion->puedeAceptarse() && ! $puedeCrearFactura
+        && $cotizacion->factura && auth()->user()?->can('facturas.ver');
+@endphp
+
+{{-- Cabecera: Cliente | Información --}}
+<div class="cotizacion-show-header-grid">
 
         {{-- Cliente --}}
         <div class="card">
@@ -60,6 +77,65 @@ $breadcrumbs = [
                 </div>
             </div>
         </div>
+
+        {{-- Información de la Cotización --}}
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📋 Información</div>
+                <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
+            </div>
+            <div class="card-body">
+                <div class="info-grid-2">
+                    <div class="info-row">
+                        <div class="info-label">Fecha de Emisión</div>
+                        <div class="info-value-sm">{{ $cotizacion->fecha->format('d/m/Y') }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Válida Hasta</div>
+                        <div class="info-value-sm">{{ $cotizacion->fecha_vencimiento->format('d/m/Y') }}</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Condición de Pago</div>
+                        <div style="margin-top: 4px;">
+                            @if($cotizacion->tipo_venta === 'credito')
+                                <span class="badge badge-warning">💳 Crédito {{ $cotizacion->dias_credito_aplicados }} días</span>
+                            @else
+                                <span class="badge badge-success">💵 Contado</span>
+                            @endif
+                        </div>
+                    </div>
+                    @if($cotizacion->forma_pago)
+                    <div class="info-row">
+                        <div class="info-label">Forma de pago</div>
+                        <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}</div>
+                    </div>
+                    @endif
+                    <div class="info-row">
+                        <div class="info-label">Moneda</div>
+                        <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>
+                    </div>
+                    @if($cotizacion->usuario)
+                    <div class="info-row">
+                        <div class="info-label">Elaboró</div>
+                        <div class="info-value-sm">{{ $cotizacion->usuario->name }}</div>
+                    </div>
+                    @endif
+                    @if($cotizacion->fecha_envio)
+                    <div class="info-row">
+                        <div class="info-label">Enviada el</div>
+                        <div class="info-value-sm">{{ $cotizacion->fecha_envio->format('d/m/Y H:i') }}</div>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+</div>
+
+<div class="cotizacion-show-layout responsive-grid">
+
+    {{-- Columna principal --}}
+    <div>
 
         {{-- Detalle de Productos --}}
         <div class="card">
@@ -167,47 +243,9 @@ $breadcrumbs = [
                 </table>
             </div>
 
-            {{-- Referencia (interno) | Totales --}}
-            <div class="card-body cotizacion-show-referencia-totales-grid">
-                <div class="totales-panel" style="min-width: 0;">
-                    <div class="card-title" style="margin: -4px 0 14px 0; padding-bottom: 12px; border-bottom: 1px solid var(--color-gray-200);">🔗 Referencia</div>
-                    <div style="margin-bottom: 18px;">
-                        <div class="info-label mb-8">Referencia comercial</div>
-                        <div style="font-size: 14px; color: var(--color-gray-800);">
-                            @if($cotizacion->referencia_comercial)
-                                {{ $cotizacion->referencia_comercial }}
-                            @else
-                                <span class="text-muted">—</span>
-                            @endif
-                        </div>
-                    </div>
-                    <span class="form-hint" style="display:block;margin-bottom:12px;">Esta información es solo para uso interno y no se mostrará al cliente.</span>
-                    <div style="margin-bottom: 18px;">
-                        <div class="info-label mb-8">URL</div>
-                        @if($cotizacion->referencia_url)
-                            <a href="{{ $cotizacion->referencia_url }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $cotizacion->referencia_url }}</a>
-                        @else
-                            <span class="text-muted">—</span>
-                        @endif
-                    </div>
-                    <div style="margin-bottom: 18px;">
-                        <div class="info-label mb-8">URL adicional</div>
-                        @if($cotizacion->referencia_url_2)
-                            <a href="{{ $cotizacion->referencia_url_2 }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $cotizacion->referencia_url_2 }}</a>
-                        @else
-                            <span class="text-muted">—</span>
-                        @endif
-                    </div>
-                    <div>
-                        <div class="info-label mb-8">Otra URL</div>
-                        @if($cotizacion->referencia_url_3)
-                            <a href="{{ $cotizacion->referencia_url_3 }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $cotizacion->referencia_url_3 }}</a>
-                        @else
-                            <span class="text-muted">—</span>
-                        @endif
-                    </div>
-                </div>
-                <div class="totales-panel" style="min-width: 0;">
+            {{-- Totales --}}
+            <div class="card-body cotizacion-show-totales">
+                <div class="totales-panel">
                     <div class="totales-row">
                         <span>Subtotal</span>
                         <span class="monto text-mono">${{ number_format($cotizacion->subtotal, 2) }}</span>
@@ -267,7 +305,41 @@ $breadcrumbs = [
         </div>
         @endif
 
-        {{-- Documentos de respaldo (uso interno) --}}
+        {{-- Uso interno: Referencia | Documentos de respaldo --}}
+        <div class="cotizacion-show-interno-grid">
+
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🔗 Referencia</div>
+                <span class="badge badge-gray">Uso interno</span>
+            </div>
+            <div class="card-body">
+                <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                    Esta información es solo para uso interno y no se mostrará al cliente.
+                </p>
+                <div class="info-row">
+                    <div class="info-label">Referencia comercial</div>
+                    <div style="font-size: 14px; color: var(--color-gray-800);">
+                        @if($cotizacion->referencia_comercial)
+                            {{ $cotizacion->referencia_comercial }}
+                        @else
+                            <span class="text-muted">—</span>
+                        @endif
+                    </div>
+                </div>
+                @foreach(['URL' => $cotizacion->referencia_url, 'URL adicional' => $cotizacion->referencia_url_2, 'Otra URL' => $cotizacion->referencia_url_3] as $etiquetaUrl => $urlReferencia)
+                <div class="info-row">
+                    <div class="info-label">{{ $etiquetaUrl }}</div>
+                    @if($urlReferencia)
+                        <a href="{{ $urlReferencia }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $urlReferencia }}</a>
+                    @else
+                        <span class="text-muted">—</span>
+                    @endif
+                </div>
+                @endforeach
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <div class="card-title">📎 Documentos de respaldo</div>
@@ -286,7 +358,7 @@ $breadcrumbs = [
                 @else
                     <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
                         @foreach($cotizacion->adjuntos as $adjunto)
-                            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+                            <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
                                 <div style="min-width: 0; flex: 1;">
                                     <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
                                         📄 {{ $adjunto->nombre_original }}
@@ -350,120 +422,68 @@ $breadcrumbs = [
             </div>
         </div>
 
-    </div>
-
-    {{-- Columna derecha --}}
-    <div>
-
-        {{-- Información de la Cotización --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📋 Información</div>
-            </div>
-            <div class="card-body">
-                <div class="info-row">
-                    <div class="info-label">Estado</div>
-                    <div style="margin-top: 4px;">
-                        @php
-                            $estados = [
-                                'borrador'  => ['badge-warning',  '📝 Borrador'],
-                                'enviada'   => ['badge-info',     '📧 Enviada'],
-                                'aceptada'  => ['badge-success',  '✅ Aceptada'],
-                                'facturada' => ['badge-primary',  '💰 Facturada'],
-                                'rechazada' => ['badge-danger',   '✗ Rechazada'],
-                                'vencida'   => ['badge-gray',     '⏰ Vencida'],
-                            ];
-                            [$badgeClass, $badgeLabel] = $estados[$cotizacion->estado] ?? ['badge-gray', $cotizacion->estado];
-                            if ($cotizacion->estado === 'facturada' && $cotizacion->factura?->estado === 'timbrada') {
-                                $badgeClass = 'badge-success';
-                            }
-                        @endphp
-                        <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
-                    </div>
-                </div>
-                <div class="info-row" style="margin-top: 16px;">
-                    <div class="info-label">Fecha de Emisión</div>
-                    <div class="info-value-sm">{{ $cotizacion->fecha->format('d/m/Y') }}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Válida Hasta</div>
-                    <div class="info-value-sm">{{ $cotizacion->fecha_vencimiento->format('d/m/Y') }}</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Condición de Pago</div>
-                    <div style="margin-top: 4px;">
-                        @if($cotizacion->tipo_venta === 'credito')
-                            <span class="badge badge-warning">💳 Crédito {{ $cotizacion->dias_credito_aplicados }} días</span>
-                        @else
-                            <span class="badge badge-success">💵 Contado</span>
-                        @endif
-                    </div>
-                </div>
-                @if($cotizacion->forma_pago)
-                <div class="info-row">
-                    <div class="info-label">Forma de pago</div>
-                    <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}</div>
-                </div>
-                @endif
-                <div class="info-row">
-                    <div class="info-label">Moneda</div>
-                    <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>
-                </div>
-                @if($cotizacion->usuario)
-                <div class="info-row">
-                    <div class="info-label">Elaboró</div>
-                    <div class="info-value-sm">{{ $cotizacion->usuario->name }}</div>
-                </div>
-                @endif
-                @if($cotizacion->fecha_envio)
-                <div class="info-row">
-                    <div class="info-label">Enviada el</div>
-                    <div class="info-value-sm">{{ $cotizacion->fecha_envio->format('d/m/Y H:i') }}</div>
-                </div>
-                @endif
-            </div>
         </div>
 
+    </div>
+
+    {{-- Columna lateral --}}
+    <div class="cotizacion-show-aside">
+
         {{-- Acciones --}}
-        <div class="card">
+        <div class="card cotizacion-show-acciones">
             <div class="card-header">
                 <div class="card-title">⚡ Acciones</div>
+                <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
             </div>
-            <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
+            <div class="card-body">
 
-                <a href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
-                   target="_blank" class="btn btn-outline w-full">👁️ Ver PDF</a>
+                <div class="cotizacion-show-acciones-resumen">
+                    <span class="info-label" style="margin-bottom: 0;">Total</span>
+                    <span class="monto">${{ number_format($cotizacion->total, 2) }} <small style="font-size: 11px; font-weight: 600;">{{ $cotizacion->moneda ?? 'MXN' }}</small></span>
+                </div>
 
-                <a href="{{ route('cotizaciones.descargar-pdf', $cotizacion->id) }}"
-                   class="btn btn-outline w-full">📄 Descargar PDF</a>
+                {{-- Acción principal según el estado --}}
+                @if($cotizacion->puedeAceptarse())
+                <form id="formAceptarCotizacion" method="POST" action="{{ route('cotizaciones.aceptar', $cotizacion->id) }}">
+                    @csrf
+                    <button type="button" class="btn btn-success w-full"
+                            onclick="{{ $cotizacion->estado === 'vencida' ? 'abrirModalAceptarVencida()' : 'abrirModalAceptarCotizacion()' }}">
+                        ✅ Aceptar
+                    </button>
+                </form>
+                @elseif($puedeCrearFactura)
+                    @if($cotizacion->puedeConvertirAFactura())
+                    <form id="formConvertirFacturaCotizacion" method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
+                        @csrf
+                        <button type="button" class="btn btn-primary w-full" onclick="abrirModalConvertirFactura()">
+                            💰 Convertir a Factura
+                        </button>
+                    </form>
+                    @else
+                    <button type="button" class="btn btn-primary w-full" disabled
+                            title="{{ $cotizacion->motivoNoConvertirAFactura() }}">
+                        💰 Convertir a Factura
+                    </button>
+                    <p class="text-muted small mb-0" style="margin-top: -4px; font-size: 12px; line-height: 1.45;">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
+                    @endif
+                @elseif($verFacturaComoPrincipal)
+                <a href="{{ route('facturas.show', $cotizacion->factura->id) }}"
+                   class="btn btn-primary w-full">💰 Ver factura relacionada</a>
+                @endif
 
+                {{-- Acciones secundarias --}}
                 @if($cotizacion->puedeEditarse())
                 <a href="{{ route('cotizaciones.create') }}?id={{ $cotizacion->id }}"
-                   class="btn btn-primary w-full">✏️ Editar</a>
+                   class="btn btn-outline w-full">✏️ Editar</a>
                 @endif
 
                 @if($cotizacion->puedeEnviarse())
                 <form method="POST" action="{{ route('cotizaciones.enviar', $cotizacion->id) }}">
                     @csrf
-                    <button type="submit" class="btn btn-warning w-full"
+                    <button type="submit" class="btn btn-outline w-full"
                             onclick="return confirm('¿Enviar cotización por email al cliente?')">
                         📧 Enviar Email
                     </button>
-                </form>
-                @endif
-
-                @if($cotizacion->puedeAceptarse())
-                <form id="formAceptarCotizacion" method="POST" action="{{ route('cotizaciones.aceptar', $cotizacion->id) }}">
-                    @csrf
-                    @if($cotizacion->estado === 'vencida')
-                        <button type="button" class="btn btn-success w-full" onclick="abrirModalAceptarVencida()">
-                            ✅ Aceptar
-                        </button>
-                    @else
-                        <button type="button" class="btn btn-success w-full" onclick="abrirModalAceptarCotizacion()">
-                            ✅ Aceptar
-                        </button>
-                    @endif
                 </form>
                 @endif
 
@@ -482,33 +502,21 @@ $breadcrumbs = [
                 @endcan
                 @endif
 
-                @if($cotizacion->puedeFacturarse())
-                @can('facturas.crear')
-                @if($cotizacion->puedeConvertirAFactura())
-                <form id="formConvertirFacturaCotizacion" method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
-                    @csrf
-                    <button type="button" class="btn btn-primary w-full" onclick="abrirModalConvertirFactura()">
-                        💰 Convertir a Factura
-                    </button>
-                </form>
-                @else
-                <button type="button" class="btn btn-primary w-full" disabled
-                        title="{{ $cotizacion->motivoNoConvertirAFactura() }}">
-                    💰 Convertir a Factura
-                </button>
-                <p class="text-muted small mt-1 mb-0">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
-                @endif
-                @endcan
-                @endif
-
-                @if($cotizacion->factura)
+                @if($cotizacion->factura && ! $verFacturaComoPrincipal)
                 @can('facturas.ver')
                 <a href="{{ route('facturas.show', $cotizacion->factura->id) }}"
                    class="btn btn-outline w-full">💰 Ver factura relacionada</a>
                 @endcan
                 @endif
 
-                <a href="{{ route('cotizaciones.index') }}" class="btn btn-light w-full">← Volver</a>
+                <div class="cotizacion-show-acciones-divider"></div>
+
+                <div class="cotizacion-show-acciones-pdf">
+                    <a href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
+                       target="_blank" class="btn btn-light btn-sm">👁️ Ver PDF</a>
+                    <a href="{{ route('cotizaciones.descargar-pdf', $cotizacion->id) }}"
+                       class="btn btn-light btn-sm">📄 Descargar</a>
+                </div>
 
             </div>
         </div>

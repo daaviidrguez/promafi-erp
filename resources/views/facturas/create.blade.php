@@ -240,34 +240,9 @@ $clientePreseleccionadoJson = $clientePreseleccionado ? [
 
 @include('partials.form_local_autosave')
 
-{{-- Modal seleccionar CFDI a sustituir (relación tipo 04) --}}
-<div id="modalSeleccionarCfdiSustituir" class="modal">
-    <div class="modal-box" style="max-width: 640px;">
-        <div class="modal-header">
-            <div class="modal-title">Seleccionar CFDI a sustituir</div>
-            <button type="button" class="modal-close" onclick="cerrarModalCfdiSustituir()">✕</button>
-        </div>
-        <div class="modal-body">
-            <p class="text-muted" style="margin-bottom: 12px;">Elija la factura timbrada que fue emitida con errores y que esta nueva factura sustituye.</p>
-            <div class="table-container" style="max-height: 320px; overflow-y: auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Serie / Folio</th>
-                            <th>Cliente</th>
-                            <th>Fecha</th>
-                            <th>Total</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="listaFacturasSustituir"></tbody>
-                </table>
-            </div>
-            <div id="cargandoCfdiSustituir" style="text-align: center; padding: 20px; color: var(--color-gray-500);">Cargando facturas...</div>
-            <div id="sinFacturasCfdiSustituir" style="display: none; text-align: center; padding: 20px; color: var(--color-gray-500);">No hay facturas disponibles (timbradas o canceladas administrativamente pendientes de PAC).</div>
-        </div>
-    </div>
-</div>
+@include('facturas.partials.modal-cfdi-sustituir', [
+    'descripcion' => 'Elija la factura timbrada que fue emitida con errores y que esta nueva factura sustituye.',
+])
 
 @endsection
 
@@ -726,7 +701,7 @@ window.facturaAutosave = window.PromafiFormAutosave.create({
 });
 
 // Relación de CFDI (sustitución)
-const listarParaRelacionUrl = '{{ route("facturas.listar-para-relacion") }}';
+@include('facturas.partials.modal-cfdi-sustituir-js')
 function toggleBloqueCfdiSustituir() {
     const checked = document.getElementById('checkSustituirCfdi').checked;
     document.getElementById('bloqueCfdiSustituir').style.display = checked ? 'block' : 'none';
@@ -734,55 +709,5 @@ function toggleBloqueCfdiSustituir() {
 }
 document.getElementById('checkSustituirCfdi').addEventListener('change', toggleBloqueCfdiSustituir);
 if (document.getElementById('checkSustituirCfdi').checked) toggleBloqueCfdiSustituir();
-
-function abrirModalSeleccionarCfdiSustituir() {
-    document.getElementById('modalSeleccionarCfdiSustituir').classList.add('show');
-    document.getElementById('cargandoCfdiSustituir').style.display = 'block';
-    document.getElementById('sinFacturasCfdiSustituir').style.display = 'none';
-    document.getElementById('listaFacturasSustituir').innerHTML = '';
-    fetch(listarParaRelacionUrl)
-        .then(r => r.json())
-        .then(data => {
-            document.getElementById('cargandoCfdiSustituir').style.display = 'none';
-            const list = data.facturas || [];
-            if (list.length === 0) {
-                document.getElementById('sinFacturasCfdiSustituir').style.display = 'block';
-                return;
-            }
-            const tbody = document.getElementById('listaFacturasSustituir');
-            list.forEach(f => {
-                const tr = document.createElement('tr');
-                const label = (f.serie || '') + '-' + (f.folio || '') + ' ' + (f.cliente_nombre || '');
-                tr.innerHTML = '<td>' + (f.serie || '') + ' ' + (f.folio || '') + '</td><td>' + (f.cliente_nombre || '') + '</td><td>' + (f.fecha_emision || '') + '</td><td>' + (f.total || 0) + '</td><td><button type="button" class="btn btn-primary btn-sm" data-uuid="' + (f.uuid || '').replace(/"/g, '&quot;') + '" data-label="' + (label || '').replace(/"/g, '&quot;') + '">Agregar</button></td>';
-                tr.querySelector('button').addEventListener('click', function() {
-                    const uuid = this.getAttribute('data-uuid') || '';
-                    if (!uuid) return;
-                    const inputHidden = document.getElementById('inputUuidReferencia');
-                    const inputDisplay = document.getElementById('inputUuidReferenciaDisplay');
-                    const current = (inputHidden.value || '').split(',').map(s => s.trim()).filter(Boolean);
-                    if (!current.includes(uuid)) {
-                        current.push(uuid);
-                    }
-                    inputHidden.value = current.join(', ');
-                    inputDisplay.value = inputHidden.value;
-                    document.getElementById('inputTipoRelacion').value = '04';
-                });
-                tbody.appendChild(tr);
-            });
-        })
-        .catch(() => {
-            document.getElementById('cargandoCfdiSustituir').style.display = 'none';
-            document.getElementById('sinFacturasCfdiSustituir').style.display = 'block';
-            document.getElementById('sinFacturasCfdiSustituir').textContent = 'Error al cargar facturas.';
-        });
-}
-function cerrarModalCfdiSustituir() {
-    document.getElementById('modalSeleccionarCfdiSustituir').classList.remove('show');
-}
-function limpiarCfdiSustituir() {
-    document.getElementById('inputUuidReferencia').value = '';
-    document.getElementById('inputUuidReferenciaDisplay').value = '';
-    document.getElementById('inputTipoRelacion').value = '04';
-}
 </script>
 @endpush

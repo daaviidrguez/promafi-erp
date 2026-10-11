@@ -19,14 +19,17 @@ class CuentaPorCobrarController extends Controller
      */
     public function index(Request $request, CobranzaResumenService $resumen)
     {
-        $estado = $request->get('estado');
+        $estado = $request->filled('estado') ? $request->get('estado') : 'vencidas';
         $cliente_id = $request->get('cliente_id');
         
         $baseQuery = CuentaPorCobrar::with(['cliente', 'factura'])
             ->excluirFacturaBorrador()
-            ->when($estado, function($query) use ($estado) {
+            ->when($estado !== 'todos', function($query) use ($estado) {
                 if ($estado === 'vencidas') {
-                    $query->vencidas();
+                    // Igual que la tarjeta "Cartera vencida": fuera las cubiertas por NC timbradas
+                    $query->vencidas()->whereRaw(
+                        "cuentas_por_cobrar.monto_pendiente > COALESCE((SELECT SUM(nc.total) FROM notas_credito nc WHERE nc.factura_id = cuentas_por_cobrar.factura_id AND nc.estado = 'timbrada'), 0)"
+                    );
                 } elseif ($estado === 'pendiente') {
                     // Misma noción que el badge "Pendiente": sin vencer por fecha (no mezclar con vencidas)
                     $query->pendienteAlCorriente();

@@ -52,7 +52,7 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header">
                 <div class="card-title">Antigüedad de saldos</div>
-                <a href="{{ route('cuentas-cobrar.index') }}" class="btn btn-light btn-sm">Ver CxC</a>
+                <a href="{{ route('cuentas-cobrar.index', ['estado' => 'todos']) }}" class="btn btn-light btn-sm">Ver CxC</a>
             </div>
             <div class="card-body">
                 <canvas id="chartAntiguedadSaldos" height="280"></canvas>

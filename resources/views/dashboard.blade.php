@@ -86,7 +86,7 @@ $breadcrumbs = [
     <div class="card">
         <div class="card-header">
             <div class="card-title">💰 Cobranza</div>
-            <a href="{{ route('cuentas-cobrar.index') }}" class="btn btn-light btn-sm">Ver</a>
+            <a href="{{ route('cuentas-cobrar.index', ['estado' => 'todos']) }}" class="btn btn-light btn-sm">Ver</a>
         </div>
         <div class="card-body">
             <ul class="dashboard-list">
@@ -95,7 +95,7 @@ $breadcrumbs = [
             </ul>
             <div style="margin-top: 12px;">
                 <a href="{{ route('estado-cuenta.index') }}" class="btn btn-outline btn-sm">📋 Estado de cuenta</a>
-                <a href="{{ route('cuentas-cobrar.index') }}" class="btn btn-primary btn-sm">Cuentas por cobrar</a>
+                <a href="{{ route('cuentas-cobrar.index', ['estado' => 'todos']) }}" class="btn btn-primary btn-sm">Cuentas por cobrar</a>
             </div>
         </div>
     </div>

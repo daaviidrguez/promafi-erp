@@ -191,7 +191,7 @@ $breadcrumbs = [
                 'clientes' => $clientes,
             ])
             <select name="estado" class="form-control" style="min-width: 180px;">
-                <option value="">Todos los estados</option>
+                <option value="todos" {{ $estado === 'todos' ? 'selected' : '' }}>Todos los estados</option>
                 <option value="pendiente" {{ ($estado ?? '') == 'pendiente' ? 'selected' : '' }}>⏳ Pendiente</option>
                 <option value="parcial"   {{ ($estado ?? '') == 'parcial'   ? 'selected' : '' }}>📊 Parcial</option>
                 <option value="vencidas"  {{ ($estado ?? '') == 'vencidas'  ? 'selected' : '' }}>⚠️ Vencidas</option>
@@ -202,7 +202,7 @@ $breadcrumbs = [
                     style="padding: 9px 20px; background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
                 🔍 Filtrar
             </button>
-            @if(($estado ?? false) || ($cliente_id ?? false))
+            @if($estado !== 'vencidas' || ($cliente_id ?? false))
             <a href="{{ route('cuentas-cobrar.index', ['mes' => $mes, 'anio' => $anio]) }}"
                style="padding: 9px 16px; border: 1.5px solid var(--color-gray-300); border-radius: var(--radius-md); color: var(--color-gray-600); font-weight: 600;">
                 ✕ Limpiar
@@ -286,9 +286,22 @@ $breadcrumbs = [
     </div>
     @else
     <div class="empty-state">
-        <div class="empty-state-icon">💰</div>
-        <div class="empty-state-title">No hay cuentas por cobrar</div>
-        <div class="empty-state-text">Las facturas a crédito (PPD) aparecerán aquí automáticamente</div>
+        @if($estado === 'vencidas')
+            <div class="empty-state-icon">✅</div>
+            <div class="empty-state-title">No hay cuentas vencidas</div>
+            <div class="empty-state-text">
+                <a href="{{ route('cuentas-cobrar.index', array_filter(['estado' => 'todos', 'cliente_id' => $cliente_id, 'mes' => $mes, 'anio' => $anio])) }}"
+                   style="color: var(--color-primary); font-weight: 600;">Ver todas las cuentas →</a>
+            </div>
+        @elseif($estado === 'todos' && !$cliente_id)
+            <div class="empty-state-icon">💰</div>
+            <div class="empty-state-title">No hay cuentas por cobrar</div>
+            <div class="empty-state-text">Las facturas a crédito (PPD) aparecerán aquí automáticamente</div>
+        @else
+            <div class="empty-state-icon">💰</div>
+            <div class="empty-state-title">No hay cuentas con este filtro</div>
+            <div class="empty-state-text">Prueba con otro estado o cliente</div>
+        @endif
     </div>
     @endif
 </div>

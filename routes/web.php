@@ -3,6 +3,7 @@
 // UBICACIÓN: routes/web.php
 // REEMPLAZA el contenido actual con este
 
+use App\Http\Controllers\Web\AuditoriaController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\CancelacionAdministrativaController;
 use App\Http\Controllers\Web\CatalogoOnlineController;
@@ -466,5 +467,9 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/roles/{role}', [RoleController::class, 'show'])->name('roles.show');
     Route::get('/roles/{role}/editar', [RoleController::class, 'edit'])->name('roles.edit');
     Route::put('/roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+
+    Route::redirect('/auditoria', '/auditoria/rendimiento');
+    Route::get('/auditoria/rendimiento', [AuditoriaController::class, 'rendimiento'])->name('auditoria.rendimiento');
+    Route::get('/auditoria/errores', [AuditoriaController::class, 'errores'])->name('auditoria.errores');
 
 });

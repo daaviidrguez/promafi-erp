@@ -1,5 +1,6 @@
 <?php
 
+use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -71,6 +72,20 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+        ],
+
+        /*
+         * Peticiones lentas, peticiones cortadas por PHP y errores MySQL. Nivel fijo (no usa LOG_LEVEL)
+         * para seguir capturando aunque producción esté en `error`. Lo lee la pantalla
+         * Auditoría → Rendimiento (RendimientoLogLector), por eso el formato JSON por línea.
+         */
+        'rendimiento' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/rendimiento.log'),
+            'level' => 'warning',
+            'days' => env('LOG_RENDIMIENTO_DAYS', 14),
+            'formatter' => JsonFormatter::class,
+            'umbral_segundos' => (float) env('LOG_RENDIMIENTO_UMBRAL', 5),
         ],
 
         'slack' => [

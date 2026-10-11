@@ -6,6 +6,12 @@ use App\Events\FacturaCompraDesdeCfdiRegistrada;
 use App\Listeners\AlmacenarRevisionPrecioTrasCompraCfdi;
 use App\Models\Permission;
 use App\Models\User;
+use App\Services\AuditoriaExcepcionService;
+use App\Support\Rendimiento\RendimientoRecolector;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Http\Client\Events\ConnectionFailed;
+use Illuminate\Http\Client\Events\ResponseReceived;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -18,7 +24,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(RendimientoRecolector::class);
+        $this->app->singleton(AuditoriaExcepcionService::class);
     }
 
     /**
@@ -56,5 +63,33 @@ class AppServiceProvider extends ServiceProvider
         } catch (\Throwable $e) {
             // Si las tablas no existen (migración pendiente), no definir Gates
         }
+
+        $this->registrarMetricasRendimiento();
+    }
+
+    private function registrarMetricasRendimiento(): void
+    {
+        DB::listen(function (QueryExecuted $query): void {
+            $this->app->make(RendimientoRecolector::class)->registrarConsulta($query->sql, (float) $query->time);
+        });
+
+        Event::listen(function (ResponseReceived $event): void {
+            $segundos = $event->response->transferStats?->getTransferTime();
+
+            $this->app->make(RendimientoRecolector::class)->registrarLlamadaExterna(
+                $event->request->url(),
+                $event->request->method(),
+                $segundos !== null ? $segundos * 1000 : null,
+            );
+        });
+
+        Event::listen(function (ConnectionFailed $event): void {
+            $this->app->make(RendimientoRecolector::class)->registrarLlamadaExterna(
+                $event->request->url(),
+                $event->request->method(),
+                null,
+                $event->exception->getMessage(),
+            );
+        });
     }
 }

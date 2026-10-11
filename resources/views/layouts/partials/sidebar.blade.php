@@ -203,9 +203,9 @@
 
         {{-- Sistema (dropdown) --}}
         @php
-            $sisHasActive = request()->routeIs('usuarios.*') || request()->routeIs('roles.*') || request()->routeIs('empresa.*') || request()->routeIs('importador-cfdi.*');
+            $sisHasActive = request()->routeIs('usuarios.*') || request()->routeIs('roles.*') || request()->routeIs('empresa.*') || request()->routeIs('importador-cfdi.*') || request()->routeIs('auditoria.*');
         @endphp
-        @if(auth()->user()->can('usuarios.ver') || auth()->user()->can('roles.ver') || auth()->user()->can('configuracion.editar') || auth()->user()->can('importador_cfdi.ver'))
+        @if(auth()->user()->can('usuarios.ver') || auth()->user()->can('roles.ver') || auth()->user()->can('configuracion.editar') || auth()->user()->can('importador_cfdi.ver') || auth()->user()->can('auditoria.ver'))
         <div class="sidebar-dropdown {{ $sisHasActive ? 'open' : '' }}">
             <button type="button" class="sidebar-dropdown-trigger {{ $sisHasActive ? 'active' : '' }}" data-dropdown="sistema" title="Sistema">
                 <span class="sidebar-menu-icon">⚙️</span>
@@ -217,6 +217,7 @@
                 @can('roles.ver')<li><a href="{{ route('roles.index') }}" class="sidebar-menu-link {{ request()->routeIs('roles.*') ? 'active' : '' }}" title="Roles y permisos"><span class="sidebar-menu-icon">🔐</span><span class="sidebar-menu-text">Roles y permisos</span></a></li>@endcan
                 @can('importador_cfdi.ver')<li><a href="{{ route('importador-cfdi.index') }}" class="sidebar-menu-link {{ request()->routeIs('importador-cfdi.*') ? 'active' : '' }}" title="Importador CFDI"><span class="sidebar-menu-icon">📥</span><span class="sidebar-menu-text">Importador CFDI</span></a></li>@endcan
                 @can('configuracion.editar')<li><a href="{{ route('empresa.edit') }}" class="sidebar-menu-link {{ request()->routeIs('empresa.*') ? 'active' : '' }}" title="Configuración"><span class="sidebar-menu-icon">⚙️</span><span class="sidebar-menu-text">Configuración</span></a></li>@endcan
+                @can('auditoria.ver')<li><a href="{{ route('auditoria.rendimiento') }}" class="sidebar-menu-link {{ request()->routeIs('auditoria.*') ? 'active' : '' }}" title="Auditoría"><span class="sidebar-menu-icon">🩺</span><span class="sidebar-menu-text">Auditoría</span></a></li>@endcan
             </ul>
         </div>
         @endif

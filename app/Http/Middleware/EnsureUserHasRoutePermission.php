@@ -44,6 +44,7 @@ class EnsureUserHasRoutePermission
         'usuarios' => 'usuarios.ver',
         'roles' => 'roles.ver',
         'importador-cfdi' => 'importador_cfdi.ver',
+        'auditoria' => 'auditoria.ver',
         'cancelaciones-administrativas' => 'cancelaciones_administrativas.administrar',
     ];
 

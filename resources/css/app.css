@@ -560,6 +560,8 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 }
 .page-title    { font-family: var(--font-display); font-size: 26px; font-weight: 800; color: var(--color-primary); line-height: 1.2; }
 .page-subtitle { font-size: 13px; color: var(--color-gray-500); margin-top: 4px; }
+.page-meta     { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.page-meta .info-label { margin-bottom: 0; }
 
 /* ========== CARDS ========== */
 .card {
@@ -651,49 +653,90 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 /* ========== FORMS ========== */
 .form-grid    { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .form-grid-filtros { grid-template-columns: 2fr 1fr 1fr 1fr auto; }
-.cotizacion-show-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; }
 .cotizacion-create-top-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
 .cotizacion-create-bottom-grid { display: grid; grid-template-columns: 7fr 3fr 3fr; gap: 20px; }
 
-/* Show de cotización: cabecera (Cliente | Información) a la misma altura */
-.cotizacion-show-header-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch; margin-bottom: 20px; }
-.cotizacion-show-header-grid > .card { margin-bottom: 0; height: 100%; }
-.cotizacion-show-header-grid .info-grid-2 { margin-bottom: 0; }
+/* ===== Show de documentos (cotización, factura): cabecera + cuerpo + acciones fijas ===== */
+.doc-show-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; }
 
-.cotizacion-show-totales { display: flex; justify-content: flex-end; }
-.cotizacion-show-totales .totales-panel { width: 100%; max-width: 400px; }
+.doc-show-header-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: stretch; margin-bottom: 20px; }
+.doc-show-header-grid > .card { margin-bottom: 0; height: 100%; }
+.doc-show-header-grid .info-grid-2 { margin-bottom: 0; }
 
-.cotizacion-show-interno-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); column-gap: 20px; align-items: start; }
+.doc-show-totales { display: flex; justify-content: flex-end; }
+.doc-show-totales .totales-panel { width: 100%; max-width: 400px; }
+
+.doc-show-interno-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); column-gap: 20px; align-items: start; }
+
+/* Banda fiscal (UUID, timbrado, certificados) */
+.doc-show-fiscal-band {
+    display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 16px 24px;
+    padding: 14px 20px; margin-bottom: 20px;
+    background: #EEF4FA; border: 1px solid #CFDFEE; border-radius: var(--radius-lg);
+}
+.doc-show-fiscal-band-label { font-size: 11px; font-weight: 600; color: var(--color-secondary); margin-bottom: 4px; }
+.doc-show-fiscal-band-value { font-family: var(--font-mono); font-size: 13px; color: var(--color-dark); word-break: break-all; display: flex; align-items: center; gap: 8px; }
+.doc-show-fiscal-band-copy {
+    flex-shrink: 0; border: 1px solid #CFDFEE; background: #fff; color: var(--color-secondary);
+    border-radius: var(--radius-sm); font-size: 11px; padding: 2px 8px; font-family: var(--font-body);
+}
+.doc-show-fiscal-band-copy:hover { background: var(--color-secondary); color: #fff; }
+
+/* Pestañas */
+.doc-tabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--color-gray-200); overflow-x: auto; scrollbar-width: thin; }
+.doc-tab {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    padding: 14px 12px 12px; border: none; background: none;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    font-family: var(--font-display); font-size: 13.5px; font-weight: 600; color: var(--color-gray-500);
+}
+.doc-tab:hover { color: var(--color-primary); }
+.doc-tab[aria-selected="true"] { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.doc-tab:focus-visible { outline: 2px solid var(--color-info); outline-offset: -2px; border-radius: var(--radius-sm); }
+.doc-tab-count { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--color-gray-100); color: var(--color-gray-600); }
+.doc-tab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-danger); }
+.doc-tab-panel[hidden] { display: none; }
 
 /* Acciones fijas: el sticky requiere que ningún ancestro sea contenedor de scroll */
-.cotizacion-show-acciones {
+.doc-show-acciones {
     position: sticky;
     top: calc(var(--header-height) + 20px);
     max-height: calc(100vh - var(--header-height) - var(--footer-height) - 40px);
     display: flex;
     flex-direction: column;
 }
-.cotizacion-show-acciones .card-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.cotizacion-show-acciones-resumen {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+.doc-show-acciones .card-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.doc-show-acciones-resumen {
+    display: flex; flex-direction: column; gap: 6px;
     padding: 12px 14px; background: var(--color-gray-50);
     border: 1px solid var(--color-gray-200); border-radius: var(--radius-md);
 }
-.cotizacion-show-acciones-resumen .monto { font-family: var(--font-mono); font-weight: 700; font-size: 17px; color: var(--color-primary); }
-.cotizacion-show-acciones-divider { height: 1px; background: var(--color-gray-200); margin: 4px 0; }
-.cotizacion-show-acciones-pdf { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.doc-show-acciones-resumen-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--color-gray-600); }
+.doc-show-acciones-resumen-row .info-label { margin-bottom: 0; }
+.doc-show-acciones-resumen .monto { font-family: var(--font-mono); font-weight: 700; font-size: 17px; color: var(--color-primary); }
+.doc-show-acciones-resumen .monto-sm { font-family: var(--font-mono); font-weight: 700; font-size: 14px; }
+.doc-show-acciones-divider { height: 1px; background: var(--color-gray-200); margin: 4px 0; }
+.doc-show-acciones-grupo { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-gray-400); margin-bottom: -4px; }
+.doc-show-acciones-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.doc-show-acciones-fila > .full { grid-column: 1 / -1; }
+.doc-show-acciones-nota { margin: -4px 0 0; font-size: 12px; line-height: 1.45; color: var(--color-gray-500); }
+.doc-show-acciones-nota summary { cursor: pointer; color: var(--color-gray-600); }
+.btn-danger-outline { background: transparent; border: 2px solid var(--color-danger); color: var(--color-danger); }
+.btn-danger-outline:hover { background: var(--color-danger); color: #fff; }
 
 @media (min-width: 1025px) {
-    html:has(.cotizacion-show-layout),
-    body:has(.cotizacion-show-layout) { overflow-x: clip; }
-    .content-wrapper:has(.cotizacion-show-layout) { overflow-x: visible; }
+    html:has(.doc-show-layout),
+    body:has(.doc-show-layout) { overflow-x: clip; }
+    .content-wrapper:has(.doc-show-layout) { overflow-x: visible; }
 }
 @media (max-width: 1024px) {
-    .cotizacion-show-acciones { position: static; max-height: none; }
-    .cotizacion-show-layout > .cotizacion-show-aside { order: -1; }
+    .doc-show-acciones { position: static; max-height: none; }
+    .doc-show-layout > .doc-show-aside { order: -1; }
+    .doc-show-fiscal-band { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 768px) {
-    .cotizacion-show-header-grid { grid-template-columns: 1fr; }
+    .doc-show-header-grid { grid-template-columns: 1fr; }
+    .doc-show-fiscal-band { grid-template-columns: 1fr; }
 }
 .factura-show-layout,
 .factura-create-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }

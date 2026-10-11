@@ -20,13 +20,20 @@
             ? $document->cancelacionesAdministrativas->sortByDesc('id')
             : $document->cancelacionesAdministrativas()->with('user')->orderByDesc('id')->limit(12)->get())
         : collect();
+    $embebido = (bool) ($embebido ?? false);
+    $tituloExpediente = $soloHistorialAdmin ? 'Historial de cancelación administrativa (ERP)' : 'Cancelación fiscal (PAC / SAT)';
 @endphp
 
+@unless($embebido)
 <div class="card" style="margin-top: 16px;">
     <div class="card-header">
-        <div class="card-title">{{ $soloHistorialAdmin ? 'Historial de cancelación administrativa (ERP)' : 'Cancelación fiscal (PAC / SAT)' }}</div>
+        <div class="card-title">{{ $tituloExpediente }}</div>
     </div>
-    <div class="card-body" style="font-size: 13px; line-height: 1.5;">
+@endunless
+    <div class="{{ $embebido ? '' : 'card-body' }}" style="font-size: 13px; line-height: 1.5;">
+        @if($embebido)
+            <div class="card-title" style="margin-bottom: 14px;">{{ $tituloExpediente }}</div>
+        @endif
         @unless($soloHistorialAdmin)
         <div class="info-row">
             <div class="info-label">Estado PAC</div>
@@ -265,4 +272,6 @@
         @endif
         @endunless
     </div>
+@unless($embebido)
 </div>
+@endunless

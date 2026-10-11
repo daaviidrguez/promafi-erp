@@ -2,6 +2,11 @@
 
 @section('title', 'Factura ' . $factura->folio_completo)
 @section('page-title', '🧾 Factura ' . $factura->folio_completo)
+@section('page-meta')
+    <span class="info-label">Orden de compra</span>
+    <span class="info-label">-</span>
+    <span class="info-value-sm text-mono">{{ $factura->orden_compra ?? '—' }}</span>
+@endsection
 @section('page-subtitle', $factura->cliente->nombre)
 
 @php
@@ -20,347 +25,95 @@ $breadcrumbs = [
 </div>
 @endif
 
-<div class="factura-show-layout responsive-grid">
+@php
+    $badgeTitle = null;
+    if ($factura->estado === 'timbrada') {
+        if ($factura->codigo_estatus_cancelacion && str_starts_with($factura->codigo_estatus_cancelacion, 'R')) {
+            [$badgeClass, $badgeLabel] = ['badge-warning', '⚠️ ' . $factura->estado_etiqueta];
+            $badgeTitle = \App\Models\Factura::descripcionCodigoCancelacion($factura->codigo_estatus_cancelacion);
+        } else {
+            [$badgeClass, $badgeLabel] = ['badge-success', 'Timbrada'];
+        }
+    } elseif ($factura->estado === 'borrador') {
+        [$badgeClass, $badgeLabel] = ['badge-warning', '📝 Borrador'];
+    } else {
+        [$badgeClass, $badgeLabel] = ['badge-danger', $factura->estado_etiqueta];
+    }
 
-    {{-- Columna izquierda --}}
-    <div>
+    $usuarioActual = auth()->user();
+    // Las CxC de facturas en borrador no cuentan en cartera (ver CuentaPorCobrar::scopeExcluirFacturaBorrador).
+    $cxc = $factura->esBorrador() ? null : $factura->cuentaPorCobrar;
+    $saldoPendiente = $cxc ? (float) $cxc->saldo_pendiente_real : 0.0;
+    $facturaPagada = $cxc && $saldoPendiente <= 0;
+    $cfdiTimbradoAcciones = $factura->estaTimbrada() || ($factura->cancelacion_administrativa && !empty($factura->uuid)) || $factura->solicitudFiscalPendiente();
 
-        {{-- Receptor --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">👤 Receptor</div>
-            </div>
-            <div class="card-body">
-                <div class="info-grid-2">
-                    <div class="info-row">
-                        <div class="info-label">Nombre / Razón Social</div>
-                        <div class="info-value">{{ $factura->nombre_receptor }}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">RFC</div>
-                        <div class="info-value text-mono">{{ $factura->rfc_receptor }}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Uso de CFDI</div>
-                        <div class="info-value">{{ $factura->uso_cfdi }}</div>
-                    </div>
-                    <div class="info-row">
-                        <div class="info-label">Régimen Fiscal</div>
-                        <div class="info-value">{{ $factura->regimen_fiscal_receptor ?? 'N/A' }}</div>
-                    </div>
+    $mostrarCancelacion = $factura->estado === 'cancelada' || $factura->cancelacion_administrativa || $factura->cancelacionesAdministrativas->isNotEmpty();
+    $cancelacionActiva = $factura->estado === 'cancelada' || (bool) $factura->cancelacion_administrativa;
+
+    // En canceladas el saldo en cero es por reversión, no por pago.
+    $mostrarSaldo = $cxc && ! $cancelacionActiva;
+    $cxcVencida = $cxc && $saldoPendiente > 0 && $cxc->estaVencida();
+    $diasVencidos = $cxcVencida ? max(0, -1 * (int) ($cxc->dias_contra_vencimiento_realtime ?? 0)) : 0;
+
+    $accionPrincipal = null;
+    if ($factura->esBorrador()) {
+        if ($usuarioActual?->can('facturas.timbrar')) {
+            $accionPrincipal = 'timbrar';
+        }
+    } elseif ($factura->puedeConsultarEstatusCancelacion()
+        && ($factura->solicitudFiscalPendiente() || $factura->cancelacionFiscalVencidaSinResolver())) {
+        $accionPrincipal = 'consultar_sat';
+    } elseif ($factura->estaTimbrada() && $factura->metodo_pago === 'PPD' && $cxc && $saldoPendiente > 0) {
+        $accionPrincipal = 'complemento';
+    }
+
+    $tieneDocumentosRelacionados = $factura->estaTimbrada() && $factura->tieneDocumentosRelacionados();
+    $hayZonaRiesgo = ($factura->esBorrador() && $usuarioActual?->can('facturas.crear'))
+        || ($cfdiTimbradoAcciones && ($factura->puedeCancelar() || $factura->cancelacionFiscalVencidaSinResolver() || $tieneDocumentosRelacionados));
+
+    $tabInicial = $errors->has('archivo') ? 'documentos' : 'conceptos';
+@endphp
+
+{{-- Cabecera: Receptor | Información Fiscal --}}
+<div class="doc-show-header-grid">
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">👤 Receptor</div>
+        </div>
+        <div class="card-body">
+            <div class="info-grid-2">
+                <div class="info-row">
+                    <div class="info-label">Nombre / Razón Social</div>
+                    <div class="info-value">{{ $factura->nombre_receptor }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">RFC</div>
+                    <div class="info-value text-mono">{{ $factura->rfc_receptor }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Uso de CFDI</div>
+                    <div class="info-value">{{ $factura->uso_cfdi }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Régimen Fiscal</div>
+                    <div class="info-value">{{ $factura->regimen_fiscal_receptor ?? 'N/A' }}</div>
                 </div>
             </div>
         </div>
-
-        {{-- Conceptos --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📦 Conceptos</div>
-            </div>
-            <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Clave</th>
-                            <th>Descripción</th>
-                            <th class="td-center">Cant.</th>
-                            <th class="td-right">P. Unit.</th>
-                            <th class="td-right">Importe</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($factura->detalles as $detalle)
-                        <tr>
-                            <td>
-                                <span class="producto-row-code">{{ $detalle->clave_prod_serv }}</span>
-                            </td>
-                            <td>
-                                <div class="fw-600">{{ $detalle->descripcion }}</div>
-                                @if($detalle->no_identificacion)
-                                    <div class="text-muted" style="font-size: 11px;">
-                                        Clave: {{ $detalle->no_identificacion }}
-                                    </div>
-                                @endif
-                                <div class="text-muted" style="font-size: 11px;">
-                                    Unidad: {{ $detalle->unidad }}
-                                </div>
-                            </td>
-                            <td class="td-center">{{ number_format($detalle->cantidad, 2) }}</td>
-                            <td class="td-right text-mono">
-                                ${{ number_format($detalle->valor_unitario, 2, '.', ',') }}
-                            </td>
-                            <td class="td-right text-mono fw-600">
-                                ${{ number_format($detalle->importe, 2, '.', ',') }}
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-
-            {{-- Totales (mismo desglose que PDF CFDI: traslados por tasa + retenciones) --}}
-            @php
-                $cfdiTot = $factura->desgloseTotalesCfdi();
-                $impuestosPorTasaShow = $cfdiTot['impuestosPorTasa'];
-                $totalIvaShow = $cfdiTot['totalIva'];
-                $totalRetencionesShow = $cfdiTot['totalRetenciones'];
-            @endphp
-            <div class="card-body" style="display: flex; justify-content: flex-end;">
-                <div class="totales-panel" style="min-width: 280px;">
-                    <div class="totales-row">
-                        <span>Subtotal</span>
-                        <span class="monto">${{ number_format($factura->subtotal, 2, '.', ',') }}</span>
-                    </div>
-                    @if($factura->descuento > 0)
-                    <div class="totales-row descuento">
-                        <span>Descuento</span>
-                        <span class="monto">−${{ number_format($factura->descuento, 2, '.', ',') }}</span>
-                    </div>
-                    @endif
-                    @foreach($impuestosPorTasaShow as $datos)
-                        @if($datos['importe'] > 0)
-                        <div class="totales-row">
-                            <span>{{ $datos['nombre'] }}</span>
-                            <span class="monto">${{ number_format($datos['importe'], 2, '.', ',') }}</span>
-                        </div>
-                        @endif
-                    @endforeach
-                    @if(empty($impuestosPorTasaShow) && $totalIvaShow > 0)
-                    <div class="totales-row">
-                        <span>IVA (traslados)</span>
-                        <span class="monto">${{ number_format($totalIvaShow, 2, '.', ',') }}</span>
-                    </div>
-                    @endif
-                    @if($totalRetencionesShow != 0)
-                    <div class="totales-row descuento">
-                        <span>ISR retenido</span>
-                        <span class="monto">−${{ number_format($totalRetencionesShow, 2, '.', ',') }}</span>
-                    </div>
-                    @endif
-                    <div class="totales-row grand">
-                        <span>TOTAL</span>
-                        <span class="monto">${{ number_format($factura->total, 2, '.', ',') }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Orden de compra --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">🧾 Orden de compra</div>
-            </div>
-            <div class="card-body">
-                <div class="info-value-sm text-mono">
-                    {{ $factura->orden_compra ?? '—' }}
-                </div>
-            </div>
-        </div>
-
-        {{-- Historial envíos de logística (factura y remisiones vinculadas) --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">🕐 Historial</div>
-            </div>
-            <div class="card-body text-muted" style="max-height:420px;overflow:auto;font-size:13px;">
-                @forelse($historialEnviosFactura as $h)
-                    <div style="border-bottom:1px solid var(--color-gray-100);padding:8px 0;font-size:13px;">
-                        <div class="fw-600">
-                            @if($h->envio)
-                                @can('logistica.ver')
-                                    <a href="{{ route('logistica.show', $h->envio) }}" class="text-mono">{{ $h->envio->folio }}</a>
-                                @else
-                                    <span class="text-mono">{{ $h->envio->folio }}</span>
-                                @endcan
-                            @else
-                                <span class="text-mono">—</span>
-                            @endif
-                            <span class="text-muted fw-400"> · </span>
-                            {{ $h->estado_anterior ?? '—' }} → {{ $h->estado_nuevo }}
-                        </div>
-                        <div class="text-muted">{{ $h->created_at?->format('d/m/Y H:i') }}
-                            @if($h->user) · {{ $h->user->name }}@endif
-                        </div>
-                        @if($h->nota)
-                            <div style="margin-top:4px;">{{ $h->nota }}</div>
-                        @endif
-                    </div>
-                @empty
-                    <p class="text-muted" style="margin:0;">Sin movimientos de envíos relacionados a esta factura.</p>
-                @endforelse
-            </div>
-        </div>
-
-        {{-- Observaciones --}}
-        @if($factura->observaciones)
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📝 Observaciones</div>
-            </div>
-            <div class="card-body">
-                <div class="info-value-sm" style="line-height: 1.7;">{{ $factura->observaciones }}</div>
-            </div>
-        </div>
-        @endif
-
-        {{-- Soporte de recepción (acuse interno, no forma parte del CFDI) --}}
-        <div class="card" id="soporte-recepcion">
-            <div class="card-header">
-                <div class="card-title">📎 Soporte de recepción</div>
-            </div>
-            <div class="card-body">
-                <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
-                    Factura firmada por quien recibe. Es un acuse interno; no se incluye en el CFDI ni en el PDF fiscal.
-                </p>
-
-                @if($factura->esBorrador())
-                    <p class="text-muted" style="margin: 0; font-size: 13px;">Disponible cuando la factura esté timbrada.</p>
-                @elseif($factura->soporte)
-                    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
-                        <div style="min-width: 0; flex: 1;">
-                            <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
-                                📄 {{ $factura->soporte->nombre_original }}
-                            </div>
-                            <div style="margin-top: 4px; font-size: 12px; color: var(--color-gray-500);">
-                                {{ $factura->soporte->updated_at?->format('d/m/Y H:i') }}
-                                · {{ $factura->soporte->tamanoLegible() }}
-                                @if($factura->soporte->usuario)
-                                    · {{ $factura->soporte->usuario->name }}
-                                @endif
-                            </div>
-                        </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0;">
-                            <a href="{{ route('facturas.soporte.ver', $factura) }}"
-                               target="_blank" class="btn btn-outline btn-sm js-ver-soporte">Ver</a>
-                            @can('facturas.soporte')
-                            <form method="POST"
-                                  action="{{ route('facturas.soporte.destroy', $factura) }}"
-                                  onsubmit="return confirm('¿Eliminar el soporte de recepción?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-light btn-sm" style="color: var(--color-danger, #b91c1c);">Eliminar</button>
-                            </form>
-                            @endcan
-                        </div>
-                    </div>
-                    @can('facturas.soporte')
-                    <form method="POST"
-                          action="{{ route('facturas.soporte.store', $factura) }}"
-                          enctype="multipart/form-data"
-                          style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-gray-200);">
-                        @csrf
-                        <div class="info-label mb-8">Reemplazar archivo</div>
-                        <div style="display: grid; gap: 10px;">
-                            <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" class="form-control" required>
-                            @error('archivo')
-                                <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
-                            @enderror
-                            <button type="submit" class="btn btn-outline" style="justify-self: start;">Reemplazar</button>
-                        </div>
-                    </form>
-                    @endcan
-                @else
-                    <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay soporte de recepción.</p>
-                    @can('facturas.soporte')
-                    <form method="POST"
-                          action="{{ route('facturas.soporte.store', $factura) }}"
-                          enctype="multipart/form-data">
-                        @csrf
-                        <div style="display: grid; gap: 10px;">
-                            <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" class="form-control" required>
-                            @error('archivo')
-                                <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
-                            @enderror
-                            <button type="submit" class="btn btn-primary" style="justify-self: start;">Adjuntar</button>
-                        </div>
-                    </form>
-                    @endcan
-                @endif
-            </div>
-        </div>
-
     </div>
 
-    {{-- Columna derecha --}}
-    <div>
-
-        {{-- Información Fiscal --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📋 Información Fiscal</div>
-            </div>
-            <div class="card-body">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">📋 Información Fiscal</div>
+            <span class="badge {{ $badgeClass }}" @if($badgeTitle) title="{{ $badgeTitle }}" @endif>{{ $badgeLabel }}</span>
+        </div>
+        <div class="card-body">
+            <div class="info-grid-2">
                 <div class="info-row">
-                    <div class="info-label">Estado</div>
-                    <div style="margin-top: 4px;">
-                        @if($factura->estado === 'timbrada')
-                            @if($factura->codigo_estatus_cancelacion && str_starts_with($factura->codigo_estatus_cancelacion, 'R'))
-                                <span class="badge badge-warning" title="{{ \App\Models\Factura::descripcionCodigoCancelacion($factura->codigo_estatus_cancelacion) }}">⚠️ {{ $factura->estado_etiqueta }}</span>
-                            @else
-                                <span class="badge badge-success">Timbrada</span>
-                            @endif
-                        @elseif($factura->estado === 'borrador')
-                            <span class="badge badge-warning">📝 Borrador</span>
-                        @else
-                            <span class="badge badge-danger">{{ $factura->estado_etiqueta }}</span>
-                            @if($factura->estado === 'cancelada' && ($factura->cancelacion_administrativa ?? false))
-                                @if($factura->fecha_cancelacion)
-                                    <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
-                                        <strong>Administrativa (ERP):</strong> {{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}
-                                    </div>
-                                @endif
-                                @if($factura->fecha_cancelacion_pac)
-                                    <div class="text-muted" style="font-size: 11px; margin-top: 2px;">
-                                        <strong>Ante PAC/SAT:</strong> {{ $factura->fecha_cancelacion_pac->format('d/m/Y H:i') }}
-                                    </div>
-                                @endif
-                            @elseif($factura->fecha_cancelacion)
-                                <div class="text-muted" style="font-size: 11px; margin-top: 4px;">{{ $factura->fecha_cancelacion->format('d/m/Y H:i') }}</div>
-                            @endif
-                            @if($factura->estatus_solicitud_label)
-                                <div class="text-muted" style="font-size: 12px; margin-top: 6px;">{{ $factura->estatus_solicitud_label }}</div>
-                            @endif
-                            @if($factura->cancelacion_administrativa ?? false)
-                                @if($factura->cancelacion_administrativa_motivo)
-                                    <div style="margin-top: 10px; padding: 10px 12px; background: var(--color-gray-50); border-radius: var(--radius-sm); text-align: left; font-size: 13px; line-height: 1.5;">
-                                        <div class="info-label" style="margin-bottom: 4px;">Motivo de cancelación administrativa</div>
-                                        <div>{{ $factura->cancelacion_administrativa_motivo }}</div>
-                                        @if($factura->cancelacionAdministrativaUsuario)
-                                            <div class="text-muted" style="font-size: 12px; margin-top: 6px;">Registró: {{ $factura->cancelacionAdministrativaUsuario->name }}</div>
-                                        @endif
-                                    </div>
-                                @endif
-                            @endif
-                            @if($factura->motivo_cancelacion)
-                                <div style="margin-top: 10px; padding: 10px 12px; background: var(--color-gray-50); border-radius: var(--radius-sm); text-align: left; font-size: 13px; line-height: 1.5;">
-                                    <div class="info-label" style="margin-bottom: 4px;">Motivo SAT (envío al PAC)</div>
-                                    <div>{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($factura->motivo_cancelacion) }}</div>
-                                    @if($factura->uuid_sustitucion_cancelacion)
-                                        <div class="text-mono" style="font-size: 11px; margin-top: 6px; word-break: break-all;">UUID sustituto: {{ $factura->uuid_sustitucion_cancelacion }}</div>
-                                    @endif
-                                    @if($facturaSustituta)
-                                        <div style="font-size: 12px; margin-top: 6px;">
-                                            Factura sustituta:
-                                            <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
-                                        </div>
-                                    @endif
-                                </div>
-                            @endif
-                        @endif
-                    </div>
-                </div>
-                <div class="info-row" style="margin-top: 16px;">
                     <div class="info-label">Fecha de Emisión</div>
                     <div class="info-value-sm">{{ $factura->fecha_emision->format('d/m/Y') }}</div>
                 </div>
-                @if($factura->fecha_timbrado)
-                <div class="info-row">
-                    <div class="info-label">Fecha de Timbrado</div>
-                    <div class="info-value-sm" style="color: var(--color-success);">
-                        {{ $factura->fecha_timbrado->format('d/m/Y H:i:s') }}
-                    </div>
-                </div>
-                @endif
                 <div class="info-row">
                     <div class="info-label">Método de Pago</div>
                     <div style="margin-top: 4px;">
@@ -375,132 +128,504 @@ $breadcrumbs = [
                     <div class="info-label">Forma de Pago</div>
                     <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $factura->forma_pago)->first())->etiqueta ?? $factura->forma_pago }}</div>
                 </div>
-                @if($factura->uuid)
+                @if($factura->usuario)
                 <div class="info-row">
-                    <div class="info-label">UUID / Folio Fiscal</div>
-                    <div style="background: var(--color-gray-50); border-radius: var(--radius-sm); padding: 8px; font-family: var(--font-mono); font-size: 11px; word-break: break-all; margin-top: 4px;">
-                        {{ $factura->uuid }}
-                    </div>
-                </div>
-                @endif
-                @if($factura->no_certificado_sat)
-                <div class="info-row">
-                    <div class="info-label">No. Certificado SAT</div>
-                    <div class="info-value-sm text-mono">{{ $factura->no_certificado_sat }}</div>
+                    <div class="info-label">Elaboró</div>
+                    <div class="info-value-sm">{{ $factura->usuario->name }}</div>
                 </div>
                 @endif
             </div>
         </div>
+    </div>
 
-        @if($factura->estado === 'cancelada' || $factura->cancelacion_administrativa || $factura->cancelacionesAdministrativas->isNotEmpty())
-            @include('partials.expediente-cancelacion', ['document' => $factura])
-        @endif
+</div>
 
-        {{-- Acciones --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">⚡ Acciones</div>
+{{-- Banda fiscal --}}
+@if($factura->uuid)
+<div class="doc-show-fiscal-band">
+    <div>
+        <div class="doc-show-fiscal-band-label">UUID fiscal (folio fiscal)</div>
+        <div class="doc-show-fiscal-band-value">
+            <span id="facturaUuidFiscal">{{ $factura->uuid }}</span>
+            <button type="button" class="doc-show-fiscal-band-copy" data-copy-target="facturaUuidFiscal" title="Copiar UUID">Copiar</button>
+        </div>
+    </div>
+    <div>
+        <div class="doc-show-fiscal-band-label">Fecha de timbrado</div>
+        <div class="doc-show-fiscal-band-value">{{ $factura->fecha_timbrado?->format('d/m/Y H:i:s') ?? '—' }}</div>
+    </div>
+    <div>
+        <div class="doc-show-fiscal-band-label">No. certificado SAT</div>
+        <div class="doc-show-fiscal-band-value">{{ $factura->no_certificado_sat ?? '—' }}</div>
+    </div>
+    <div>
+        <div class="doc-show-fiscal-band-label">No. certificado emisor</div>
+        <div class="doc-show-fiscal-band-value">{{ $noCertificadoEmisor ?? '—' }}</div>
+    </div>
+</div>
+@endif
+
+<div class="doc-show-layout responsive-grid">
+
+    {{-- Columna principal --}}
+    <div>
+
+        <div class="card" data-tabs data-tab-inicial="{{ $tabInicial }}">
+            <div class="doc-tabs" role="tablist" aria-label="Secciones de la factura">
+                <button type="button" class="doc-tab" role="tab" id="tab-conceptos" data-tab="conceptos"
+                        aria-controls="panel-conceptos" aria-selected="{{ $tabInicial === 'conceptos' ? 'true' : 'false' }}" tabindex="{{ $tabInicial === 'conceptos' ? '0' : '-1' }}">
+                    📦 Conceptos <span class="doc-tab-count">{{ $factura->detalles->count() }}</span>
+                </button>
+                @if($cxc)
+                <button type="button" class="doc-tab" role="tab" id="tab-cobranza" data-tab="cobranza"
+                        aria-controls="panel-cobranza" aria-selected="false" tabindex="-1">
+                    💰 Cobranza
+                    @if($pagosAplicados->isNotEmpty())<span class="doc-tab-count">{{ $pagosAplicados->count() }}</span>@endif
+                </button>
+                @endif
+                <button type="button" class="doc-tab" role="tab" id="tab-documentos" data-tab="documentos"
+                        aria-controls="panel-documentos" aria-selected="{{ $tabInicial === 'documentos' ? 'true' : 'false' }}" tabindex="{{ $tabInicial === 'documentos' ? '0' : '-1' }}">
+                    📎 Documentos
+                </button>
+                <button type="button" class="doc-tab" role="tab" id="tab-historial" data-tab="historial"
+                        aria-controls="panel-historial" aria-selected="false" tabindex="-1">
+                    🕐 Historial
+                    @if($historialEnviosFactura->isNotEmpty())<span class="doc-tab-count">{{ $historialEnviosFactura->count() }}</span>@endif
+                </button>
+                @if($mostrarCancelacion)
+                <button type="button" class="doc-tab" role="tab" id="tab-cancelacion" data-tab="cancelacion"
+                        aria-controls="panel-cancelacion" aria-selected="false" tabindex="-1">
+                    @if($cancelacionActiva)<span class="doc-tab-dot" aria-hidden="true"></span>@endif
+                    Cancelación
+                </button>
+                @endif
             </div>
-            <div class="card-body" style="display: flex; flex-direction: column; gap: 10px;">
 
-                <a id="linkVerFacturaPdf" href="{{ route('facturas.ver-pdf', $factura->id) }}"
-                   target="_blank" class="btn btn-outline w-full">👁️ Ver Factura</a>
-
-                @if($factura->soporte)
-                <a id="linkVerSoporteRecepcion" href="{{ route('facturas.soporte.ver', $factura) }}"
-                   target="_blank" class="btn btn-outline w-full js-ver-soporte">👁️ Ver soporte de recepción</a>
-                @endif
-
-                @if($factura->esBorrador())
-                @can('facturas.crear')
-                <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-primary w-full">✏️ Editar Factura</a>
-                @endcan
-                @canany(['facturas.crear', 'facturas.timbrar'])
-                @if(!empty($datosFiscalesBorrador['pendiente_en_catalogo']))
-                <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                    <strong>Faltan datos SAT en catálogo</strong> para poder timbrar.
-                    Complételos en el producto; al volver a esta factura se sincronizarán solos.
+            {{-- Conceptos --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-conceptos" aria-labelledby="tab-conceptos" @if($tabInicial !== 'conceptos') hidden @endif>
+                <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Clave</th>
+                                <th>Descripción</th>
+                                <th class="td-center">Cant.</th>
+                                <th class="td-right">P. Unit.</th>
+                                <th class="td-right">Importe</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($factura->detalles as $detalle)
+                            <tr>
+                                <td>
+                                    <span class="producto-row-code">{{ $detalle->clave_prod_serv }}</span>
+                                </td>
+                                <td>
+                                    <div class="fw-600">{{ $detalle->descripcion }}</div>
+                                    @if($detalle->no_identificacion)
+                                        <div class="text-muted" style="font-size: 11px;">
+                                            Clave: {{ $detalle->no_identificacion }}
+                                        </div>
+                                    @endif
+                                    <div class="text-muted" style="font-size: 11px;">
+                                        Unidad: {{ $detalle->unidad }}
+                                    </div>
+                                </td>
+                                <td class="td-center">{{ number_format($detalle->cantidad, 2) }}</td>
+                                <td class="td-right text-mono">
+                                    ${{ number_format($detalle->valor_unitario, 2, '.', ',') }}
+                                </td>
+                                <td class="td-right text-mono fw-600">
+                                    ${{ number_format($detalle->importe, 2, '.', ',') }}
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </div>
-                @endif
-                @if(!empty($datosFiscalesBorrador['puede_sincronizar_desde_catalogo']))
-                <form method="POST" action="{{ route('facturas.sincronizar-clave-sat', $factura->id) }}">
-                    @csrf
-                    <button type="submit" class="btn btn-outline w-full"
-                            title="El catálogo ya tiene clave/unidad, pero esta factura aún no las refleja">
-                        🔄 Actualizar claves SAT
-                    </button>
-                </form>
-                <p class="text-muted small mt-0 mb-0" style="margin-top:-4px;">
-                    El catálogo ya tiene datos listos; pulse para traerlos a este borrador (o recargue la página).
-                </p>
-                @endif
-                @endcanany
-                @can('facturas.timbrar')
-                @if($factura->puedeTimbrar())
-                <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}"
-                      class="form-timbrar-protegido" data-loading-text="Timbrando factura…">
-                    @csrf
-                    <button type="submit" class="btn btn-primary w-full">Timbrar Factura</button>
-                </form>
-                @else
-                <button type="button" class="btn btn-primary w-full" disabled
-                        title="{{ $factura->motivoNoTimbrar() }}"
-                        style="opacity: 0.6; cursor: not-allowed;">Timbrar Factura</button>
-                <p class="text-muted small mt-1 mb-0">{{ $factura->motivoNoTimbrar() }}</p>
-                @endif
-                @endcan
-                @can('facturas.crear')
-                <button type="button"
-                        onclick="document.getElementById('modalBorrarFactura').classList.add('show')"
-                        class="btn btn-danger w-full">🗑️ Borrar Factura</button>
-                @endcan
-                @endif
 
-                @php $cfdiTimbradoAcciones = $factura->estaTimbrada() || ($factura->cancelacion_administrativa && !empty($factura->uuid)) || $factura->solicitudFiscalPendiente(); @endphp
-                @if($cfdiTimbradoAcciones)
-                    @if($factura->xml_path)
-                    <a href="{{ route('facturas.descargar-xml', $factura->id) }}"
-                       class="btn btn-success w-full">📄 Descargar XML</a>
-                    @endif
-
-                    @if($factura->pdf_path)
-                    <a href="{{ route('facturas.descargar-pdf', $factura->id) }}"
-                       class="btn btn-outline w-full">📑 Descargar PDF</a>
-                    @endif
-
-                    @if($factura->puedeCancelar())
-                    <button type="button"
-                            onclick="document.getElementById('modalCancelar').classList.add('show')"
-                            class="btn btn-danger w-full">
-                        {{ $factura->puedeReintentarCancelacionFiscal() ? '↻ Reenviar cancelación al SAT' : '✗ Cancelar Factura' }}
-                    </button>
-                    @elseif($factura->cancelacionFiscalVencidaSinResolver())
-                    <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                        El plazo de cancelación venció y el CFDI sigue vigente.
-                        Use <strong>Consultar estatus SAT</strong>; después podrá reenviar si continúa vigente.
-                    </div>
-                    @elseif($factura->estaTimbrada() && $factura->tieneDocumentosRelacionados())
-                    <div class="cancelar-factura-deshabilitado" style="display: flex; flex-direction: column; gap: 8px;">
-                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
-                        <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                            <strong>No se puede cancelar</strong> porque esta factura tiene documentos relacionados:
-                            <ul style="margin: 6px 0 0 14px; padding: 0;">
-                                @foreach($factura->getDocumentosRelacionadosDetalle() as $item)
-                                <li>{{ $item }}</li>
-                                @endforeach
-                            </ul>
-                            <span class="text-muted" style="font-size: 11px; display: block; margin-top: 8px;">La cancelación estará disponible en el flujo castada.</span>
+                {{-- Totales (mismo desglose que PDF CFDI: traslados por tasa + retenciones) --}}
+                @php
+                    $cfdiTot = $factura->desgloseTotalesCfdi();
+                    $impuestosPorTasaShow = $cfdiTot['impuestosPorTasa'];
+                    $totalIvaShow = $cfdiTot['totalIva'];
+                    $totalRetencionesShow = $cfdiTot['totalRetenciones'];
+                @endphp
+                <div class="card-body doc-show-totales">
+                    <div class="totales-panel">
+                        <div class="totales-row">
+                            <span>Subtotal</span>
+                            <span class="monto">${{ number_format($factura->subtotal, 2, '.', ',') }}</span>
+                        </div>
+                        @if($factura->descuento > 0)
+                        <div class="totales-row descuento">
+                            <span>Descuento</span>
+                            <span class="monto">−${{ number_format($factura->descuento, 2, '.', ',') }}</span>
+                        </div>
+                        @endif
+                        @foreach($impuestosPorTasaShow as $datos)
+                            @if($datos['importe'] > 0)
+                            <div class="totales-row">
+                                <span>{{ $datos['nombre'] }}</span>
+                                <span class="monto">${{ number_format($datos['importe'], 2, '.', ',') }}</span>
+                            </div>
+                            @endif
+                        @endforeach
+                        @if(empty($impuestosPorTasaShow) && $totalIvaShow > 0)
+                        <div class="totales-row">
+                            <span>IVA (traslados)</span>
+                            <span class="monto">${{ number_format($totalIvaShow, 2, '.', ',') }}</span>
+                        </div>
+                        @endif
+                        @if($totalRetencionesShow != 0)
+                        <div class="totales-row descuento">
+                            <span>ISR retenido</span>
+                            <span class="monto">−${{ number_format($totalRetencionesShow, 2, '.', ',') }}</span>
+                        </div>
+                        @endif
+                        <div class="totales-row grand">
+                            <span>TOTAL</span>
+                            <span class="monto">${{ number_format($factura->total, 2, '.', ',') }}</span>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {{-- Cobranza --}}
+            @if($cxc)
+            <div class="doc-tab-panel" role="tabpanel" id="panel-cobranza" aria-labelledby="tab-cobranza" hidden>
+                <div class="card-body">
+                    @if($cancelacionActiva)
+                    <div class="alert alert-info" style="margin-bottom: 16px; font-size: 13px;">
+                        Factura cancelada: el saldo de la cuenta por cobrar se revirtió con la cancelación; no corresponde a pagos recibidos.
+                    </div>
+                    @endif
+                    <div class="info-grid-2" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                        <div class="info-row">
+                            <div class="info-label">Monto total</div>
+                            <div class="info-value text-mono">${{ number_format($cxc->monto_total, 2, '.', ',') }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Pagado</div>
+                            <div class="info-value text-mono">${{ number_format($cxc->monto_pagado, 2, '.', ',') }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Saldo pendiente</div>
+                            <div class="info-value text-mono" style="color: {{ $saldoPendiente > 0 ? 'var(--color-warning)' : 'var(--color-success)' }};">
+                                ${{ number_format($saldoPendiente, 2, '.', ',') }}
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Vencimiento</div>
+                            <div class="info-value-sm">
+                                {{ $cxc->fecha_vencimiento->format('d/m/Y') }}
+                                @if($cxcVencida)
+                                    <span class="badge badge-danger" style="margin-left: 6px;">⚠ Vencida{{ $diasVencidos > 0 ? ' '.$diasVencidos.'d' : '' }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Pagos aplicados</div>
+                    @if($pagosAplicados->isEmpty())
+                        <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay pagos aplicados mediante complemento de pago.</p>
+                    @else
+                        <div class="table-container table-container--scroll" style="margin-bottom: 16px;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Complemento</th>
+                                        <th>Fecha de pago</th>
+                                        <th class="td-center">Parc.</th>
+                                        <th class="td-right">Saldo anterior</th>
+                                        <th class="td-right">Pagado</th>
+                                        <th class="td-right">Saldo insoluto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($pagosAplicados as $pagoAplicado)
+                                    @php $complementoPago = $pagoAplicado->pagoRecibido?->complementoPago; @endphp
+                                    <tr>
+                                        <td>
+                                            @if($complementoPago)
+                                                <a href="{{ route('complementos.show', $complementoPago->id) }}" class="text-mono fw-600">{{ $complementoPago->folio_completo }}</a>
+                                                @unless($complementoPago->estaTimbrado())
+                                                    <span class="badge badge-gray" style="margin-left: 4px;">{{ $complementoPago->estado_etiqueta }}</span>
+                                                @endunless
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $pagoAplicado->pagoRecibido?->fecha_pago?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="td-center">{{ $pagoAplicado->parcialidad }}</td>
+                                        <td class="td-right text-mono">${{ number_format($pagoAplicado->saldo_anterior, 2, '.', ',') }}</td>
+                                        <td class="td-right text-mono fw-600">${{ number_format($pagoAplicado->monto_pagado, 2, '.', ',') }}</td>
+                                        <td class="td-right text-mono">${{ number_format($pagoAplicado->saldo_insoluto, 2, '.', ',') }}</td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    <a href="{{ route('cuentas-cobrar.show', $cxc->id) }}" class="btn btn-outline btn-sm">Ver en Cuentas por Cobrar →</a>
+                </div>
+            </div>
+            @endif
+
+            {{-- Documentos --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-documentos" aria-labelledby="tab-documentos" @if($tabInicial !== 'documentos') hidden @endif>
+                <div class="card-body">
+                    @if($factura->observaciones)
+                    <div class="info-row" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--color-gray-200);">
+                        <div class="info-label">📝 Observaciones</div>
+                        <div class="info-value-sm" style="line-height: 1.7;">{{ $factura->observaciones }}</div>
+                    </div>
+                    @endif
+
+                    {{-- Soporte de recepción (acuse interno, no forma parte del CFDI) --}}
+                    <div id="soporte-recepcion">
+                        <div class="card-title" style="font-size: 14px; margin-bottom: 8px;">📎 Soporte de recepción</div>
+                        <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                            Factura firmada por quien recibe. Es un acuse interno; no se incluye en el CFDI ni en el PDF fiscal.
+                        </p>
+
+                        @if($factura->esBorrador())
+                            <p class="text-muted" style="margin: 0; font-size: 13px;">Disponible cuando la factura esté timbrada.</p>
+                        @elseif($factura->soporte)
+                            <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+                                <div style="min-width: 0; flex: 1;">
+                                    <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
+                                        📄 {{ $factura->soporte->nombre_original }}
+                                    </div>
+                                    <div style="margin-top: 4px; font-size: 12px; color: var(--color-gray-500);">
+                                        {{ $factura->soporte->updated_at?->format('d/m/Y H:i') }}
+                                        · {{ $factura->soporte->tamanoLegible() }}
+                                        @if($factura->soporte->usuario)
+                                            · {{ $factura->soporte->usuario->name }}
+                                        @endif
+                                    </div>
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0;">
+                                    <a href="{{ route('facturas.soporte.ver', $factura) }}"
+                                       target="_blank" class="btn btn-outline btn-sm js-ver-soporte">Ver</a>
+                                    @can('facturas.soporte')
+                                    <form method="POST"
+                                          action="{{ route('facturas.soporte.destroy', $factura) }}"
+                                          onsubmit="return confirm('¿Eliminar el soporte de recepción?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-light btn-sm" style="color: var(--color-danger, #b91c1c);">Eliminar</button>
+                                    </form>
+                                    @endcan
+                                </div>
+                            </div>
+                            @can('facturas.soporte')
+                            <form method="POST"
+                                  action="{{ route('facturas.soporte.store', $factura) }}"
+                                  enctype="multipart/form-data"
+                                  style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-gray-200);">
+                                @csrf
+                                <div class="info-label mb-8">Reemplazar archivo</div>
+                                <div style="display: grid; gap: 10px;">
+                                    <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" class="form-control" required>
+                                    @error('archivo')
+                                        <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                                    @enderror
+                                    <button type="submit" class="btn btn-outline" style="justify-self: start;">Reemplazar</button>
+                                </div>
+                            </form>
+                            @endcan
+                        @else
+                            <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay soporte de recepción.</p>
+                            @can('facturas.soporte')
+                            <form method="POST"
+                                  action="{{ route('facturas.soporte.store', $factura) }}"
+                                  enctype="multipart/form-data">
+                                @csrf
+                                <div style="display: grid; gap: 10px;">
+                                    <input type="file" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" class="form-control" required>
+                                    @error('archivo')
+                                        <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                                    @enderror
+                                    <button type="submit" class="btn btn-primary" style="justify-self: start;">Adjuntar</button>
+                                </div>
+                            </form>
+                            @endcan
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            {{-- Historial envíos de logística (factura y remisiones vinculadas) --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-historial" aria-labelledby="tab-historial" hidden>
+                <div class="card-body text-muted" style="font-size: 13px;">
+                    @forelse($historialEnviosFactura as $h)
+                        <div style="border-bottom:1px solid var(--color-gray-100);padding:8px 0;font-size:13px;">
+                            <div class="fw-600">
+                                @if($h->envio)
+                                    @can('logistica.ver')
+                                        <a href="{{ route('logistica.show', $h->envio) }}" class="text-mono">{{ $h->envio->folio }}</a>
+                                    @else
+                                        <span class="text-mono">{{ $h->envio->folio }}</span>
+                                    @endcan
+                                @else
+                                    <span class="text-mono">—</span>
+                                @endif
+                                <span class="text-muted fw-400"> · </span>
+                                {{ $h->estado_anterior ?? '—' }} → {{ $h->estado_nuevo }}
+                            </div>
+                            <div class="text-muted">{{ $h->created_at?->format('d/m/Y H:i') }}
+                                @if($h->user) · {{ $h->user->name }}@endif
+                            </div>
+                            @if($h->nota)
+                                <div style="margin-top:4px;">{{ $h->nota }}</div>
+                            @endif
+                        </div>
+                    @empty
+                        <p class="text-muted" style="margin:0;">Sin movimientos de envíos relacionados a esta factura.</p>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Cancelación --}}
+            @if($mostrarCancelacion)
+            <div class="doc-tab-panel" role="tabpanel" id="panel-cancelacion" aria-labelledby="tab-cancelacion" hidden>
+                <div class="card-body">
+                    @include('partials.expediente-cancelacion', ['document' => $factura, 'embebido' => true])
+                </div>
+            </div>
+            @endif
+        </div>
+
+    </div>
+
+    {{-- Columna lateral --}}
+    <div class="doc-show-aside">
+
+        {{-- Acciones --}}
+        <div class="card doc-show-acciones">
+            <div class="card-header">
+                <div class="card-title">⚡ Acciones</div>
+                <span class="badge {{ $badgeClass }}" @if($badgeTitle) title="{{ $badgeTitle }}" @endif>{{ $badgeLabel }}</span>
+            </div>
+            <div class="card-body">
+
+                <div class="doc-show-acciones-resumen">
+                    <div class="doc-show-acciones-resumen-row">
+                        <span class="info-label">Total</span>
+                        <span class="monto">${{ number_format($factura->total, 2, '.', ',') }}</span>
+                    </div>
+                    @if($mostrarSaldo)
+                    <div class="doc-show-acciones-resumen-row">
+                        <span class="info-label">Saldo pendiente</span>
+                        @if($facturaPagada)
+                            <span class="badge badge-success">✓ Pagada</span>
+                        @else
+                            <span class="monto-sm" style="color: var(--color-warning);">${{ number_format($saldoPendiente, 2, '.', ',') }}</span>
+                        @endif
+                    </div>
+                    @unless($facturaPagada)
+                    <div class="doc-show-acciones-resumen-row">
+                        <span class="info-label">Vence</span>
+                        <span>
+                            {{ $cxc->fecha_vencimiento->format('d/m/Y') }}
+                            @if($cxcVencida)
+                                <span class="badge badge-danger" style="margin-left: 4px;">Vencida{{ $diasVencidos > 0 ? ' '.$diasVencidos.'d' : '' }}</span>
+                            @endif
+                        </span>
+                    </div>
+                    @endunless
+                    @endif
+                </div>
+
+                {{-- Acción principal según el estado --}}
+                @if($accionPrincipal === 'timbrar')
+                    @if($factura->puedeTimbrar())
+                    <form method="POST" action="{{ route('facturas.timbrar', $factura->id) }}"
+                          class="form-timbrar-protegido" data-loading-text="Timbrando factura…">
+                        @csrf
+                        <button type="submit" class="btn btn-primary w-full">🔏 Timbrar Factura</button>
+                    </form>
+                    @else
+                    <button type="button" class="btn btn-primary w-full" disabled
+                            title="{{ $factura->motivoNoTimbrar() }}"
+                            style="opacity: 0.6; cursor: not-allowed;">🔏 Timbrar Factura</button>
+                    <p class="doc-show-acciones-nota">{{ $factura->motivoNoTimbrar() }}</p>
+                    @endif
+                @elseif($accionPrincipal === 'consultar_sat')
+                    <button type="button"
+                            class="btn btn-primary w-full js-actualizar-estatus-sat"
+                            data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
+                            data-folio="{{ $factura->folio_completo }}"
+                            data-tipo="factura">🔎 Consultar estatus SAT</button>
+                @elseif($accionPrincipal === 'complemento')
+                    @if(isset($complementoBorrador) && $complementoBorrador)
+                    <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="btn btn-primary w-full">📄 Ver complemento en borrador</a>
+                    @else
+                    <a href="{{ route('complementos.create', ['cuenta_id' => $cxc->id]) }}" class="btn btn-primary w-full">💵 Crear complemento de pago</a>
                     @endif
                 @endif
 
-                @if($factura->puedeConsultarEstatusCancelacion())
+                {{-- Operaciones --}}
+                @if($factura->esBorrador())
+                    @can('facturas.crear')
+                    <a href="{{ route('facturas.edit', $factura->id) }}" class="btn btn-outline w-full">✏️ Editar Factura</a>
+                    @endcan
+                    @canany(['facturas.crear', 'facturas.timbrar'])
+                    @if(!empty($datosFiscalesBorrador['pendiente_en_catalogo']))
+                    <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
+                        <strong>Faltan datos SAT en catálogo</strong> para poder timbrar.
+                        Complételos en el producto; al volver a esta factura se sincronizarán solos.
+                    </div>
+                    @endif
+                    @if(!empty($datosFiscalesBorrador['puede_sincronizar_desde_catalogo']))
+                    <form method="POST" action="{{ route('facturas.sincronizar-clave-sat', $factura->id) }}">
+                        @csrf
+                        <button type="submit" class="btn btn-outline w-full"
+                                title="El catálogo ya tiene clave/unidad, pero esta factura aún no las refleja">
+                            🔄 Actualizar claves SAT
+                        </button>
+                    </form>
+                    <p class="doc-show-acciones-nota">
+                        El catálogo ya tiene datos listos; pulse para traerlos a este borrador (o recargue la página).
+                    </p>
+                    @endif
+                    @endcanany
+                @endif
+
+                @if($cxc)
+                    <a href="{{ route('cuentas-cobrar.show', $cxc->id) }}" class="btn btn-outline w-full">💰 Ver cuenta por cobrar</a>
+                    @if($saldoPendiente > 0 && $accionPrincipal !== 'complemento')
+                        @if(isset($complementoBorrador) && $complementoBorrador)
+                        <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="btn btn-outline w-full">📄 Ver complemento en borrador</a>
+                        @else
+                        <a href="{{ route('complementos.create', ['cuenta_id' => $cxc->id]) }}" class="btn btn-outline w-full">💵 Crear complemento de pago</a>
+                        @endif
+                    @endif
+                @endif
+
+                @if($factura->puedeConsultarEstatusCancelacion() && $accionPrincipal !== 'consultar_sat')
                     <button type="button"
                             class="btn btn-outline w-full js-actualizar-estatus-sat"
                             data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
                             data-folio="{{ $factura->folio_completo }}"
-                            data-tipo="factura">Consultar estatus SAT</button>
+                            data-tipo="factura">🔎 Consultar estatus SAT</button>
+                @endif
+
+                @if($factura->estaTimbrada())
+                    @if($facturaPagada)
+                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">↩️ Registrar devolución</button>
+                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">🧾 Emitir nota de crédito</button>
+                    <p class="doc-show-acciones-nota">No disponibles: la factura ya fue pagada (saldo en cero).</p>
+                    @else
+                    <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
+                    @if(isset($ncBorrador) && $ncBorrador)
+                    <a href="{{ route('notas-credito.show', $ncBorrador->id) }}" class="btn btn-outline w-full">📄 Ver nota de crédito en borrador</a>
+                    @else
+                    <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">🧾 Emitir nota de crédito</a>
+                    @endif
+                    @endif
                 @endif
 
                 @can('cancelaciones_administrativas.revertir')
@@ -508,108 +633,90 @@ $breadcrumbs = [
                         @if($puedeReactivarCancelacionAdmin ?? false)
                         <button type="button"
                                 onclick="document.getElementById('modalReactivarCancelAdmin').classList.add('show')"
-                                class="btn btn-primary w-full">↻ Reactivar cancelación administrativa</button>
+                                class="btn btn-outline w-full">↻ Reactivar cancelación administrativa</button>
                         @elseif($motivoNoReactivarCancelacionAdmin)
                         <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;"
                                 title="{{ $motivoNoReactivarCancelacionAdmin }}">↻ Reactivar cancelación administrativa</button>
-                        <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                            {{ $motivoNoReactivarCancelacionAdmin }}
-                        </div>
+                        <p class="doc-show-acciones-nota">{{ $motivoNoReactivarCancelacionAdmin }}</p>
                         @endif
                     @endif
                 @endcan
 
-                @if($factura->estado === 'cancelada')
-                    @if($factura->canceladaAnteSat() && !empty($factura->uuid))
-                    <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">Acuse de cancelación (PDF)</a>
+                {{-- Documentos --}}
+                <div class="doc-show-acciones-divider"></div>
+                <div class="doc-show-acciones-fila">
+                    <a id="linkVerFacturaPdf" href="{{ route('facturas.ver-pdf', $factura->id) }}"
+                       target="_blank" class="btn btn-light btn-sm">👁️ Ver factura</a>
+                    @if($factura->soporte)
+                    <a id="linkVerSoporteRecepcion" href="{{ route('facturas.soporte.ver', $factura) }}"
+                       target="_blank" class="btn btn-light btn-sm js-ver-soporte">📎 Soporte</a>
                     @endif
-                    @if($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido())
-                    <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">📄 Acuse de cancelación (XML)</a>
-                    @elseif($factura->pendienteCancelacionAntePac())
-                    <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                        El XML de cancelación estará disponible después de enviar el CFDI al PAC (acción «Cancelar factura»).
-                    </div>
-                    @elseif($factura->solicitudFiscalPendiente())
-                    <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                        El acuse XML aparece cuando el SAT confirme la cancelación. El código 201 solo indica que la solicitud fue recibida. Use «Consultar estatus SAT».
-                    </div>
-                    @elseif($factura->canceladaAnteSat())
-                    <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}"
-                       class="btn btn-outline w-full">📄 Obtener acuse XML</a>
+                    @if($cfdiTimbradoAcciones && $factura->pdf_path)
+                    <a href="{{ route('facturas.descargar-pdf', $factura->id) }}" class="btn btn-light btn-sm">📑 PDF</a>
                     @endif
-                @endif
-
-                @if($factura->estaTimbrada())
-                    @php $facturaPagada = $factura->cuentaPorCobrar && $factura->cuentaPorCobrar->saldo_pendiente_real <= 0; @endphp
-                    @if($facturaPagada)
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">↩️ Registrar devolución</button>
-                        <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">Emitir nota de crédito</button>
-                        <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                            No se puede registrar devolución ni emitir nota de crédito porque la factura ya fue pagada (saldo en cero).
-                        </div>
-                    </div>
-                    @else
-                    <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
-                    @if(isset($ncBorrador) && $ncBorrador)
-                    <a href="{{ route('notas-credito.show', $ncBorrador->id) }}" class="btn btn-outline w-full">📄 Ver nota de crédito en borrador</a>
-                    @else
-                    <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">Emitir nota de crédito</a>
+                    @if($cfdiTimbradoAcciones && $factura->xml_path)
+                    <a href="{{ route('facturas.descargar-xml', $factura->id) }}" class="btn btn-light btn-sm">📄 XML</a>
                     @endif
-                    @endif
-                @endif
-
-                <a href="{{ route('facturas.index') }}" class="btn btn-light w-full">← Volver</a>
-            </div>
-        </div>
-
-        {{-- Cuenta por Cobrar --}}
-        @if($factura->cuentaPorCobrar)
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">💰 Cuenta por Cobrar</div>
-            </div>
-            <div class="card-body">
-                <div class="info-row">
-                    <div class="info-label">Monto Total</div>
-                    <div class="info-value">
-                        ${{ number_format($factura->cuentaPorCobrar->monto_total, 2, '.', ',') }}
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Monto Pendiente</div>
-                    <div class="info-value" style="color: var(--color-warning);">
-                        ${{ number_format($factura->cuentaPorCobrar->saldo_pendiente_real, 2, '.', ',') }}
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Vencimiento</div>
-                    <div class="info-value-sm">
-                        {{ $factura->cuentaPorCobrar->fecha_vencimiento->format('d/m/Y') }}
-                        @if($factura->cuentaPorCobrar->estaVencida())
-                            <span class="badge badge-danger" style="margin-left: 6px;">
-                                ⚠ Vencida {{ $factura->cuentaPorCobrar->dias_vencido }}d
-                            </span>
+                    @if($factura->estado === 'cancelada')
+                        @if($factura->canceladaAnteSat() && !empty($factura->uuid))
+                        <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📑 Acuse de cancelación (PDF)</a>
                         @endif
-                    </div>
-                </div>
-                <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
-                    <a href="{{ route('cuentas-cobrar.show', $factura->cuentaPorCobrar->id) }}"
-                       class="btn btn-primary w-full">Ver Detalles</a>
-                    @if($factura->cuentaPorCobrar->saldo_pendiente_real > 0)
-                    @if(isset($complementoBorrador) && $complementoBorrador)
-                    <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="btn btn-outline w-full">📄 Ver complemento en borrador</a>
-                    @else
-                    <a href="{{ route('complementos.create', ['cuenta_id' => $factura->cuentaPorCobrar->id]) }}"
-                       class="btn btn-outline w-full">💵 Crear Complemento de Pago</a>
-                    @endif
+                        @if($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido())
+                        <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📄 Acuse de cancelación (XML)</a>
+                        @elseif(! $factura->pendienteCancelacionAntePac() && ! $factura->solicitudFiscalPendiente() && $factura->canceladaAnteSat())
+                        <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📄 Obtener acuse XML</a>
+                        @endif
                     @endif
                 </div>
+                @if($factura->estado === 'cancelada' && ! ($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido()))
+                    @if($factura->pendienteCancelacionAntePac())
+                    <p class="doc-show-acciones-nota">El acuse XML estará disponible después de enviar la cancelación al PAC.</p>
+                    @elseif($factura->solicitudFiscalPendiente())
+                    <p class="doc-show-acciones-nota">El acuse XML aparece cuando el SAT confirme la cancelación (el código 201 solo indica que la solicitud fue recibida).</p>
+                    @endif
+                @endif
+
+                {{-- Zona de riesgo --}}
+                @if($hayZonaRiesgo)
+                <div class="doc-show-acciones-divider"></div>
+                <div class="doc-show-acciones-grupo">Zona de riesgo</div>
+
+                @if($factura->esBorrador())
+                @can('facturas.crear')
+                <button type="button"
+                        onclick="document.getElementById('modalBorrarFactura').classList.add('show')"
+                        class="btn btn-danger-outline w-full">🗑️ Borrar Factura</button>
+                @endcan
+                @endif
+
+                @if($cfdiTimbradoAcciones)
+                    @if($factura->puedeCancelar())
+                    <button type="button"
+                            onclick="document.getElementById('modalCancelar').classList.add('show')"
+                            class="btn btn-danger-outline w-full">
+                        {{ $factura->puedeReintentarCancelacionFiscal() ? '↻ Reenviar cancelación al SAT' : '✗ Cancelar Factura' }}
+                    </button>
+                    @elseif($factura->cancelacionFiscalVencidaSinResolver())
+                    <p class="doc-show-acciones-nota" style="margin-top: 0;">
+                        El plazo de cancelación venció y el CFDI sigue vigente. Use <strong>Consultar estatus SAT</strong>; después podrá reenviar si continúa vigente.
+                    </p>
+                    @elseif($tieneDocumentosRelacionados)
+                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
+                    <details class="doc-show-acciones-nota">
+                        <summary>No se puede cancelar: tiene documentos relacionados</summary>
+                        <ul style="margin: 6px 0 0 14px; padding: 0;">
+                            @foreach($factura->getDocumentosRelacionadosDetalle() as $item)
+                            <li>{{ $item }}</li>
+                            @endforeach
+                        </ul>
+                        <span style="font-size: 11px; display: block; margin-top: 6px;">La cancelación estará disponible en el flujo castada.</span>
+                    </details>
+                    @endif
+                @endif
+                @endif
+
             </div>
         </div>
-        @endif
 
     </div>
 </div>
@@ -874,6 +981,72 @@ document.addEventListener('DOMContentLoaded', function () {
             link.removeAttribute('target');
         });
     }
+});
+
+(function () {
+    var contenedor = document.querySelector('[data-tabs]');
+    if (!contenedor) return;
+    var tabs = Array.prototype.slice.call(contenedor.querySelectorAll('[role="tab"]'));
+    var alias = { 'soporte-recepcion': 'documentos' };
+
+    function activar(nombre, opciones) {
+        opciones = opciones || {};
+        var tab = tabs.filter(function (t) { return t.dataset.tab === nombre; })[0];
+        if (!tab) return false;
+        tabs.forEach(function (t) {
+            var activo = t === tab;
+            t.setAttribute('aria-selected', activo ? 'true' : 'false');
+            t.tabIndex = activo ? 0 : -1;
+            var panel = document.getElementById(t.getAttribute('aria-controls'));
+            if (panel) panel.hidden = !activo;
+        });
+        if (opciones.actualizarHash) history.replaceState(null, '', '#' + nombre);
+        if (opciones.foco) tab.focus();
+        return true;
+    }
+
+    function tabDesdeHash() {
+        var hash = decodeURIComponent((location.hash || '').replace('#', ''));
+        return alias[hash] || hash;
+    }
+
+    tabs.forEach(function (tab, i) {
+        tab.addEventListener('click', function () {
+            activar(tab.dataset.tab, { actualizarHash: true });
+        });
+        tab.addEventListener('keydown', function (e) {
+            var destino = null;
+            if (e.key === 'ArrowRight') destino = tabs[(i + 1) % tabs.length];
+            else if (e.key === 'ArrowLeft') destino = tabs[(i - 1 + tabs.length) % tabs.length];
+            else if (e.key === 'Home') destino = tabs[0];
+            else if (e.key === 'End') destino = tabs[tabs.length - 1];
+            if (destino) {
+                e.preventDefault();
+                activar(destino.dataset.tab, { actualizarHash: true, foco: true });
+            }
+        });
+    });
+
+    // Los errores de validación (soporte) mandan sobre el hash para que el mensaje quede visible.
+    var inicial = contenedor.dataset.tabInicial;
+    if (inicial === 'conceptos') {
+        activar(tabDesdeHash()) || activar('conceptos');
+    } else {
+        activar(inicial);
+    }
+    window.addEventListener('hashchange', function () { activar(tabDesdeHash()); });
+})();
+
+document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var origen = document.getElementById(btn.dataset.copyTarget);
+        if (!origen || !navigator.clipboard) return;
+        navigator.clipboard.writeText(origen.textContent.trim()).then(function () {
+            var texto = btn.textContent;
+            btn.textContent = 'Copiado ✓';
+            setTimeout(function () { btn.textContent = texto; }, 1500);
+        });
+    });
 });
 </script>
 @endpush

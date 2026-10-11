@@ -34,7 +34,7 @@ $breadcrumbs = [
 @endphp
 
 {{-- Cabecera: Cliente | Información --}}
-<div class="cotizacion-show-header-grid">
+<div class="doc-show-header-grid">
 
         {{-- Cliente --}}
         <div class="card">
@@ -132,7 +132,7 @@ $breadcrumbs = [
 
 </div>
 
-<div class="cotizacion-show-layout responsive-grid">
+<div class="doc-show-layout responsive-grid">
 
     {{-- Columna principal --}}
     <div>
@@ -244,7 +244,7 @@ $breadcrumbs = [
             </div>
 
             {{-- Totales --}}
-            <div class="card-body cotizacion-show-totales">
+            <div class="card-body doc-show-totales">
                 <div class="totales-panel">
                     <div class="totales-row">
                         <span>Subtotal</span>
@@ -306,7 +306,7 @@ $breadcrumbs = [
         @endif
 
         {{-- Uso interno: Referencia | Documentos de respaldo --}}
-        <div class="cotizacion-show-interno-grid">
+        <div class="doc-show-interno-grid">
 
         <div class="card">
             <div class="card-header">
@@ -427,19 +427,21 @@ $breadcrumbs = [
     </div>
 
     {{-- Columna lateral --}}
-    <div class="cotizacion-show-aside">
+    <div class="doc-show-aside">
 
         {{-- Acciones --}}
-        <div class="card cotizacion-show-acciones">
+        <div class="card doc-show-acciones">
             <div class="card-header">
                 <div class="card-title">⚡ Acciones</div>
                 <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
             </div>
             <div class="card-body">
 
-                <div class="cotizacion-show-acciones-resumen">
-                    <span class="info-label" style="margin-bottom: 0;">Total</span>
-                    <span class="monto">${{ number_format($cotizacion->total, 2) }} <small style="font-size: 11px; font-weight: 600;">{{ $cotizacion->moneda ?? 'MXN' }}</small></span>
+                <div class="doc-show-acciones-resumen">
+                    <div class="doc-show-acciones-resumen-row">
+                        <span class="info-label">Total</span>
+                        <span class="monto">${{ number_format($cotizacion->total, 2) }} <small style="font-size: 11px; font-weight: 600;">{{ $cotizacion->moneda ?? 'MXN' }}</small></span>
+                    </div>
                 </div>
 
                 {{-- Acción principal según el estado --}}
@@ -509,9 +511,9 @@ $breadcrumbs = [
                 @endcan
                 @endif
 
-                <div class="cotizacion-show-acciones-divider"></div>
+                <div class="doc-show-acciones-divider"></div>
 
-                <div class="cotizacion-show-acciones-pdf">
+                <div class="doc-show-acciones-fila">
                     <a href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
                        target="_blank" class="btn btn-light btn-sm">👁️ Ver PDF</a>
                     <a href="{{ route('cotizaciones.descargar-pdf', $cotizacion->id) }}"

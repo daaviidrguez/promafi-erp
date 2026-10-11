@@ -40,6 +40,9 @@
             <div class="page-header">
                 <div>
                     <h1 class="page-title">@yield('page-title')</h1>
+                    @hasSection('page-meta')
+                        <div class="page-meta">@yield('page-meta')</div>
+                    @endif
                     @hasSection('page-subtitle')
                         <p class="page-subtitle">@yield('page-subtitle')</p>
                     @endif

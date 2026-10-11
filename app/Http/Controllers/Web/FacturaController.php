@@ -500,12 +500,23 @@ class FacturaController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
+        $pagosAplicados = \App\Models\DocumentoRelacionadoPago::query()
+            ->where('factura_id', $factura->id)
+            ->with(['pagoRecibido.complementoPago'])
+            ->orderBy('parcialidad')
+            ->orderBy('id')
+            ->get();
+
+        $noCertificadoEmisor = $factura->uuid ? Empresa::principal()?->no_certificado : null;
+
         return view('facturas.show', compact(
             'factura',
             'facturaSustituta',
             'ncBorrador',
             'complementoBorrador',
             'historialEnviosFactura',
+            'pagosAplicados',
+            'noCertificadoEmisor',
             'mensajeSyncSat',
             'datosFiscalesBorrador',
             'puedeReactivarCancelacionAdmin',
@@ -1297,7 +1308,7 @@ class FacturaController extends Controller
             ]);
         }
 
-        return redirect()->route('facturas.show', $factura)
+        return redirect()->to(route('facturas.show', $factura).'#documentos')
             ->with('success', $soporte ? 'Soporte de recepción reemplazado.' : 'Soporte de recepción cargado.');
     }
 
@@ -1341,7 +1352,7 @@ class FacturaController extends Controller
         $soporte->eliminarDelDisco();
         $soporte->delete();
 
-        return redirect()->route('facturas.show', $factura)
+        return redirect()->to(route('facturas.show', $factura).'#documentos')
             ->with('success', 'Soporte de recepción eliminado.');
     }
 

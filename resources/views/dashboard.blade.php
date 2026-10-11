@@ -26,14 +26,14 @@ $breadcrumbs = [
         <div class="stat-info-box">
             <div class="stat-label">Facturas del mes</div>
             <div class="stat-value">{{ $facturasDelMes ?? 0 }}</div>
-            <div class="stat-sub">${{ number_format($montoFacturado ?? 0, 0, '.', ',') }}</div>
+            <div class="stat-sub">${{ number_format($montoFacturado ?? 0, 2, '.', ',') }}</div>
         </div>
         <div class="stat-icon">🧾</div>
     </div>
     <div class="stat-card stat-warning">
         <div class="stat-info-box">
             <div class="stat-label">Por cobrar</div>
-            <div class="stat-value" style="font-size: 20px;">${{ number_format($porCobrar ?? 0, 0, '.', ',') }}</div>
+            <div class="stat-value" style="font-size: 20px;">${{ number_format($porCobrar ?? 0, 2, '.', ',') }}</div>
             <div class="stat-sub">{{ $cuentasVencidas ?? 0 }} vencidas</div>
         </div>
         <div class="stat-icon">💰</div>
@@ -49,7 +49,7 @@ $breadcrumbs = [
     <div class="stat-card" style="border-left-color: var(--color-gray-500);">
         <div class="stat-info-box">
             <div class="stat-label">Por pagar</div>
-            <div class="stat-value" style="font-size: 20px;">${{ number_format($porPagar ?? 0, 0, '.', ',') }}</div>
+            <div class="stat-value" style="font-size: 20px;">${{ number_format($porPagar ?? 0, 2, '.', ',') }}</div>
             <div class="stat-sub">{{ $cuentasPorPagarPendientes ?? 0 }} cuentas</div>
         </div>
         <div class="stat-icon">📤</div>

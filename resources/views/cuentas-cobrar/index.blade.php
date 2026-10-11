@@ -18,7 +18,7 @@ $breadcrumbs = [
         <div class="stat-info-box">
             <div class="stat-label">Cartera total vigente</div>
             <div class="stat-value" style="font-size: 22px;">
-                ${{ number_format($totales['pendiente'], 0, '.', ',') }}
+                ${{ number_format($totales['pendiente'], 2, '.', ',') }}
             </div>
             <div class="stat-sub">Saldo abierto, incluye vencida</div>
         </div>
@@ -38,7 +38,7 @@ $breadcrumbs = [
         <div class="stat-info-box">
             <div class="stat-label">Total cobrado</div>
             <div class="stat-value" style="font-size: 22px;">
-                ${{ number_format($totales['pagado'], 0, '.', ',') }}
+                ${{ number_format($totales['pagado'], 2, '.', ',') }}
             </div>
             <div class="stat-sub">{{ ucfirst($cobradoMes['mes_label']) }}</div>
         </div>
@@ -80,21 +80,21 @@ $breadcrumbs = [
             <div class="stat-card" style="border-left-color: var(--color-success);">
                 <div class="stat-info-box">
                     <div class="stat-label">Total cobrado</div>
-                    <div class="stat-value" style="font-size: 18px; color: var(--color-success);">${{ number_format($cobradoMes['total_cobrado'], 0) }}</div>
+                    <div class="stat-value" style="font-size: 18px; color: var(--color-success);">${{ number_format($cobradoMes['total_cobrado'], 2, '.', ',') }}</div>
                     <div class="stat-sub">{{ $cobradoMes['num_facturas'] }} fact.</div>
                 </div>
             </div>
             <div class="stat-card">
                 <div class="stat-info-box">
                     <div class="stat-label">Total cobrado (sin IVA)</div>
-                    <div class="stat-value" style="font-size: 18px;">${{ number_format($cobradoMes['total_sin_iva'], 0) }}</div>
+                    <div class="stat-value" style="font-size: 18px;">${{ number_format($cobradoMes['total_sin_iva'], 2, '.', ',') }}</div>
                     <div class="stat-sub">Subtotal</div>
                 </div>
             </div>
             <div class="stat-card" style="border-left-color: var(--color-info);">
                 <div class="stat-info-box">
                     <div class="stat-label">Mes anterior</div>
-                    <div class="stat-value" style="font-size: 18px;">${{ number_format($cobradoMes['total_cobrado_anterior'], 0) }}</div>
+                    <div class="stat-value" style="font-size: 18px;">${{ number_format($cobradoMes['total_cobrado_anterior'], 2, '.', ',') }}</div>
                     <div class="stat-sub">{{ $cobradoMes['mes_anterior_label'] }}</div>
                 </div>
             </div>
@@ -332,7 +332,7 @@ $breadcrumbs = [
 document.addEventListener('DOMContentLoaded', function () {
     ClienteSearch.init({ required: false, allowEmpty: true });
 
-    const fmtMoney = (v) => '$' + Number(v).toLocaleString('es-MX');
+    const fmtMoney = (v) => '$' + Number(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const accent = 'rgb(11, 60, 93)';
     const success = 'rgb(16, 185, 129)';
 

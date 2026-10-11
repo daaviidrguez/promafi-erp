@@ -13,7 +13,7 @@ $breadcrumbs = [
 @section('content')
 
 {{-- KPIs principales --}}
-<div class="stats-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+<div class="stats-grid dashboard-grid-4">
     <div class="stat-card stat-info">
         <div class="stat-info-box">
             <div class="stat-label">Clientes</div>
@@ -38,14 +38,6 @@ $breadcrumbs = [
         </div>
         <div class="stat-icon">💰</div>
     </div>
-    <div class="stat-card stat-danger">
-        <div class="stat-info-box">
-            <div class="stat-label">Productos</div>
-            <div class="stat-value">{{ $totalProductos ?? 0 }}</div>
-            <div class="stat-sub">{{ $productosBajoStock ?? 0 }} bajo stock</div>
-        </div>
-        <div class="stat-icon">📦</div>
-    </div>
     <div class="stat-card" style="border-left-color: var(--color-gray-500);">
         <div class="stat-info-box">
             <div class="stat-label">Por pagar</div>
@@ -57,7 +49,7 @@ $breadcrumbs = [
 </div>
 
 {{-- Secciones por departamento --}}
-<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-top: 24px;">
+<div class="dashboard-grid-4" style="display: grid; gap: 20px; margin-top: 24px;">
 
     {{-- Facturación --}}
     <div class="card">
@@ -289,6 +281,10 @@ $breadcrumbs = [
 .dashboard-list li:last-child { border-bottom: none; }
 .dashboard-list-label { color: var(--color-gray-600); font-size: 13px; }
 .dashboard-list-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dashboard-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+.dashboard-grid-4 > .card { margin-bottom: 0; }
+@media (max-width: 1200px) { .dashboard-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (max-width: 640px) { .dashboard-grid-4 { grid-template-columns: 1fr !important; } }
 </style>
 
 @endsection

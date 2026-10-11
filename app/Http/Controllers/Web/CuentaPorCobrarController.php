@@ -9,6 +9,7 @@ use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\FormaPago;
 use App\Models\NotaCredito;
+use App\Services\CobranzaResumenService;
 use Illuminate\Http\Request;
 
 class CuentaPorCobrarController extends Controller
@@ -16,7 +17,7 @@ class CuentaPorCobrarController extends Controller
     /**
      * Listado de cuentas por cobrar
      */
-    public function index(Request $request)
+    public function index(Request $request, CobranzaResumenService $resumen)
     {
         $estado = $request->get('estado');
         $cliente_id = $request->get('cliente_id');
@@ -75,12 +76,23 @@ class CuentaPorCobrarController extends Controller
                     })
                     ->sum();
             })(),
-            'pagado' => CuentaPorCobrar::excluirFacturaBorrador()->where('estado', 'pagada')->sum('monto_pagado'),
         ];
+
+        $mes = (int) $request->get('mes', now()->month);
+        $mes = ($mes >= 1 && $mes <= 12) ? $mes : now()->month;
+        $anio = (int) $request->get('anio', now()->year);
+        $anio = ($anio >= 2020 && $anio <= 2035) ? $anio : now()->year;
+
+        $cobradoMes = $resumen->cobradoMes($mes, $anio);
+        $vencidoPorMes = $resumen->vencidoPorMes($anio);
+        $totales['pagado'] = $cobradoMes['total_cobrado'];
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();
 
-        return view('cuentas-cobrar.index', compact('cuentas', 'totales', 'clientes', 'estado', 'cliente_id'));
+        return view('cuentas-cobrar.index', compact(
+            'cuentas', 'totales', 'clientes', 'estado', 'cliente_id',
+            'mes', 'anio', 'cobradoMes', 'vencidoPorMes'
+        ));
     }
 
     /**

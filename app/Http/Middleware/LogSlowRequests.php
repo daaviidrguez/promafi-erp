@@ -23,7 +23,15 @@ class LogSlowRequests
     /** Memoria extra para poder escribir el log cuando la petición murió por memoria agotada. */
     private const MEMORIA_EXTRA_BYTES = 32 * 1024 * 1024;
 
-    private bool $terminada = false;
+    private static bool $apagadoRegistrado = false;
+
+    /**
+     * Petición en curso para el registro al apagarse PHP. Una sola función de apagado por proceso:
+     * registrar una por petición retendría cada Request en procesos largos (suite de pruebas).
+     *
+     * @var array{middleware: self, request: Request, inicio: float}|null
+     */
+    private static ?array $enCurso = null;
 
     public static function umbralSegundos(): float
     {
@@ -44,14 +52,17 @@ class LogSlowRequests
     public function handle(Request $request, Closure $next): Response
     {
         $inicio = microtime(true);
-        $this->terminada = false;
         $this->recolector->iniciar();
-        register_shutdown_function(fn () => $this->registrarSiFueAbortada($request, $inicio));
+        self::$enCurso = ['middleware' => $this, 'request' => $request, 'inicio' => $inicio];
+        if (! self::$apagadoRegistrado) {
+            register_shutdown_function([self::class, 'alApagar']);
+            self::$apagadoRegistrado = true;
+        }
 
         try {
             $response = $next($request);
         } finally {
-            $this->terminada = true;
+            self::$enCurso = null;
             $this->recolector->detener();
         }
 
@@ -75,12 +86,16 @@ class LogSlowRequests
         return $response;
     }
 
+    public static function alApagar(): void
+    {
+        $enCurso = self::$enCurso;
+        if ($enCurso !== null) {
+            $enCurso['middleware']->registrarSiFueAbortada($enCurso['request'], $enCurso['inicio']);
+        }
+    }
+
     private function registrarSiFueAbortada(Request $request, float $inicio): void
     {
-        if ($this->terminada) {
-            return;
-        }
-
         $error = error_get_last();
         if ($error === null || ! in_array($error['type'], self::ERRORES_FATALES, true)) {
             return;

@@ -721,6 +721,121 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
     color: var(--color-gray-600);
 }
 
+/* Orientación operativa (pestaña Cancelación + modal reenvío) */
+.doc-cancel-guidance {
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid transparent;
+    border-left-width: 4px;
+    background: #fff;
+}
+.doc-cancel-guidance--warning {
+    background: linear-gradient(180deg, #FFFBF3 0%, #FFF8EB 100%);
+    border-color: #F3E0B8;
+    border-left-color: var(--color-warning);
+    color: #78350f;
+}
+.doc-cancel-guidance--info {
+    background: linear-gradient(180deg, #F5F9FD 0%, #EEF4FA 100%);
+    border-color: #CFDFEE;
+    border-left-color: var(--color-info);
+    color: #1e3a5f;
+}
+.doc-cancel-guidance-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px 14px;
+    margin-bottom: 10px;
+}
+.doc-cancel-guidance-title {
+    font-family: var(--font-display);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: inherit;
+    line-height: 1.35;
+}
+.doc-cancel-guidance-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.doc-cancel-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    background: rgba(120, 53, 15, 0.08);
+    color: #78350f;
+    border: 1px solid rgba(120, 53, 15, 0.12);
+}
+.doc-cancel-guidance--info .doc-cancel-chip {
+    background: rgba(30, 58, 95, 0.08);
+    color: #1e3a5f;
+    border-color: rgba(30, 58, 95, 0.12);
+}
+.doc-cancel-chip--ok {
+    background: rgba(16, 185, 129, 0.12);
+    color: #065f46;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+.doc-cancel-chip--warn {
+    background: rgba(245, 158, 11, 0.16);
+    color: #92400e;
+    border-color: rgba(245, 158, 11, 0.28);
+}
+.doc-cancel-chip--danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: #7f1d1d;
+    border-color: rgba(239, 68, 68, 0.22);
+}
+.doc-cancel-guidance-lead {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.55;
+}
+.doc-cancel-guidance-list {
+    margin: 0;
+    padding: 0 0 0 1.15em;
+    font-size: 12.5px;
+    line-height: 1.55;
+    display: grid;
+    gap: 5px;
+}
+.doc-cancel-guidance-list li::marker {
+    color: rgba(120, 53, 15, 0.45);
+}
+.doc-cancel-guidance--info .doc-cancel-guidance-list li::marker {
+    color: rgba(30, 58, 95, 0.4);
+}
+.doc-cancel-guidance-foot {
+    margin: 10px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid rgba(120, 53, 15, 0.12);
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: rgba(120, 53, 15, 0.85);
+}
+.doc-cancel-guidance--info .doc-cancel-guidance-foot {
+    border-top-color: rgba(30, 58, 95, 0.12);
+    color: rgba(30, 58, 95, 0.8);
+}
+.doc-cancel-guidance--compact {
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+.doc-cancel-guidance-code {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
 /* Pestañas */
 .doc-tabs { display: flex; gap: 4px; padding: 0 12px; border-bottom: 1px solid var(--color-gray-200); overflow-x: auto; scrollbar-width: thin; }
 .doc-tab {
@@ -972,10 +1087,18 @@ table {
 /* ========== ALERTS ========== */
 .alert {
     padding: 13px 16px; border-radius: var(--radius-md);
-    margin-bottom: 20px; font-size: 13.5px;
-    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 20px; font-size: 13.5px; line-height: 1.55;
+    /* block: evita que <strong>/nodos de texto se partan como ítems flex */
+    display: block;
     border-left: 4px solid transparent;
 }
+.alert > span:first-child {
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: top;
+    line-height: 1.55;
+}
+.alert-body { display: block; }
 .alert-success { background: rgba(16,185,129,0.08); color: #065f46; border-left-color: var(--color-success); }
 .alert-danger  { background: rgba(239,68,68,0.08);  color: #7f1d1d; border-left-color: var(--color-danger);  }
 .alert-warning { background: rgba(245,158,11,0.08); color: #78350f; border-left-color: var(--color-warning); }

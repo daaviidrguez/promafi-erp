@@ -773,31 +773,57 @@ $breadcrumbs = [
             @method('DELETE')
             <div class="modal-body">
                 @if($factura->pendienteCancelacionAntePac())
-                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
-                    Esta factura ya fue <strong>cancelada administrativamente en el ERP</strong> (inventario y saldo revertidos).
-                    Al confirmar, solo se enviará la <strong>cancelación ante el PAC/SAT</strong>. No se volverán a registrar movimientos de inventario,
-                    aunque después se haya facturado con relación el mismo stock.
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning doc-cancel-guidance--compact">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Solo envío fiscal al PAC/SAT</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip">ERP ya cancelado</span>
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        Inventario y saldo ya se revirtieron. Al confirmar solo se enviará la cancelación ante el PAC/SAT.
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        <li>No se volverán a registrar movimientos de inventario, aunque después se haya facturado con relación el mismo stock.</li>
+                    </ul>
                 </div>
                 @elseif($esReintentoCancelacion)
-                <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
-                    @if($factura->cancelacionFiscalVencidaSinResolver())
-                        El límite de la solicitud anterior venció y una consulta reciente confirma que el CFDI sigue <strong>vigente</strong>.
-                    @elseif($factura->intentoFiscalPrevioSinCancelar())
-                        Facturama ya no reporta una solicitud pendiente y una consulta reciente confirma que el CFDI sigue <strong>vigente</strong>.
-                        El intento anterior no canceló el comprobante; puede reenviar con un motivo válido.
-                    @else
-                        El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
-                    @endif
-                    @if($reintentoSinRelacion04)
-                        <br><br>
-                        El intento previo usó motivo <strong>01</strong>, pero el UUID sustituto <strong>no tiene relación fiscal 04</strong> hacia esta factura.
-                        Se sugiere motivo <strong>03</strong> (operación no realizada). Si insiste en 01, elija un sustituto que sí tenga relación 04.
-                    @endif
-                    @if($factura->is_cancelable)
-                        <br><br>
-                        Condición SAT actual: <strong>{{ $factura->is_cancelable }}</strong>.
-                    @endif
-                    El ERP permanece cancelado administrativamente; reenviar no restaura ni vuelve a mover inventario.
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning doc-cancel-guidance--compact">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">
+                            @if($factura->cancelacionFiscalVencidaSinResolver())
+                                Reenvío tras plazo vencido
+                            @elseif($factura->intentoFiscalPrevioSinCancelar())
+                                Reenvío: sin solicitud pendiente
+                            @else
+                                Reenvío tras rechazo
+                            @endif
+                        </div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
+                            @if($factura->is_cancelable)
+                                <span class="doc-cancel-chip">{{ $factura->is_cancelable }}</span>
+                            @endif
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        @if($factura->cancelacionFiscalVencidaSinResolver())
+                            El límite de la solicitud anterior venció y una consulta reciente confirma que el CFDI sigue vigente.
+                        @elseif($factura->intentoFiscalPrevioSinCancelar())
+                            Facturama ya no reporta una solicitud pendiente y el CFDI sigue vigente. El intento anterior no canceló el comprobante.
+                        @else
+                            El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
+                        @endif
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        @if($reintentoSinRelacion04)
+                            <li>El intento previo usó motivo <span class="doc-cancel-guidance-code">01</span>, pero el UUID sustituto <strong>no tiene relación fiscal 04</strong>.</li>
+                            <li>Se sugiere motivo <span class="doc-cancel-guidance-code">03</span>. Si insiste en 01, elija un sustituto con relación 04.</li>
+                        @else
+                            <li>Puede reenviar con un motivo válido; revise la selección abajo antes de confirmar.</li>
+                        @endif
+                    </ul>
+                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente; reenviar no restaura ni vuelve a mover inventario.</p>
                 </div>
                 @endif
                 <p class="text-muted" style="margin-bottom: 20px;">

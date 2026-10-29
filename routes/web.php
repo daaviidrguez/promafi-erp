@@ -341,6 +341,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
 
     // ───── FACTURAS ───── ✅
     Route::get('/facturas-para-relacion/listar', [FacturaController::class, 'listarParaRelacion'])->name('facturas.listar-para-relacion');
+    Route::get('/facturas/buscar-productos', [FacturaController::class, 'buscarProductos'])->name('facturas.buscar-productos');
     Route::resource('facturas', FacturaController::class);
     Route::post('/facturas/{factura}/timbrar', [FacturaController::class, 'timbrar'])->name('facturas.timbrar');
     Route::post('/facturas/{factura}/sincronizar-clave-sat', [FacturaController::class, 'sincronizarClaveSat'])->name('facturas.sincronizar-clave-sat');

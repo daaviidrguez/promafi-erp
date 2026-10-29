@@ -271,7 +271,9 @@ $clienteFacturaJson = $factura->cliente ? [
 let productoIndex = 0;
 let filaBusquedaActiva = null;
 let clienteTipoPersonaActual = @json($factura->cliente->tipo_persona ?? 'fisica');
-const catalogoProductos = @json($productos);
+const productosBusquedaCache = {};
+const timersBusquedaProducto = {};
+const buscarProductosUrl = @json(route('facturas.buscar-productos'));
 const detallesIniciales = @json($detallesIniciales);
 const empresaIsrConfig = {
     tipo_persona: @json($empresa->tipo_persona ?? 'moral'),
@@ -344,13 +346,9 @@ function agregarProducto(datos = null) {
     const tasaIva = datos ? (datos.tasa_iva ?? 0) : 0;
 
     let buscarValor = '';
-    if (prodId) {
-        const p = catalogoProductos.find(x => Number(x.id) === Number(prodId));
-        if (p) {
-            buscarValor = `${p.codigo || ''} — ${p.nombre || ''}`.trim();
-        } else if (datos?.codigo) {
-            buscarValor = `${datos.codigo} — ${desc}`.trim();
-        }
+    if (prodId || datos?.codigo || desc) {
+        const partes = [datos?.codigo || '', desc].filter(Boolean);
+        buscarValor = partes.join(' — ').trim();
     }
 
     const tr = document.createElement('tr');
@@ -405,41 +403,45 @@ function buscarProductosFila(i, query) {
     const row = document.getElementById(`prod-${i}`);
     const input = row ? row.querySelector('.search-box input[type="text"]') : null;
     if (!flotante || !input) return;
-    const q = (query || '').trim().toLowerCase();
+    const q = (query || '').trim();
     if (q.length < 2) {
+        clearTimeout(timersBusquedaProducto[i]);
         cerrarFlotanteProductosFactura();
         return;
     }
 
-    const encontrados = catalogoProductos
-        .filter(p => {
-            const nombre = String(p.nombre || '').toLowerCase();
-            const codigo = String(p.codigo || '').toLowerCase();
-            return nombre.includes(q) || codigo.includes(q);
-        })
-        .slice(0, 10);
+    clearTimeout(timersBusquedaProducto[i]);
+    timersBusquedaProducto[i] = setTimeout(async () => {
+        try {
+            const r = await fetch(`${buscarProductosUrl}?q=${encodeURIComponent(q)}`);
+            const encontrados = await r.json();
+            if (filaBusquedaActiva !== i) return;
+            if (!Array.isArray(encontrados) || !encontrados.length) {
+                posicionarFlotanteProductosFactura(input, flotante);
+                flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+                flotante.classList.add('show');
+                flotante.style.display = 'block';
+                return;
+            }
 
-    if (!encontrados.length) {
-        posicionarFlotanteProductosFactura(input, flotante);
-        flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
-        flotante.classList.add('show');
-        flotante.style.display = 'block';
-        return;
-    }
-
-    posicionarFlotanteProductosFactura(input, flotante);
-    flotante.innerHTML = encontrados.map(p => `
-        <div class="autocomplete-item" onclick="seleccionarProductoPorId(${i}, ${p.id})">
-            <div class="autocomplete-item-name">${escapeHtml(p.nombre)}</div>
-            <div class="autocomplete-item-sub">${escapeHtml(p.codigo || '')} — ${escapeHtml(p.unidad || 'PZA')}</div>
-        </div>
-    `).join('');
-    flotante.classList.add('show');
-    flotante.style.display = 'block';
+            encontrados.forEach(p => { productosBusquedaCache[p.id] = p; });
+            posicionarFlotanteProductosFactura(input, flotante);
+            flotante.innerHTML = encontrados.map(p => `
+                <div class="autocomplete-item" onclick="seleccionarProductoPorId(${i}, ${p.id})">
+                    <div class="autocomplete-item-name">${escapeHtml(p.nombre)}</div>
+                    <div class="autocomplete-item-sub">${escapeHtml(p.codigo || '')} — ${escapeHtml(p.unidad || 'PZA')}</div>
+                </div>
+            `).join('');
+            flotante.classList.add('show');
+            flotante.style.display = 'block';
+        } catch (e) {
+            console.error(e);
+        }
+    }, 280);
 }
 
 function seleccionarProductoPorId(i, productoId) {
-    const p = catalogoProductos.find(x => Number(x.id) === Number(productoId));
+    const p = productosBusquedaCache[productoId];
     if (!p) return;
     const row = document.getElementById(`prod-${i}`);
     if (!row) return;
@@ -644,6 +646,7 @@ function restaurarFacturaAutosave(data) {
     (data.productos || []).forEach(function (p) {
         agregarProducto({
             producto_id: p.producto_id,
+            codigo: p.codigo || '',
             nombre: p.descripcion,
             cantidad: p.cantidad,
             valor_unitario: p.valor_unitario,

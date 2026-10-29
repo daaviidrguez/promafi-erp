@@ -252,7 +252,9 @@ $clientePreseleccionadoJson = $clientePreseleccionado ? [
 let productoIndex = 0;
 let filaBusquedaActiva = null;
 let clienteTipoPersonaActual = @json($clientePreseleccionado?->tipo_persona ?? 'fisica');
-const catalogoProductos = @json($productos);
+const productosBusquedaCache = {};
+const timersBusquedaProducto = {};
+const buscarProductosUrl = @json(route('facturas.buscar-productos'));
 const empresaIsrConfig = {
     tipo_persona: @json($empresa->tipo_persona ?? 'moral'),
     regimen_fiscal: @json($empresa->regimen_fiscal ?? ''),
@@ -339,34 +341,15 @@ function prefillFacturaDesdeRemision() {
     if (emptyProductos) emptyProductos.style.display = 'none';
 
     remisionLineasPrefill.forEach((line) => {
-        const i = productoIndex;
-        agregarProducto(); // crea la fila con id prod-{i}
-
-        const row = document.getElementById(`prod-${i}`);
-        if (!row) return;
-        seleccionarProductoPorId(i, line.producto_id);
-        if (line.tasa_iva !== undefined) {
-            const inpTasa = row.querySelector('.input-tasa-iva');
-            if (inpTasa) inpTasa.value = String(line.tasa_iva ?? 0);
-        }
-
-        // Sobrescribir descripción/importe con snapshot de remisión
-        const inpDesc = row.querySelector('[name*="[descripcion]"]');
-        if (inpDesc && line.descripcion !== undefined) inpDesc.value = String(line.descripcion ?? '');
-
-        const inpCant = row.querySelector('[name*="[cantidad]"]');
-        if (inpCant && line.cantidad !== undefined) inpCant.value = Number(line.cantidad ?? 0);
-
-        const inpValUnit = row.querySelector('[name*="[valor_unitario]"]');
-        if (inpValUnit && line.valor_unitario !== undefined) {
-            const v = parseFloat(line.valor_unitario ?? 0);
-            inpValUnit.value = (Number.isFinite(v) ? v : 0).toFixed(2);
-        }
-
-        const inpDescMonto = row.querySelector('[name*="[descuento]"]');
-        if (inpDescMonto) inpDescMonto.value = '0';
-
-        calcularTotales();
+        agregarProducto({
+            producto_id: line.producto_id,
+            codigo: line.codigo || '',
+            nombre: line.descripcion,
+            cantidad: line.cantidad,
+            valor_unitario: line.valor_unitario,
+            descuento: 0,
+            tasa_iva: line.tasa_iva ?? 0,
+        });
     });
 
     // Pre-cargar cliente (y disparar change para que se actualice método/folio)
@@ -398,13 +381,9 @@ function agregarProducto(datos = null) {
     const tasaIva = datos ? (datos.tasa_iva ?? 0) : 0;
 
     let buscarValor = '';
-    if (prodId) {
-        const p = catalogoProductos.find(x => Number(x.id) === Number(prodId));
-        if (p) {
-            buscarValor = `${p.codigo || ''} — ${p.nombre || ''}`.trim();
-        } else if (datos?.codigo) {
-            buscarValor = `${datos.codigo} — ${desc}`.trim();
-        }
+    if (prodId || datos?.codigo || desc) {
+        const partes = [datos?.codigo || '', desc].filter(Boolean);
+        buscarValor = partes.join(' — ').trim();
     }
 
     const tr = document.createElement('tr');
@@ -459,41 +438,45 @@ function buscarProductosFila(i, query) {
     const row = document.getElementById(`prod-${i}`);
     const input = row ? row.querySelector('.search-box input[type="text"]') : null;
     if (!flotante || !input) return;
-    const q = (query || '').trim().toLowerCase();
+    const q = (query || '').trim();
     if (q.length < 2) {
+        clearTimeout(timersBusquedaProducto[i]);
         cerrarFlotanteProductosFactura();
         return;
     }
 
-    const encontrados = catalogoProductos
-        .filter(p => {
-            const nombre = String(p.nombre || '').toLowerCase();
-            const codigo = String(p.codigo || '').toLowerCase();
-            return nombre.includes(q) || codigo.includes(q);
-        })
-        .slice(0, 10);
+    clearTimeout(timersBusquedaProducto[i]);
+    timersBusquedaProducto[i] = setTimeout(async () => {
+        try {
+            const r = await fetch(`${buscarProductosUrl}?q=${encodeURIComponent(q)}`);
+            const encontrados = await r.json();
+            if (filaBusquedaActiva !== i) return;
+            if (!Array.isArray(encontrados) || !encontrados.length) {
+                posicionarFlotanteProductosFactura(input, flotante);
+                flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+                flotante.classList.add('show');
+                flotante.style.display = 'block';
+                return;
+            }
 
-    if (!encontrados.length) {
-        posicionarFlotanteProductosFactura(input, flotante);
-        flotante.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
-        flotante.classList.add('show');
-        flotante.style.display = 'block';
-        return;
-    }
-
-    posicionarFlotanteProductosFactura(input, flotante);
-    flotante.innerHTML = encontrados.map(p => `
-        <div class="autocomplete-item" onclick="seleccionarProductoPorId(${i}, ${p.id})">
-            <div class="autocomplete-item-name">${escapeHtml(p.nombre)}</div>
-            <div class="autocomplete-item-sub">${escapeHtml(p.codigo || '')} — ${escapeHtml(p.unidad || 'PZA')}</div>
-        </div>
-    `).join('');
-    flotante.classList.add('show');
-    flotante.style.display = 'block';
+            encontrados.forEach(p => { productosBusquedaCache[p.id] = p; });
+            posicionarFlotanteProductosFactura(input, flotante);
+            flotante.innerHTML = encontrados.map(p => `
+                <div class="autocomplete-item" onclick="seleccionarProductoPorId(${i}, ${p.id})">
+                    <div class="autocomplete-item-name">${escapeHtml(p.nombre)}</div>
+                    <div class="autocomplete-item-sub">${escapeHtml(p.codigo || '')} — ${escapeHtml(p.unidad || 'PZA')}</div>
+                </div>
+            `).join('');
+            flotante.classList.add('show');
+            flotante.style.display = 'block';
+        } catch (e) {
+            console.error(e);
+        }
+    }, 280);
 }
 
 function seleccionarProductoPorId(i, productoId) {
-    const p = catalogoProductos.find(x => Number(x.id) === Number(productoId));
+    const p = productosBusquedaCache[productoId];
     if (!p) return;
     const row = document.getElementById(`prod-${i}`);
     if (!row) return;
@@ -674,6 +657,7 @@ function restaurarFacturaAutosave(data) {
     (data.productos || []).forEach(function (p) {
         agregarProducto({
             producto_id: p.producto_id,
+            codigo: p.codigo || '',
             nombre: p.descripcion,
             cantidad: p.cantidad,
             valor_unitario: p.valor_unitario,

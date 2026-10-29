@@ -129,8 +129,6 @@ class FacturaController extends Controller
                 ->with('error', 'Debes configurar los datos de la empresa primero');
         }
 
-        $clientes = Cliente::activos()->orderBy('nombre')->get();
-        $productos = Producto::activos()->with('categoria')->orderBy('nombre')->get();
         $formasPago = FormaPago::activos()->get();
         $metodosPago = MetodoPago::activos()->get();
         $usosCfdi = UsoCfdi::activos()->get();
@@ -184,6 +182,7 @@ class FacturaController extends Controller
 
                 return [
                     'producto_id' => (int) $d->producto_id,
+                    'codigo' => (string) ($p?->codigo ?? ''),
                     'descripcion' => (string) $d->descripcion,
                     'cantidad' => (float) $d->cantidad,
                     'valor_unitario' => (float) ($d->precio_unitario ?? $p?->precio_venta ?? 0),
@@ -196,8 +195,6 @@ class FacturaController extends Controller
 
         return view('facturas.create', compact(
             'empresa',
-            'clientes',
-            'productos',
             'clientePreseleccionado',
             'formasPago',
             'metodosPago',
@@ -208,6 +205,39 @@ class FacturaController extends Controller
             'observacionesPre',
             'ordenCompraPreseleccionado',
         ));
+    }
+
+    /**
+     * Autocomplete de productos para crear/editar factura (sin cargar el catálogo completo).
+     */
+    public function buscarProductos(Request $request)
+    {
+        abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
+        $search = trim((string) $request->get('q', ''));
+        if (strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $term = '%'.addcslashes($search, '%_\\').'%';
+        $productos = Producto::activos()
+            ->where(function ($query) use ($term) {
+                $query->where('nombre', 'like', $term)
+                    ->orWhere('codigo', 'like', $term);
+            })
+            ->orderBy('nombre')
+            ->limit(10)
+            ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor']);
+
+        return response()->json($productos->map(fn (Producto $p) => [
+            'id' => $p->id,
+            'codigo' => $p->codigo,
+            'nombre' => $p->nombre,
+            'unidad' => $p->unidad ?? 'PZA',
+            'precio_venta' => (float) $p->precio_venta,
+            'tasa_iva' => ($p->tipo_factor ?? 'Tasa') === 'Exento' ? 0.0 : (float) $p->tasa_iva,
+            'tipo_factor' => $p->tipo_factor ?? 'Tasa',
+        ]));
     }
 
     /**
@@ -566,13 +596,11 @@ class FacturaController extends Controller
         $factura->sincronizarDatosFiscalesDesdeProductos();
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
         $empresa = Empresa::principal();
-        $clientes = Cliente::activos()->orderBy('nombre')->get();
-        $productos = Producto::activos()->with('categoria')->orderBy('nombre')->get();
         $formasPago = FormaPago::activos()->get();
         $metodosPago = MetodoPago::activos()->get();
         $usosCfdi = UsoCfdi::activos()->get();
 
-        return view('facturas.edit', compact('factura', 'empresa', 'clientes', 'productos', 'formasPago', 'metodosPago', 'usosCfdi'));
+        return view('facturas.edit', compact('factura', 'empresa', 'formasPago', 'metodosPago', 'usosCfdi'));
     }
 
     /**

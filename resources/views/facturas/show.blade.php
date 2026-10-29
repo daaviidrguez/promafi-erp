@@ -663,6 +663,11 @@ $breadcrumbs = [
                     @endif
                 @endcan
 
+                @can('facturas.crear')
+                <a href="{{ route('facturas.create') }}"
+                   class="btn btn-outline w-full">➕ Nueva Factura</a>
+                @endcan
+
                 {{-- Documentos --}}
                 <div class="doc-show-acciones-divider"></div>
                 <div class="doc-show-acciones-fila">

@@ -511,6 +511,11 @@ $breadcrumbs = [
                 @endcan
                 @endif
 
+                @can('cotizaciones.crear')
+                <a href="{{ route('cotizaciones.create') }}"
+                   class="btn btn-outline w-full">➕ Nueva Cotización</a>
+                @endcan
+
                 <div class="doc-show-acciones-divider"></div>
 
                 <div class="doc-show-acciones-fila">

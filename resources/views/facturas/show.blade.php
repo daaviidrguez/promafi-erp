@@ -74,7 +74,10 @@ $breadcrumbs = [
     }
 
     $tieneDocumentosRelacionados = $factura->estaTimbrada() && $factura->tieneDocumentosRelacionados();
+    $mostrarBotonCancelAdmin = ($mostrarCancelacionAdmin ?? false)
+        && $usuarioActual?->can('cancelaciones_administrativas.administrar');
     $hayZonaRiesgo = ($factura->esBorrador() && $usuarioActual?->can('facturas.crear'))
+        || $mostrarBotonCancelAdmin
         || ($cfdiTimbradoAcciones && (
             $factura->puedeCancelar()
             || $factura->cancelacionFiscalVencidaSinResolver()
@@ -745,12 +748,26 @@ $breadcrumbs = [
                 @endcan
                 @endif
 
+                @if($mostrarBotonCancelAdmin)
+                    @if($puedeCancelarAdmin ?? false)
+                    <a href="{{ route('cancelaciones-administrativas.create', ['factura_id' => $factura->id]) }}"
+                       class="btn btn-danger-outline w-full">Cancelar administrativamente</a>
+                    @else
+                    <button type="button"
+                            class="btn btn-danger-outline w-full is-aria-disabled"
+                            aria-disabled="true"
+                            onclick="document.getElementById('modalCancelAdminNoAplica').classList.add('show')">
+                        Cancelar administrativamente
+                    </button>
+                    @endif
+                @endif
+
                 @if($cfdiTimbradoAcciones)
                     @if($factura->puedeCancelar())
                     <button type="button"
                             onclick="document.getElementById('modalCancelar').classList.add('show')"
                             class="btn btn-danger-outline w-full">
-                        {{ $factura->puedeReintentarCancelacionFiscal() ? '↻ Reenviar cancelación al SAT' : '✗ Cancelar Factura' }}
+                        {{ $factura->puedeReintentarCancelacionFiscal() ? '↻ Reenviar cancelación al SAT' : '✗ Cancelar ante el SAT' }}
                     </button>
                     @elseif($factura->cancelacionFiscalVencidaSinResolver())
                     <p class="doc-show-acciones-nota" style="margin-top: 0;">
@@ -762,7 +779,7 @@ $breadcrumbs = [
                         Use <strong>Consultar estatus SAT</strong>; después podrá reenviar (se sugerirá 03 si el 01 no tiene relación 04).
                     </p>
                     @elseif($tieneDocumentosRelacionados)
-                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
+                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar ante el SAT</button>
                     <details class="doc-show-acciones-nota">
                         <summary>No se puede cancelar: tiene documentos relacionados</summary>
                         <ul style="margin: 6px 0 0 14px; padding: 0;">
@@ -800,7 +817,7 @@ $breadcrumbs = [
 <div id="modalCancelar" class="modal">
     <div class="modal-box">
         <div class="modal-header">
-            <div class="modal-title" style="color: var(--color-danger);">⚠️ {{ $esReintentoCancelacion ? 'Reenviar cancelación al SAT' : 'Cancelar Factura' }}</div>
+            <div class="modal-title" style="color: var(--color-danger);">⚠️ {{ $esReintentoCancelacion ? 'Reenviar cancelación al SAT' : 'Cancelar ante el SAT' }}</div>
             <button class="modal-close"
                     onclick="document.getElementById('modalCancelar').classList.remove('show')">✕</button>
         </div>
@@ -1027,6 +1044,32 @@ $breadcrumbs = [
     };
 })();
 </script>
+@endif
+
+@if($mostrarBotonCancelAdmin && ! ($puedeCancelarAdmin ?? false))
+<div id="modalCancelAdminNoAplica" class="modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title">Cancelar administrativamente</div>
+            <button class="modal-close"
+                    onclick="document.getElementById('modalCancelAdminNoAplica').classList.remove('show')">✕</button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 0; line-height: 1.5;">
+                {{ $motivoNoCancelarAdmin ?: 'Esta factura no es elegible para cancelación administrativa.' }}
+            </p>
+            <p class="doc-show-acciones-nota" style="margin-top: 12px;">
+                Esta acción solo cancela en el ERP; no cancela el CFDI ante el SAT.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light"
+                    onclick="document.getElementById('modalCancelAdminNoAplica').classList.remove('show')">
+                Entendido
+            </button>
+        </div>
+    </div>
+</div>
 @endif
 
 {{-- Modal Borrar Factura (solo borrador) --}}

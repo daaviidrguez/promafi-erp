@@ -484,10 +484,20 @@ class FacturaController extends Controller
     {
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user', 'cancelacionesAdministrativas.user']);
         $facturaSustituta = $factura->resolverFacturaSustituta();
+        $cancelacionAdminService = app(CancelacionAdministrativaFacturaService::class);
+        $puedeCancelarAdmin = false;
+        $motivoNoCancelarAdmin = null;
+        $mostrarCancelacionAdmin = $factura->estaTimbrada();
+        if ($mostrarCancelacionAdmin) {
+            $checkCancelarAdmin = $cancelacionAdminService->puedeEjecutar($factura);
+            $puedeCancelarAdmin = (bool) $checkCancelarAdmin['ok'];
+            $motivoNoCancelarAdmin = $checkCancelarAdmin['mensaje'];
+        }
+
         $puedeReactivarCancelacionAdmin = false;
         $motivoNoReactivarCancelacionAdmin = null;
         if ($factura->cancelacion_administrativa) {
-            $checkReactivar = app(CancelacionAdministrativaFacturaService::class)->puedeReactivar($factura);
+            $checkReactivar = $cancelacionAdminService->puedeReactivar($factura);
             $puedeReactivarCancelacionAdmin = (bool) $checkReactivar['ok'];
             $motivoNoReactivarCancelacionAdmin = $checkReactivar['mensaje'];
         }
@@ -549,6 +559,9 @@ class FacturaController extends Controller
             'noCertificadoEmisor',
             'mensajeSyncSat',
             'datosFiscalesBorrador',
+            'mostrarCancelacionAdmin',
+            'puedeCancelarAdmin',
+            'motivoNoCancelarAdmin',
             'puedeReactivarCancelacionAdmin',
             'motivoNoReactivarCancelacionAdmin'
         ));

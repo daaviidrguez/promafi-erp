@@ -663,6 +663,21 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 .btn:hover { transform: translateY(-1px); }
 .btn:active{ transform: translateY(0); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.btn.is-aria-disabled,
+.btn[aria-disabled="true"] {
+    opacity: 0.55;
+    cursor: pointer;
+    transform: none;
+}
+.btn.is-aria-disabled:hover,
+.btn[aria-disabled="true"]:hover {
+    transform: none;
+}
+.btn-danger-outline.is-aria-disabled:hover,
+.btn-danger-outline[aria-disabled="true"]:hover {
+    background: transparent;
+    color: var(--color-danger);
+}
 
 .btn-primary   { background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)); color: #fff; box-shadow: 0 4px 14px rgba(11,60,93,0.22); }
 .btn-primary:hover { box-shadow: 0 6px 20px rgba(11,60,93,0.32); }

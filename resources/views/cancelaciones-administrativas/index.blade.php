@@ -67,9 +67,9 @@ $breadcrumbs = [
                 <input type="date" name="fecha_hasta" class="form-control" value="{{ request('fecha_hasta') }}">
             </div>
             <div class="form-group" style="margin:0;">
-                <label class="form-label">Estado</label>
+                <label class="form-label">Operación</label>
                 <select name="estado" class="form-control" style="min-width:140px;">
-                    <option value="">Todos</option>
+                    <option value="">Todas</option>
                     <option value="vigente" {{ request('estado') === 'vigente' ? 'selected' : '' }}>Vigente</option>
                     <option value="revertida" {{ request('estado') === 'revertida' ? 'selected' : '' }}>Revertida</option>
                 </select>
@@ -95,7 +95,8 @@ $breadcrumbs = [
             @endif
         </form>
         <p class="form-hint" style="margin:12px 0 0;">
-            Listado de <strong>operaciones realizadas</strong>. No sustituye la cancelación ante el SAT.
+            <strong>Operación</strong> = si la cancelación admin sigue activa o fue revertida.
+            <strong>Estado SAT</strong> = avance fiscal del CFDI (Solo ERP, pendiente, cancelada ante el SAT, etc.).
             La reactivación se gestiona desde el expediente o el detalle de la factura.
         </p>
     </div>
@@ -112,8 +113,8 @@ $breadcrumbs = [
                 <th class="td-right">Total</th>
                 <th>Usuario</th>
                 <th>Motivo</th>
-                <th class="td-center">Estado</th>
-                <th>Efectos</th>
+                <th class="td-center">Operación</th>
+                <th class="td-center">Estado SAT</th>
                 <th class="td-actions">Acciones</th>
             </tr>
         </thead>
@@ -121,15 +122,9 @@ $breadcrumbs = [
             @foreach($cancelaciones as $c)
             @php
                 $estado = $c->estadoOperacion();
+                $estadoSat = $c->estadoSatListado();
                 $detalle = is_array($c->detalle) ? $c->detalle : [];
                 $total = (float) ($detalle['total'] ?? $c->factura?->total ?? 0);
-                $efectos = [];
-                if (!empty($detalle['tenia_cuenta_por_cobrar'])) {
-                    $efectos[] = 'CxC';
-                }
-                if (!empty($detalle['reversa_inventario'])) {
-                    $efectos[] = 'Inv.';
-                }
             @endphp
             <tr>
                 <td>
@@ -158,12 +153,10 @@ $breadcrumbs = [
                         <span class="badge badge-secondary">Revertida</span>
                     @endif
                 </td>
-                <td>
-                    @if(count($efectos))
-                        <span class="text-muted" style="font-size:12px;">{{ implode(' · ', $efectos) }}</span>
-                    @else
-                        <span class="text-muted">—</span>
-                    @endif
+                <td class="td-center">
+                    <span class="badge badge-{{ $estadoSat['badge'] }}" @if(!empty($estadoSat['title'])) title="{{ e($estadoSat['title']) }}" @endif>
+                        {{ $estadoSat['label'] }}
+                    </span>
                 </td>
                 <td class="td-actions">
                     <a href="{{ route('cancelaciones-administrativas.show', $c) }}" class="btn btn-info btn-sm">Ver</a>

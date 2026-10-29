@@ -59,6 +59,70 @@ class FacturaCancelacionAdministrativa extends Model
         return $this->estadoOperacion() === 'vigente';
     }
 
+    /**
+     * Etiqueta compacta del eje fiscal (SAT/PAC) para el index.
+     * Distinto de estadoOperacion() (Vigente/Revertida de la operación ERP).
+     *
+     * @return array{label: string, badge: string, title: ?string}
+     */
+    public function estadoSatListado(): array
+    {
+        if ($this->estadoOperacion() === 'revertida') {
+            return [
+                'label' => 'CFDI vigente (reactivada)',
+                'badge' => 'secondary',
+                'title' => 'La cancelación administrativa fue deshecha; el CFDI no se canceló ante el SAT.',
+            ];
+        }
+
+        $factura = $this->factura;
+        if (! $factura) {
+            return [
+                'label' => '—',
+                'badge' => 'secondary',
+                'title' => null,
+            ];
+        }
+
+        if ($factura->canceladaAnteSat()) {
+            return [
+                'label' => 'Cancelada ante el SAT',
+                'badge' => 'success',
+                'title' => 'El CFDI ya está cancelado ante el SAT.',
+            ];
+        }
+
+        if ($factura->cancelacionFiscalVencidaSinResolver()) {
+            return [
+                'label' => 'Plazo SAT vencido',
+                'badge' => 'warning',
+                'title' => 'El plazo de respuesta venció y el SAT aún reporta el CFDI vigente.',
+            ];
+        }
+
+        if ($factura->solicitudFiscalPendiente()) {
+            return [
+                'label' => 'Pendiente SAT',
+                'badge' => 'warning',
+                'title' => 'Solicitud enviada al SAT; el CFDI puede seguir vigente hasta la respuesta.',
+            ];
+        }
+
+        if ($factura->cancelacionFiscalRechazada()) {
+            return [
+                'label' => 'Rechazada',
+                'badge' => 'danger',
+                'title' => 'El receptor rechazó la cancelación; el CFDI sigue vigente ante el SAT.',
+            ];
+        }
+
+        return [
+            'label' => 'Solo ERP',
+            'badge' => 'info',
+            'title' => 'Cancelación administrativa en el ERP; el CFDI aún no está cancelado ante el SAT.',
+        ];
+    }
+
     public function tieneReversionPosterior(): bool
     {
         return static::query()

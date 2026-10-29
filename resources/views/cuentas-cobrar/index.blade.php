@@ -232,7 +232,7 @@ $breadcrumbs = [
             @foreach($cuentas as $cuenta)
             <tr style="{{ $cuenta->estado_display === 'vencida' ? 'background: rgba(239,68,68,0.04);' : '' }}">
                 <td>
-                    <a href="{{ route('facturas.show', $cuenta->factura->id) }}"
+                    <a href="{{ route('facturas.show', [$cuenta->factura->id, 'from' => ($estado ?? '') === 'vencidas' ? 'cuentas-vencidas' : 'cuentas-cobrar']) }}"
                        class="text-mono fw-600" style="color: var(--color-primary);">
                         {{ $cuenta->factura->folio_completo }}
                     </a>

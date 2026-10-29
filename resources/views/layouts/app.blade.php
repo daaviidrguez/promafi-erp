@@ -58,7 +58,12 @@
                     @endif
                 </div>
                 @hasSection('page-actions')
-                    <div class="page-header-actions">@yield('page-actions')</div>
+                    @php
+                        $pageActions = trim($__env->yieldContent('page-actions'));
+                    @endphp
+                    @if($pageActions !== '')
+                        <div class="page-header-actions">{!! $pageActions !!}</div>
+                    @endif
                 @endif
             </div>
             @endif

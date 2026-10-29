@@ -161,7 +161,7 @@ $breadcrumbs = [
                         @endif
                     </td>
                     <td>
-                        <a href="{{ route('facturas.show', $cuenta->factura->id) }}" class="text-mono fw-600" style="color: var(--color-primary);">
+                        <a href="{{ route('facturas.show', [$cuenta->factura->id, 'from' => 'dashboard']) }}" class="text-mono fw-600" style="color: var(--color-primary);">
                             {{ $cuenta->factura->folio_completo }}
                         </a>
                     </td>

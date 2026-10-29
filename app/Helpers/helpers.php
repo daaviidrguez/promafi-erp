@@ -229,3 +229,52 @@ if (!function_exists('parseCertificadoCer')) {
         }
     }
 }
+
+if (! function_exists('docShowVolverOrigen')) {
+    /**
+     * Origen de navegación allowlisted para el botón "Volver" en shows de documentos.
+     * Solo claves conocidas (evita open redirect).
+     *
+     * @return array{url: string, label: string}|null
+     */
+    function docShowVolverOrigen(?string $from = null, mixed $fromId = null): ?array
+    {
+        $from = $from ?? request()->query('from');
+        if (! is_string($from) || $from === '') {
+            return null;
+        }
+
+        $fromId = $fromId ?? request()->query('from_id');
+
+        if ($from === 'cuenta-cobrar') {
+            $id = filter_var($fromId, FILTER_VALIDATE_INT);
+            if ($id) {
+                return [
+                    'url' => route('cuentas-cobrar.show', $id),
+                    'label' => '← Volver a la cuenta por cobrar',
+                ];
+            }
+
+            return [
+                'url' => route('cuentas-cobrar.index'),
+                'label' => '← Volver a cuentas por cobrar',
+            ];
+        }
+
+        return match ($from) {
+            'dashboard' => [
+                'url' => route('dashboard'),
+                'label' => '← Volver al dashboard',
+            ],
+            'cuentas-vencidas' => [
+                'url' => route('cuentas-cobrar.index', ['estado' => 'vencidas']),
+                'label' => '← Volver a cuentas vencidas',
+            ],
+            'cuentas-cobrar' => [
+                'url' => route('cuentas-cobrar.index'),
+                'label' => '← Volver a cuentas por cobrar',
+            ],
+            default => null,
+        };
+    }
+}

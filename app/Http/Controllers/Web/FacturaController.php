@@ -482,7 +482,7 @@ class FacturaController extends Controller
      */
     public function show(Factura $factura)
     {
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user', 'cancelacionesAdministrativas.user']);
+        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'cotizacion', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user', 'cancelacionesAdministrativas.user']);
         $facturaSustituta = $factura->resolverFacturaSustituta();
         $cancelacionAdminService = app(CancelacionAdministrativaFacturaService::class);
         $puedeCancelarAdmin = false;

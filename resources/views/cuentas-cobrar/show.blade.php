@@ -51,7 +51,7 @@ $breadcrumbs = [
         <div class="card">
             <div class="card-header">
                 <div class="card-title">🧾 Detalle de la Factura</div>
-                <a href="{{ route('facturas.show', $cuentaPorCobrar->factura_id) }}"
+                <a href="{{ route('facturas.show', [$cuentaPorCobrar->factura_id, 'from' => 'cuenta-cobrar', 'from_id' => $cuentaPorCobrar->id]) }}"
                    class="btn btn-light btn-sm">Ver factura</a>
             </div>
             <div class="table-container" style="border: none; box-shadow: none; border-radius: 0;">
@@ -242,7 +242,7 @@ $breadcrumbs = [
                 </span>
                 @endif
 
-                <a href="{{ route('facturas.show', $cuentaPorCobrar->factura_id) }}"
+                <a href="{{ route('facturas.show', [$cuentaPorCobrar->factura_id, 'from' => 'cuenta-cobrar', 'from_id' => $cuentaPorCobrar->id]) }}"
                    class="btn btn-outline w-full">Ver Factura</a>
 
                 <a href="{{ route('cuentas-cobrar.index') }}"

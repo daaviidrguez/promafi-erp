@@ -10,6 +10,9 @@
     </div>
     @endif
 @endsection
+@section('page-actions')
+    @include('partials.doc-show-volver')
+@endsection
 
 @php
 $breadcrumbs = [
@@ -659,6 +662,13 @@ $breadcrumbs = [
                             data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
                             data-folio="{{ $factura->folio_completo }}"
                             data-tipo="factura">🔎 Consultar estatus SAT</button>
+                @endif
+
+                @if($factura->cotizacion)
+                @can('cotizaciones.ver')
+                <a href="{{ route('cotizaciones.show', $factura->cotizacion->id) }}"
+                   class="btn btn-outline w-full">📋 Ver cotización relacionada</a>
+                @endcan
                 @endif
 
                 @can('cancelaciones_administrativas.revertir')

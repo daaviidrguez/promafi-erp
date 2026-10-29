@@ -3,6 +3,9 @@
 
 @section('title', 'Cotización ' . $cotizacion->folio)
 @section('page-title', '📋 Cotización ' . $cotizacion->folio)
+@section('page-actions')
+    @include('partials.doc-show-volver')
+@endsection
 
 @php
 $breadcrumbs = [

@@ -176,6 +176,10 @@ $breadcrumbs = [
                         aria-controls="panel-conceptos" aria-selected="{{ $tabInicial === 'conceptos' ? 'true' : 'false' }}" tabindex="{{ $tabInicial === 'conceptos' ? '0' : '-1' }}">
                     📦 Conceptos <span class="doc-tab-count">{{ $factura->detalles->count() }}</span>
                 </button>
+                <button type="button" class="doc-tab" role="tab" id="tab-observaciones" data-tab="observaciones"
+                        aria-controls="panel-observaciones" aria-selected="false" tabindex="-1">
+                    📝 Observaciones
+                </button>
                 @if($cxc)
                 <button type="button" class="doc-tab" role="tab" id="tab-cobranza" data-tab="cobranza"
                         aria-controls="panel-cobranza" aria-selected="false" tabindex="-1">
@@ -291,6 +295,20 @@ $breadcrumbs = [
                 </div>
             </div>
 
+            {{-- Observaciones --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-observaciones" aria-labelledby="tab-observaciones" hidden>
+                <div class="card-body">
+                    @if($factura->observaciones)
+                        <div class="info-row">
+                            <div class="info-label">📝 Observaciones</div>
+                            <div class="info-value-sm" style="line-height: 1.7; white-space: pre-wrap;">{{ $factura->observaciones }}</div>
+                        </div>
+                    @else
+                        <p class="text-muted" style="margin: 0; font-size: 13px;">Sin observaciones.</p>
+                    @endif
+                </div>
+            </div>
+
             {{-- Cobranza --}}
             @if($cxc)
             <div class="doc-tab-panel" role="tabpanel" id="panel-cobranza" aria-labelledby="tab-cobranza" hidden>
@@ -376,13 +394,6 @@ $breadcrumbs = [
             {{-- Documentos --}}
             <div class="doc-tab-panel" role="tabpanel" id="panel-documentos" aria-labelledby="tab-documentos" @if($tabInicial !== 'documentos') hidden @endif>
                 <div class="card-body">
-                    @if($factura->observaciones)
-                    <div class="info-row" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--color-gray-200);">
-                        <div class="info-label">📝 Observaciones</div>
-                        <div class="info-value-sm" style="line-height: 1.7;">{{ $factura->observaciones }}</div>
-                    </div>
-                    @endif
-
                     {{-- Soporte de recepción (acuse interno, no forma parte del CFDI) --}}
                     <div id="soporte-recepcion">
                         <div class="card-title" style="font-size: 14px; margin-bottom: 8px;">📎 Soporte de recepción</div>

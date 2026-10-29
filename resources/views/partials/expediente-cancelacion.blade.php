@@ -22,6 +22,48 @@
         : collect();
     $embebido = (bool) ($embebido ?? false);
     $tituloExpediente = $soloHistorialAdmin ? 'Historial de cancelación administrativa (ERP)' : 'Cancelación fiscal (PAC / SAT)';
+
+    $codigoSat = $document->codigo_estatus_cancelacion;
+    $mensajePac = $document->mensaje_cancelacion_pac;
+    $fechaPrimerEnvio = $esFactura
+        ? ($document->fecha_cancelacion_pac ?? null)
+        : ($document->fecha_cancelacion ?? null);
+    $fechaUltimaSolicitud = $document->fecha_solicitud_cancelacion ?? null;
+
+    $eventoCodigo = ($codigoSat && $eventos->isNotEmpty())
+        ? $eventos->first(fn ($e) => (string) ($e->codigo_estatus ?? '') === (string) $codigoSat)
+        : null;
+    $eventoMensaje = ($mensajePac && $eventos->isNotEmpty())
+        ? $eventos->first(fn ($e) => filled($e->mensaje) && str_contains((string) $e->mensaje, \Illuminate\Support\Str::limit((string) $mensajePac, 40, '')))
+        : null;
+    $eventoAnclaTecnica = $eventoCodigo ?? $eventoMensaje;
+    $fechaRespuestaTecnica = $eventoAnclaTecnica?->created_at
+        ?? $fechaUltimaSolicitud
+        ?? $fechaPrimerEnvio
+        ?? $eventos->first()?->created_at;
+
+    $mostrarPrimerEnvio = $fechaPrimerEnvio
+        && (
+            ! $fechaUltimaSolicitud
+            || abs($fechaPrimerEnvio->diffInMinutes($fechaUltimaSolicitud)) >= 2
+        );
+
+    $descripcionCodigo = $codigoSat
+        ? ($esFactura
+            ? \App\Models\Factura::descripcionCodigoCancelacion($codigoSat)
+            : \App\Models\ComplementoPago::descripcionCodigoCancelacion($codigoSat))
+        : null;
+
+    $mensajePacLower = mb_strtolower((string) ($mensajePac ?? ''));
+    $respuestaTecnicaDesfasada = $document->canceladaAnteSat()
+        && (
+            (string) $codigoSat === '201'
+            || str_contains($mensajePacLower, 'vigente')
+            || str_contains($mensajePacLower, 'en proceso')
+            || str_contains($mensajePacLower, 'pendiente')
+        );
+
+    $mostrarBandaTecnica = filled($codigoSat) || filled($mensajePac) || filled($document->is_cancelable);
 @endphp
 
 @unless($embebido)
@@ -35,6 +77,9 @@
             <div class="card-title" style="margin-bottom: 14px;">{{ $tituloExpediente }}</div>
         @endif
         @unless($soloHistorialAdmin)
+
+        {{-- Capa 1: estado actual (lo que importa para operar) --}}
+        <div class="info-label" style="margin-bottom: 8px;">Estado actual</div>
         <div class="info-row">
             <div class="info-label">Estado PAC</div>
             <div class="info-value-sm">
@@ -92,57 +137,6 @@
             </div>
         </div>
         @endif
-        @if($esFactura && ($document->fecha_cancelacion_pac ?? null))
-        <div class="info-row">
-            <div class="info-label">Envío PAC/SAT</div>
-            <div class="info-value-sm">{{ $document->fecha_cancelacion_pac->format('d/m/Y H:i') }}</div>
-        </div>
-        @elseif(! $esFactura && ($document->fecha_cancelacion ?? null))
-        <div class="info-row">
-            <div class="info-label">Envío PAC/SAT</div>
-            <div class="info-value-sm">{{ $document->fecha_cancelacion->format('d/m/Y H:i') }}</div>
-        </div>
-        @endif
-        @if($document->is_cancelable && ! $document->canceladaAnteSat())
-        <div class="info-row">
-            <div class="info-label">¿Cancelable?</div>
-            <div class="info-value-sm">{{ $document->is_cancelable }}</div>
-        </div>
-        @endif
-        @if($document->codigo_estatus_cancelacion)
-        <div class="info-row">
-            <div class="info-label">Código SAT</div>
-            <div class="info-value-sm text-mono">
-                {{ $document->codigo_estatus_cancelacion }}
-                — {{ $esFactura
-                    ? \App\Models\Factura::descripcionCodigoCancelacion($document->codigo_estatus_cancelacion)
-                    : \App\Models\ComplementoPago::descripcionCodigoCancelacion($document->codigo_estatus_cancelacion) }}
-            </div>
-        </div>
-        @endif
-        @if($document->fecha_solicitud_cancelacion)
-        <div class="info-row">
-            <div class="info-label">Solicitud enviada</div>
-            <div class="info-value-sm">{{ $document->fecha_solicitud_cancelacion->format('d/m/Y H:i') }}</div>
-        </div>
-        @endif
-        @if($limiteAceptacion)
-        <div class="info-row">
-            <div class="info-label">Límite de aceptación</div>
-            <div class="info-value-sm">
-                {{ $limiteAceptacion->format('d/m/Y H:i') }}
-                @if($esFactura && ! $document->fecha_vencimiento_aceptacion)
-                    <span class="text-muted">(estimado)</span>
-                @endif
-            </div>
-        </div>
-        @endif
-        @if($document->mensaje_cancelacion_pac)
-        <div class="info-row">
-            <div class="info-label">Mensaje PAC</div>
-            <div class="info-value-sm">{{ $document->mensaje_cancelacion_pac }}</div>
-        </div>
-        @endif
 
         @if($esAdmin)
             @if($document->cancelacion_administrativa_motivo)
@@ -157,6 +151,85 @@
                 <div class="info-value-sm">{{ $document->cancelacionAdministrativaUsuario->name }}</div>
             </div>
             @endif
+        @endif
+
+        @if($fechaUltimaSolicitud || $limiteAceptacion || $mostrarPrimerEnvio)
+        <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Proceso ante el PAC / SAT</div>
+        @if($fechaUltimaSolicitud)
+        <div class="info-row">
+            <div class="info-label">Última solicitud</div>
+            <div class="info-value-sm">{{ $fechaUltimaSolicitud->format('d/m/Y H:i') }}</div>
+        </div>
+        @endif
+        @if($limiteAceptacion)
+        <div class="info-row">
+            <div class="info-label">Límite de aceptación</div>
+            <div class="info-value-sm">
+                {{ $limiteAceptacion->format('d/m/Y H:i') }}
+                @if($esFactura && ! $document->fecha_vencimiento_aceptacion)
+                    <span class="text-muted">(estimado)</span>
+                @endif
+            </div>
+        </div>
+        @endif
+        @if($mostrarPrimerEnvio)
+        <div class="info-row">
+            <div class="info-label">Primer envío al PAC</div>
+            <div class="info-value-sm">
+                {{ $fechaPrimerEnvio->format('d/m/Y H:i') }}
+                <span class="text-muted" style="font-size: 11px;"> · distinto de la última solicitud</span>
+            </div>
+        </div>
+        @endif
+        @endif
+
+        {{-- Capa 2: respuesta técnica fechada (patrón banda fiscal) --}}
+        @if($mostrarBandaTecnica)
+        <div class="doc-show-cancel-pac-band" style="margin-top: 16px;">
+            <div class="doc-show-cancel-pac-band-head">
+                <div class="doc-show-cancel-pac-band-title">Última respuesta técnica del PAC</div>
+                @if($fechaRespuestaTecnica)
+                <div class="doc-show-cancel-pac-band-date">
+                    {{ $eventoAnclaTecnica ? $eventoAnclaTecnica->etiquetaTipo().' · ' : '' }}{{ $fechaRespuestaTecnica->format('d/m/Y H:i') }}
+                </div>
+                @endif
+            </div>
+            <div class="doc-show-cancel-pac-band-grid">
+                @if($codigoSat)
+                <div>
+                    <div class="doc-show-fiscal-band-label">Código SAT</div>
+                    <div class="doc-show-fiscal-band-value">
+                        {{ $codigoSat }}@if($descripcionCodigo) — {{ $descripcionCodigo }}@endif
+                    </div>
+                </div>
+                @endif
+                @if($mensajePac)
+                <div>
+                    <div class="doc-show-fiscal-band-label">Mensaje PAC</div>
+                    <div class="doc-show-fiscal-band-value" style="font-family: var(--font-body);">{{ $mensajePac }}</div>
+                </div>
+                @endif
+                @if($document->is_cancelable && ! $document->canceladaAnteSat())
+                <div>
+                    <div class="doc-show-fiscal-band-label">¿Cancelable?</div>
+                    <div class="doc-show-fiscal-band-value">{{ $document->is_cancelable }}</div>
+                </div>
+                @endif
+            </div>
+            @if($respuestaTecnicaDesfasada)
+            <p class="doc-show-cancel-pac-band-note">
+                Código o mensaje pueden corresponder a un paso intermedio del PAC.
+                El <strong>estado actual</strong> del CFDI está arriba; el detalle por fecha está en la bitácora.
+            </p>
+            @else
+            <p class="doc-show-cancel-pac-band-note">
+                Respuesta técnica guardada del PAC en la fecha indicada. No sustituye el estado actual ni la bitácora.
+            </p>
+            @endif
+        </div>
+        @endif
+
+        @if($esAdmin)
             @if($document->pendienteCancelacionAntePac())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
                     Cancelación administrativa en el ERP: inventario y saldo ya se revirtieron.

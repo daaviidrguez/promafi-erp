@@ -682,11 +682,11 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 }
 .doc-show-fiscal-band-copy:hover { background: var(--color-secondary); color: #fff; }
 
-/* Banda respuesta técnica PAC (pestaña Cancelación) */
+/* Banda respuesta técnica PAC (secundaria; el azul queda para el resumen vigente) */
 .doc-show-cancel-pac-band {
     padding: 14px 16px;
-    background: #EEF4FA;
-    border: 1px solid #CFDFEE;
+    background: #F8FAFC;
+    border: 1px solid var(--color-gray-200);
     border-radius: var(--radius-lg);
 }
 .doc-show-cancel-pac-band-head {
@@ -700,7 +700,7 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 .doc-show-cancel-pac-band-title {
     font-size: 12px;
     font-weight: 700;
-    color: var(--color-secondary);
+    color: var(--color-gray-600);
     letter-spacing: 0.02em;
 }
 .doc-show-cancel-pac-band-date {

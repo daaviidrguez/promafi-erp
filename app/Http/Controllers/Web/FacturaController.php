@@ -1293,7 +1293,13 @@ class FacturaController extends Controller
             }
         }
 
-        return response()->file(storage_path('app/'.$factura->pdf_path));
+        return response()->file(storage_path('app/'.$factura->pdf_path), [
+            'Content-Type' => 'application/pdf',
+        ])->setContentDisposition(
+            'inline',
+            $factura->nombreArchivoPdfDescarga(),
+            $factura->nombreArchivoPdfDescargaAscii()
+        );
     }
 
     /**
@@ -1305,7 +1311,16 @@ class FacturaController extends Controller
             return back()->with('error', 'PDF no disponible');
         }
 
-        return $this->pdfService->descargarPDF($factura->pdf_path, $factura->folio_completo.'.pdf');
+        $fullPath = storage_path('app/'.$factura->pdf_path);
+        if (! file_exists($fullPath)) {
+            return back()->with('error', 'PDF no disponible');
+        }
+
+        return response()->download($fullPath)->setContentDisposition(
+            'attachment',
+            $factura->nombreArchivoPdfDescarga(),
+            $factura->nombreArchivoPdfDescargaAscii()
+        );
     }
 
     /**

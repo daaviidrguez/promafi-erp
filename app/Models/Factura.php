@@ -872,6 +872,59 @@ class Factura extends Model
     }
 
     /**
+     * Nombre sugerido al ver/descargar el PDF: folio + cliente + orden de compra.
+     * No renombra el archivo en storage; solo Content-Disposition.
+     */
+    public function nombreArchivoPdfDescarga(): string
+    {
+        $partes = [trim((string) $this->folio_completo)];
+
+        $cliente = trim((string) ($this->nombre_receptor ?? ''));
+        if ($cliente === '') {
+            $cliente = trim((string) ($this->cliente?->nombre ?? ''));
+        }
+        if ($cliente !== '') {
+            $partes[] = $cliente;
+        }
+
+        $ordenCompra = trim((string) ($this->orden_compra ?? ''));
+        if ($ordenCompra !== '') {
+            $partes[] = $ordenCompra;
+        }
+
+        $base = implode(' ', $partes);
+        $base = preg_replace('/[\/\\\\:\*\?"<>\|\x00-\x1F]+/u', ' ', $base) ?? $base;
+        $base = preg_replace('/\s+/u', ' ', trim($base)) ?? trim($base);
+
+        if (mb_strlen($base) > 180) {
+            $base = rtrim(mb_substr($base, 0, 180));
+        }
+
+        if ($base === '') {
+            $base = 'Factura_'.$this->id;
+        }
+
+        return $base.'.pdf';
+    }
+
+    /**
+     * Fallback ASCII para Content-Disposition (navegadores antiguos).
+     */
+    public function nombreArchivoPdfDescargaAscii(): string
+    {
+        $stem = pathinfo($this->nombreArchivoPdfDescarga(), PATHINFO_FILENAME);
+        $ascii = \Illuminate\Support\Str::ascii($stem);
+        $ascii = preg_replace('/[^A-Za-z0-9._ -]+/', '', $ascii) ?? '';
+        $ascii = preg_replace('/\s+/', ' ', trim($ascii)) ?? '';
+
+        if ($ascii === '') {
+            $ascii = 'Factura_'.$this->id;
+        }
+
+        return $ascii.'.pdf';
+    }
+
+    /**
      * Calcular solo IVA (traslados); no incluye retenciones (ISR, etc.).
      */
     public function calcularIVA(): float

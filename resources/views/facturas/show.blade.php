@@ -650,38 +650,12 @@ $breadcrumbs = [
                     @endcanany
                 @endif
 
-                @if($cxc)
-                    <a href="{{ route('cuentas-cobrar.show', $cxc->id) }}" class="btn btn-outline w-full">💰 Ver cuenta por cobrar</a>
-                    @if($saldoPendiente > 0 && $accionPrincipal !== 'complemento')
-                        @if(isset($complementoBorrador) && $complementoBorrador)
-                        <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="btn btn-outline w-full">📄 Ver complemento en borrador</a>
-                        @else
-                        <a href="{{ route('complementos.create', ['cuenta_id' => $cxc->id]) }}" class="btn btn-outline w-full">💵 Crear complemento de pago</a>
-                        @endif
-                    @endif
-                @endif
-
                 @if($factura->puedeConsultarEstatusCancelacion() && $accionPrincipal !== 'consultar_sat')
                     <button type="button"
                             class="btn btn-outline w-full js-actualizar-estatus-sat"
                             data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
                             data-folio="{{ $factura->folio_completo }}"
                             data-tipo="factura">🔎 Consultar estatus SAT</button>
-                @endif
-
-                @if($factura->estaTimbrada())
-                    @if($facturaPagada)
-                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">↩️ Registrar devolución</button>
-                    <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">🧾 Emitir nota de crédito</button>
-                    <p class="doc-show-acciones-nota">No disponibles: la factura ya fue pagada (saldo en cero).</p>
-                    @else
-                    <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">↩️ Registrar devolución</a>
-                    @if(isset($ncBorrador) && $ncBorrador)
-                    <a href="{{ route('notas-credito.show', $ncBorrador->id) }}" class="btn btn-outline w-full">📄 Ver nota de crédito en borrador</a>
-                    @else
-                    <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="btn btn-outline w-full">🧾 Emitir nota de crédito</a>
-                    @endif
-                    @endif
                 @endif
 
                 @can('cancelaciones_administrativas.revertir')
@@ -697,6 +671,59 @@ $breadcrumbs = [
                         @endif
                     @endif
                 @endcan
+
+                @php
+                    $masAccionesComplemento = $cxc
+                        && $saldoPendiente > 0
+                        && $accionPrincipal !== 'complemento';
+                    $masAccionesCorrecciones = $factura->estaTimbrada() && ! $facturaPagada;
+                    $mostrarMasAcciones = (bool) $cxc || $masAccionesComplemento || $masAccionesCorrecciones;
+                @endphp
+                @if($mostrarMasAcciones)
+                <details class="doc-show-acciones-mas">
+                    <summary class="btn btn-outline w-full">⋯ Más acciones</summary>
+                    <div class="doc-show-acciones-mas-menu">
+                        @if($masAccionesComplemento)
+                            @if(isset($complementoBorrador) && $complementoBorrador)
+                            <a href="{{ route('complementos.show', $complementoBorrador->id) }}" class="doc-show-acciones-mas-item">
+                                <span class="icon" aria-hidden="true">📄</span>
+                                <span>Ver complemento en borrador</span>
+                            </a>
+                            @else
+                            <a href="{{ route('complementos.create', ['cuenta_id' => $cxc->id]) }}" class="doc-show-acciones-mas-item">
+                                <span class="icon" aria-hidden="true">💵</span>
+                                <span>Crear complemento de pago</span>
+                            </a>
+                            @endif
+                        @endif
+
+                        @if($cxc)
+                        <a href="{{ route('cuentas-cobrar.show', $cxc->id) }}" class="doc-show-acciones-mas-item">
+                            <span class="icon" aria-hidden="true">💰</span>
+                            <span>Ver cuenta por cobrar</span>
+                        </a>
+                        @endif
+
+                        @if($masAccionesCorrecciones)
+                        <a href="{{ route('devoluciones.create', ['factura_id' => $factura->id]) }}" class="doc-show-acciones-mas-item">
+                            <span class="icon" aria-hidden="true">↩️</span>
+                            <span>Registrar devolución</span>
+                        </a>
+                            @if(isset($ncBorrador) && $ncBorrador)
+                            <a href="{{ route('notas-credito.show', $ncBorrador->id) }}" class="doc-show-acciones-mas-item">
+                                <span class="icon" aria-hidden="true">📄</span>
+                                <span>Ver nota de crédito en borrador</span>
+                            </a>
+                            @else
+                            <a href="{{ route('notas-credito.create', ['factura_id' => $factura->id]) }}" class="doc-show-acciones-mas-item">
+                                <span class="icon" aria-hidden="true">🧾</span>
+                                <span>Emitir nota de crédito</span>
+                            </a>
+                            @endif
+                        @endif
+                    </div>
+                </details>
+                @endif
 
                 {{-- Atajo de módulo (no opera sobre esta factura) --}}
                 @can('facturas.crear')

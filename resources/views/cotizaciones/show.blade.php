@@ -3,7 +3,6 @@
 
 @section('title', 'Cotización ' . $cotizacion->folio)
 @section('page-title', '📋 Cotización ' . $cotizacion->folio)
-@section('page-subtitle', $cotizacion->cliente_nombre)
 
 @php
 $breadcrumbs = [
@@ -31,6 +30,8 @@ $breadcrumbs = [
     $puedeCrearFactura = $cotizacion->puedeFacturarse() && auth()->user()?->can('facturas.crear');
     $verFacturaComoPrincipal = ! $cotizacion->puedeAceptarse() && ! $puedeCrearFactura
         && $cotizacion->factura && auth()->user()?->can('facturas.ver');
+
+    $tabInicial = $errors->has('archivo') || $errors->has('nota') ? 'documentos' : 'productos';
 @endphp
 
 {{-- Cabecera: Cliente | Información --}}
@@ -137,14 +138,31 @@ $breadcrumbs = [
     {{-- Columna principal --}}
     <div>
 
-        {{-- Detalle de Productos --}}
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📦 Detalle de Productos</div>
-                <span class="badge badge-primary">
-                    {{ $cotizacion->detalles->count() }} {{ $cotizacion->detalles->count() === 1 ? 'artículo' : 'artículos' }}
-                </span>
+        <div class="card" data-tabs data-tab-inicial="{{ $tabInicial }}">
+            <div class="doc-tabs" role="tablist" aria-label="Secciones de la cotización">
+                <button type="button" class="doc-tab" role="tab" id="tab-productos" data-tab="productos"
+                        aria-controls="panel-productos" aria-selected="{{ $tabInicial === 'productos' ? 'true' : 'false' }}" tabindex="{{ $tabInicial === 'productos' ? '0' : '-1' }}">
+                    📦 Detalle de Productos <span class="doc-tab-count">{{ $cotizacion->detalles->count() }}</span>
+                </button>
+                <button type="button" class="doc-tab" role="tab" id="tab-condiciones" data-tab="condiciones"
+                        aria-controls="panel-condiciones" aria-selected="false" tabindex="-1">
+                    📄 Condiciones y Observaciones
+                </button>
+                <button type="button" class="doc-tab" role="tab" id="tab-referencia" data-tab="referencia"
+                        aria-controls="panel-referencia" aria-selected="false" tabindex="-1">
+                    🔗 Referencia
+                </button>
+                <button type="button" class="doc-tab" role="tab" id="tab-documentos" data-tab="documentos"
+                        aria-controls="panel-documentos" aria-selected="{{ $tabInicial === 'documentos' ? 'true' : 'false' }}" tabindex="{{ $tabInicial === 'documentos' ? '0' : '-1' }}">
+                    📎 Documentos de respaldo
+                    @if($cotizacion->adjuntos->count())
+                        <span class="doc-tab-count">{{ $cotizacion->adjuntos->count() }}</span>
+                    @endif
+                </button>
             </div>
+
+            {{-- Productos --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-productos" aria-labelledby="tab-productos" @if($tabInicial !== 'productos') hidden @endif>
             <div class="table-container table-container--scroll" style="border: none; box-shadow: none; border-radius: 0; margin-bottom: 0;">
                 <table>
                     <thead>
@@ -276,151 +294,139 @@ $breadcrumbs = [
                     </div>
                 </div>
             </div>
-        </div>
-
-        {{-- Condiciones y Observaciones --}}
-        @if($cotizacion->condiciones_pago || $cotizacion->observaciones)
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📄 Condiciones y Observaciones</div>
             </div>
-            <div class="card-body">
-                @if($cotizacion->condiciones_pago)
-                <div style="margin-bottom: 20px;">
-                    <div class="info-label mb-8">Condiciones Comerciales</div>
-                    <div style="background: var(--color-gray-50); border-left: 3px solid var(--color-primary); padding: 14px 16px; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 13.5px; color: var(--color-gray-700); line-height: 1.7;">
-                        {!! nl2br(e($cotizacion->condiciones_pago)) !!}
-                    </div>
+
+            {{-- Condiciones y Observaciones --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-condiciones" aria-labelledby="tab-condiciones" hidden>
+                <div class="card-body">
+                    @if($cotizacion->condiciones_pago || $cotizacion->observaciones)
+                        @if($cotizacion->condiciones_pago)
+                        <div style="margin-bottom: 20px;">
+                            <div class="info-label mb-8">Condiciones Comerciales</div>
+                            <div style="background: var(--color-gray-50); border-left: 3px solid var(--color-primary); padding: 14px 16px; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 13.5px; color: var(--color-gray-700); line-height: 1.7;">
+                                {!! nl2br(e($cotizacion->condiciones_pago)) !!}
+                            </div>
+                        </div>
+                        @endif
+                        @if($cotizacion->observaciones)
+                        <div>
+                            <div class="info-label mb-8">Observaciones</div>
+                            <div style="background: var(--color-gray-50); border-left: 3px solid var(--color-gray-300); padding: 14px 16px; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 13.5px; color: var(--color-gray-700); line-height: 1.7;">
+                                {!! nl2br(e($cotizacion->observaciones)) !!}
+                            </div>
+                        </div>
+                        @endif
+                    @else
+                        <p class="text-muted" style="margin: 0; font-size: 13px;">Sin condiciones ni observaciones.</p>
+                    @endif
                 </div>
-                @endif
-                @if($cotizacion->observaciones)
-                <div>
-                    <div class="info-label mb-8">Observaciones</div>
-                    <div style="background: var(--color-gray-50); border-left: 3px solid var(--color-gray-300); padding: 14px 16px; border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 13.5px; color: var(--color-gray-700); line-height: 1.7;">
-                        {!! nl2br(e($cotizacion->observaciones)) !!}
+            </div>
+
+            {{-- Referencia (uso interno) --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-referencia" aria-labelledby="tab-referencia" hidden>
+                <div class="card-body">
+                    <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                        Esta información es solo para uso interno y no se mostrará al cliente.
+                    </p>
+                    <div class="info-row">
+                        <div class="info-label">Referencia comercial</div>
+                        <div style="font-size: 14px; color: var(--color-gray-800);">
+                            @if($cotizacion->referencia_comercial)
+                                {{ $cotizacion->referencia_comercial }}
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </div>
                     </div>
-                </div>
-                @endif
-            </div>
-        </div>
-        @endif
-
-        {{-- Uso interno: Referencia | Documentos de respaldo --}}
-        <div class="doc-show-interno-grid">
-
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">🔗 Referencia</div>
-                <span class="badge badge-gray">Uso interno</span>
-            </div>
-            <div class="card-body">
-                <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
-                    Esta información es solo para uso interno y no se mostrará al cliente.
-                </p>
-                <div class="info-row">
-                    <div class="info-label">Referencia comercial</div>
-                    <div style="font-size: 14px; color: var(--color-gray-800);">
-                        @if($cotizacion->referencia_comercial)
-                            {{ $cotizacion->referencia_comercial }}
+                    @foreach(['URL' => $cotizacion->referencia_url, 'URL adicional' => $cotizacion->referencia_url_2, 'Otra URL' => $cotizacion->referencia_url_3] as $etiquetaUrl => $urlReferencia)
+                    <div class="info-row">
+                        <div class="info-label">{{ $etiquetaUrl }}</div>
+                        @if($urlReferencia)
+                            <a href="{{ $urlReferencia }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $urlReferencia }}</a>
                         @else
                             <span class="text-muted">—</span>
                         @endif
                     </div>
+                    @endforeach
                 </div>
-                @foreach(['URL' => $cotizacion->referencia_url, 'URL adicional' => $cotizacion->referencia_url_2, 'Otra URL' => $cotizacion->referencia_url_3] as $etiquetaUrl => $urlReferencia)
-                <div class="info-row">
-                    <div class="info-label">{{ $etiquetaUrl }}</div>
-                    @if($urlReferencia)
-                        <a href="{{ $urlReferencia }}" target="_blank" rel="noopener noreferrer" class="text-mono" style="font-size: 13px; word-break: break-all;">{{ $urlReferencia }}</a>
+            </div>
+
+            {{-- Documentos de respaldo --}}
+            <div class="doc-tab-panel" role="tabpanel" id="panel-documentos" aria-labelledby="tab-documentos" @if($tabInicial !== 'documentos') hidden @endif>
+                <div class="card-body">
+                    <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
+                        Archivos de uso interno (cotizaciones de proveedor u otros soportes).
+                        No se comparten con el cliente ni se incluyen en el PDF de la cotización.
+                    </p>
+
+                    @if($cotizacion->adjuntos->isEmpty())
+                        <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay documentos cargados.</p>
                     @else
-                        <span class="text-muted">—</span>
-                    @endif
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">📎 Documentos de respaldo</div>
-                @if($cotizacion->adjuntos->count())
-                    <span class="badge badge-gray">{{ $cotizacion->adjuntos->count() }}</span>
-                @endif
-            </div>
-            <div class="card-body">
-                <p style="margin: 0 0 16px; font-size: 13px; color: var(--color-gray-600); line-height: 1.55;">
-                    Archivos de uso interno (cotizaciones de proveedor u otros soportes).
-                    No se comparten con el cliente ni se incluyen en el PDF de la cotización.
-                </p>
-
-                @if($cotizacion->adjuntos->isEmpty())
-                    <p class="text-muted" style="margin: 0 0 16px; font-size: 13px;">Aún no hay documentos cargados.</p>
-                @else
-                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
-                        @foreach($cotizacion->adjuntos as $adjunto)
-                            <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
-                                <div style="min-width: 0; flex: 1;">
-                                    <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
-                                        📄 {{ $adjunto->nombre_original }}
-                                    </div>
-                                    <div style="margin-top: 4px; font-size: 12px; color: var(--color-gray-500);">
-                                        {{ $adjunto->created_at?->format('d/m/Y H:i') }}
-                                        · {{ $adjunto->tamanoLegible() }}
-                                        @if($adjunto->usuario)
-                                            · {{ $adjunto->usuario->name }}
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                            @foreach($cotizacion->adjuntos as $adjunto)
+                                <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 14px; background: var(--color-gray-50); border-radius: var(--radius-md); border: 1px solid var(--color-gray-200);">
+                                    <div style="min-width: 0; flex: 1;">
+                                        <div style="font-size: 13.5px; font-weight: 600; color: var(--color-gray-800); word-break: break-word;">
+                                            📄 {{ $adjunto->nombre_original }}
+                                        </div>
+                                        <div style="margin-top: 4px; font-size: 12px; color: var(--color-gray-500);">
+                                            {{ $adjunto->created_at?->format('d/m/Y H:i') }}
+                                            · {{ $adjunto->tamanoLegible() }}
+                                            @if($adjunto->usuario)
+                                                · {{ $adjunto->usuario->name }}
+                                            @endif
+                                        </div>
+                                        @if($adjunto->nota)
+                                            <div style="margin-top: 6px; font-size: 12.5px; color: var(--color-gray-600);">
+                                                {{ $adjunto->nota }}
+                                            </div>
                                         @endif
                                     </div>
-                                    @if($adjunto->nota)
-                                        <div style="margin-top: 6px; font-size: 12.5px; color: var(--color-gray-600);">
-                                            {{ $adjunto->nota }}
-                                        </div>
-                                    @endif
+                                    <div style="display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0;">
+                                        <a href="{{ route('cotizaciones.adjuntos.ver', [$cotizacion->id, $adjunto->id]) }}"
+                                           target="_blank" class="btn btn-outline btn-sm">Ver</a>
+                                        <a href="{{ route('cotizaciones.adjuntos.descargar', [$cotizacion->id, $adjunto->id]) }}"
+                                           class="btn btn-light btn-sm">Descargar</a>
+                                        @can('cotizaciones.adjuntos')
+                                        <form method="POST"
+                                              action="{{ route('cotizaciones.adjuntos.destroy', [$cotizacion->id, $adjunto->id]) }}"
+                                              onsubmit="return confirm('¿Eliminar este documento de respaldo?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-light btn-sm" style="color: var(--color-danger, #b91c1c);">Eliminar</button>
+                                        </form>
+                                        @endcan
+                                    </div>
                                 </div>
-                                <div style="display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0;">
-                                    <a href="{{ route('cotizaciones.adjuntos.ver', [$cotizacion->id, $adjunto->id]) }}"
-                                       target="_blank" class="btn btn-outline btn-sm">Ver</a>
-                                    <a href="{{ route('cotizaciones.adjuntos.descargar', [$cotizacion->id, $adjunto->id]) }}"
-                                       class="btn btn-light btn-sm">Descargar</a>
-                                    @can('cotizaciones.adjuntos')
-                                    <form method="POST"
-                                          action="{{ route('cotizaciones.adjuntos.destroy', [$cotizacion->id, $adjunto->id]) }}"
-                                          onsubmit="return confirm('¿Eliminar este documento de respaldo?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-light btn-sm" style="color: var(--color-danger, #b91c1c);">Eliminar</button>
-                                    </form>
-                                    @endcan
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
+                            @endforeach
+                        </div>
+                    @endif
 
-                @can('cotizaciones.adjuntos')
-                <form method="POST"
-                      action="{{ route('cotizaciones.adjuntos.store', $cotizacion->id) }}"
-                      enctype="multipart/form-data"
-                      style="padding-top: 4px; border-top: 1px solid var(--color-gray-200);">
-                    @csrf
-                    <div class="info-label mb-8" style="margin-top: 12px;">Subir PDF</div>
-                    <div style="display: grid; gap: 10px;">
-                        <input type="file" name="archivo" accept=".pdf,application/pdf" class="form-control" required>
-                        <input type="text" name="nota" class="form-control"
-                               maxlength="255"
-                               placeholder="Nota opcional (ej. Truper, correo 12/mar)"
-                               value="{{ old('nota') }}">
-                        @error('archivo')
-                            <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
-                        @enderror
-                        @error('nota')
-                            <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
-                        @enderror
-                        <button type="submit" class="btn btn-primary" style="justify-self: start;">Subir documento</button>
-                    </div>
-                </form>
-                @endcan
+                    @can('cotizaciones.adjuntos')
+                    <form method="POST"
+                          action="{{ route('cotizaciones.adjuntos.store', $cotizacion->id) }}"
+                          enctype="multipart/form-data"
+                          style="padding-top: 4px; border-top: 1px solid var(--color-gray-200);">
+                        @csrf
+                        <div class="info-label mb-8" style="margin-top: 12px;">Subir PDF</div>
+                        <div style="display: grid; gap: 10px;">
+                            <input type="file" name="archivo" accept=".pdf,application/pdf" class="form-control" required>
+                            <input type="text" name="nota" class="form-control"
+                                   maxlength="255"
+                                   placeholder="Nota opcional (ej. Truper, correo 12/mar)"
+                                   value="{{ old('nota') }}">
+                            @error('archivo')
+                                <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                            @enderror
+                            @error('nota')
+                                <div class="text-danger" style="font-size: 12.5px;">{{ $message }}</div>
+                            @enderror
+                            <button type="submit" class="btn btn-primary" style="justify-self: start;">Subir documento</button>
+                        </div>
+                    </form>
+                    @endcan
+                </div>
             </div>
-        </div>
 
         </div>
 
@@ -433,7 +439,6 @@ $breadcrumbs = [
         <div class="card doc-show-acciones">
             <div class="card-header">
                 <div class="card-title">⚡ Acciones</div>
-                <span class="badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
             </div>
             <div class="card-body">
 
@@ -443,6 +448,15 @@ $breadcrumbs = [
                         <span class="monto">${{ number_format($cotizacion->total, 2) }} <small style="font-size: 11px; font-weight: 600;">{{ $cotizacion->moneda ?? 'MXN' }}</small></span>
                     </div>
                 </div>
+
+                <div class="doc-show-acciones-fila">
+                    <a href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
+                       target="_blank" class="btn btn-light btn-sm">👁️ Ver PDF</a>
+                    <a href="{{ route('cotizaciones.descargar-pdf', $cotizacion->id) }}"
+                       class="btn btn-light btn-sm">📄 Descargar</a>
+                </div>
+
+                <div class="doc-show-acciones-divider"></div>
 
                 {{-- Acción principal según el estado --}}
                 @if($cotizacion->puedeAceptarse())
@@ -512,18 +526,10 @@ $breadcrumbs = [
                 @endif
 
                 @can('cotizaciones.crear')
+                <div class="doc-show-acciones-divider"></div>
                 <a href="{{ route('cotizaciones.create') }}"
                    class="btn btn-outline w-full">➕ Nueva Cotización</a>
                 @endcan
-
-                <div class="doc-show-acciones-divider"></div>
-
-                <div class="doc-show-acciones-fila">
-                    <a href="{{ route('cotizaciones.ver-pdf', $cotizacion->id) }}"
-                       target="_blank" class="btn btn-light btn-sm">👁️ Ver PDF</a>
-                    <a href="{{ route('cotizaciones.descargar-pdf', $cotizacion->id) }}"
-                       class="btn btn-light btn-sm">📄 Descargar</a>
-                </div>
 
             </div>
         </div>
@@ -1011,6 +1017,58 @@ $breadcrumbs = [
                 });
         }, 280);
     });
+})();
+</script>
+<script>
+(function () {
+    var contenedor = document.querySelector('[data-tabs]');
+    if (!contenedor) return;
+    var tabs = Array.prototype.slice.call(contenedor.querySelectorAll('[role="tab"]'));
+
+    function activar(nombre, opciones) {
+        opciones = opciones || {};
+        var tab = tabs.filter(function (t) { return t.dataset.tab === nombre; })[0];
+        if (!tab) return false;
+        tabs.forEach(function (t) {
+            var activo = t === tab;
+            t.setAttribute('aria-selected', activo ? 'true' : 'false');
+            t.tabIndex = activo ? 0 : -1;
+            var panel = document.getElementById(t.getAttribute('aria-controls'));
+            if (panel) panel.hidden = !activo;
+        });
+        if (opciones.actualizarHash) history.replaceState(null, '', '#' + nombre);
+        if (opciones.foco) tab.focus();
+        return true;
+    }
+
+    function tabDesdeHash() {
+        return decodeURIComponent((location.hash || '').replace('#', ''));
+    }
+
+    tabs.forEach(function (tab, i) {
+        tab.addEventListener('click', function () {
+            activar(tab.dataset.tab, { actualizarHash: true });
+        });
+        tab.addEventListener('keydown', function (e) {
+            var destino = null;
+            if (e.key === 'ArrowRight') destino = tabs[(i + 1) % tabs.length];
+            else if (e.key === 'ArrowLeft') destino = tabs[(i - 1 + tabs.length) % tabs.length];
+            else if (e.key === 'Home') destino = tabs[0];
+            else if (e.key === 'End') destino = tabs[tabs.length - 1];
+            if (destino) {
+                e.preventDefault();
+                activar(destino.dataset.tab, { actualizarHash: true, foco: true });
+            }
+        });
+    });
+
+    var inicial = contenedor.dataset.tabInicial;
+    if (inicial === 'productos') {
+        activar(tabDesdeHash()) || activar('productos');
+    } else {
+        activar(inicial);
+    }
+    window.addEventListener('hashchange', function () { activar(tabDesdeHash()); });
 })();
 </script>
 @endpush

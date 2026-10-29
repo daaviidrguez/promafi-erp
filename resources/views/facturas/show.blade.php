@@ -7,7 +7,6 @@
     <span class="info-label">-</span>
     <span class="info-value-sm text-mono">{{ $factura->orden_compra ?? '—' }}</span>
 @endsection
-@section('page-subtitle', $factura->cliente->nombre)
 
 @php
 $breadcrumbs = [
@@ -527,7 +526,6 @@ $breadcrumbs = [
         <div class="card doc-show-acciones">
             <div class="card-header">
                 <div class="card-title">⚡ Acciones</div>
-                <span class="badge {{ $badgeClass }}" @if($badgeTitle) title="{{ $badgeTitle }}" @endif>{{ $badgeLabel }}</span>
             </div>
             <div class="card-body">
 

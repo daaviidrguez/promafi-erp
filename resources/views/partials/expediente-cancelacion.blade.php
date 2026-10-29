@@ -15,6 +15,13 @@
         ? $document->fechaLimiteCancelacionFiscal()
         : ($document->fecha_vencimiento_aceptacion ?? null);
     $facturaSustituta = $facturaSustituta ?? ($esFactura ? $document->resolverFacturaSustituta() : null);
+    $sustitutoConRelacion04 = $esFactura
+        && filled($document->uuid_sustitucion_cancelacion)
+        && $document->sustitutoTieneRelacionFiscal04();
+    $sustitutoSinRelacion04 = $esFactura
+        && (string) ($document->motivo_cancelacion ?? '') === '01'
+        && filled($document->uuid_sustitucion_cancelacion)
+        && ! $sustitutoConRelacion04;
     $bitacoraAdmin = $esFactura
         ? ($document->relationLoaded('cancelacionesAdministrativas')
             ? $document->cancelacionesAdministrativas->sortByDesc('id')
@@ -93,7 +100,7 @@
             <div class="info-label">Estado PAC</div>
             <div class="info-value-sm">
                 @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
-                    Plazo vencido · CFDI vigente
+                    Límite de respuesta vencido · CFDI vigente
                 @elseif($document->solicitudFiscalPendiente())
                     Pendiente de cancelación SAT
                 @elseif($document->canceladaAnteSat())
@@ -113,7 +120,7 @@
             <div class="info-label">Estado SAT</div>
             <div class="info-value-sm">
                 @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
-                    Vigente · plazo de cancelación vencido
+                    Vigente · el límite de respuesta en el ERP ya venció
                 @else
                     {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
                         $document->estatus_cancelacion_pac,
@@ -123,6 +130,12 @@
                 @endif
             </div>
         </div>
+        @if($document->is_cancelable ?? null)
+        <div class="info-row">
+            <div class="info-label">Cancelable (SAT)</div>
+            <div class="info-value-sm">{{ $document->is_cancelable }}</div>
+        </div>
+        @endif
         @if($document->motivo_cancelacion)
         <div class="info-row">
             <div class="info-label">Motivo SAT</div>
@@ -143,6 +156,22 @@
                     {{ $facturaSustituta->folio_completo }}
                 </a>
                 <div class="text-mono text-muted" style="font-size: 11px; word-break: break-all;">{{ $facturaSustituta->uuid }}</div>
+                @if($sustitutoSinRelacion04)
+                    <div class="text-muted" style="font-size: 11.5px; margin-top: 4px; color: var(--color-danger);">
+                        Sin relación fiscal 04 hacia este CFDI. El motivo 01 no es válido hasta corregirlo.
+                    </div>
+                @elseif($sustitutoConRelacion04)
+                    <div class="text-muted" style="font-size: 11.5px; margin-top: 4px;">
+                        Relación 04 (sustitución) verificada en el ERP.
+                    </div>
+                @endif
+            </div>
+        </div>
+        @elseif($sustitutoSinRelacion04)
+        <div class="info-row">
+            <div class="info-label">Relación sustituto</div>
+            <div class="info-value-sm" style="color: var(--color-danger);">
+                El UUID sustituto no tiene tipo de relación 04 hacia esta factura.
             </div>
         </div>
         @endif
@@ -206,7 +235,7 @@
         </div>
         @endif
         <p class="form-hint" style="margin: 8px 0 0; font-size: 11.5px;">
-            Código y mensaje de esta sección corresponden al eco guardado del envío de solicitud, no al estado actual.
+            Código y mensaje de esta sección son el eco del envío. El código 201 solo confirma que el SAT recibió la solicitud; el estado actual está arriba.
         </p>
         @endif
 
@@ -267,9 +296,13 @@
                 </div>
             @elseif($document->cancelacionFiscalVencidaSinResolver())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
-                    El plazo de respuesta ya venció y el SAT todavía reporta el CFDI vigente.
-                    @if($document->cancelacionFiscalVencidaReintentable())
-                        Puede reenviar la cancelación; la consulta SAT vigente es reciente.
+                    El límite de respuesta guardado ya venció y el SAT sigue reportando el CFDI <strong>vigente</strong>
+                    (esto no equivale automáticamente a «cancelado por plazo vencido» del SAT).
+                    @if($sustitutoSinRelacion04)
+                        El intento previo usó motivo <strong>01</strong>, pero el CFDI sustituto <strong>no tiene relación 04</strong> hacia esta factura.
+                        No reenvíe el mismo 01: corrija la relación o use motivo <strong>03</strong> si la operación no se llevó a cabo.
+                    @elseif($document->cancelacionFiscalVencidaReintentable())
+                        Puede reenviar la cancelación; la consulta SAT vigente es reciente. Revise el motivo antes de confirmar.
                     @else
                         Consulte nuevamente el estatus SAT antes de reenviar la cancelación.
                     @endif
@@ -277,8 +310,10 @@
                 </div>
             @elseif($document->solicitudFiscalPendiente())
                 <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
-                    La solicitud sí se envió al SAT, pero el CFDI todavía está vigente.
-                    El código 201 solo confirma que la petición fue recibida, no que ya se canceló.
+                    La solicitud se envió al SAT y la cancelación sigue en proceso; el CFDI aún no figura como cancelado.
+                    @if((string) $document->codigo_estatus_cancelacion === '201')
+                        El código 201 solo confirma recepción exitosa de la solicitud.
+                    @endif
                     El ERP permanece cancelado administrativamente; no se duplican movimientos de inventario.
                 </div>
             @elseif($document->cancelacionFiscalRechazada())

@@ -672,7 +672,7 @@ $breadcrumbs = [
                     @if($factura->pendienteCancelacionAntePac())
                     <p class="doc-show-acciones-nota">El acuse XML estará disponible después de enviar la cancelación al PAC.</p>
                     @elseif($factura->solicitudFiscalPendiente())
-                    <p class="doc-show-acciones-nota">El acuse XML aparece cuando el SAT confirme la cancelación (el código 201 solo indica que la solicitud fue recibida).</p>
+                    <p class="doc-show-acciones-nota">El acuse XML aparece cuando el SAT confirme la cancelación. Si hay código 201, solo confirma que la solicitud fue recibida.</p>
                     @endif
                 @endif
 
@@ -698,7 +698,7 @@ $breadcrumbs = [
                     </button>
                     @elseif($factura->cancelacionFiscalVencidaSinResolver())
                     <p class="doc-show-acciones-nota" style="margin-top: 0;">
-                        El plazo de cancelación venció y el CFDI sigue vigente. Use <strong>Consultar estatus SAT</strong>; después podrá reenviar si continúa vigente.
+                        El límite de respuesta venció y el CFDI sigue vigente. Use <strong>Consultar estatus SAT</strong>; después podrá reenviar si continúa vigente. Revise el motivo (si el 01 no tiene relación 04, use 03).
                     </p>
                     @elseif($tieneDocumentosRelacionados)
                     <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
@@ -723,10 +723,23 @@ $breadcrumbs = [
 
 {{-- Modal Cancelar (timbrada o cancelada administrativamente pendiente de PAC) --}}
 @if($factura->puedeCancelar())
+@php
+    $esReintentoCancelacion = $factura->puedeReintentarCancelacionFiscal();
+    $motivoCancelDefault = old(
+        'motivo_cancelacion',
+        $esReintentoCancelacion
+            ? $factura->motivoCancelacionSugeridoParaReintento()
+            : ($factura->motivo_cancelacion ?: '')
+    );
+    $uuidSustitutoDefault = old('uuid_sustituto', $factura->uuid_sustitucion_cancelacion ?: ($facturaSustituta?->uuid ?? ''));
+    $reintentoSinRelacion04 = $esReintentoCancelacion
+        && (string) ($factura->motivo_cancelacion ?? '') === '01'
+        && ! $factura->sustitutoTieneRelacionFiscal04();
+@endphp
 <div id="modalCancelar" class="modal">
     <div class="modal-box">
         <div class="modal-header">
-            <div class="modal-title" style="color: var(--color-danger);">⚠️ Cancelar Factura</div>
+            <div class="modal-title" style="color: var(--color-danger);">⚠️ {{ $esReintentoCancelacion ? 'Reenviar cancelación al SAT' : 'Cancelar Factura' }}</div>
             <button class="modal-close"
                     onclick="document.getElementById('modalCancelar').classList.remove('show')">✕</button>
         </div>
@@ -740,38 +753,46 @@ $breadcrumbs = [
                     Al confirmar, solo se enviará la <strong>cancelación ante el PAC/SAT</strong>. No se volverán a registrar movimientos de inventario,
                     aunque después se haya facturado con relación el mismo stock.
                 </div>
-                @elseif($factura->puedeReintentarCancelacionFiscal())
+                @elseif($esReintentoCancelacion)
                 <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
                     @if($factura->cancelacionFiscalVencidaSinResolver())
-                        El plazo de la solicitud anterior venció y una consulta reciente confirma que el CFDI sigue vigente.
+                        El límite de la solicitud anterior venció y una consulta reciente confirma que el CFDI sigue <strong>vigente</strong>.
                     @else
                         El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
+                    @endif
+                    @if($reintentoSinRelacion04)
+                        <br><br>
+                        El intento previo usó motivo <strong>01</strong>, pero el UUID sustituto <strong>no tiene relación fiscal 04</strong> hacia esta factura.
+                        Se sugiere motivo <strong>03</strong> (operación no realizada). Si insiste en 01, elija un sustituto que sí tenga relación 04.
                     @endif
                     El ERP permanece cancelado administrativamente; reenviar no restaura ni vuelve a mover inventario.
                 </div>
                 @endif
                 <p class="text-muted" style="margin-bottom: 20px;">
-                    ¿Estás seguro de cancelar esta factura? Esta acción es irreversible.
+                    ¿Estás seguro de {{ $esReintentoCancelacion ? 'reenviar la cancelación de' : 'cancelar' }} esta factura? Esta acción es irreversible ante el PAC/SAT.
                 </p>
                 <div class="form-group">
                     <label class="form-label">Motivo de Cancelación <span class="req">*</span></label>
                     <select name="motivo_cancelacion" id="cancelMotivo" class="form-control" required>
-                        <option value="01" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '01')>01 - Comprobante emitido con errores con relación</option>
-                        <option value="02" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '02')>02 - Comprobante emitido con errores sin relación</option>
-                        <option value="03" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '03')>03 - No se llevó a cabo la operación</option>
-                        <option value="04" @selected(old('motivo_cancelacion', $factura->motivo_cancelacion) === '04')>04 - Operación nominativa relacionada en factura global</option>
+                        <option value="01" @selected($motivoCancelDefault === '01')>01 - Comprobante emitido con errores con relación</option>
+                        <option value="02" @selected($motivoCancelDefault === '02')>02 - Comprobante emitido con errores sin relación</option>
+                        <option value="03" @selected($motivoCancelDefault === '03')>03 - No se llevó a cabo la operación</option>
+                        <option value="04" @selected($motivoCancelDefault === '04')>04 - Operación nominativa relacionada en factura global</option>
                     </select>
+                    @if($reintentoSinRelacion04 && $motivoCancelDefault === '03')
+                    <span class="form-hint">Sugerido automáticamente: el 01 anterior no tenía relación 04 válida.</span>
+                    @endif
                 </div>
                 <div id="bloqueUuidSustituto" class="form-group" style="display: none;">
                     <label class="form-label">UUID Sustituto <span class="req">*</span></label>
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <input type="text" id="inputUuidSustitutoDisplay" class="form-control" readonly placeholder="Seleccione la factura que sustituye a esta" value="{{ old('uuid_sustituto', $factura->uuid_sustitucion_cancelacion ?: ($facturaSustituta?->uuid ?? '')) }}" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
-                        <input type="hidden" name="uuid_sustituto" id="inputUuidSustituto" value="{{ old('uuid_sustituto', $factura->uuid_sustitucion_cancelacion ?: ($facturaSustituta?->uuid ?? '')) }}">
+                        <input type="text" id="inputUuidSustitutoDisplay" class="form-control" readonly placeholder="Seleccione la factura que sustituye a esta" value="{{ $motivoCancelDefault === '01' ? $uuidSustitutoDefault : '' }}" style="flex: 1; min-width: 200px; background: var(--color-gray-50);">
+                        <input type="hidden" name="uuid_sustituto" id="inputUuidSustituto" value="{{ $motivoCancelDefault === '01' ? $uuidSustitutoDefault : '' }}">
                         <button type="button" class="btn btn-outline-primary" onclick="abrirModalSeleccionarSustituto()">
                             Seleccionar factura que sustituye
                         </button>
                     </div>
-                    <span class="form-hint">Obligatorio cuando el motivo es 01 (SAT): UUID del CFDI que reemplaza a esta factura.</span>
+                    <span class="form-hint">Obligatorio con motivo 01: el CFDI sustituto debe tener tipo de relación 04 apuntando a esta factura.</span>
                 </div>
             </div>
             <div class="modal-footer">

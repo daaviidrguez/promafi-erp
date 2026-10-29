@@ -730,6 +730,44 @@ class Factura extends Model
             );
     }
 
+    /**
+     * El CFDI sustituto (motivo 01) debe llevar tipo de relación 04
+     * apuntando al UUID de esta factura.
+     */
+    public function sustitutoTieneRelacionFiscal04(?string $uuidSustituto = null): bool
+    {
+        $uuidSust = strtoupper(trim((string) ($uuidSustituto ?? $this->uuid_sustitucion_cancelacion ?? '')));
+        $uuidPropio = strtoupper(trim((string) ($this->uuid ?? '')));
+        if ($uuidSust === '' || $uuidPropio === '') {
+            return false;
+        }
+
+        $sustituta = self::query()->where('uuid', $uuidSust)->first();
+        if (! $sustituta) {
+            return false;
+        }
+        if ((string) $sustituta->tipo_relacion !== '04') {
+            return false;
+        }
+
+        $refs = preg_split('/[,;\s]+/', (string) ($sustituta->uuid_referencia ?? '')) ?: [];
+
+        return in_array($uuidPropio, array_map('strtoupper', array_filter($refs)), true);
+    }
+
+    /**
+     * Motivo sugerido al reintentar: si el 01 previo no tiene relación 04 válida, proponer 03.
+     */
+    public function motivoCancelacionSugeridoParaReintento(): string
+    {
+        $previo = (string) ($this->motivo_cancelacion ?? '');
+        if ($previo === '01' && ! $this->sustitutoTieneRelacionFiscal04()) {
+            return '03';
+        }
+
+        return in_array($previo, ['01', '02', '03', '04'], true) ? $previo : '03';
+    }
+
     public function puedeConsultarEstatusCancelacion(): bool
     {
         return ! empty($this->uuid)
@@ -850,7 +888,7 @@ class Factura extends Model
         }
         if ($this->estado === 'cancelada') {
             if ($this->cancelacionFiscalVencidaSinResolver()) {
-                return 'Cancelada en ERP · Plazo SAT vencido, CFDI vigente';
+                return 'Cancelada en ERP · Límite de respuesta vencido, CFDI vigente';
             }
 
             return EstatusCancelacionCfdi::etiquetaListado(
@@ -876,8 +914,8 @@ class Factura extends Model
         }
         if ($this->cancelacionFiscalVencidaSinResolver()) {
             return $this->cancelacionFiscalVencidaReintentable()
-                ? 'Plazo SAT vencido · CFDI vigente · Reintento disponible'
-                : 'Plazo SAT vencido · CFDI vigente · Consulte el SAT antes de reenviar';
+                ? 'Límite de respuesta vencido · CFDI vigente · Reintento disponible'
+                : 'Límite de respuesta vencido · CFDI vigente · Consulte el SAT antes de reenviar';
         }
         if ($this->solicitudFiscalPendiente()) {
             $hasta = $this->fecha_vencimiento_aceptacion

@@ -940,6 +940,20 @@ class FacturaController extends Controller
             ? trim($validated['uuid_sustituto'] ?? '')
             : null;
 
+        if ($uuidSustituto !== null && $uuidSustituto !== '') {
+            $sustituta = Factura::query()->where('uuid', $uuidSustituto)->first();
+            if (! $sustituta) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'No se encontró en el ERP la factura con el UUID sustituto indicado.');
+            }
+            if (! $factura->sustitutoTieneRelacionFiscal04($uuidSustituto)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'El motivo 01 exige que la factura sustituta tenga tipo de relación 04 (sustitución) apuntando al UUID de esta factura. Corrija la relación fiscal del sustituto o use motivo 03 si la operación no se llevó a cabo.');
+            }
+        }
+
         DB::beginTransaction();
         try {
             $resultado = $this->pacService->cancelarFactura(

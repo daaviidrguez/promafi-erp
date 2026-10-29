@@ -7,6 +7,8 @@ use Carbon\Carbon;
 /**
  * Catálogo y textos de cancelación fiscal (PAC/SAT).
  * El código 201 solo se muestra si el PAC lo devolvió; nunca se inventa.
+ * El 201 confirma recepción de la solicitud ante el SAT; el estado final
+ * lo definen Status PAC, Message e IsCancelable / consulta SAT.
  */
 class EstatusCancelacionCfdi
 {
@@ -14,7 +16,7 @@ class EstatusCancelacionCfdi
     {
         $map = [
             'ADM' => 'Cancelación administrativa en ERP (pendiente de envío al SAT)',
-            '201' => 'Solicitud de cancelación recibida (el CFDI puede seguir vigente)',
+            '201' => 'Solicitud de cancelación recibida por el SAT',
             '202' => 'UUID previamente cancelado',
             '203' => 'UUID no corresponde al emisor',
             '204' => 'UUID no aplicable para cancelación',
@@ -172,9 +174,8 @@ class EstatusCancelacionCfdi
             return true;
         }
 
-        return $status === 'pending'
-            || $sat === 'Pendiente'
-            || ($codigo === '201' && $status !== 'canceled');
+        // El 201 no decide pendiente: solo confirma que el SAT recibió la solicitud.
+        return $status === 'pending' || $sat === 'Pendiente';
     }
 
     public static function estatusSatParaUsuario(
@@ -240,9 +241,11 @@ class EstatusCancelacionCfdi
         if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo, $mensajePac)) {
             $plazo = $expira
                 ? ' El receptor tiene hasta el '.$expira.' para aceptar o rechazar.'
-                : ' El proceso puede requerir la aceptación del receptor.';
+                : '';
+            $cancelable = trim((string) ($resultado['is_cancelable'] ?? ''));
+            $cond = $cancelable !== '' ? ' Condición SAT: '.$cancelable.'.' : '';
 
-            return 'La solicitud de cancelación fue recibida, pero el CFDI todavía está vigente ante el SAT.'.$plazo.' Consulte nuevamente hasta obtener la confirmación final.'.$adminOps;
+            return 'La cancelación está en proceso ante el SAT; el CFDI aún no figura como cancelado.'.$plazo.$cond.' Consulte de nuevo hasta obtener la confirmación final.'.$adminOps;
         }
 
         if (self::esRechazada($statusPac, $codigo)) {

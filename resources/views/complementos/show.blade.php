@@ -253,7 +253,7 @@ $breadcrumbs = [
                        class="btn btn-outline w-full">📄 Acuse de cancelación (XML)</a>
                     @elseif($complemento->solicitudFiscalPendiente())
                     <div class="alert alert-info" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
-                        El acuse XML aparece cuando el SAT confirme la cancelación. El código 201 solo indica que la solicitud fue recibida. Use «Consultar estatus SAT».
+                        El acuse XML aparece cuando el SAT confirme la cancelación. El código 201 solo confirma recepción de la solicitud ante el SAT. Use «Consultar estatus SAT».
                     </div>
                     @elseif($complemento->canceladaAnteSat())
                     <a href="{{ route('complementos.obtener-acuse-cancelacion', $complemento->id) }}"

@@ -94,9 +94,9 @@ class FacturaCancelacionAdministrativa extends Model
 
         if ($factura->cancelacionFiscalVencidaSinResolver()) {
             return [
-                'label' => 'Plazo SAT vencido',
+                'label' => 'Límite respuesta vencido',
                 'badge' => 'warning',
-                'title' => 'El plazo de respuesta venció y el SAT aún reporta el CFDI vigente.',
+                'title' => 'El límite de respuesta venció y el SAT aún reporta el CFDI vigente.',
             ];
         }
 
@@ -104,7 +104,7 @@ class FacturaCancelacionAdministrativa extends Model
             return [
                 'label' => 'Pendiente SAT',
                 'badge' => 'warning',
-                'title' => 'Solicitud enviada al SAT; el CFDI puede seguir vigente hasta la respuesta.',
+                'title' => 'Solicitud recibida por el SAT; la cancelación sigue en proceso.',
             ];
         }
 

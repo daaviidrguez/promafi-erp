@@ -560,6 +560,41 @@ $breadcrumbs = [
                     @endif
                 </div>
 
+                {{-- Documentos del registro (consulta rápida junto al resumen) --}}
+                <div class="doc-show-acciones-fila">
+                    <a id="linkVerFacturaPdf" href="{{ route('facturas.ver-pdf', $factura->id) }}"
+                       target="_blank" class="btn btn-light btn-sm">👁️ Ver factura</a>
+                    @if($factura->soporte)
+                    <a id="linkVerSoporteRecepcion" href="{{ route('facturas.soporte.ver', $factura) }}"
+                       target="_blank" class="btn btn-light btn-sm js-ver-soporte">📎 Soporte</a>
+                    @endif
+                    @if($cfdiTimbradoAcciones && $factura->pdf_path)
+                    <a href="{{ route('facturas.descargar-pdf', $factura->id) }}" class="btn btn-light btn-sm">📑 PDF</a>
+                    @endif
+                    @if($cfdiTimbradoAcciones && $factura->xml_path)
+                    <a href="{{ route('facturas.descargar-xml', $factura->id) }}" class="btn btn-light btn-sm">📄 XML</a>
+                    @endif
+                    @if($factura->estado === 'cancelada')
+                        @if($factura->canceladaAnteSat() && !empty($factura->uuid))
+                        <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📑 Acuse de cancelación (PDF)</a>
+                        @endif
+                        @if($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido())
+                        <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📄 Acuse de cancelación (XML)</a>
+                        @elseif(! $factura->pendienteCancelacionAntePac() && ! $factura->solicitudFiscalPendiente() && $factura->canceladaAnteSat())
+                        <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📄 Obtener acuse XML</a>
+                        @endif
+                    @endif
+                </div>
+                @if($factura->estado === 'cancelada' && ! ($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido()))
+                    @if($factura->pendienteCancelacionAntePac())
+                    <p class="doc-show-acciones-nota">El acuse XML estará disponible después de enviar la cancelación al PAC.</p>
+                    @elseif($factura->solicitudFiscalPendiente())
+                    <p class="doc-show-acciones-nota">El acuse XML aparece cuando el SAT confirme la cancelación. Si hay código 201, solo confirma que la solicitud fue recibida.</p>
+                    @endif
+                @endif
+
+                <div class="doc-show-acciones-divider"></div>
+
                 {{-- Acción principal según el estado --}}
                 @if($accionPrincipal === 'timbrar')
                     @if($factura->puedeTimbrar())
@@ -663,44 +698,12 @@ $breadcrumbs = [
                     @endif
                 @endcan
 
+                {{-- Atajo de módulo (no opera sobre esta factura) --}}
                 @can('facturas.crear')
+                <div class="doc-show-acciones-divider"></div>
                 <a href="{{ route('facturas.create') }}"
                    class="btn btn-outline w-full">➕ Nueva Factura</a>
                 @endcan
-
-                {{-- Documentos --}}
-                <div class="doc-show-acciones-divider"></div>
-                <div class="doc-show-acciones-fila">
-                    <a id="linkVerFacturaPdf" href="{{ route('facturas.ver-pdf', $factura->id) }}"
-                       target="_blank" class="btn btn-light btn-sm">👁️ Ver factura</a>
-                    @if($factura->soporte)
-                    <a id="linkVerSoporteRecepcion" href="{{ route('facturas.soporte.ver', $factura) }}"
-                       target="_blank" class="btn btn-light btn-sm js-ver-soporte">📎 Soporte</a>
-                    @endif
-                    @if($cfdiTimbradoAcciones && $factura->pdf_path)
-                    <a href="{{ route('facturas.descargar-pdf', $factura->id) }}" class="btn btn-light btn-sm">📑 PDF</a>
-                    @endif
-                    @if($cfdiTimbradoAcciones && $factura->xml_path)
-                    <a href="{{ route('facturas.descargar-xml', $factura->id) }}" class="btn btn-light btn-sm">📄 XML</a>
-                    @endif
-                    @if($factura->estado === 'cancelada')
-                        @if($factura->canceladaAnteSat() && !empty($factura->uuid))
-                        <a href="{{ route('facturas.descargar-pdf-acuse-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📑 Acuse de cancelación (PDF)</a>
-                        @endif
-                        @if($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido())
-                        <a href="{{ route('facturas.descargar-xml-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📄 Acuse de cancelación (XML)</a>
-                        @elseif(! $factura->pendienteCancelacionAntePac() && ! $factura->solicitudFiscalPendiente() && $factura->canceladaAnteSat())
-                        <a href="{{ route('facturas.obtener-acuse-cancelacion', $factura->id) }}" class="btn btn-light btn-sm full">📄 Obtener acuse XML</a>
-                        @endif
-                    @endif
-                </div>
-                @if($factura->estado === 'cancelada' && ! ($factura->canceladaAnteSat() && $factura->tieneAcuseCancelacionXmlValido()))
-                    @if($factura->pendienteCancelacionAntePac())
-                    <p class="doc-show-acciones-nota">El acuse XML estará disponible después de enviar la cancelación al PAC.</p>
-                    @elseif($factura->solicitudFiscalPendiente())
-                    <p class="doc-show-acciones-nota">El acuse XML aparece cuando el SAT confirme la cancelación. Si hay código 201, solo confirma que la solicitud fue recibida.</p>
-                    @endif
-                @endif
 
                 {{-- Zona de riesgo --}}
                 @if($hayZonaRiesgo)

@@ -635,6 +635,15 @@ class FacturamaService
         }
 
         $parsed['solicitud_aceptada'] = $solicitudAceptada;
+        $parsed['cancelada_sat'] = EstatusCancelacionCfdi::esCanceladaSat(
+            $statusPac,
+            $parsed['estatus_sat'] ?? null,
+            $parsed['codigo_estatus'] ?? null,
+            $parsed['mensaje_pac'] ?? null
+        );
+        if ($parsed['cancelada_sat'] && empty($parsed['estatus_sat'])) {
+            $parsed['estatus_sat'] = 'Cancelado';
+        }
         $parsed['payload'] = $data;
         $parsed['success'] = $solicitudAceptada && $statusPac !== 'active' && $statusPac !== 'rejected';
         $parsed['message'] = EstatusCancelacionCfdi::mensajeUsuario($parsed);
@@ -915,8 +924,8 @@ class FacturamaService
 
         $estatusSat = null;
         $satConsulta = null;
-        // GET /cfdi/status consume folio. Si ya hay cancelación fiscal firme, no hace falta.
-        $canceladaSatFirme = EstatusCancelacionCfdi::esCanceladaSat($statusPac, null, $codigoEstatus);
+        // GET /cfdi/status consume folio. Si el PAC ya cerró (canceled / mensaje terminal), no hace falta.
+        $canceladaSatFirme = EstatusCancelacionCfdi::esCanceladaSat($statusPac, null, $codigoEstatus, $mensajePac);
         $debeConsultarSat = ! $canceladaSatFirme
             && ! empty($uuid)
             && ! empty($rfcEmisor)
@@ -936,6 +945,8 @@ class FacturamaService
             if (empty($isCancelable) && ! empty($satConsulta['is_cancelable'])) {
                 $isCancelable = $satConsulta['is_cancelable'];
             }
+        } elseif ($canceladaSatFirme) {
+            $estatusSat = 'Cancelado';
         }
 
         $resultado = array_merge($this->resultadoCancelacionVacio(), [
@@ -954,7 +965,12 @@ class FacturamaService
                 'consulta_sat' => $satConsulta,
             ],
         ]);
-        $resultado['cancelada_sat'] = EstatusCancelacionCfdi::esCanceladaSat($statusPac, $estatusSat, $codigoEstatus);
+        $resultado['cancelada_sat'] = EstatusCancelacionCfdi::esCanceladaSat(
+            $statusPac,
+            $estatusSat,
+            $codigoEstatus,
+            $mensajePac
+        );
         $resultado['message'] = EstatusCancelacionCfdi::mensajeUsuario($resultado);
 
         return $resultado;

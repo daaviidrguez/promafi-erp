@@ -101,8 +101,32 @@ class EstatusCancelacionCfdi
         return self::normalizarStatusPac($statusPac) === 'pending';
     }
 
-    public static function esCanceladaSat(?string $statusPac, ?string $estatusSat, ?string $codigo = null): bool
+    /**
+     * Mensajes terminales del PAC/SAT (p. ej. "Cancelado: Cancelado sin aceptación").
+     * El código 201 del acuse solo confirma recepción; no niega un Status canceled.
+     */
+    public static function mensajeIndicaCancelacionTerminal(?string $mensaje): bool
     {
+        $mensaje = mb_strtolower(trim((string) $mensaje));
+        if ($mensaje === '') {
+            return false;
+        }
+
+        return str_contains($mensaje, 'cancelado sin acept')
+            || str_contains($mensaje, 'cancelado con acept')
+            || str_contains($mensaje, 'cancelado plazo vencido')
+            || str_contains($mensaje, 'cancelled without')
+            || str_contains($mensaje, 'canceled without')
+            || str_contains($mensaje, 'cancelled with acceptance')
+            || str_contains($mensaje, 'canceled with acceptance');
+    }
+
+    public static function esCanceladaSat(
+        ?string $statusPac,
+        ?string $estatusSat,
+        ?string $codigo = null,
+        ?string $mensajePac = null
+    ): bool {
         $status = self::normalizarStatusPac($statusPac);
         $sat = self::normalizarEstatusSat($estatusSat);
         $codigo = (string) $codigo;
@@ -117,35 +141,52 @@ class EstatusCancelacionCfdi
         if (in_array($status, ['accepted', 'expired'], true) || $codigo === '202') {
             return true;
         }
-        if ($codigo === '201') {
-            return false;
+
+        // Facturama: Status canceled = cierre en el PAC (incluye sin/con aceptación).
+        // El 201 del acuse no debe impedir marcar cancelada.
+        if ($status === 'canceled') {
+            return true;
         }
 
-        return $status === 'canceled';
+        return self::mensajeIndicaCancelacionTerminal($mensajePac);
     }
 
-    public static function esPendienteCancelacion(?string $statusPac, ?string $estatusSat, ?string $codigo = null): bool
-    {
+    public static function esPendienteCancelacion(
+        ?string $statusPac,
+        ?string $estatusSat,
+        ?string $codigo = null,
+        ?string $mensajePac = null
+    ): bool {
         $status = self::normalizarStatusPac($statusPac);
         $sat = self::normalizarEstatusSat($estatusSat);
         $codigo = (string) $codigo;
 
-        if (self::esCanceladaSat($status, $sat, $codigo) || self::esRechazada($status, $codigo) || $status === 'active') {
+        if (self::esCanceladaSat($status, $sat, $codigo, $mensajePac)
+            || self::esRechazada($status, $codigo)
+            || $status === 'active') {
             return false;
         }
 
+        // Desfase raro: PAC ya canceled pero la consulta SAT aún reporta Vigente.
+        if ($status === 'canceled' && $sat === 'Vigente') {
+            return true;
+        }
+
         return $status === 'pending'
-            || $codigo === '201'
             || $sat === 'Pendiente'
-            || ($status === 'canceled' && $sat === 'Vigente');
+            || ($codigo === '201' && $status !== 'canceled');
     }
 
-    public static function estatusSatParaUsuario(?string $statusPac, ?string $estatusSat, ?string $codigo = null): string
-    {
-        if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
+    public static function estatusSatParaUsuario(
+        ?string $statusPac,
+        ?string $estatusSat,
+        ?string $codigo = null,
+        ?string $mensajePac = null
+    ): string {
+        if (self::esCanceladaSat($statusPac, $estatusSat, $codigo, $mensajePac)) {
             return 'Cancelado';
         }
-        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo)) {
+        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo, $mensajePac)) {
             return self::normalizarEstatusSat($estatusSat) === 'Vigente'
                 ? 'Vigente · cancelación pendiente'
                 : 'Pendiente de cancelación';
@@ -185,15 +226,18 @@ class EstatusCancelacionCfdi
             ? ' La cancelación administrativa del ERP permanece registrada sin duplicar movimientos.'
             : '';
 
-        if (self::esCanceladaSat($statusPac, $estatusSat, $codigo)) {
+        if (self::esCanceladaSat($statusPac, $estatusSat, $codigo, $mensajePac)) {
             $codigoTxt = (string) $codigo === '202'
                 ? ' El código 202 indica que el UUID ya se encontraba cancelado.'
                 : '';
+            $detalleMsg = self::mensajeIndicaCancelacionTerminal($mensajePac) && $mensajePac !== ''
+                ? ' ('.$mensajePac.').'
+                : '';
 
-            return 'Cancelación confirmada ante el SAT.'.$codigoTxt.$adminOps;
+            return 'Cancelación confirmada ante el SAT.'.$detalleMsg.$codigoTxt.$adminOps;
         }
 
-        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo)) {
+        if (self::esPendienteCancelacion($statusPac, $estatusSat, $codigo, $mensajePac)) {
             $plazo = $expira
                 ? ' El receptor tiene hasta el '.$expira.' para aceptar o rechazar.'
                 : ' El proceso puede requerir la aceptación del receptor.';

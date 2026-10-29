@@ -52,8 +52,12 @@ class CancelacionFiscalService
         );
         $estatusSat = EstatusCancelacionCfdi::normalizarEstatusSat($resultado['estatus_sat'] ?? null);
         $codigo = $resultado['codigo_estatus'] ?? null;
+        $mensajePac = isset($resultado['mensaje_pac']) ? trim((string) $resultado['mensaje_pac']) : null;
+        if ($mensajePac === '') {
+            $mensajePac = null;
+        }
         if ($statusPac === null && FacturamaService::decodificarAcuseCancelacionXml($documento->acuse_cancelacion) !== null
-            && EstatusCancelacionCfdi::esCanceladaSat('canceled', $estatusSat, is_string($codigo) ? $codigo : null)) {
+            && EstatusCancelacionCfdi::esCanceladaSat('canceled', $estatusSat, is_string($codigo) ? $codigo : null, $mensajePac)) {
             $statusPac = 'canceled';
         }
         $esAdmin = $documento instanceof Factura && (bool) $documento->cancelacion_administrativa;
@@ -61,8 +65,8 @@ class CancelacionFiscalService
         if ($statusPac !== null) {
             $updates['estatus_cancelacion_pac'] = $statusPac;
         }
-        if (! empty($resultado['mensaje_pac'])) {
-            $updates['mensaje_cancelacion_pac'] = Str::limit(trim((string) $resultado['mensaje_pac']), 500, '');
+        if ($mensajePac !== null) {
+            $updates['mensaje_cancelacion_pac'] = Str::limit($mensajePac, 500, '');
         }
         if (! empty($resultado['is_cancelable'])) {
             $updates['is_cancelable'] = Str::limit((string) $resultado['is_cancelable'], 80, '');
@@ -92,8 +96,17 @@ class CancelacionFiscalService
             $updates['codigo_estatus_cancelacion'] = null;
         }
 
-        $canceladaSat = EstatusCancelacionCfdi::esCanceladaSat($statusPac, $estatusSat, is_string($codigo) ? $codigo : null);
+        $canceladaSat = EstatusCancelacionCfdi::esCanceladaSat(
+            $statusPac,
+            $estatusSat,
+            is_string($codigo) ? $codigo : null,
+            $mensajePac
+        );
         if ($canceladaSat) {
+            // El PAC ya cerró (p. ej. canceled + sin aceptación); no dejar estatus_sat vacío.
+            if ($estatusSat === null) {
+                $updates['estatus_sat'] = 'Cancelado';
+            }
             if ($documento instanceof Factura && $esAdmin) {
                 $updates['fecha_cancelacion_pac'] = $documento->fecha_cancelacion_pac ?? now();
             } elseif (empty($documento->fecha_cancelacion)) {
@@ -178,11 +191,16 @@ class CancelacionFiscalService
 
         $resultado['solicitud_aceptada'] = EstatusCancelacionCfdi::solicitudAceptadaPorPac($status)
             || (bool) ($resultado['solicitud_aceptada'] ?? false);
+        $mensajePacFusion = $resultado['mensaje_pac'] ?? $documento->mensaje_cancelacion_pac ?? null;
         $resultado['cancelada_sat'] = EstatusCancelacionCfdi::esCanceladaSat(
             $status,
             $resultado['estatus_sat'] ?? $documento->estatus_sat ?? null,
-            $resultado['codigo_estatus'] ?? null
+            $resultado['codigo_estatus'] ?? null,
+            is_string($mensajePacFusion) ? $mensajePacFusion : null
         );
+        if (($resultado['cancelada_sat'] ?? false) && empty($resultado['estatus_sat'])) {
+            $resultado['estatus_sat'] = 'Cancelado';
+        }
         $esAdmin = $documento instanceof Factura && (bool) $documento->cancelacion_administrativa;
         $resultado['message'] = EstatusCancelacionCfdi::mensajeUsuario($resultado, $esAdmin);
 

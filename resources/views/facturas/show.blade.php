@@ -2,10 +2,13 @@
 
 @section('title', 'Factura ' . $factura->folio_completo)
 @section('page-title', '🧾 Factura ' . $factura->folio_completo)
-@section('page-meta')
-    <span class="info-label">Orden de compra</span>
-    <span class="info-label">-</span>
-    <span class="info-value-sm text-mono">{{ $factura->orden_compra ?? '—' }}</span>
+@section('page-title-aside')
+    @if(filled($factura->orden_compra))
+    <div class="page-title-oc" title="Orden de compra">
+        <span class="page-title-oc-label">OC</span>
+        <span class="page-title-oc-value">{{ $factura->orden_compra }}</span>
+    </div>
+    @endif
 @endsection
 
 @php

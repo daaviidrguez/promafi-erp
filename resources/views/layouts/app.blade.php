@@ -38,8 +38,18 @@
             {{-- Page Header (título + subtítulo) --}}
             @hasSection('page-title')
             <div class="page-header">
-                <div>
-                    <h1 class="page-title">@yield('page-title')</h1>
+                <div class="page-header-main">
+                    <div class="page-header-title-row">
+                        <h1 class="page-title">@yield('page-title')</h1>
+                        @hasSection('page-title-aside')
+                            @php
+                                $pageTitleAside = trim($__env->yieldContent('page-title-aside'));
+                            @endphp
+                            @if($pageTitleAside !== '')
+                                <div class="page-title-aside">{!! $pageTitleAside !!}</div>
+                            @endif
+                        @endif
+                    </div>
                     @hasSection('page-meta')
                         <div class="page-meta">@yield('page-meta')</div>
                     @endif
@@ -48,7 +58,7 @@
                     @endif
                 </div>
                 @hasSection('page-actions')
-                    <div>@yield('page-actions')</div>
+                    <div class="page-header-actions">@yield('page-actions')</div>
                 @endif
             </div>
             @endif

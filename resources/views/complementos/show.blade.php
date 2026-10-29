@@ -94,7 +94,7 @@ $breadcrumbs = [
                             @endphp
                             <tr>
                                 <td>
-                                    <a href="{{ route('facturas.show', $doc->factura->id) }}"
+                                    <a href="{{ route('facturas.show', [$doc->factura->id, 'from' => 'complemento', 'from_id' => $complemento->id]) }}"
                                        class="text-mono fw-600" style="color: var(--color-primary);">
                                         {{ $doc->factura->folio_completo }}
                                     </a>

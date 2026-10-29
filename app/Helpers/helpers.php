@@ -245,9 +245,9 @@ if (! function_exists('docShowVolverOrigen')) {
         }
 
         $fromId = $fromId ?? request()->query('from_id');
+        $id = filter_var($fromId, FILTER_VALIDATE_INT);
 
         if ($from === 'cuenta-cobrar') {
-            $id = filter_var($fromId, FILTER_VALIDATE_INT);
             if ($id) {
                 return [
                     'url' => route('cuentas-cobrar.show', $id),
@@ -258,6 +258,20 @@ if (! function_exists('docShowVolverOrigen')) {
             return [
                 'url' => route('cuentas-cobrar.index'),
                 'label' => '← Volver a cuentas por cobrar',
+            ];
+        }
+
+        if ($from === 'complemento') {
+            if ($id) {
+                return [
+                    'url' => route('complementos.show', $id),
+                    'label' => '← Volver al complemento de pago',
+                ];
+            }
+
+            return [
+                'url' => route('complementos.index'),
+                'label' => '← Volver a complementos de pago',
             ];
         }
 

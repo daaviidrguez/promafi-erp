@@ -131,6 +131,9 @@ class NotificacionesController extends Controller
                 'monto_vencido' => $montoVencido,
                 'primeras_fechas' => $primeras3,
                 'hoy' => $hoy->format('d/m/Y'),
+                'url' => $user?->can('cuentas_cobrar.ver')
+                    ? route('cuentas-cobrar.index', ['estado' => 'vencidas'])
+                    : null,
             ],
             'logistica' => [
                 'envios_factura_en_ruta' => $enviosFacturaEnRuta,

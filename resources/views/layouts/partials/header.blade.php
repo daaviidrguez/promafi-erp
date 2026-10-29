@@ -256,6 +256,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const primeras = (vencidas.primeras_fechas || []).map(d => `<span style="white-space: nowrap;">${escapeHtml(d.fecha_vencimiento || '')}</span>`).join(', ');
 
+        const vencidasUrl = vencidas.url ? String(vencidas.url) : '';
+        const vencidasLink = vencidasUrl
+            ? `<div style="margin-top: 8px;"><a href="${escapeHtml(vencidasUrl)}" style="font-size: 13px; font-weight: 700; color: var(--color-primary); text-decoration: underline;">💰 Cuentas por Cobrar</a></div>`
+            : '';
+
         const vencidasHtml = vencidas.cuentas_vencidas > 0
             ? `
                 <div style="font-family: var(--font-display); font-weight: 800; color: var(--color-primary); font-size: 13.5px; margin-bottom: 4px;">
@@ -265,6 +270,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     <div><span style="font-weight: 700; color: var(--color-gray-700);">Cuentas vencidas:</span> ${escapeHtml(vencidas.cuentas_vencidas)}</div>
                     <div><span style="font-weight: 700; color: var(--color-gray-700);">Monto vencido:</span> ${formatMXN(vencidas.monto_vencido)}</div>
                     <div style="margin-top: 6px;"><span style="font-weight: 700; color: var(--color-gray-700);">Primeras 3 fechas:</span> ${primeras || '—'}</div>
+                    ${vencidasLink}
                 </div>
             `
             : `

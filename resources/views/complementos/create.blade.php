@@ -243,6 +243,7 @@ $clientePreComplementoJson = $clientePreComplemento ? [
 let facturasPendientes = [];
 const listarComplementosParaRelacionUrl = '{{ route("complementos.listar-para-relacion") }}';
 const facturasPendientesUrl = '{{ route("complementos.facturas-pendientes") }}';
+const facturaShowBaseUrl = @json(url('/facturas'));
 
 (function() {
     var check = document.getElementById('checkSustituirComplementoCfdi');
@@ -352,7 +353,7 @@ async function cargarFacturasPendientes() {
             <tr>
                 <td class="col-factura">
                     <input type="hidden" name="facturas[${i}][factura_id]" value="${f.id}">
-                    <div class="text-mono fw-600" style="line-height: 1.35;">${f.folio}</div>
+                    <a href="${facturaShowBaseUrl}/${f.id}" class="text-mono fw-600" style="color: var(--color-primary); line-height: 1.35;" target="_blank" rel="noopener">${f.folio}</a>
                     <div class="text-mono text-muted" style="font-size: 11px; line-height: 1.3; word-break: break-all;">${(f.uuid || '').substring(0, 20)}${(f.uuid || '').length > 20 ? '...' : ''}</div>
                 </td>
                 <td class="col-fecha">${f.fecha}</td>

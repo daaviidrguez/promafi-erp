@@ -102,7 +102,7 @@ $breadcrumbs = [
                             <tr>
                                 <td class="col-factura">
                                     <input type="hidden" name="facturas[{{ $i }}][factura_id]" value="{{ $f['id'] }}">
-                                    <div class="text-mono fw-600" style="line-height: 1.35;">{{ $f['folio'] }}</div>
+                                    <a href="{{ route('facturas.show', $f['id']) }}" class="text-mono fw-600" style="color: var(--color-primary); line-height: 1.35;" target="_blank" rel="noopener">{{ $f['folio'] }}</a>
                                     <div class="text-muted text-mono" style="font-size: 11px; line-height: 1.3; word-break: break-all;">{{ substr($f['uuid'] ?? '', 0, 20) }}{{ strlen($f['uuid'] ?? '') > 20 ? '...' : '' }}</div>
                                 </td>
                                 <td class="col-fecha">{{ $f['fecha'] }}</td>

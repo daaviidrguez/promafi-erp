@@ -258,7 +258,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const vencidasUrl = vencidas.url ? String(vencidas.url) : '';
         const vencidasLink = vencidasUrl
-            ? `<div style="margin-top: 8px;"><a href="${escapeHtml(vencidasUrl)}" style="font-size: 13px; font-weight: 700; color: var(--color-primary); text-decoration: underline;">💰 Cuentas por Cobrar</a></div>`
+            ? `<div style="margin-top: 10px;"><a href="${escapeHtml(vencidasUrl)}" class="btn btn-primary btn-sm">Ir a cuentas por cobrar</a></div>`
             : '';
 
         const vencidasHtml = vencidas.cuentas_vencidas > 0

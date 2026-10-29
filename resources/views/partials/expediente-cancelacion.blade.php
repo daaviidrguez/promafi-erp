@@ -23,24 +23,13 @@
     $embebido = (bool) ($embebido ?? false);
     $tituloExpediente = $soloHistorialAdmin ? 'Historial de cancelación administrativa (ERP)' : 'Cancelación fiscal (PAC / SAT)';
 
-    $codigoSat = $document->codigo_estatus_cancelacion;
-    $mensajePac = $document->mensaje_cancelacion_pac;
+    // Snapshot de la solicitud (columnas de la factura = eco del envío)
+    $codigoAlEnviar = $document->codigo_estatus_cancelacion;
+    $mensajeAlEnviar = $document->mensaje_cancelacion_pac;
     $fechaPrimerEnvio = $esFactura
         ? ($document->fecha_cancelacion_pac ?? null)
         : ($document->fecha_cancelacion ?? null);
     $fechaUltimaSolicitud = $document->fecha_solicitud_cancelacion ?? null;
-
-    $eventoCodigo = ($codigoSat && $eventos->isNotEmpty())
-        ? $eventos->first(fn ($e) => (string) ($e->codigo_estatus ?? '') === (string) $codigoSat)
-        : null;
-    $eventoMensaje = ($mensajePac && $eventos->isNotEmpty())
-        ? $eventos->first(fn ($e) => filled($e->mensaje) && str_contains((string) $e->mensaje, \Illuminate\Support\Str::limit((string) $mensajePac, 40, '')))
-        : null;
-    $eventoAnclaTecnica = $eventoCodigo ?? $eventoMensaje;
-    $fechaRespuestaTecnica = $eventoAnclaTecnica?->created_at
-        ?? $fechaUltimaSolicitud
-        ?? $fechaPrimerEnvio
-        ?? $eventos->first()?->created_at;
 
     $mostrarPrimerEnvio = $fechaPrimerEnvio
         && (
@@ -48,22 +37,42 @@
             || abs($fechaPrimerEnvio->diffInMinutes($fechaUltimaSolicitud)) >= 2
         );
 
-    $descripcionCodigo = $codigoSat
+    $descripcionCodigoAlEnviar = $codigoAlEnviar
         ? ($esFactura
-            ? \App\Models\Factura::descripcionCodigoCancelacion($codigoSat)
-            : \App\Models\ComplementoPago::descripcionCodigoCancelacion($codigoSat))
+            ? \App\Models\Factura::descripcionCodigoCancelacion($codigoAlEnviar)
+            : \App\Models\ComplementoPago::descripcionCodigoCancelacion($codigoAlEnviar))
         : null;
 
-    $mensajePacLower = mb_strtolower((string) ($mensajePac ?? ''));
-    $respuestaTecnicaDesfasada = $document->canceladaAnteSat()
-        && (
-            (string) $codigoSat === '201'
-            || str_contains($mensajePacLower, 'vigente')
-            || str_contains($mensajePacLower, 'en proceso')
-            || str_contains($mensajePacLower, 'pendiente')
-        );
+    $mostrarProceso = $fechaUltimaSolicitud
+        || $limiteAceptacion
+        || $mostrarPrimerEnvio
+        || filled($codigoAlEnviar)
+        || filled($mensajeAlEnviar);
 
-    $mostrarBandaTecnica = filled($codigoSat) || filled($mensajePac) || filled($document->is_cancelable);
+    // Última respuesta = primer evento de bitácora (más reciente)
+    $ultimoEvento = $eventos->first();
+    $mensajeUltimoEvento = $ultimoEvento
+        ? \App\Services\EstatusCancelacionCfdi::mensajeUsuario([
+            'status_pac' => $ultimoEvento->status_pac,
+            'estatus_sat' => $ultimoEvento->estatus_sat,
+            'codigo_estatus' => $ultimoEvento->codigo_estatus,
+            'mensaje_pac' => $ultimoEvento->mensaje,
+        ], $esAdmin)
+        : null;
+    $estatusSatUltimo = $ultimoEvento
+        ? \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
+            $ultimoEvento->status_pac,
+            $ultimoEvento->estatus_sat,
+            $ultimoEvento->codigo_estatus
+        )
+        : null;
+    $motivoSatUltimo = is_array($ultimoEvento?->payload)
+        ? ($ultimoEvento->payload['motivo_sat'] ?? null)
+        : null;
+    $uuidSustUltimo = is_array($ultimoEvento?->payload)
+        ? ($ultimoEvento->payload['uuid_sustitucion'] ?? null)
+        : null;
+    $mostrarBandaUltimaRespuesta = $ultimoEvento !== null;
 @endphp
 
 @unless($embebido)
@@ -78,7 +87,7 @@
         @endif
         @unless($soloHistorialAdmin)
 
-        {{-- Capa 1: estado actual (lo que importa para operar) --}}
+        {{-- Capa 1: estado actual --}}
         <div class="info-label" style="margin-bottom: 8px;">Estado actual</div>
         <div class="info-row">
             <div class="info-label">Estado PAC</div>
@@ -153,12 +162,27 @@
             @endif
         @endif
 
-        @if($fechaUltimaSolicitud || $limiteAceptacion || $mostrarPrimerEnvio)
+        {{-- Capa 2: proceso / eco de la solicitud --}}
+        @if($mostrarProceso)
         <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Proceso ante el PAC / SAT</div>
         @if($fechaUltimaSolicitud)
         <div class="info-row">
             <div class="info-label">Última solicitud</div>
             <div class="info-value-sm">{{ $fechaUltimaSolicitud->format('d/m/Y H:i') }}</div>
+        </div>
+        @endif
+        @if($codigoAlEnviar)
+        <div class="info-row">
+            <div class="info-label">Código al enviar</div>
+            <div class="info-value-sm text-mono">
+                {{ $codigoAlEnviar }}@if($descripcionCodigoAlEnviar) — {{ $descripcionCodigoAlEnviar }}@endif
+            </div>
+        </div>
+        @endif
+        @if($mensajeAlEnviar)
+        <div class="info-row">
+            <div class="info-label">Mensaje al enviar</div>
+            <div class="info-value-sm">{{ $mensajeAlEnviar }}</div>
         </div>
         @endif
         @if($limiteAceptacion)
@@ -181,51 +205,54 @@
             </div>
         </div>
         @endif
+        <p class="form-hint" style="margin: 8px 0 0; font-size: 11.5px;">
+            Código y mensaje de esta sección corresponden al eco guardado del envío de solicitud, no al estado actual.
+        </p>
         @endif
 
-        {{-- Capa 2: respuesta técnica fechada (patrón banda fiscal) --}}
-        @if($mostrarBandaTecnica)
+        {{-- Capa 3: preview del último evento de bitácora --}}
+        @if($mostrarBandaUltimaRespuesta)
         <div class="doc-show-cancel-pac-band" style="margin-top: 16px;">
             <div class="doc-show-cancel-pac-band-head">
                 <div class="doc-show-cancel-pac-band-title">Última respuesta técnica del PAC</div>
-                @if($fechaRespuestaTecnica)
                 <div class="doc-show-cancel-pac-band-date">
-                    {{ $eventoAnclaTecnica ? $eventoAnclaTecnica->etiquetaTipo().' · ' : '' }}{{ $fechaRespuestaTecnica->format('d/m/Y H:i') }}
+                    {{ $ultimoEvento->etiquetaTipo() }} · {{ $ultimoEvento->created_at?->format('d/m/Y H:i') }}
                 </div>
-                @endif
             </div>
-            <div class="doc-show-cancel-pac-band-grid">
-                @if($codigoSat)
-                <div>
-                    <div class="doc-show-fiscal-band-label">Código SAT</div>
-                    <div class="doc-show-fiscal-band-value">
-                        {{ $codigoSat }}@if($descripcionCodigo) — {{ $descripcionCodigo }}@endif
-                    </div>
-                </div>
-                @endif
-                @if($mensajePac)
-                <div>
-                    <div class="doc-show-fiscal-band-label">Mensaje PAC</div>
-                    <div class="doc-show-fiscal-band-value" style="font-family: var(--font-body);">{{ $mensajePac }}</div>
-                </div>
-                @endif
-                @if($document->is_cancelable && ! $document->canceladaAnteSat())
-                <div>
-                    <div class="doc-show-fiscal-band-label">¿Cancelable?</div>
-                    <div class="doc-show-fiscal-band-value">{{ $document->is_cancelable }}</div>
-                </div>
-                @endif
-            </div>
-            @if($respuestaTecnicaDesfasada)
-            <p class="doc-show-cancel-pac-band-note">
-                Código o mensaje pueden corresponder a un paso intermedio del PAC.
-                El <strong>estado actual</strong> del CFDI está arriba; el detalle por fecha está en la bitácora.
-            </p>
-            @else
-            <p class="doc-show-cancel-pac-band-note">
-                Respuesta técnica guardada del PAC en la fecha indicada. No sustituye el estado actual ni la bitácora.
-            </p>
+            @if($ultimoEvento->user)
+            <div class="text-muted" style="font-size: 12px; margin-bottom: 10px;">{{ $ultimoEvento->user->name }}</div>
             @endif
+            @if($ultimoEvento->status_pac || $ultimoEvento->estatus_sat || $ultimoEvento->codigo_estatus)
+            <div class="text-mono" style="font-size: 12px; margin-bottom: 8px; color: var(--color-dark);">
+                @if($ultimoEvento->status_pac) PAC: {{ $ultimoEvento->status_pac }} @endif
+                @if($ultimoEvento->estatus_sat || $ultimoEvento->status_pac)
+                    · SAT: {{ $estatusSatUltimo }}
+                @endif
+                @if($ultimoEvento->codigo_estatus) · {{ $ultimoEvento->codigo_estatus }} @endif
+            </div>
+            @endif
+            @if($mensajeUltimoEvento)
+            <div style="font-size: 13px; line-height: 1.5; color: var(--color-dark); margin-bottom: 6px;">
+                {{ $mensajeUltimoEvento }}
+            </div>
+            @elseif($ultimoEvento->mensaje)
+            <div style="font-size: 13px; line-height: 1.5; color: var(--color-dark); margin-bottom: 6px;">
+                {{ $ultimoEvento->mensaje }}
+            </div>
+            @endif
+            @if($motivoSatUltimo)
+            <div class="text-muted" style="font-size: 12px; margin-top: 4px;">
+                Motivo SAT: {{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoSatUltimo) }}
+            </div>
+            @endif
+            @if($uuidSustUltimo)
+            <div class="text-mono text-muted" style="font-size: 11px; margin-top: 4px; word-break: break-all;">
+                UUID sustituto: {{ $uuidSustUltimo }}
+            </div>
+            @endif
+            <p class="doc-show-cancel-pac-band-note">
+                Vista del evento más reciente de la bitácora. El historial completo está abajo.
+            </p>
         </div>
         @endif
 

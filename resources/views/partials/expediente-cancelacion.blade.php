@@ -200,18 +200,37 @@
             <div class="info-label" style="margin-top: {{ $soloHistorialAdmin ? '0' : '16px' }}; margin-bottom: 8px;">Bitácora administrativa (ERP)</div>
             <div style="display: grid; gap: 8px;">
                 @foreach($bitacoraAdmin->take(12) as $eventoAdmin)
+                    @php
+                        $esRevAdmin = ($eventoAdmin->tipo ?? 'cancelacion') === 'reversion';
+                        $enlaceExpediente = $esRevAdmin
+                            ? ($bitacoraAdmin->first(fn ($e) => ($e->tipo ?? 'cancelacion') !== 'reversion' && $e->id < $eventoAdmin->id)
+                                ?? $bitacoraAdmin->first(fn ($e) => ($e->tipo ?? 'cancelacion') !== 'reversion'))
+                            : $eventoAdmin;
+                    @endphp
                     <div style="border: 1px solid var(--color-gray-200); border-radius: var(--radius-sm); padding: 8px 10px;">
                         <div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
-                            <strong>{{ ($eventoAdmin->tipo ?? 'cancelacion') === 'reversion' ? 'Reactivación' : 'Cancelación administrativa' }}</strong>
+                            <strong>{{ $esRevAdmin ? 'Reactivación' : 'Cancelación administrativa' }}</strong>
                             <span class="text-muted" style="font-size: 11px;">{{ $eventoAdmin->created_at?->format('d/m/Y H:i') }}</span>
                         </div>
                         @if($eventoAdmin->user)
                             <div class="text-muted" style="font-size: 11px;">{{ $eventoAdmin->user->name }}</div>
                         @endif
                         <div style="margin-top: 4px; font-size: 12px;">{{ $eventoAdmin->motivo }}</div>
+                        @if($enlaceExpediente && auth()->user()?->can('cancelaciones_administrativas.administrar'))
+                            <div style="margin-top: 6px;">
+                                <a href="{{ route('cancelaciones-administrativas.show', $enlaceExpediente) }}" class="text-link" style="font-size: 12px;">
+                                    Ver expediente #{{ $enlaceExpediente->id }}
+                                </a>
+                            </div>
+                        @endif
                     </div>
                 @endforeach
             </div>
+            @can('cancelaciones_administrativas.administrar')
+            <div style="margin-top: 10px;">
+                <a href="{{ route('cancelaciones-administrativas.index') }}" class="text-link" style="font-size: 12px;">Ver historial de cancelaciones administrativas</a>
+            </div>
+            @endcan
         @endif
 
         @unless($soloHistorialAdmin)

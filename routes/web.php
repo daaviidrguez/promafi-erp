@@ -453,7 +453,11 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     // ───── SISTEMA: Usuarios, Roles, Importador CFDI, Cancelaciones administrativas ─────
     Route::middleware('can:cancelaciones_administrativas.administrar')->group(function () {
         Route::get('/cancelaciones-administrativas', [CancelacionAdministrativaController::class, 'index'])->name('cancelaciones-administrativas.index');
-        Route::post('/cancelaciones-administrativas/{factura}', [CancelacionAdministrativaController::class, 'ejecutar'])->name('cancelaciones-administrativas.ejecutar');
+        Route::get('/cancelaciones-administrativas/crear', [CancelacionAdministrativaController::class, 'create'])->name('cancelaciones-administrativas.create');
+        Route::post('/cancelaciones-administrativas', [CancelacionAdministrativaController::class, 'store'])->name('cancelaciones-administrativas.store');
+        Route::get('/cancelaciones-administrativas/{cancelacion}', [CancelacionAdministrativaController::class, 'show'])->name('cancelaciones-administrativas.show');
+        // Compatibilidad: POST antiguo por factura
+        Route::post('/cancelaciones-administrativas/{factura}/ejecutar', [CancelacionAdministrativaController::class, 'ejecutar'])->name('cancelaciones-administrativas.ejecutar');
     });
     Route::post('/facturas/{factura}/reactivar-cancelacion-administrativa', [CancelacionAdministrativaController::class, 'revertir'])
         ->name('facturas.reactivar-cancelacion-administrativa')

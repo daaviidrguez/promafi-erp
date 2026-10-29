@@ -1,35 +1,61 @@
 @extends('layouts.app')
 
 @section('title', 'Cancelaciones administrativas')
-@section('page-title', '🛑 Cancelaciones administrativas')
-@section('page-subtitle', 'Cancelación solo en ERP (sin PAC). Revoca saldo del cliente; inventario solo si hubo salida por timbrado. La reactivación se hace desde el detalle de la factura.')
 
 @php
 $breadcrumbs = [
     ['title' => 'Facturación', 'url' => route('facturas.index')],
     ['title' => 'Cancelaciones administrativas'],
 ];
-$baseUrlCancelAdmin = url('/cancelaciones-administrativas');
 @endphp
 
 @section('content')
 
-@if($errors->any())
-<div class="alert alert-danger" style="margin-bottom:16px;">
-    @foreach($errors->all() as $err)
-        <div>{{ $err }}</div>
-    @endforeach
+<div class="page-header">
+    <div>
+        <h1 class="page-title">🛑 Cancelaciones administrativas</h1>
+        <p class="page-subtitle">Historial de cancelaciones solo en ERP (sin PAC). El CFDI puede seguir vigente ante el SAT.</p>
+    </div>
+    <a href="{{ route('cancelaciones-administrativas.create') }}" class="btn btn-primary">
+        ➕ Nueva cancelación administrativa
+    </a>
 </div>
-@endif
 
-@if(session('success'))
-<div class="alert alert-success" style="margin-bottom:16px;">{{ session('success') }}</div>
-@endif
-@if(session('error'))
-<div class="alert alert-danger" style="margin-bottom:16px;">{{ session('error') }}</div>
-@endif
+<div class="stats-grid">
+    <div class="stat-card stat-danger">
+        <div class="stat-info-box">
+            <div class="stat-label">Cancelaciones del mes</div>
+            <div class="stat-value">{{ $estadisticas['cancelaciones_mes'] ?? 0 }}</div>
+        </div>
+        <div class="stat-icon">🛑</div>
+    </div>
+    <div class="stat-card stat-warning">
+        <div class="stat-info-box">
+            <div class="stat-label">Vigentes</div>
+            <div class="stat-value">{{ $estadisticas['vigentes'] ?? 0 }}</div>
+        </div>
+        <div class="stat-icon">📌</div>
+    </div>
+    <div class="stat-card stat-info">
+        <div class="stat-info-box">
+            <div class="stat-label">Reactivadas del mes</div>
+            <div class="stat-value">{{ $estadisticas['revertidas_mes'] ?? 0 }}</div>
+        </div>
+        <div class="stat-icon">↻</div>
+    </div>
+    <div class="stat-card stat-success">
+        <div class="stat-info-box">
+            <div class="stat-label">Monto del mes</div>
+            <div class="stat-value" style="font-size:1.25rem;">${{ number_format($estadisticas['monto_mes'] ?? 0, 2, '.', ',') }}</div>
+        </div>
+        <div class="stat-icon">💵</div>
+    </div>
+</div>
 
 <div class="card" style="margin-bottom:16px;">
+    <div class="card-header">
+        <div class="card-title">🔍 Filtros</div>
+    </div>
     <div class="card-body">
         <form method="GET" action="{{ route('cancelaciones-administrativas.index') }}" class="filtros-bar" style="flex-wrap:wrap; gap:12px; align-items:flex-end;">
             <div class="form-group" style="margin:0;">
@@ -40,142 +66,133 @@ $baseUrlCancelAdmin = url('/cancelaciones-administrativas');
                 <label class="form-label">Hasta</label>
                 <input type="date" name="fecha_hasta" class="form-control" value="{{ request('fecha_hasta') }}">
             </div>
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Estado</label>
+                <select name="estado" class="form-control" style="min-width:140px;">
+                    <option value="">Todos</option>
+                    <option value="vigente" {{ request('estado') === 'vigente' ? 'selected' : '' }}>Vigente</option>
+                    <option value="revertida" {{ request('estado') === 'revertida' ? 'selected' : '' }}>Revertida</option>
+                </select>
+            </div>
+            @if(($usuariosFiltro ?? collect())->isNotEmpty())
+            <div class="form-group" style="margin:0;">
+                <label class="form-label">Usuario</label>
+                <select name="user_id" class="form-control" style="min-width:160px;">
+                    <option value="">Todos</option>
+                    @foreach($usuariosFiltro as $u)
+                    <option value="{{ $u->id }}" {{ (string) request('user_id') === (string) $u->id ? 'selected' : '' }}>{{ $u->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
             <div class="form-group" style="margin:0; flex:1; min-width:200px;">
                 <label class="form-label">Buscar</label>
-                <input type="text" name="q" class="form-control" value="{{ request('q') }}" placeholder="UUID, folio, cliente, RFC…">
+                <input type="text" name="q" class="form-control" value="{{ request('q') }}" placeholder="Folio, UUID, cliente, RFC, motivo…">
             </div>
             <button type="submit" class="btn btn-primary">Filtrar</button>
-            @if(request()->anyFilled(['fecha_desde', 'fecha_hasta', 'q']))
+            @if(request()->anyFilled(['fecha_desde', 'fecha_hasta', 'q', 'estado', 'user_id']))
             <a href="{{ route('cancelaciones-administrativas.index') }}" class="btn btn-light">Limpiar</a>
             @endif
         </form>
         <p class="form-hint" style="margin:12px 0 0;">
-            Listado: facturas <strong>timbradas</strong> vigentes, orden <strong>folio de mayor a menor</strong>.
-            No sustituye la cancelación ante el SAT. Si hubo salida de inventario al timbrar en el ERP, aquí se reversa; si la factura vino del <strong>importador CFDI</strong> sin movimientos de salida, <strong>no se crean movimientos de inventario</strong>.
+            Listado de <strong>operaciones realizadas</strong>. No sustituye la cancelación ante el SAT.
+            La reactivación se gestiona desde el expediente o el detalle de la factura.
         </p>
     </div>
 </div>
 
 <div class="table-container">
+    @if($cancelaciones->isNotEmpty())
     <table>
         <thead>
             <tr>
-                <th>Folio</th>
                 <th>Fecha</th>
+                <th>Folio</th>
                 <th>Cliente</th>
                 <th class="td-right">Total</th>
-                <th>Método</th>
-                <th>CxC</th>
-                <th>¿Puede?</th>
-                <th class="td-actions">Acción</th>
+                <th>Usuario</th>
+                <th>Motivo</th>
+                <th class="td-center">Estado</th>
+                <th>Efectos</th>
+                <th class="td-actions">Acciones</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($facturas as $f)
+            @foreach($cancelaciones as $c)
+            @php
+                $estado = $c->estadoOperacion();
+                $detalle = is_array($c->detalle) ? $c->detalle : [];
+                $total = (float) ($detalle['total'] ?? $c->factura?->total ?? 0);
+                $efectos = [];
+                if (!empty($detalle['tenia_cuenta_por_cobrar'])) {
+                    $efectos[] = 'CxC';
+                }
+                if (!empty($detalle['reversa_inventario'])) {
+                    $efectos[] = 'Inv.';
+                }
+            @endphp
             <tr>
-                <td class="text-mono fw-600">{{ $f->folio_completo }}</td>
-                <td>{{ $f->fecha_emision?->format('d/m/Y') }}</td>
                 <td>
-                    <div class="fw-600">{{ $f->cliente?->nombre ?? $f->nombre_receptor }}</div>
-                    <div class="text-muted" style="font-size:12px;">{{ $f->rfc_receptor }}</div>
+                    <div class="fw-600">{{ $c->created_at?->format('d/m/Y') }}</div>
+                    <div class="text-muted" style="font-size:12px;">{{ $c->created_at?->format('H:i') }}</div>
                 </td>
-                <td class="td-right text-mono">${{ number_format($f->total, 2, '.', ',') }}</td>
-                <td>{{ $f->metodo_pago }}</td>
                 <td>
-                    @if($f->cuentaPorCobrar)
-                        <span class="badge badge-warning">PPD</span>
+                    <div class="text-mono fw-600">{{ $c->factura?->folio_completo ?? ($detalle['folio_completo'] ?? '—') }}</div>
+                    @if(!empty($detalle['uuid']) || $c->factura?->uuid)
+                    <div class="text-mono text-muted" style="font-size:11px;">{{ \Illuminate\Support\Str::limit($detalle['uuid'] ?? $c->factura->uuid, 18) }}</div>
+                    @endif
+                </td>
+                <td>
+                    <div class="fw-600">{{ $c->factura?->cliente?->nombre ?? $c->factura?->nombre_receptor ?? '—' }}</div>
+                    <div class="text-muted" style="font-size:12px;">{{ $c->factura?->rfc_receptor }}</div>
+                </td>
+                <td class="td-right text-mono">${{ number_format($total, 2, '.', ',') }}</td>
+                <td>{{ $c->user?->name ?? '—' }}</td>
+                <td style="max-width:220px;">
+                    <span title="{{ e($c->motivo) }}">{{ \Illuminate\Support\Str::limit($c->motivo, 60) }}</span>
+                </td>
+                <td class="td-center">
+                    @if($estado === 'vigente')
+                        <span class="badge badge-danger">Vigente</span>
+                    @else
+                        <span class="badge badge-secondary">Revertida</span>
+                    @endif
+                </td>
+                <td>
+                    @if(count($efectos))
+                        <span class="text-muted" style="font-size:12px;">{{ implode(' · ', $efectos) }}</span>
                     @else
                         <span class="text-muted">—</span>
                     @endif
                 </td>
-                <td>
-                    @if($f->puede_cancelar_admin)
-                        <span class="badge badge-success">Sí</span>
-                    @else
-                        <span class="badge badge-danger" title="{{ e($f->motivo_no_cancelar_admin) }}">No</span>
-                    @endif
-                </td>
                 <td class="td-actions">
-                    @if($f->puede_cancelar_admin)
-                    <button type="button"
-                            class="btn btn-danger btn-sm js-open-cancel-admin"
-                            data-factura-id="{{ $f->id }}"
-                            data-folio="{{ e($f->folio_completo) }}">
-                        Cancelar administrativamente
-                    </button>
-                    @else
-                    <span class="text-muted" style="font-size:12px;">{{ \Illuminate\Support\Str::limit($f->motivo_no_cancelar_admin, 72) }}</span>
+                    <a href="{{ route('cancelaciones-administrativas.show', $c) }}" class="btn btn-info btn-sm">Ver</a>
+                    @if($c->factura)
+                    <a href="{{ route('facturas.show', $c->factura_id) }}" class="btn btn-light btn-sm">Factura</a>
                     @endif
-                    <a href="{{ route('facturas.show', $f->id) }}" class="btn btn-light btn-sm" style="margin-left:4px;">Ver</a>
                 </td>
             </tr>
-            @empty
-            <tr>
-                <td colspan="8" class="text-center text-muted" style="padding:40px;">No hay facturas timbradas con los filtros actuales.</td>
-            </tr>
-            @endforelse
+            @endforeach
         </tbody>
     </table>
-    @if($facturas->isNotEmpty())
     <div style="padding:16px 20px; border-top:1px solid var(--color-gray-100);">
-        {{ $facturas->links() }}
+        {{ $cancelaciones->links() }}
+    </div>
+    @else
+    <div class="empty-state">
+        <div class="empty-state-icon">🛑</div>
+        <div class="empty-state-title">Sin cancelaciones administrativas</div>
+        <div class="empty-state-text">
+            Aún no hay operaciones registradas
+            @if(request()->anyFilled(['fecha_desde', 'fecha_hasta', 'q', 'estado', 'user_id']))
+                con los filtros actuales
+            @endif.
+        </div>
+        <a href="{{ route('cancelaciones-administrativas.create') }}" class="btn btn-primary" style="margin-top:12px;">
+            ➕ Nueva cancelación administrativa
+        </a>
     </div>
     @endif
 </div>
 
-<div id="modalCancelAdmin" class="modal">
-    <div class="modal-box" style="max-width: 520px;">
-        <div class="modal-header">
-            <div class="modal-title" id="modalCancelAdminTitulo">Cancelación administrativa</div>
-            <button type="button" class="modal-close" onclick="cerrarModalCancelAdmin()">✕</button>
-        </div>
-        <form id="formCancelAdmin" method="POST" action="">
-            @csrf
-            <div class="modal-body">
-                <p class="form-hint" style="margin-top:0;">Registro obligatorio para auditoría. No cancela el CFDI ante el SAT.</p>
-                <div class="form-group">
-                    <label class="form-label">Motivo <span class="req">*</span></label>
-                    <textarea name="motivo" id="cancel_admin_motivo" class="form-control" rows="4" required minlength="10" maxlength="2000" placeholder="Describe el motivo (mínimo 10 caracteres)."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer" style="display:flex; gap:12px; justify-content:flex-end;">
-                <button type="button" class="btn btn-light" onclick="cerrarModalCancelAdmin()">Cerrar</button>
-                <button type="submit" class="btn btn-danger">Confirmar cancelación en ERP</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 @endsection
-
-@push('scripts')
-<script>
-(function() {
-    var cancelAdminBaseUrl = @json($baseUrlCancelAdmin);
-    function abrirModalCancelAdmin(id, folio) {
-        document.getElementById('modalCancelAdminTitulo').textContent = 'Cancelar — ' + folio;
-        document.getElementById('formCancelAdmin').action = cancelAdminBaseUrl + '/' + id;
-        document.getElementById('cancel_admin_motivo').value = '';
-        document.getElementById('modalCancelAdmin').classList.add('show');
-    }
-    window.cerrarModalCancelAdmin = function() {
-        document.getElementById('modalCancelAdmin').classList.remove('show');
-    };
-    document.querySelectorAll('.js-open-cancel-admin').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var id = parseInt(this.getAttribute('data-factura-id'), 10);
-            var folio = this.getAttribute('data-folio') || '';
-            abrirModalCancelAdmin(id, folio);
-        });
-    });
-    document.getElementById('modalCancelAdmin')?.addEventListener('click', function(e) {
-        if (e.target === this) window.cerrarModalCancelAdmin();
-    });
-    document.getElementById('formCancelAdmin')?.addEventListener('submit', function(e) {
-        if (!confirm('¿Cancelar administrativamente esta factura en el ERP? Quedará registrado en auditoría.')) {
-            e.preventDefault();
-        }
-    });
-})();
-</script>
-@endpush

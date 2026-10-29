@@ -970,10 +970,9 @@ class FacturaController extends Controller
 
             $extra = [
                 'motivo_cancelacion' => $validated['motivo_cancelacion'],
+                // Motivo ≠ 01: limpiar UUID de un intento previo para no mezclarlo con el vigente
+                'uuid_sustitucion_cancelacion' => $uuidSustituto,
             ];
-            if ($uuidSustituto) {
-                $extra['uuid_sustitucion_cancelacion'] = $uuidSustituto;
-            }
             if (! $fueCancelacionAdministrativaPrev) {
                 $extra['estado'] = 'cancelada';
                 if (empty($factura->fecha_cancelacion)) {

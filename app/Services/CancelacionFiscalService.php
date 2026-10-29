@@ -131,6 +131,16 @@ class CancelacionFiscalService
     ): array {
         $resultado = $this->fusionarConEstadoGuardado($documento, $resultado);
         $updates = array_merge($this->camposDesdeResultado($documento, $resultado, $tipoEvento === 'solicitud'), $extraUpdates);
+
+        // UUID sustituto solo aplica con motivo 01; limpia restos de un intento previo
+        $motivoTrasUpdate = (string) ($updates['motivo_cancelacion'] ?? $documento->motivo_cancelacion ?? '');
+        $uuidTrasUpdate = array_key_exists('uuid_sustitucion_cancelacion', $updates)
+            ? $updates['uuid_sustitucion_cancelacion']
+            : ($documento->uuid_sustitucion_cancelacion ?? null);
+        if ($motivoTrasUpdate !== '01' && filled($uuidTrasUpdate)) {
+            $updates['uuid_sustitucion_cancelacion'] = null;
+        }
+
         if ($updates !== []) {
             $documento->update($updates);
             $documento->refresh();
@@ -185,8 +195,14 @@ class CancelacionFiscalService
         if (empty($resultado['motivo_sat']) && ! empty($documento->motivo_cancelacion)) {
             $resultado['motivo_sat'] = $documento->motivo_cancelacion;
         }
-        if (empty($resultado['uuid_sustitucion']) && ! empty($documento->uuid_sustitucion_cancelacion)) {
-            $resultado['uuid_sustitucion'] = $documento->uuid_sustitucion_cancelacion;
+        $motivoSatFusion = (string) ($resultado['motivo_sat'] ?? $documento->motivo_cancelacion ?? '');
+        if ($motivoSatFusion === '01') {
+            if (empty($resultado['uuid_sustitucion']) && ! empty($documento->uuid_sustitucion_cancelacion)) {
+                $resultado['uuid_sustitucion'] = $documento->uuid_sustitucion_cancelacion;
+            }
+        } else {
+            // No arrastrar UUID de un 01 previo a consultas/reenvíos con otro motivo
+            $resultado['uuid_sustitucion'] = null;
         }
 
         $resultado['solicitud_aceptada'] = EstatusCancelacionCfdi::solicitudAceptadaPorPac($status)
@@ -214,10 +230,14 @@ class CancelacionFiscalService
     {
         $payload = $resultado['payload'] ?? null;
         $payload = is_array($payload) ? $this->sanitizarPayload($payload) : [];
+        $motivoSatEvento = $resultado['motivo_sat'] ?? null;
         $extra = array_filter([
-            'motivo_sat' => $resultado['motivo_sat'] ?? null,
-            'uuid_sustitucion' => $resultado['uuid_sustitucion'] ?? null,
-        ]);
+            'motivo_sat' => $motivoSatEvento,
+        ], static fn ($v) => $v !== null && $v !== '');
+        // UUID sustituto solo aplica con motivo 01; no contaminar bitácora de otros motivos/consultas
+        if ((string) $motivoSatEvento === '01' && ! empty($resultado['uuid_sustitucion'])) {
+            $extra['uuid_sustitucion'] = $resultado['uuid_sustitucion'];
+        }
         $payload = array_merge($payload, $extra);
 
         CfdiCancelacionEvento::create([

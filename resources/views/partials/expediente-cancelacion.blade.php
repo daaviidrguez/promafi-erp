@@ -14,13 +14,22 @@
     $limiteAceptacion = $esFactura
         ? $document->fechaLimiteCancelacionFiscal()
         : ($document->fecha_vencimiento_aceptacion ?? null);
-    $facturaSustituta = $facturaSustituta ?? ($esFactura ? $document->resolverFacturaSustituta() : null);
+    $motivoVigente = (string) ($document->motivo_cancelacion ?? '');
+    $uuidVigente = $motivoVigente === '01'
+        ? ($document->uuid_sustitucion_cancelacion ?? null)
+        : null;
+    // Sustituta solo en contexto del motivo vigente 01 (no arrastrar por relación 04 de un intento viejo)
+    if (! ($esFactura && filled($uuidVigente))) {
+        $facturaSustituta = null;
+    } else {
+        $facturaSustituta = $facturaSustituta ?? $document->resolverFacturaSustituta();
+    }
     $sustitutoConRelacion04 = $esFactura
-        && filled($document->uuid_sustitucion_cancelacion)
-        && $document->sustitutoTieneRelacionFiscal04();
+        && filled($uuidVigente)
+        && $document->sustitutoTieneRelacionFiscal04($uuidVigente);
     $sustitutoSinRelacion04 = $esFactura
-        && (string) ($document->motivo_cancelacion ?? '') === '01'
-        && filled($document->uuid_sustitucion_cancelacion)
+        && $motivoVigente === '01'
+        && filled($uuidVigente)
         && ! $sustitutoConRelacion04;
     $bitacoraAdmin = $esFactura
         ? ($document->relationLoaded('cancelacionesAdministrativas')
@@ -79,7 +88,49 @@
     $uuidSustUltimo = is_array($ultimoEvento?->payload)
         ? ($ultimoEvento->payload['uuid_sustitucion'] ?? null)
         : null;
+    $ultimoEsSolicitud = ($ultimoEvento->tipo ?? null) === 'solicitud';
+    // En la banda: motivo/UUID solo del evento de solicitud (no de consultas de estatus)
+    $mostrarMotivoUltimo = $ultimoEsSolicitud && filled($motivoSatUltimo);
+    $mostrarUuidUltimo = $ultimoEsSolicitud
+        && (string) $motivoSatUltimo === '01'
+        && filled($uuidSustUltimo);
     $mostrarBandaUltimaRespuesta = $ultimoEvento !== null;
+
+    // Intento previo (p. ej. 01+UUID) cuando el vigente ya es otro motivo
+    $eventoIntentoPrevio = $eventos
+        ->sortBy('created_at')
+        ->first(function ($e) use ($motivoVigente) {
+            if (($e->tipo ?? null) !== 'solicitud') {
+                return false;
+            }
+            $p = is_array($e->payload) ? $e->payload : [];
+            $motivoEv = (string) ($p['motivo_sat'] ?? '');
+            $uuidEv = $p['uuid_sustitucion'] ?? null;
+            if ($motivoVigente === '01') {
+                return false;
+            }
+            return $motivoEv === '01' || filled($uuidEv);
+        });
+    $uuidIntentoPrevio = is_array($eventoIntentoPrevio?->payload)
+        ? ($eventoIntentoPrevio->payload['uuid_sustitucion'] ?? null)
+        : null;
+    $motivoIntentoPrevio = is_array($eventoIntentoPrevio?->payload)
+        ? ($eventoIntentoPrevio->payload['motivo_sat'] ?? null)
+        : null;
+    // Datos legacy: columna aún tiene UUID pero el motivo vigente ya no es 01
+    if (! filled($uuidIntentoPrevio) && $motivoVigente !== '01' && filled($document->uuid_sustitucion_cancelacion ?? null)) {
+        $uuidIntentoPrevio = $document->uuid_sustitucion_cancelacion;
+        $motivoIntentoPrevio = $motivoIntentoPrevio ?: '01';
+    }
+    $facturaSustitutaPrevia = null;
+    if ($esFactura && filled($uuidIntentoPrevio)) {
+        $facturaSustitutaPrevia = \App\Models\Factura::query()
+            ->where('uuid', $uuidIntentoPrevio)
+            ->first();
+    }
+    $mostrarIntentoPrevio = $mostrarPrimerEnvio
+        || filled($uuidIntentoPrevio)
+        || ($eventoIntentoPrevio !== null && $motivoVigente !== '' && $motivoVigente !== '01');
 @endphp
 
 @unless($embebido)
@@ -142,16 +193,41 @@
             <div class="info-value-sm">{{ $document->is_cancelable }}</div>
         </div>
         @endif
-        @if($document->motivo_cancelacion)
+
+        @if($esAdmin)
+            @if($document->cancelacion_administrativa_motivo)
+            <div class="info-row">
+                <div class="info-label">Motivo administrativo (ERP)</div>
+                <div class="info-value-sm">{{ $document->cancelacion_administrativa_motivo }}</div>
+            </div>
+            @endif
+            @if($document->cancelacionAdministrativaUsuario)
+            <div class="info-row">
+                <div class="info-label">Registró</div>
+                <div class="info-value-sm">{{ $document->cancelacionAdministrativaUsuario->name }}</div>
+            </div>
+            @endif
+        @endif
+
+        {{-- Capa 2: parámetros de la última solicitud (eco del envío vigente) --}}
+        @if($motivoVigente !== '' || $fechaUltimaSolicitud || filled($uuidVigente) || $mostrarProceso)
+        <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Última solicitud al PAC / SAT</div>
+        @if($fechaUltimaSolicitud)
         <div class="info-row">
-            <div class="info-label">Motivo SAT</div>
-            <div class="info-value-sm">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($document->motivo_cancelacion) }}</div>
+            <div class="info-label">Fecha</div>
+            <div class="info-value-sm">{{ $fechaUltimaSolicitud->format('d/m/Y H:i') }}</div>
         </div>
         @endif
-        @if($document->uuid_sustitucion_cancelacion ?? null)
+        @if($motivoVigente !== '')
+        <div class="info-row">
+            <div class="info-label">Motivo SAT</div>
+            <div class="info-value-sm">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoVigente) }}</div>
+        </div>
+        @endif
+        @if(filled($uuidVigente))
         <div class="info-row">
             <div class="info-label">UUID sustituto</div>
-            <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $document->uuid_sustitucion_cancelacion }}</div>
+            <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $uuidVigente }}</div>
         </div>
         @endif
         @if($facturaSustituta)
@@ -181,31 +257,6 @@
             </div>
         </div>
         @endif
-
-        @if($esAdmin)
-            @if($document->cancelacion_administrativa_motivo)
-            <div class="info-row">
-                <div class="info-label">Motivo administrativo (ERP)</div>
-                <div class="info-value-sm">{{ $document->cancelacion_administrativa_motivo }}</div>
-            </div>
-            @endif
-            @if($document->cancelacionAdministrativaUsuario)
-            <div class="info-row">
-                <div class="info-label">Registró</div>
-                <div class="info-value-sm">{{ $document->cancelacionAdministrativaUsuario->name }}</div>
-            </div>
-            @endif
-        @endif
-
-        {{-- Capa 2: proceso / eco de la solicitud --}}
-        @if($mostrarProceso)
-        <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Proceso ante el PAC / SAT</div>
-        @if($fechaUltimaSolicitud)
-        <div class="info-row">
-            <div class="info-label">Última solicitud</div>
-            <div class="info-value-sm">{{ $fechaUltimaSolicitud->format('d/m/Y H:i') }}</div>
-        </div>
-        @endif
         @if($codigoAlEnviar)
         <div class="info-row">
             <div class="info-label">Código al enviar</div>
@@ -231,17 +282,50 @@
             </div>
         </div>
         @endif
-        @if($mostrarPrimerEnvio)
+        <p class="form-hint" style="margin: 8px 0 0; font-size: 11.5px;">
+            Parámetros del envío vigente. El código 201 solo confirma recepción; el estado vivo está en «Estado actual».
+        </p>
+        @endif
+
+        {{-- Capa 2b: intento / primer envío distinto (p. ej. 01 fallido antes del 03) --}}
+        @if($mostrarIntentoPrevio)
+        <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Intento previo (no vigente)</div>
+        @if($fechaPrimerEnvio)
         <div class="info-row">
             <div class="info-label">Primer envío al PAC</div>
             <div class="info-value-sm">
                 {{ $fechaPrimerEnvio->format('d/m/Y H:i') }}
-                <span class="text-muted" style="font-size: 11px;"> · distinto de la última solicitud</span>
+                @if($fechaUltimaSolicitud && abs($fechaPrimerEnvio->diffInMinutes($fechaUltimaSolicitud)) >= 2)
+                    <span class="text-muted" style="font-size: 11px;"> · distinto de la última solicitud</span>
+                @endif
+            </div>
+        </div>
+        @endif
+        @if(filled($motivoIntentoPrevio))
+        <div class="info-row">
+            <div class="info-label">Motivo de ese intento</div>
+            <div class="info-value-sm">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoIntentoPrevio) }}</div>
+        </div>
+        @endif
+        @if(filled($uuidIntentoPrevio))
+        <div class="info-row">
+            <div class="info-label">UUID sustituto (ese intento)</div>
+            <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $uuidIntentoPrevio }}</div>
+        </div>
+        @endif
+        @if($facturaSustitutaPrevia)
+        <div class="info-row">
+            <div class="info-label">Factura sustituta (ese intento)</div>
+            <div class="info-value-sm">
+                <a href="{{ route('facturas.show', $facturaSustitutaPrevia) }}" class="text-link">
+                    {{ $facturaSustitutaPrevia->folio_completo }}
+                </a>
+                <div class="text-mono text-muted" style="font-size: 11px; word-break: break-all;">{{ $facturaSustitutaPrevia->uuid }}</div>
             </div>
         </div>
         @endif
         <p class="form-hint" style="margin: 8px 0 0; font-size: 11.5px;">
-            Código y mensaje de esta sección son el eco del envío. El código 201 solo confirma que el SAT recibió la solicitud; el estado actual está arriba.
+            Contexto histórico. No describe la solicitud vigente arriba.
         </p>
         @endif
 
@@ -275,18 +359,21 @@
                 {{ $ultimoEvento->mensaje }}
             </div>
             @endif
-            @if($motivoSatUltimo)
+            @if($mostrarMotivoUltimo)
             <div class="text-muted" style="font-size: 12px; margin-top: 4px;">
                 Motivo SAT: {{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoSatUltimo) }}
             </div>
             @endif
-            @if($uuidSustUltimo)
+            @if($mostrarUuidUltimo)
             <div class="text-mono text-muted" style="font-size: 11px; margin-top: 4px; word-break: break-all;">
                 UUID sustituto: {{ $uuidSustUltimo }}
             </div>
             @endif
             <p class="doc-show-cancel-pac-band-note">
                 Vista del evento más reciente de la bitácora. El historial completo está abajo.
+                @unless($ultimoEsSolicitud)
+                    Los parámetros del envío (motivo / UUID) están en «Última solicitud» o «Intento previo».
+                @endunless
             </p>
         </div>
         @endif
@@ -489,17 +576,33 @@
                         @if($mensajeEvento)
                             <div style="margin-top: 4px;">{{ $mensajeEvento }}</div>
                         @endif
-                        @if(is_array($evento->payload) && (!empty($evento->payload['motivo_sat']) || !empty($evento->payload['uuid_sustitucion'])))
+                        @php
+                            $payloadEv = is_array($evento->payload) ? $evento->payload : [];
+                            $motivoEvBit = (string) ($payloadEv['motivo_sat'] ?? '');
+                            $uuidEvBit = $payloadEv['uuid_sustitucion'] ?? null;
+                            $esSolicitudEv = ($evento->tipo ?? null) === 'solicitud';
+                            $mostrarMotivoEv = $esSolicitudEv && $motivoEvBit !== '';
+                            $mostrarUuidEv = $esSolicitudEv && $motivoEvBit === '01' && filled($uuidEvBit);
+                            $facturaEvBit = null;
+                            if ($mostrarUuidEv) {
+                                if ($facturaSustituta && strcasecmp((string) $facturaSustituta->uuid, (string) $uuidEvBit) === 0) {
+                                    $facturaEvBit = $facturaSustituta;
+                                } elseif ($facturaSustitutaPrevia && strcasecmp((string) $facturaSustitutaPrevia->uuid, (string) $uuidEvBit) === 0) {
+                                    $facturaEvBit = $facturaSustitutaPrevia;
+                                }
+                            }
+                        @endphp
+                        @if($mostrarMotivoEv || $mostrarUuidEv)
                             <div class="text-muted" style="font-size: 11px; margin-top: 4px;">
-                                @if(!empty($evento->payload['motivo_sat']))
-                                    Motivo SAT: {{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($evento->payload['motivo_sat']) }}
+                                @if($mostrarMotivoEv)
+                                    Motivo SAT: {{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoEvBit) }}
                                 @endif
-                                @if(!empty($evento->payload['uuid_sustitucion']))
-                                    <div class="text-mono" style="word-break: break-all;">UUID sustituto: {{ $evento->payload['uuid_sustitucion'] }}</div>
-                                    @if($facturaSustituta && strcasecmp($facturaSustituta->uuid, $evento->payload['uuid_sustitucion']) === 0)
+                                @if($mostrarUuidEv)
+                                    <div class="text-mono" style="word-break: break-all;">UUID sustituto: {{ $uuidEvBit }}</div>
+                                    @if($facturaEvBit)
                                         <div>
                                             Factura sustituta:
-                                            <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
+                                            <a href="{{ route('facturas.show', $facturaEvBit) }}" class="text-link">{{ $facturaEvBit->folio_completo }}</a>
                                         </div>
                                     @endif
                                 @endif

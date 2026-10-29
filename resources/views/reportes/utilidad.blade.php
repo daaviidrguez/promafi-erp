@@ -175,7 +175,7 @@ $breadcrumbs = [
                     <tr>
                         <td class="text-mono" style="font-size: 12px;">{{ $fila['detalle']->factura->orden_compra ? Str::limit($fila['detalle']->factura->orden_compra, 32) : '—' }}</td>
                         <td>
-                            <a href="{{ route('facturas.show', $fila['detalle']->factura_id) }}" class="text-mono" style="color: var(--color-primary);">
+                            <a href="{{ route('facturas.show', [$fila['detalle']->factura_id, 'from' => 'reporte-utilidad']) }}" class="text-mono" style="color: var(--color-primary);">
                                 {{ $fila['detalle']->factura->folio_completo ?? $fila['detalle']->factura->serie . '-' . $fila['detalle']->factura->folio }}
                             </a>
                         </td>

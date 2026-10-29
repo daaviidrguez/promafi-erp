@@ -257,7 +257,7 @@ $breadcrumbs = [
                         @endif
                     </td>
                     <td class="td-actions">
-                        <a href="{{ route('facturas.show', $factura->id) }}" class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
+                        <a href="{{ route('facturas.show', [$factura->id, 'from' => 'dashboard']) }}" class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
                     </td>
                 </tr>
                 @endforeach

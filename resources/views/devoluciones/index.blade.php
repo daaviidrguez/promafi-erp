@@ -24,7 +24,7 @@
 @foreach($devoluciones as $dev)
 <tr>
     <td>{{ $dev->id }}</td>
-    <td><a href="{{ route('facturas.show', $dev->factura_id) }}">{{ $dev->factura->folio_completo ?? '' }}</a></td>
+    <td><a href="{{ route('facturas.show', [$dev->factura_id, 'from' => 'devoluciones']) }}">{{ $dev->factura->folio_completo ?? '' }}</a></td>
     <td>{{ $dev->cliente->nombre ?? '' }}</td>
     <td>{{ $dev->fecha_devolucion->format('d/m/Y') }}</td>
     <td class="td-right text-mono">${{ number_format($dev->total_devuelto, 2, '.', ',') }}</td>

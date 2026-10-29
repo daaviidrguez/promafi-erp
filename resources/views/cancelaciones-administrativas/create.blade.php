@@ -103,7 +103,7 @@ $breadcrumbs = [
                             @else
                             <span class="text-muted" style="font-size:12px;">{{ \Illuminate\Support\Str::limit($f->motivo_no_cancelar_admin, 48) }}</span>
                             @endif
-                            <a href="{{ route('facturas.show', $f->id) }}" class="btn btn-light btn-sm" style="margin-left:4px;">Ver</a>
+                            <a href="{{ route('facturas.show', [$f->id, 'from' => 'cancelaciones-admin']) }}" class="btn btn-light btn-sm" style="margin-left:4px;">Ver</a>
                         </td>
                     </tr>
                     @empty

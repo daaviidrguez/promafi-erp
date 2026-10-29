@@ -74,7 +74,7 @@ class GlobalSearchController extends Controller
                     ->get()
                     ->map(fn ($f) => [
                         'label'  => 'Factura ' . $f->folio_completo . ' - ' . $f->nombre_receptor,
-                        'url'    => route('facturas.show', $f->id),
+                        'url'    => route('facturas.show', [$f->id, 'from' => 'busqueda']),
                         'estado' => $f->estado ?? null,
                         'tipo'   => 'factura',
                     ]);
@@ -90,7 +90,7 @@ class GlobalSearchController extends Controller
                     ->get()
                     ->map(fn ($c) => [
                         'label'  => 'Cotización ' . $c->folio . ' - ' . $c->cliente_nombre,
-                        'url'    => route('cotizaciones.show', $c->id),
+                        'url'    => route('cotizaciones.show', [$c->id, 'from' => 'busqueda']),
                         'estado' => $c->estado ?? null,
                         'tipo'   => 'cotizacion',
                     ]);

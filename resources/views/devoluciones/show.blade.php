@@ -21,7 +21,7 @@ $breadcrumbs = [
                 <div class="card-title">Factura relacionada</div>
             </div>
             <div class="card-body">
-                <a href="{{ route('facturas.show', $devolucion->factura_id) }}" class="fw-600 text-primary">{{ $devolucion->factura->folio_completo }}</a>
+                <a href="{{ route('facturas.show', [$devolucion->factura_id, 'from' => 'devolucion', 'from_id' => $devolucion->id]) }}" class="fw-600 text-primary">{{ $devolucion->factura->folio_completo }}</a>
                 <div class="text-muted" style="font-size: 12px;">{{ $devolucion->factura->fecha_emision->format('d/m/Y') }} · ${{ number_format($devolucion->factura->total, 2, '.', ',') }}</div>
             </div>
         </div>

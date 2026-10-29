@@ -409,7 +409,7 @@
                 <div class="doc-show-cancel-summary-cell">
                     <span class="doc-show-cancel-summary-label">Factura sustituta</span>
                     <div class="doc-show-cancel-summary-value">
-                        <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
+                        <a href="{{ route('facturas.show', [$facturaSustituta, 'from' => 'factura', 'from_id' => $document->id]) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
                         <div class="doc-show-cancel-summary-sub">{{ $facturaSustituta->uuid }}</div>
                         @if($sustitutoSinRelacion04)
                             <div class="text-muted" style="font-size: 11.5px; margin-top: 4px; color: var(--color-danger);">
@@ -468,7 +468,7 @@
                 <div class="doc-show-cancel-summary-cell">
                     <span class="doc-show-cancel-summary-label">Factura sustituta (ese intento)</span>
                     <div class="doc-show-cancel-summary-value">
-                        <a href="{{ route('facturas.show', $facturaSustitutaPrevia) }}" class="text-link">{{ $facturaSustitutaPrevia->folio_completo }}</a>
+                        <a href="{{ route('facturas.show', [$facturaSustitutaPrevia, 'from' => 'factura', 'from_id' => $document->id]) }}" class="text-link">{{ $facturaSustitutaPrevia->folio_completo }}</a>
                         <div class="doc-show-cancel-summary-sub">{{ $facturaSustitutaPrevia->uuid }}</div>
                     </div>
                 </div>
@@ -630,7 +630,7 @@
                                     @if($facturaEvBit)
                                         <div>
                                             Factura sustituta:
-                                            <a href="{{ route('facturas.show', $facturaEvBit) }}" class="text-link">{{ $facturaEvBit->folio_completo }}</a>
+                                            <a href="{{ route('facturas.show', $esFactura ? [$facturaEvBit, 'from' => 'factura', 'from_id' => $document->id] : $facturaEvBit) }}" class="text-link">{{ $facturaEvBit->folio_completo }}</a>
                                         </div>
                                     @endif
                                 @endif

@@ -246,37 +246,93 @@ if (! function_exists('docShowVolverOrigen')) {
 
         $fromId = $fromId ?? request()->query('from_id');
         $id = filter_var($fromId, FILTER_VALIDATE_INT);
+        $id = $id !== false ? (int) $id : null;
 
-        if ($from === 'cuenta-cobrar') {
+        /** @var array<string, array{route: string, label: string, fallback_route: string, fallback_label: string, fallback_params?: array}> $conId */
+        $conId = [
+            'cuenta-cobrar' => [
+                'route' => 'cuentas-cobrar.show',
+                'label' => '← Volver a la cuenta por cobrar',
+                'fallback_route' => 'cuentas-cobrar.index',
+                'fallback_label' => '← Volver a cuentas por cobrar',
+            ],
+            'complemento' => [
+                'route' => 'complementos.show',
+                'label' => '← Volver al complemento de pago',
+                'fallback_route' => 'complementos.index',
+                'fallback_label' => '← Volver a complementos de pago',
+            ],
+            'cancelacion-admin' => [
+                'route' => 'cancelaciones-administrativas.show',
+                'label' => '← Volver a la cancelación administrativa',
+                'fallback_route' => 'cancelaciones-administrativas.index',
+                'fallback_label' => '← Volver a cancelaciones administrativas',
+            ],
+            'nota-credito' => [
+                'route' => 'notas-credito.show',
+                'label' => '← Volver a la nota de crédito',
+                'fallback_route' => 'notas-credito.index',
+                'fallback_label' => '← Volver a notas de crédito',
+            ],
+            'devolucion' => [
+                'route' => 'devoluciones.show',
+                'label' => '← Volver a la devolución',
+                'fallback_route' => 'devoluciones.index',
+                'fallback_label' => '← Volver a devoluciones',
+            ],
+            'remision' => [
+                'route' => 'remisiones.show',
+                'label' => '← Volver a la remisión',
+                'fallback_route' => 'remisiones.index',
+                'fallback_label' => '← Volver a remisiones',
+            ],
+            'inventario-movimiento' => [
+                'route' => 'inventario.movimiento.show',
+                'label' => '← Volver al movimiento',
+                'fallback_route' => 'inventario.movimientos',
+                'fallback_label' => '← Volver a movimientos de inventario',
+            ],
+            'inventario-producto' => [
+                'route' => 'inventario.show-producto',
+                'label' => '← Volver al inventario del producto',
+                'fallback_route' => 'inventario.index',
+                'fallback_label' => '← Volver a inventario',
+            ],
+            'cotizacion' => [
+                'route' => 'cotizaciones.show',
+                'label' => '← Volver a la cotización',
+                'fallback_route' => 'cotizaciones.index',
+                'fallback_label' => '← Volver a cotizaciones',
+            ],
+            'factura' => [
+                'route' => 'facturas.show',
+                'label' => '← Volver a la factura',
+                'fallback_route' => 'facturas.index',
+                'fallback_label' => '← Volver a facturas',
+            ],
+        ];
+
+        if (isset($conId[$from])) {
+            $cfg = $conId[$from];
             if ($id) {
                 return [
-                    'url' => route('cuentas-cobrar.show', $id),
-                    'label' => '← Volver a la cuenta por cobrar',
+                    'url' => route($cfg['route'], $id),
+                    'label' => $cfg['label'],
                 ];
             }
 
             return [
-                'url' => route('cuentas-cobrar.index'),
-                'label' => '← Volver a cuentas por cobrar',
-            ];
-        }
-
-        if ($from === 'complemento') {
-            if ($id) {
-                return [
-                    'url' => route('complementos.show', $id),
-                    'label' => '← Volver al complemento de pago',
-                ];
-            }
-
-            return [
-                'url' => route('complementos.index'),
-                'label' => '← Volver a complementos de pago',
+                'url' => route($cfg['fallback_route'], $cfg['fallback_params'] ?? []),
+                'label' => $cfg['fallback_label'],
             ];
         }
 
         return match ($from) {
             'dashboard' => [
+                'url' => route('dashboard'),
+                'label' => '← Volver al dashboard',
+            ],
+            'busqueda' => [
                 'url' => route('dashboard'),
                 'label' => '← Volver al dashboard',
             ],
@@ -287,6 +343,38 @@ if (! function_exists('docShowVolverOrigen')) {
             'cuentas-cobrar' => [
                 'url' => route('cuentas-cobrar.index'),
                 'label' => '← Volver a cuentas por cobrar',
+            ],
+            'complementos' => [
+                'url' => route('complementos.index'),
+                'label' => '← Volver a complementos de pago',
+            ],
+            'cancelaciones-admin' => [
+                'url' => route('cancelaciones-administrativas.index'),
+                'label' => '← Volver a cancelaciones administrativas',
+            ],
+            'notas-credito' => [
+                'url' => route('notas-credito.index'),
+                'label' => '← Volver a notas de crédito',
+            ],
+            'devoluciones' => [
+                'url' => route('devoluciones.index'),
+                'label' => '← Volver a devoluciones',
+            ],
+            'inventario-movimientos' => [
+                'url' => route('inventario.movimientos'),
+                'label' => '← Volver a movimientos de inventario',
+            ],
+            'reporte-utilidad' => [
+                'url' => route('reportes.utilidad'),
+                'label' => '← Volver al reporte de utilidad',
+            ],
+            'importador-cfdi' => [
+                'url' => route('importador-cfdi.index'),
+                'label' => '← Volver al importador CFDI',
+            ],
+            'cotizaciones' => [
+                'url' => route('cotizaciones.index'),
+                'label' => '← Volver a cotizaciones',
             ],
             default => null,
         };

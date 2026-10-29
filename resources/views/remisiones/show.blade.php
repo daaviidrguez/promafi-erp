@@ -94,7 +94,7 @@ $breadcrumbs = [
                         @can('facturas.ver')
                         <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
                             @if($remision->factura_id_cancelada)
-                                <a href="{{ route('facturas.show', $remision->factura_id_cancelada) }}"
+                                <a href="{{ route('facturas.show', [$remision->factura_id_cancelada, 'from' => 'remision', 'from_id' => $remision->id]) }}"
                                    class="btn btn-outline btn-sm w-full">
                                     Ver factura vinculada - cancelada
                                 </a>
@@ -104,7 +104,7 @@ $breadcrumbs = [
                                 @php
                                     $esCancelada = $remision->factura && $remision->factura->estado === 'cancelada';
                                 @endphp
-                                <a href="{{ route('facturas.show', $remision->factura_id) }}"
+                                <a href="{{ route('facturas.show', [$remision->factura_id, 'from' => 'remision', 'from_id' => $remision->id]) }}"
                                    class="btn btn-outline btn-sm w-full">
                                     {{ $esCancelada ? 'Ver factura vinculada - cancelada' : 'Ver factura vinculada' }}
                                 </a>

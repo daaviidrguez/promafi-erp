@@ -46,7 +46,7 @@ $breadcrumbs = [['title' => 'Importador CFDI']];
                         <td>
                             @if($r['success'] && !empty($r['modelo_id']))
                                 @if($r['tipo'] === 'factura' || $r['tipo'] === 'acuse_cancelacion')
-                                    <a href="{{ route('facturas.show', $r['modelo_id']) }}" class="btn btn-outline btn-sm">{{ $r['tipo'] === 'acuse_cancelacion' ? 'Ver factura cancelada' : 'Ver factura' }}</a>
+                                    <a href="{{ route('facturas.show', [$r['modelo_id'], 'from' => 'importador-cfdi']) }}" class="btn btn-outline btn-sm">{{ $r['tipo'] === 'acuse_cancelacion' ? 'Ver factura cancelada' : 'Ver factura' }}</a>
                                 @elseif($r['tipo'] === 'complemento')
                                     <a href="{{ route('complementos.show', $r['modelo_id']) }}" class="btn btn-outline btn-sm">Ver complemento</a>
                                 @endif

@@ -32,7 +32,7 @@ $factura = $cancelacion->factura;
             </div>
             <div class="card-body">
                 @if($factura)
-                <a href="{{ route('facturas.show', $factura->id) }}" class="fw-600 text-primary text-mono">{{ $factura->folio_completo }}</a>
+                <a href="{{ route('facturas.show', [$factura->id, 'from' => 'cancelacion-admin', 'from_id' => $cancelacion->id]) }}" class="fw-600 text-primary text-mono">{{ $factura->folio_completo }}</a>
                 <div class="text-muted" style="font-size: 12px; margin-top:4px;">
                     {{ $factura->fecha_emision?->format('d/m/Y') }}
                     · ${{ number_format($factura->total, 2, '.', ',') }}
@@ -179,7 +179,7 @@ $factura = $cancelacion->factura;
                 @endif
 
                 @if($factura)
-                <a href="{{ route('facturas.show', $factura->id) }}" class="btn btn-light w-full" style="margin-top:12px;">Ver factura</a>
+                <a href="{{ route('facturas.show', [$factura->id, 'from' => 'cancelacion-admin', 'from_id' => $cancelacion->id]) }}" class="btn btn-light w-full" style="margin-top:12px;">Ver factura</a>
                 @endif
                 <a href="{{ route('cancelaciones-administrativas.index') }}" class="btn btn-light w-full" style="margin-top:8px;">← Historial</a>
                 <a href="{{ route('cancelaciones-administrativas.create') }}" class="btn btn-primary w-full" style="margin-top:8px;">➕ Nueva cancelación</a>

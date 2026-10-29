@@ -17,7 +17,7 @@ $breadcrumbs = [
                 <div class="info-grid-2">
                     <div class="info-row"><div class="info-label">Nombre</div><div class="info-value">{{ $notaCredito->nombre_receptor }}</div></div>
                     <div class="info-row"><div class="info-label">RFC</div><div class="info-value text-mono">{{ $notaCredito->rfc_receptor }}</div></div>
-                    <div class="info-row"><div class="info-label">Factura que se acredita</div><div class="info-value"><a href="{{ route('facturas.show', $notaCredito->factura_id) }}">{{ $notaCredito->factura->folio_completo ?? '' }}</a></div></div>
+                    <div class="info-row"><div class="info-label">Factura que se acredita</div><div class="info-value"><a href="{{ route('facturas.show', [$notaCredito->factura_id, 'from' => 'nota-credito', 'from_id' => $notaCredito->id]) }}">{{ $notaCredito->factura->folio_completo ?? '' }}</a></div></div>
                     @if($notaCredito->uuid_referencia)<div class="info-row"><div class="info-label">UUID factura</div><div class="info-value text-mono" style="font-size:11px;">{{ $notaCredito->uuid_referencia }}</div></div>@endif
                 </div>
             </div>

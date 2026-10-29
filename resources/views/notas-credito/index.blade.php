@@ -34,7 +34,7 @@
 @foreach($notas as $nc)
 <tr>
     <td><span class="text-mono fw-600">{{ $nc->folio_completo }}</span>@if($nc->uuid)<div class="text-muted" style="font-size:11px;">{{ substr($nc->uuid, 0, 18) }}...</div>@endif</td>
-    <td><a href="{{ route('facturas.show', $nc->factura_id) }}">{{ $nc->factura->folio_completo ?? '' }}</a></td>
+    <td><a href="{{ route('facturas.show', [$nc->factura_id, 'from' => 'notas-credito']) }}">{{ $nc->factura->folio_completo ?? '' }}</a></td>
     <td>{{ $nc->cliente->nombre ?? '' }}</td>
     <td>{{ $nc->fecha_emision->format('d/m/Y') }}</td>
     <td class="td-right text-mono fw-600">${{ number_format($nc->total, 2, '.', ',') }}</td>

@@ -666,7 +666,7 @@ $breadcrumbs = [
 
                 @if($factura->cotizacion)
                 @can('cotizaciones.ver')
-                <a href="{{ route('cotizaciones.show', $factura->cotizacion->id) }}"
+                <a href="{{ route('cotizaciones.show', [$factura->cotizacion->id, 'from' => 'factura', 'from_id' => $factura->id]) }}"
                    class="btn btn-outline w-full">📋 Ver cotización relacionada</a>
                 @endcan
                 @endif

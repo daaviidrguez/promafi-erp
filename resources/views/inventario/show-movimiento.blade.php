@@ -45,7 +45,7 @@ $breadcrumbs = [
             <div class="card-header"><div class="card-title">Referencia</div></div>
             <div class="card-body">
                 @if($movimiento->factura_id)
-                    <a href="{{ route('facturas.show', $movimiento->factura_id) }}" class="btn btn-outline w-full">Factura {{ $movimiento->factura->folio ?? $movimiento->factura_id }}</a>
+                    <a href="{{ route('facturas.show', [$movimiento->factura_id, 'from' => 'inventario-movimiento', 'from_id' => $movimiento->id]) }}" class="btn btn-outline w-full">Factura {{ $movimiento->factura->folio ?? $movimiento->factura_id }}</a>
                 @elseif($movimiento->remision_id)
                     <a href="{{ route('remisiones.show', $movimiento->remision_id) }}" class="btn btn-outline w-full">Remisión {{ $movimiento->remision->folio ?? $movimiento->remision_id }}</a>
                 @elseif($movimiento->orden_compra_id)

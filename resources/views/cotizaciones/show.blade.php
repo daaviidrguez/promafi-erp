@@ -486,7 +486,7 @@ $breadcrumbs = [
                     <p class="text-muted small mb-0" style="margin-top: -4px; font-size: 12px; line-height: 1.45;">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
                     @endif
                 @elseif($verFacturaComoPrincipal)
-                <a href="{{ route('facturas.show', $cotizacion->factura->id) }}"
+                <a href="{{ route('facturas.show', [$cotizacion->factura->id, 'from' => 'cotizacion', 'from_id' => $cotizacion->id]) }}"
                    class="btn btn-primary w-full">💰 Ver factura relacionada</a>
                 @endif
 
@@ -523,7 +523,7 @@ $breadcrumbs = [
 
                 @if($cotizacion->factura && ! $verFacturaComoPrincipal)
                 @can('facturas.ver')
-                <a href="{{ route('facturas.show', $cotizacion->factura->id) }}"
+                <a href="{{ route('facturas.show', [$cotizacion->factura->id, 'from' => 'cotizacion', 'from_id' => $cotizacion->id]) }}"
                    class="btn btn-outline w-full">💰 Ver factura relacionada</a>
                 @endcan
                 @endif

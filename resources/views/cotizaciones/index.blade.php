@@ -188,7 +188,7 @@ $breadcrumbs = [
                     @endphp
                     @if($c->estado === 'facturada' && $c->factura)
                         @can('facturas.ver')
-                        <a href="{{ route('facturas.show', $c->factura->id) }}"
+                        <a href="{{ route('facturas.show', [$c->factura->id, 'from' => 'cotizacion', 'from_id' => $c->id]) }}"
                            class="badge {{ $estadoBadgeClass }}"
                            style="text-decoration: none;"
                            @if($estadoBadgeTitle) title="{{ $estadoBadgeTitle }}" @endif>

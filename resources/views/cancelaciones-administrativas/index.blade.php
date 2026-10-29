@@ -161,7 +161,7 @@ $breadcrumbs = [
                 <td class="td-actions">
                     <a href="{{ route('cancelaciones-administrativas.show', $c) }}" class="btn btn-info btn-sm">Ver</a>
                     @if($c->factura)
-                    <a href="{{ route('facturas.show', $c->factura_id) }}" class="btn btn-light btn-sm">Factura</a>
+                    <a href="{{ route('facturas.show', [$c->factura_id, 'from' => 'cancelaciones-admin']) }}" class="btn btn-light btn-sm">Factura</a>
                     @endif
                 </td>
             </tr>

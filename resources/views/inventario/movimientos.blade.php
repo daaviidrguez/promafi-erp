@@ -73,7 +73,7 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
                 <td class="td-right text-mono">{{ number_format($m->stock_resultante ?? 0, 2) }}</td>
                 <td style="font-size:13px;">
                     @if($m->factura_id)
-                        <a href="{{ route('facturas.show', $m->factura_id) }}">Factura {{ $m->factura->folio ?? $m->factura_id }}</a>
+                        <a href="{{ route('facturas.show', [$m->factura_id, 'from' => 'inventario-movimientos']) }}">Factura {{ $m->factura->folio ?? $m->factura_id }}</a>
                     @elseif($m->remision_id)
                         <a href="{{ route('remisiones.show', $m->remision_id) }}">Remisión {{ $m->remision->folio ?? $m->remision_id }}</a>
                     @elseif($m->orden_compra_id)

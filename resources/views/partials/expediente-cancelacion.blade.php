@@ -131,202 +131,229 @@
     $mostrarIntentoPrevio = $mostrarPrimerEnvio
         || filled($uuidIntentoPrevio)
         || ($eventoIntentoPrevio !== null && $motivoVigente !== '' && $motivoVigente !== '01');
+
+    if ($esFactura && $document->cancelacionFiscalVencidaSinResolver()) {
+        $estadoPacResumen = 'Límite de respuesta vencido · CFDI vigente';
+    } elseif ($esFactura && $document->intentoFiscalPrevioSinCancelar()) {
+        $estadoPacResumen = 'Sin solicitud pendiente ahora · CFDI vigente';
+    } elseif ($document->solicitudFiscalPendiente()) {
+        $estadoPacResumen = 'Pendiente de cancelación SAT';
+    } elseif ($document->canceladaAnteSat()) {
+        $estadoPacResumen = 'Cancelado ante el SAT';
+    } elseif ($esFactura && $document->cancelacionFiscalRechazada()) {
+        $estadoPacResumen = 'Rechazada · el CFDI sigue vigente';
+    } elseif ($esFactura && $document->pendienteCancelacionAntePac()) {
+        $estadoPacResumen = 'Aún no se envía al SAT';
+    } elseif ($document->estatus_cancelacion_pac) {
+        $estadoPacResumen = (string) $document->estatus_cancelacion_pac;
+    } elseif ($esFactura && $document->tuvoSolicitudFiscalPrevia()) {
+        $estadoPacResumen = 'Sin solicitud pendiente ahora';
+    } else {
+        $estadoPacResumen = 'Sin solicitud en Facturama';
+    }
+
+    if ($esFactura && $document->cancelacionFiscalVencidaSinResolver()) {
+        $estadoSatResumen = 'Vigente · el límite de respuesta en el ERP ya venció';
+    } elseif ($esFactura && $document->intentoFiscalPrevioSinCancelar()) {
+        $estadoSatResumen = 'Vigente · el intento previo no canceló el CFDI';
+    } else {
+        $estadoSatResumen = \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
+            $document->estatus_cancelacion_pac,
+            $document->estatus_sat,
+            $document->codigo_estatus_cancelacion
+        );
+    }
+
+    $mostrarFilaErpMotivo = ($esAdmin && (
+            filled($document->cancelacion_administrativa_motivo ?? null)
+            || $document->cancelacionAdministrativaUsuario
+        ))
+        || $motivoVigente !== '';
+    $mostrarFilaEcoEnvio = filled($codigoAlEnviar) || $limiteAceptacion;
+    $mostrarFilaSustitutoVigente = filled($uuidVigente) || $facturaSustituta || $sustitutoSinRelacion04;
 @endphp
 
 @unless($embebido)
 <div class="card" style="margin-top: 16px;">
+    @if($soloHistorialAdmin)
     <div class="card-header">
         <div class="card-title">{{ $tituloExpediente }}</div>
     </div>
+    @endif
 @endunless
     <div class="{{ $embebido ? '' : 'card-body' }}" style="font-size: 13px; line-height: 1.5;">
-        @if($embebido)
+        @if($embebido && $soloHistorialAdmin)
             <div class="card-title" style="margin-bottom: 14px;">{{ $tituloExpediente }}</div>
         @endif
         @unless($soloHistorialAdmin)
 
-        {{-- Capa 1: estado actual --}}
-        <div class="info-label" style="margin-bottom: 8px;">Estado actual</div>
-        <div class="info-row">
-            <div class="info-label">Estado PAC</div>
-            <div class="info-value-sm">
-                @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
-                    Límite de respuesta vencido · CFDI vigente
-                @elseif($esFactura && $document->intentoFiscalPrevioSinCancelar())
-                    Sin solicitud pendiente ahora · CFDI vigente
-                @elseif($document->solicitudFiscalPendiente())
-                    Pendiente de cancelación SAT
-                @elseif($document->canceladaAnteSat())
-                    Cancelado ante el SAT
-                @elseif($esFactura && $document->cancelacionFiscalRechazada())
-                    Rechazada · el CFDI sigue vigente
-                @elseif($esFactura && $document->pendienteCancelacionAntePac())
-                    Aún no se envía al SAT
-                @elseif($document->estatus_cancelacion_pac)
-                    {{ $document->estatus_cancelacion_pac }}
-                @elseif($esFactura && $document->tuvoSolicitudFiscalPrevia())
-                    Sin solicitud pendiente ahora
-                @else
-                    Sin solicitud en Facturama
+        {{-- Resumen vigente: banda + grid horizontal --}}
+        <div class="doc-show-cancel-summary">
+            <div class="doc-show-cancel-summary-head">
+                <div class="doc-show-cancel-summary-title">{{ $tituloExpediente }}</div>
+                @if($fechaUltimaSolicitud)
+                <div class="doc-show-cancel-summary-meta">
+                    <span class="doc-show-cancel-summary-meta-label">Última solicitud al PAC / SAT</span>
+                    {{ $fechaUltimaSolicitud->format('d/m/Y H:i') }}
+                </div>
                 @endif
             </div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Estado SAT</div>
-            <div class="info-value-sm">
-                @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
-                    Vigente · el límite de respuesta en el ERP ya venció
-                @elseif($esFactura && $document->intentoFiscalPrevioSinCancelar())
-                    Vigente · el intento previo no canceló el CFDI
-                @else
-                    {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
-                        $document->estatus_cancelacion_pac,
-                        $document->estatus_sat,
-                        $document->codigo_estatus_cancelacion
-                    ) }}
-                @endif
-            </div>
-        </div>
-        @if($document->is_cancelable ?? null)
-        <div class="info-row">
-            <div class="info-label">Cancelable (SAT)</div>
-            <div class="info-value-sm">{{ $document->is_cancelable }}</div>
-        </div>
-        @endif
 
-        @if($esAdmin)
-            @if($document->cancelacion_administrativa_motivo)
-            <div class="info-row">
-                <div class="info-label">Motivo administrativo (ERP)</div>
-                <div class="info-value-sm">{{ $document->cancelacion_administrativa_motivo }}</div>
+            <div class="doc-show-cancel-summary-grid">
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Estado PAC</span>
+                    <div class="doc-show-cancel-summary-value">{{ $estadoPacResumen }}</div>
+                </div>
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Estado SAT</span>
+                    <div class="doc-show-cancel-summary-value">{{ $estadoSatResumen }}</div>
+                </div>
+                @if($document->is_cancelable ?? null)
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Cancelable (SAT)</span>
+                    <div class="doc-show-cancel-summary-value">{{ $document->is_cancelable }}</div>
+                </div>
+                @endif
+            </div>
+
+            @if($mostrarFilaErpMotivo)
+            <div class="doc-show-cancel-summary-grid">
+                @if($esAdmin && filled($document->cancelacion_administrativa_motivo ?? null))
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Motivo administrativo (ERP)</span>
+                    <div class="doc-show-cancel-summary-value doc-show-cancel-summary-value--muted">{{ $document->cancelacion_administrativa_motivo }}</div>
+                </div>
+                @endif
+                @if($esAdmin && $document->cancelacionAdministrativaUsuario)
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Registró</span>
+                    <div class="doc-show-cancel-summary-value">{{ $document->cancelacionAdministrativaUsuario->name }}</div>
+                </div>
+                @endif
+                @if($motivoVigente !== '')
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Motivo SAT</span>
+                    <div class="doc-show-cancel-summary-value">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoVigente) }}</div>
+                </div>
+                @endif
             </div>
             @endif
-            @if($document->cancelacionAdministrativaUsuario)
-            <div class="info-row">
-                <div class="info-label">Registró</div>
-                <div class="info-value-sm">{{ $document->cancelacionAdministrativaUsuario->name }}</div>
+
+            @if($mostrarFilaEcoEnvio)
+            <div class="doc-show-cancel-summary-grid">
+                @if($codigoAlEnviar)
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Código al enviar</span>
+                    <div class="doc-show-cancel-summary-value doc-show-cancel-summary-value--mono">
+                        {{ $codigoAlEnviar }}@if($descripcionCodigoAlEnviar) — {{ $descripcionCodigoAlEnviar }}@endif
+                    </div>
+                </div>
+                @endif
+                @if($limiteAceptacion)
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Límite de aceptación</span>
+                    <div class="doc-show-cancel-summary-value doc-show-cancel-summary-value--mono">
+                        {{ $limiteAceptacion->format('d/m/Y H:i') }}
+                        @if($esFactura && ! $document->fecha_vencimiento_aceptacion)
+                            <span class="text-muted">(estimado)</span>
+                        @endif
+                    </div>
+                </div>
+                @endif
             </div>
             @endif
-        @endif
 
-        {{-- Capa 2: parámetros de la última solicitud (eco del envío vigente) --}}
-        @if($motivoVigente !== '' || $fechaUltimaSolicitud || filled($uuidVigente) || $mostrarProceso)
-        <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Última solicitud al PAC / SAT</div>
-        @if($fechaUltimaSolicitud)
-        <div class="info-row">
-            <div class="info-label">Fecha</div>
-            <div class="info-value-sm">{{ $fechaUltimaSolicitud->format('d/m/Y H:i') }}</div>
-        </div>
-        @endif
-        @if($motivoVigente !== '')
-        <div class="info-row">
-            <div class="info-label">Motivo SAT</div>
-            <div class="info-value-sm">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoVigente) }}</div>
-        </div>
-        @endif
-        @if(filled($uuidVigente))
-        <div class="info-row">
-            <div class="info-label">UUID sustituto</div>
-            <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $uuidVigente }}</div>
-        </div>
-        @endif
-        @if($facturaSustituta)
-        <div class="info-row">
-            <div class="info-label">Factura sustituta</div>
-            <div class="info-value-sm">
-                <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">
-                    {{ $facturaSustituta->folio_completo }}
-                </a>
-                <div class="text-mono text-muted" style="font-size: 11px; word-break: break-all;">{{ $facturaSustituta->uuid }}</div>
-                @if($sustitutoSinRelacion04)
-                    <div class="text-muted" style="font-size: 11.5px; margin-top: 4px; color: var(--color-danger);">
-                        Sin relación fiscal 04 hacia este CFDI. El motivo 01 no es válido hasta corregirlo.
+            @if($mensajeAlEnviar)
+            <div class="doc-show-cancel-summary-grid">
+                <div class="doc-show-cancel-summary-cell doc-show-cancel-summary-cell--wide">
+                    <span class="doc-show-cancel-summary-label">Mensaje al enviar</span>
+                    <div class="doc-show-cancel-summary-value doc-show-cancel-summary-value--muted">{{ $mensajeAlEnviar }}</div>
+                </div>
+            </div>
+            @endif
+
+            @if($mostrarFilaSustitutoVigente)
+            <div class="doc-show-cancel-summary-grid">
+                @if(filled($uuidVigente))
+                <div class="doc-show-cancel-summary-cell {{ $facturaSustituta ? 'doc-show-cancel-summary-cell--span2' : 'doc-show-cancel-summary-cell--wide' }}">
+                    <span class="doc-show-cancel-summary-label">UUID sustituto</span>
+                    <div class="doc-show-cancel-summary-value doc-show-cancel-summary-value--mono" style="word-break: break-all;">{{ $uuidVigente }}</div>
+                </div>
+                @endif
+                @if($facturaSustituta)
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Factura sustituta</span>
+                    <div class="doc-show-cancel-summary-value">
+                        <a href="{{ route('facturas.show', $facturaSustituta) }}" class="text-link">{{ $facturaSustituta->folio_completo }}</a>
+                        <div class="doc-show-cancel-summary-sub">{{ $facturaSustituta->uuid }}</div>
+                        @if($sustitutoSinRelacion04)
+                            <div class="text-muted" style="font-size: 11.5px; margin-top: 4px; color: var(--color-danger);">
+                                Sin relación fiscal 04 hacia este CFDI.
+                            </div>
+                        @elseif($sustitutoConRelacion04)
+                            <div class="text-muted" style="font-size: 11.5px; margin-top: 4px;">
+                                Relación 04 verificada en el ERP.
+                            </div>
+                        @endif
                     </div>
-                @elseif($sustitutoConRelacion04)
-                    <div class="text-muted" style="font-size: 11.5px; margin-top: 4px;">
-                        Relación 04 (sustitución) verificada en el ERP.
+                </div>
+                @elseif($sustitutoSinRelacion04)
+                <div class="doc-show-cancel-summary-cell doc-show-cancel-summary-cell--wide">
+                    <span class="doc-show-cancel-summary-label">Relación sustituto</span>
+                    <div class="doc-show-cancel-summary-value" style="color: var(--color-danger);">
+                        El UUID sustituto no tiene tipo de relación 04 hacia esta factura.
                     </div>
+                </div>
                 @endif
             </div>
-        </div>
-        @elseif($sustitutoSinRelacion04)
-        <div class="info-row">
-            <div class="info-label">Relación sustituto</div>
-            <div class="info-value-sm" style="color: var(--color-danger);">
-                El UUID sustituto no tiene tipo de relación 04 hacia esta factura.
-            </div>
-        </div>
-        @endif
-        @if($codigoAlEnviar)
-        <div class="info-row">
-            <div class="info-label">Código al enviar</div>
-            <div class="info-value-sm text-mono">
-                {{ $codigoAlEnviar }}@if($descripcionCodigoAlEnviar) — {{ $descripcionCodigoAlEnviar }}@endif
-            </div>
-        </div>
-        @endif
-        @if($mensajeAlEnviar)
-        <div class="info-row">
-            <div class="info-label">Mensaje al enviar</div>
-            <div class="info-value-sm">{{ $mensajeAlEnviar }}</div>
-        </div>
-        @endif
-        @if($limiteAceptacion)
-        <div class="info-row">
-            <div class="info-label">Límite de aceptación</div>
-            <div class="info-value-sm">
-                {{ $limiteAceptacion->format('d/m/Y H:i') }}
-                @if($esFactura && ! $document->fecha_vencimiento_aceptacion)
-                    <span class="text-muted">(estimado)</span>
-                @endif
-            </div>
-        </div>
-        @endif
-        <p class="form-hint" style="margin: 8px 0 0; font-size: 11.5px;">
-            Parámetros del envío vigente. El código 201 solo confirma recepción; el estado vivo está en «Estado actual».
-        </p>
-        @endif
+            @endif
 
-        {{-- Capa 2b: intento / primer envío distinto (p. ej. 01 fallido antes del 03) --}}
+            <p class="doc-show-cancel-summary-hint">
+                Estado vivo y parámetros del envío vigente. El código 201 solo confirma recepción ante el SAT.
+            </p>
+        </div>
+
+        {{-- Intento previo (no vigente) --}}
         @if($mostrarIntentoPrevio)
-        <div class="info-label" style="margin-top: 16px; margin-bottom: 8px;">Intento previo (no vigente)</div>
-        @if($fechaPrimerEnvio)
-        <div class="info-row">
-            <div class="info-label">Primer envío al PAC</div>
-            <div class="info-value-sm">
-                {{ $fechaPrimerEnvio->format('d/m/Y H:i') }}
-                @if($fechaUltimaSolicitud && abs($fechaPrimerEnvio->diffInMinutes($fechaUltimaSolicitud)) >= 2)
-                    <span class="text-muted" style="font-size: 11px;"> · distinto de la última solicitud</span>
+        <div class="doc-show-cancel-summary doc-show-cancel-summary--previo">
+            <div class="doc-show-cancel-summary-head">
+                <div class="doc-show-cancel-summary-title">Intento previo (no vigente)</div>
+                @if($fechaPrimerEnvio)
+                <div class="doc-show-cancel-summary-meta">
+                    <span class="doc-show-cancel-summary-meta-label">Primer envío al PAC</span>
+                    {{ $fechaPrimerEnvio->format('d/m/Y H:i') }}
+                </div>
                 @endif
             </div>
-        </div>
-        @endif
-        @if(filled($motivoIntentoPrevio))
-        <div class="info-row">
-            <div class="info-label">Motivo de ese intento</div>
-            <div class="info-value-sm">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoIntentoPrevio) }}</div>
-        </div>
-        @endif
-        @if(filled($uuidIntentoPrevio))
-        <div class="info-row">
-            <div class="info-label">UUID sustituto (ese intento)</div>
-            <div class="info-value-sm text-mono" style="word-break: break-all;">{{ $uuidIntentoPrevio }}</div>
-        </div>
-        @endif
-        @if($facturaSustitutaPrevia)
-        <div class="info-row">
-            <div class="info-label">Factura sustituta (ese intento)</div>
-            <div class="info-value-sm">
-                <a href="{{ route('facturas.show', $facturaSustitutaPrevia) }}" class="text-link">
-                    {{ $facturaSustitutaPrevia->folio_completo }}
-                </a>
-                <div class="text-mono text-muted" style="font-size: 11px; word-break: break-all;">{{ $facturaSustitutaPrevia->uuid }}</div>
+            @if(filled($motivoIntentoPrevio) || filled($uuidIntentoPrevio) || $facturaSustitutaPrevia)
+            <div class="doc-show-cancel-summary-grid">
+                @if(filled($motivoIntentoPrevio))
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Motivo de ese intento</span>
+                    <div class="doc-show-cancel-summary-value">{{ \App\Services\EstatusCancelacionCfdi::descripcionMotivoSat($motivoIntentoPrevio) }}</div>
+                </div>
+                @endif
+                @if(filled($uuidIntentoPrevio))
+                <div class="doc-show-cancel-summary-cell {{ $facturaSustitutaPrevia ? '' : 'doc-show-cancel-summary-cell--span2' }}">
+                    <span class="doc-show-cancel-summary-label">UUID sustituto (ese intento)</span>
+                    <div class="doc-show-cancel-summary-value doc-show-cancel-summary-value--mono" style="word-break: break-all;">{{ $uuidIntentoPrevio }}</div>
+                </div>
+                @endif
+                @if($facturaSustitutaPrevia)
+                <div class="doc-show-cancel-summary-cell">
+                    <span class="doc-show-cancel-summary-label">Factura sustituta (ese intento)</span>
+                    <div class="doc-show-cancel-summary-value">
+                        <a href="{{ route('facturas.show', $facturaSustitutaPrevia) }}" class="text-link">{{ $facturaSustitutaPrevia->folio_completo }}</a>
+                        <div class="doc-show-cancel-summary-sub">{{ $facturaSustitutaPrevia->uuid }}</div>
+                    </div>
+                </div>
+                @endif
             </div>
+            @endif
+            <p class="doc-show-cancel-summary-hint">
+                Contexto histórico. No describe la solicitud vigente.
+            </p>
         </div>
-        @endif
-        <p class="form-hint" style="margin: 8px 0 0; font-size: 11.5px;">
-            Contexto histórico. No describe la solicitud vigente arriba.
-        </p>
         @endif
 
         {{-- Capa 3: preview del último evento de bitácora --}}

@@ -672,6 +672,45 @@ class Factura extends Model
             && $this->consultaSatVigenteReciente();
     }
 
+    /**
+     * Hubo al menos un envío de cancelación fiscal (eco guardado), aunque Facturama
+     * ya no reporte Status pending.
+     */
+    public function tuvoSolicitudFiscalPrevia(): bool
+    {
+        if (! empty($this->fecha_solicitud_cancelacion) || ! empty($this->fecha_cancelacion_pac)) {
+            return true;
+        }
+        $codigo = (string) ($this->codigo_estatus_cancelacion ?? '');
+
+        return $codigo === '201'
+            || $codigo === '202'
+            || filled($this->mensaje_cancelacion_pac);
+    }
+
+    /**
+     * Intento fiscal previo sin efecto: el PAC ya no tiene solicitud pendiente y el SAT
+     * sigue reportando Vigente (p. ej. motivo 01 inválido o proceso cerrado sin cancelar).
+     */
+    public function intentoFiscalPrevioSinCancelar(): bool
+    {
+        return $this->estado === 'cancelada'
+            && $this->cancelacion_administrativa
+            && ! empty($this->uuid)
+            && ! $this->canceladaAnteSat()
+            && ! $this->solicitudFiscalPendiente()
+            && ! $this->cancelacionFiscalRechazada()
+            && ! $this->pendienteCancelacionAntePac()
+            && $this->tuvoSolicitudFiscalPrevia()
+            && EstatusCancelacionCfdi::normalizarEstatusSat($this->estatus_sat) === 'Vigente';
+    }
+
+    public function intentoFiscalPrevioSinCancelarReintentable(): bool
+    {
+        return $this->intentoFiscalPrevioSinCancelar()
+            && $this->consultaSatVigenteReciente();
+    }
+
     public function resolverFacturaSustituta(): ?self
     {
         $uuidSustituto = trim((string) $this->uuid_sustitucion_cancelacion);
@@ -727,6 +766,7 @@ class Factura extends Model
             && (
                 (! $this->solicitudFiscalPendiente() && $this->cancelacionFiscalRechazada())
                 || $this->cancelacionFiscalVencidaReintentable()
+                || $this->intentoFiscalPrevioSinCancelarReintentable()
             );
     }
 
@@ -890,6 +930,9 @@ class Factura extends Model
             if ($this->cancelacionFiscalVencidaSinResolver()) {
                 return 'Cancelada en ERP · Límite de respuesta vencido, CFDI vigente';
             }
+            if ($this->intentoFiscalPrevioSinCancelar()) {
+                return 'Cancelada en ERP · Intento SAT sin efecto, CFDI vigente';
+            }
 
             return EstatusCancelacionCfdi::etiquetaListado(
                 $this->estado,
@@ -916,6 +959,11 @@ class Factura extends Model
             return $this->cancelacionFiscalVencidaReintentable()
                 ? 'Límite de respuesta vencido · CFDI vigente · Reintento disponible'
                 : 'Límite de respuesta vencido · CFDI vigente · Consulte el SAT antes de reenviar';
+        }
+        if ($this->intentoFiscalPrevioSinCancelar()) {
+            return $this->intentoFiscalPrevioSinCancelarReintentable()
+                ? 'Intento SAT sin efecto · CFDI vigente · Reintento disponible'
+                : 'Intento SAT sin efecto · CFDI vigente · Consulte el SAT antes de reenviar';
         }
         if ($this->solicitudFiscalPendiente()) {
             $hasta = $this->fecha_vencimiento_aceptacion

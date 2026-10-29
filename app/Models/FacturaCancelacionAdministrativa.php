@@ -100,6 +100,14 @@ class FacturaCancelacionAdministrativa extends Model
             ];
         }
 
+        if ($factura->intentoFiscalPrevioSinCancelar()) {
+            return [
+                'label' => 'Intento SAT sin efecto',
+                'badge' => 'warning',
+                'title' => 'Hubo un envío previo, Facturama ya no tiene solicitud pendiente y el CFDI sigue vigente.',
+            ];
+        }
+
         if ($factura->solicitudFiscalPendiente()) {
             return [
                 'label' => 'Pendiente SAT',

@@ -61,7 +61,11 @@ $breadcrumbs = [
             $accionPrincipal = 'timbrar';
         }
     } elseif ($factura->puedeConsultarEstatusCancelacion()
-        && ($factura->solicitudFiscalPendiente() || $factura->cancelacionFiscalVencidaSinResolver())) {
+        && (
+            $factura->solicitudFiscalPendiente()
+            || $factura->cancelacionFiscalVencidaSinResolver()
+            || ($factura->intentoFiscalPrevioSinCancelar() && ! $factura->intentoFiscalPrevioSinCancelarReintentable())
+        )) {
         $accionPrincipal = 'consultar_sat';
     } elseif ($factura->estaTimbrada() && $factura->metodo_pago === 'PPD' && $cxc && $saldoPendiente > 0) {
         $accionPrincipal = 'complemento';
@@ -69,7 +73,12 @@ $breadcrumbs = [
 
     $tieneDocumentosRelacionados = $factura->estaTimbrada() && $factura->tieneDocumentosRelacionados();
     $hayZonaRiesgo = ($factura->esBorrador() && $usuarioActual?->can('facturas.crear'))
-        || ($cfdiTimbradoAcciones && ($factura->puedeCancelar() || $factura->cancelacionFiscalVencidaSinResolver() || $tieneDocumentosRelacionados));
+        || ($cfdiTimbradoAcciones && (
+            $factura->puedeCancelar()
+            || $factura->cancelacionFiscalVencidaSinResolver()
+            || $factura->intentoFiscalPrevioSinCancelar()
+            || $tieneDocumentosRelacionados
+        ));
 
     $tabInicial = $errors->has('archivo') ? 'documentos' : 'conceptos';
 @endphp
@@ -711,6 +720,11 @@ $breadcrumbs = [
                     <p class="doc-show-acciones-nota" style="margin-top: 0;">
                         El límite de respuesta venció y el CFDI sigue vigente. Use <strong>Consultar estatus SAT</strong>; después podrá reenviar si continúa vigente. Revise el motivo (si el 01 no tiene relación 04, use 03).
                     </p>
+                    @elseif($factura->intentoFiscalPrevioSinCancelar())
+                    <p class="doc-show-acciones-nota" style="margin-top: 0;">
+                        El intento previo no canceló el CFDI y Facturama ya no tiene solicitud pendiente.
+                        Use <strong>Consultar estatus SAT</strong>; después podrá reenviar (se sugerirá 03 si el 01 no tiene relación 04).
+                    </p>
                     @elseif($tieneDocumentosRelacionados)
                     <button type="button" disabled class="btn btn-outline w-full" style="opacity: 0.6; cursor: not-allowed;">✗ Cancelar Factura</button>
                     <details class="doc-show-acciones-nota">
@@ -768,6 +782,9 @@ $breadcrumbs = [
                 <div class="alert alert-warning" style="margin-bottom: 16px; font-size: 13px; line-height: 1.5;">
                     @if($factura->cancelacionFiscalVencidaSinResolver())
                         El límite de la solicitud anterior venció y una consulta reciente confirma que el CFDI sigue <strong>vigente</strong>.
+                    @elseif($factura->intentoFiscalPrevioSinCancelar())
+                        Facturama ya no reporta una solicitud pendiente y una consulta reciente confirma que el CFDI sigue <strong>vigente</strong>.
+                        El intento anterior no canceló el comprobante; puede reenviar con un motivo válido.
                     @else
                         El SAT o el receptor rechazaron la cancelación anterior. El CFDI sigue vigente.
                     @endif
@@ -775,6 +792,10 @@ $breadcrumbs = [
                         <br><br>
                         El intento previo usó motivo <strong>01</strong>, pero el UUID sustituto <strong>no tiene relación fiscal 04</strong> hacia esta factura.
                         Se sugiere motivo <strong>03</strong> (operación no realizada). Si insiste en 01, elija un sustituto que sí tenga relación 04.
+                    @endif
+                    @if($factura->is_cancelable)
+                        <br><br>
+                        Condición SAT actual: <strong>{{ $factura->is_cancelable }}</strong>.
                     @endif
                     El ERP permanece cancelado administrativamente; reenviar no restaura ni vuelve a mover inventario.
                 </div>

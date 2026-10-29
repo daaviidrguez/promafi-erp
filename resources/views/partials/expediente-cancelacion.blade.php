@@ -101,6 +101,8 @@
             <div class="info-value-sm">
                 @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
                     Límite de respuesta vencido · CFDI vigente
+                @elseif($esFactura && $document->intentoFiscalPrevioSinCancelar())
+                    Sin solicitud pendiente ahora · CFDI vigente
                 @elseif($document->solicitudFiscalPendiente())
                     Pendiente de cancelación SAT
                 @elseif($document->canceladaAnteSat())
@@ -111,6 +113,8 @@
                     Aún no se envía al SAT
                 @elseif($document->estatus_cancelacion_pac)
                     {{ $document->estatus_cancelacion_pac }}
+                @elseif($esFactura && $document->tuvoSolicitudFiscalPrevia())
+                    Sin solicitud pendiente ahora
                 @else
                     Sin solicitud en Facturama
                 @endif
@@ -121,6 +125,8 @@
             <div class="info-value-sm">
                 @if($esFactura && $document->cancelacionFiscalVencidaSinResolver())
                     Vigente · el límite de respuesta en el ERP ya venció
+                @elseif($esFactura && $document->intentoFiscalPrevioSinCancelar())
+                    Vigente · el intento previo no canceló el CFDI
                 @else
                     {{ \App\Services\EstatusCancelacionCfdi::estatusSatParaUsuario(
                         $document->estatus_cancelacion_pac,
@@ -305,6 +311,20 @@
                         Puede reenviar la cancelación; la consulta SAT vigente es reciente. Revise el motivo antes de confirmar.
                     @else
                         Consulte nuevamente el estatus SAT antes de reenviar la cancelación.
+                    @endif
+                    El ERP permanece cancelado administrativamente y no duplicará movimientos.
+                </div>
+            @elseif($document->intentoFiscalPrevioSinCancelar())
+                <div class="alert alert-warning" style="margin-top: 12px; margin-bottom: 0; font-size: 13px;">
+                    Hubo un envío previo al SAT, pero Facturama <strong>ya no tiene una solicitud pendiente</strong> y el CFDI sigue <strong>vigente</strong>.
+                    @if($sustitutoSinRelacion04)
+                        El intento usó motivo <strong>01</strong> sin relación fiscal <strong>04</strong> en el sustituto.
+                        Al reenviar se sugerirá motivo <strong>03</strong>; el 01 seguirá bloqueado hasta corregir la relación.
+                    @endif
+                    @if($document->intentoFiscalPrevioSinCancelarReintentable())
+                        Puede <strong>reenviar la cancelación</strong>; la consulta SAT vigente es reciente.
+                    @else
+                        Consulte nuevamente el estatus SAT antes de reenviar.
                     @endif
                     El ERP permanece cancelado administrativamente y no duplicará movimientos.
                 </div>

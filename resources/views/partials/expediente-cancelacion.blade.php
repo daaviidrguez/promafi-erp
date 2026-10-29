@@ -187,6 +187,131 @@
         @endif
         @unless($soloHistorialAdmin)
 
+        {{-- Orientación operativa primero (lectura humana / qué hacer) --}}
+        @if($esAdmin)
+            @if($document->pendienteCancelacionAntePac())
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Pendiente de envío al PAC/SAT</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip">ERP cancelado</span>
+                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        Inventario y saldo ya se revirtieron en el ERP. El CFDI sigue vigente ante el SAT hasta que envíe la cancelación fiscal.
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        <li>Use <strong>Cancelar factura</strong> para enviar al PAC/SAT (después de facturar con relación, si aplica).</li>
+                        <li>El stock <strong>no</strong> se volverá a mover al enviar al SAT.</li>
+                        <li>Si fue por error, puede <strong>reactivar</strong> en el ERP (permiso de reactivación) mientras no haya envío al PAC.</li>
+                    </ul>
+                </div>
+            @elseif($document->cancelacionFiscalVencidaSinResolver())
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Plazo de respuesta vencido · CFDI vigente</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
+                            <span class="doc-cancel-chip doc-cancel-chip--danger">Plazo vencido</span>
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        El límite de respuesta guardado ya venció y el SAT sigue reportando el CFDI vigente.
+                        Esto no equivale automáticamente a «cancelado por plazo vencido» del SAT.
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        @if($sustitutoSinRelacion04)
+                            <li>El intento previo usó motivo <span class="doc-cancel-guidance-code">01</span>, pero el CFDI sustituto <strong>no tiene relación 04</strong>.</li>
+                            <li>No reenvíe el mismo 01: corrija la relación o use motivo <span class="doc-cancel-guidance-code">03</span> si la operación no se llevó a cabo.</li>
+                        @elseif($document->cancelacionFiscalVencidaReintentable())
+                            <li>Puede <strong>reenviar la cancelación</strong>; la consulta SAT vigente es reciente.</li>
+                            <li>Revise el motivo antes de confirmar.</li>
+                        @else
+                            <li>Consulte nuevamente el estatus SAT antes de reenviar la cancelación.</li>
+                        @endif
+                    </ul>
+                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente y no duplicará movimientos.</p>
+                </div>
+            @elseif($document->intentoFiscalPrevioSinCancelar())
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Envío previo sin solicitud pendiente</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
+                            <span class="doc-cancel-chip">Sin pendiente en Facturama</span>
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        Hubo un envío previo al SAT, pero Facturama ya no tiene una solicitud pendiente y el CFDI sigue vigente.
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        @if($sustitutoSinRelacion04)
+                            <li>El intento usó motivo <span class="doc-cancel-guidance-code">01</span> sin relación fiscal <span class="doc-cancel-guidance-code">04</span> en el sustituto.</li>
+                            <li>Al reenviar se sugerirá motivo <span class="doc-cancel-guidance-code">03</span>; el 01 seguirá bloqueado hasta corregir la relación.</li>
+                        @endif
+                        @if($document->intentoFiscalPrevioSinCancelarReintentable())
+                            <li>Puede <strong>reenviar la cancelación</strong>; la consulta SAT vigente es reciente.</li>
+                        @else
+                            <li>Consulte nuevamente el estatus SAT antes de reenviar.</li>
+                        @endif
+                    </ul>
+                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente y no duplicará movimientos.</p>
+                </div>
+            @elseif($document->solicitudFiscalPendiente())
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Cancelación en proceso ante el SAT</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip doc-cancel-chip--warn">En proceso</span>
+                            @if((string) $document->codigo_estatus_cancelacion === '201')
+                                <span class="doc-cancel-chip">Código 201</span>
+                            @endif
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        La solicitud se envió al SAT y la cancelación sigue en proceso; el CFDI aún no figura como cancelado.
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        @if((string) $document->codigo_estatus_cancelacion === '201')
+                            <li>El código <span class="doc-cancel-guidance-code">201</span> solo confirma recepción exitosa de la solicitud.</li>
+                        @endif
+                        <li>Espere la resolución del SAT o consulte el estatus cuando corresponda.</li>
+                    </ul>
+                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente; no se duplican movimientos de inventario.</p>
+                </div>
+            @elseif($document->cancelacionFiscalRechazada())
+                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Cancelación rechazada por el receptor</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip doc-cancel-chip--danger">Rechazada</span>
+                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        El receptor rechazó la cancelación. El CFDI sigue vigente ante el SAT.
+                    </p>
+                    <ul class="doc-cancel-guidance-list">
+                        <li>El ERP permanece cancelado (el stock ya pudo usarse en la factura con relación).</li>
+                        <li>Puede <strong>reintentar el envío</strong> al SAT.</li>
+                    </ul>
+                </div>
+            @elseif($document->canceladaAnteSat())
+                <div class="doc-cancel-guidance doc-cancel-guidance--info">
+                    <div class="doc-cancel-guidance-head">
+                        <div class="doc-cancel-guidance-title">Cancelación confirmada</div>
+                        <div class="doc-cancel-guidance-chips">
+                            <span class="doc-cancel-chip doc-cancel-chip--ok">ERP + SAT</span>
+                        </div>
+                    </div>
+                    <p class="doc-cancel-guidance-lead">
+                        Cancelada en el ERP (administrativa) y confirmada ante el SAT. Inventario y saldo no se movieron de nuevo.
+                    </p>
+                </div>
+            @endif
+        @endif
+
         {{-- Resumen vigente: banda + grid horizontal --}}
         <div class="doc-show-cancel-summary">
             <div class="doc-show-cancel-summary-head">
@@ -403,130 +528,6 @@
                 @endunless
             </p>
         </div>
-        @endif
-
-        @if($esAdmin)
-            @if($document->pendienteCancelacionAntePac())
-                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
-                    <div class="doc-cancel-guidance-head">
-                        <div class="doc-cancel-guidance-title">Pendiente de envío al PAC/SAT</div>
-                        <div class="doc-cancel-guidance-chips">
-                            <span class="doc-cancel-chip">ERP cancelado</span>
-                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
-                        </div>
-                    </div>
-                    <p class="doc-cancel-guidance-lead">
-                        Inventario y saldo ya se revirtieron en el ERP. El CFDI sigue vigente ante el SAT hasta que envíe la cancelación fiscal.
-                    </p>
-                    <ul class="doc-cancel-guidance-list">
-                        <li>Use <strong>Cancelar factura</strong> para enviar al PAC/SAT (después de facturar con relación, si aplica).</li>
-                        <li>El stock <strong>no</strong> se volverá a mover al enviar al SAT.</li>
-                        <li>Si fue por error, puede <strong>reactivar</strong> en el ERP (permiso de reactivación) mientras no haya envío al PAC.</li>
-                    </ul>
-                </div>
-            @elseif($document->cancelacionFiscalVencidaSinResolver())
-                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
-                    <div class="doc-cancel-guidance-head">
-                        <div class="doc-cancel-guidance-title">Plazo de respuesta vencido · CFDI vigente</div>
-                        <div class="doc-cancel-guidance-chips">
-                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
-                            <span class="doc-cancel-chip doc-cancel-chip--danger">Plazo vencido</span>
-                        </div>
-                    </div>
-                    <p class="doc-cancel-guidance-lead">
-                        El límite de respuesta guardado ya venció y el SAT sigue reportando el CFDI vigente.
-                        Esto no equivale automáticamente a «cancelado por plazo vencido» del SAT.
-                    </p>
-                    <ul class="doc-cancel-guidance-list">
-                        @if($sustitutoSinRelacion04)
-                            <li>El intento previo usó motivo <span class="doc-cancel-guidance-code">01</span>, pero el CFDI sustituto <strong>no tiene relación 04</strong>.</li>
-                            <li>No reenvíe el mismo 01: corrija la relación o use motivo <span class="doc-cancel-guidance-code">03</span> si la operación no se llevó a cabo.</li>
-                        @elseif($document->cancelacionFiscalVencidaReintentable())
-                            <li>Puede <strong>reenviar la cancelación</strong>; la consulta SAT vigente es reciente.</li>
-                            <li>Revise el motivo antes de confirmar.</li>
-                        @else
-                            <li>Consulte nuevamente el estatus SAT antes de reenviar la cancelación.</li>
-                        @endif
-                    </ul>
-                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente y no duplicará movimientos.</p>
-                </div>
-            @elseif($document->intentoFiscalPrevioSinCancelar())
-                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
-                    <div class="doc-cancel-guidance-head">
-                        <div class="doc-cancel-guidance-title">Envío previo sin solicitud pendiente</div>
-                        <div class="doc-cancel-guidance-chips">
-                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
-                            <span class="doc-cancel-chip">Sin pendiente en Facturama</span>
-                        </div>
-                    </div>
-                    <p class="doc-cancel-guidance-lead">
-                        Hubo un envío previo al SAT, pero Facturama ya no tiene una solicitud pendiente y el CFDI sigue vigente.
-                    </p>
-                    <ul class="doc-cancel-guidance-list">
-                        @if($sustitutoSinRelacion04)
-                            <li>El intento usó motivo <span class="doc-cancel-guidance-code">01</span> sin relación fiscal <span class="doc-cancel-guidance-code">04</span> en el sustituto.</li>
-                            <li>Al reenviar se sugerirá motivo <span class="doc-cancel-guidance-code">03</span>; el 01 seguirá bloqueado hasta corregir la relación.</li>
-                        @endif
-                        @if($document->intentoFiscalPrevioSinCancelarReintentable())
-                            <li>Puede <strong>reenviar la cancelación</strong>; la consulta SAT vigente es reciente.</li>
-                        @else
-                            <li>Consulte nuevamente el estatus SAT antes de reenviar.</li>
-                        @endif
-                    </ul>
-                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente y no duplicará movimientos.</p>
-                </div>
-            @elseif($document->solicitudFiscalPendiente())
-                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
-                    <div class="doc-cancel-guidance-head">
-                        <div class="doc-cancel-guidance-title">Cancelación en proceso ante el SAT</div>
-                        <div class="doc-cancel-guidance-chips">
-                            <span class="doc-cancel-chip doc-cancel-chip--warn">En proceso</span>
-                            @if((string) $document->codigo_estatus_cancelacion === '201')
-                                <span class="doc-cancel-chip">Código 201</span>
-                            @endif
-                        </div>
-                    </div>
-                    <p class="doc-cancel-guidance-lead">
-                        La solicitud se envió al SAT y la cancelación sigue en proceso; el CFDI aún no figura como cancelado.
-                    </p>
-                    <ul class="doc-cancel-guidance-list">
-                        @if((string) $document->codigo_estatus_cancelacion === '201')
-                            <li>El código <span class="doc-cancel-guidance-code">201</span> solo confirma recepción exitosa de la solicitud.</li>
-                        @endif
-                        <li>Espere la resolución del SAT o consulte el estatus cuando corresponda.</li>
-                    </ul>
-                    <p class="doc-cancel-guidance-foot">El ERP permanece cancelado administrativamente; no se duplican movimientos de inventario.</p>
-                </div>
-            @elseif($document->cancelacionFiscalRechazada())
-                <div class="doc-cancel-guidance doc-cancel-guidance--warning">
-                    <div class="doc-cancel-guidance-head">
-                        <div class="doc-cancel-guidance-title">Cancelación rechazada por el receptor</div>
-                        <div class="doc-cancel-guidance-chips">
-                            <span class="doc-cancel-chip doc-cancel-chip--danger">Rechazada</span>
-                            <span class="doc-cancel-chip doc-cancel-chip--warn">SAT: Vigente</span>
-                        </div>
-                    </div>
-                    <p class="doc-cancel-guidance-lead">
-                        El receptor rechazó la cancelación. El CFDI sigue vigente ante el SAT.
-                    </p>
-                    <ul class="doc-cancel-guidance-list">
-                        <li>El ERP permanece cancelado (el stock ya pudo usarse en la factura con relación).</li>
-                        <li>Puede <strong>reintentar el envío</strong> al SAT.</li>
-                    </ul>
-                </div>
-            @elseif($document->canceladaAnteSat())
-                <div class="doc-cancel-guidance doc-cancel-guidance--info">
-                    <div class="doc-cancel-guidance-head">
-                        <div class="doc-cancel-guidance-title">Cancelación confirmada</div>
-                        <div class="doc-cancel-guidance-chips">
-                            <span class="doc-cancel-chip doc-cancel-chip--ok">ERP + SAT</span>
-                        </div>
-                    </div>
-                    <p class="doc-cancel-guidance-lead">
-                        Cancelada en el ERP (administrativa) y confirmada ante el SAT. Inventario y saldo no se movieron de nuevo.
-                    </p>
-                </div>
-            @endif
         @endif
         @endunless
 

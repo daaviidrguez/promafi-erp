@@ -831,7 +831,7 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 
 /* Orientación operativa (pestaña Cancelación + modal reenvío) */
 .doc-cancel-guidance {
-    margin-top: 12px;
+    margin: 0 0 14px;
     padding: 14px 16px;
     border-radius: var(--radius-lg);
     border: 1px solid transparent;

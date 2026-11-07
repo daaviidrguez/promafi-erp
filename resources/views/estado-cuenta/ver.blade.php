@@ -90,7 +90,18 @@ $breadcrumbs = [
                         @endif
                     </td>
                     <td>
-                        <span class="text-mono fw-600">{{ $m['referencia'] }}</span>
+                        @if($m['tipo'] === 'Factura' && !empty($m['factura_id']))
+                            <a href="{{ route('facturas.show', array_filter([
+                                $m['factura_id'],
+                                'from' => 'estado-cuenta',
+                                'from_id' => $cliente->id,
+                                'fecha_desde' => $fecha_desde,
+                                'fecha_hasta' => $fecha_hasta,
+                                'tipo_reporte' => $tipo_reporte,
+                            ])) }}" class="text-mono fw-600" style="color: var(--color-primary);">{{ $m['referencia'] }}</a>
+                        @else
+                            <span class="text-mono fw-600">{{ $m['referencia'] }}</span>
+                        @endif
                         @if($m['tipo'] !== 'Factura' && isset($m['descripcion']) && $m['descripcion'] !== $m['referencia'])
                             <div class="text-muted" style="font-size: 12px;">{{ $m['descripcion'] }}</div>
                         @endif

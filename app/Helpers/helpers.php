@@ -327,6 +327,40 @@ if (! function_exists('docShowVolverOrigen')) {
             ];
         }
 
+        // Estado de cuenta / reporte de cobranza: from_id = cliente_id + filtros allowlisted.
+        if ($from === 'estado-cuenta') {
+            if (! $id) {
+                return [
+                    'url' => route('estado-cuenta.index'),
+                    'label' => '← Volver al estado de cuenta',
+                ];
+            }
+
+            $params = ['cliente_id' => $id];
+
+            $fechaDesde = request()->query('fecha_desde');
+            if (is_string($fechaDesde) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaDesde)) {
+                $params['fecha_desde'] = $fechaDesde;
+            }
+
+            $fechaHasta = request()->query('fecha_hasta');
+            if (is_string($fechaHasta) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaHasta)) {
+                $params['fecha_hasta'] = $fechaHasta;
+            }
+
+            $tipoReporte = request()->query('tipo_reporte');
+            if ($tipoReporte === 'reporte_cobranza' || $tipoReporte === 'estado_cuenta') {
+                $params['tipo_reporte'] = $tipoReporte;
+            }
+
+            return [
+                'url' => route('estado-cuenta.ver', $params),
+                'label' => $tipoReporte === 'reporte_cobranza'
+                    ? '← Volver al reporte de cobranza'
+                    : '← Volver al estado de cuenta',
+            ];
+        }
+
         return match ($from) {
             'dashboard' => [
                 'url' => route('dashboard'),

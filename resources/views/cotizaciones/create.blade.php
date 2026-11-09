@@ -90,22 +90,25 @@ $breadcrumbs = [
                         </option>
                     </select>
                 </div>
-                <div class="form-group" id="diasCreditoGroup" style="display:none;">
-                    <label class="form-label">Días de Crédito</label>
-                    <input type="number"
-                        name="dias_credito"
-                        id="diasCredito"
-                        value="{{ $isEdit ? (int) $cotizacion->dias_credito_aplicados : 0 }}"
-                        min="0"
-                        class="form-control">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Forma de pago</label>
-                    <select name="forma_pago" id="formaPagoCotizacion" class="form-control">
-                        @foreach($formasPago ?? [] as $fp)
-                            <option value="{{ $fp->clave }}" {{ ($isEdit && ($cotizacion->forma_pago ?? '03') == $fp->clave) || (!$isEdit && old('forma_pago', '03') == $fp->clave) ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
-                        @endforeach
-                    </select>
+                <div class="form-row responsive-grid" id="condicionesPagoRow"
+                     style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
+                    <div class="form-group" id="diasCreditoGroup" style="display:none; margin-bottom:0;">
+                        <label class="form-label">Días de Crédito</label>
+                        <input type="number"
+                            name="dias_credito"
+                            id="diasCredito"
+                            value="{{ $isEdit ? (int) $cotizacion->dias_credito_aplicados : 0 }}"
+                            min="0"
+                            class="form-control">
+                    </div>
+                    <div class="form-group" id="formaPagoGroup" style="margin-bottom:0; grid-column: 1 / -1;">
+                        <label class="form-label">Forma de pago</label>
+                        <select name="forma_pago" id="formaPagoCotizacion" class="form-control">
+                            @foreach($formasPago ?? [] as $fp)
+                                <option value="{{ $fp->clave }}" {{ ($isEdit && ($cotizacion->forma_pago ?? '03') == $fp->clave) || (!$isEdit && old('forma_pago', '03') == $fp->clave) ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
                 <div class="form-comercial-inset">
                     <div class="form-group" style="margin-bottom:0;">
@@ -1095,8 +1098,13 @@ function onTipoVentaChange() {
     const tipo = document.getElementById('tipoVenta').value;
     const grupo = document.getElementById('diasCreditoGroup');
     const input = document.getElementById('diasCredito');
+    const formaPagoGroup = document.getElementById('formaPagoGroup');
     const esCredito = tipo === 'credito';
     grupo.style.display = esCredito ? 'block' : 'none';
+    // Contado: forma de pago a ancho completo. Crédito: comparte fila con días.
+    if (formaPagoGroup) {
+        formaPagoGroup.style.gridColumn = esCredito ? 'auto' : '1 / -1';
+    }
     // Los campos disabled no participan en la validación del formulario (evita error al guardar en contado con grupo oculto)
     input.disabled = !esCredito;
     if (!esCredito) {

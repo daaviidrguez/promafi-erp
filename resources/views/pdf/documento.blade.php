@@ -138,15 +138,22 @@ table.pdf-pago-resumen tbody td {
     background: #FAFBFC;
     line-height: 1.35;
 }
-/* Condición / método / moneda / entrega: priorizar ancho para tiempo de entrega */
-table.pdf-pago-resumen th:nth-child(1),
-table.pdf-pago-resumen td:nth-child(1) { width: 20%; }
-table.pdf-pago-resumen th:nth-child(2),
-table.pdf-pago-resumen td:nth-child(2) { width: 23%; }
-table.pdf-pago-resumen th:nth-child(3),
-table.pdf-pago-resumen td:nth-child(3) { width: 12%; }
-table.pdf-pago-resumen th:nth-child(4),
-table.pdf-pago-resumen td:nth-child(4) { width: 45%; }
+/* Con tiempo de entrega: priorizar ancho en la última columna */
+table.pdf-pago-resumen--con-entrega th:nth-child(1),
+table.pdf-pago-resumen--con-entrega td:nth-child(1) { width: 20%; }
+table.pdf-pago-resumen--con-entrega th:nth-child(2),
+table.pdf-pago-resumen--con-entrega td:nth-child(2) { width: 23%; }
+table.pdf-pago-resumen--con-entrega th:nth-child(3),
+table.pdf-pago-resumen--con-entrega td:nth-child(3) { width: 12%; }
+table.pdf-pago-resumen--con-entrega th:nth-child(4),
+table.pdf-pago-resumen--con-entrega td:nth-child(4) { width: 45%; }
+/* Sin tiempo de entrega: repartir entre condición / método / moneda */
+table.pdf-pago-resumen--sin-entrega th:nth-child(1),
+table.pdf-pago-resumen--sin-entrega td:nth-child(1) { width: 36%; }
+table.pdf-pago-resumen--sin-entrega th:nth-child(2),
+table.pdf-pago-resumen--sin-entrega td:nth-child(2) { width: 44%; }
+table.pdf-pago-resumen--sin-entrega th:nth-child(3),
+table.pdf-pago-resumen--sin-entrega td:nth-child(3) { width: 20%; }
 
 .total-final {
     background: #0B3C5D;
@@ -428,16 +435,17 @@ table.pdf-pago-resumen td:nth-child(4) { width: 45%; }
     } else {
         $condicionesPagoPdf = 'Contado';
     }
-    $tiempoEntregaPdf = filled($doc->tiempo_entrega ?? null) ? $doc->tiempo_entrega : '—';
+    $muestraTiempoEntrega = filled($doc->tiempo_entrega ?? null);
+    $tiempoEntregaPdf = $muestraTiempoEntrega ? $doc->tiempo_entrega : null;
     $monedaPdf = $doc->moneda ?? 'MXN';
 @endphp
-<table class="pdf-pago-resumen" width="100%" cellpadding="0" cellspacing="0">
+<table class="pdf-pago-resumen {{ $muestraTiempoEntrega ? 'pdf-pago-resumen--con-entrega' : 'pdf-pago-resumen--sin-entrega' }}" width="100%" cellpadding="0" cellspacing="0">
 <thead>
 <tr>
     <th>Condición de venta</th>
     <th>Método de pago</th>
     <th>Moneda</th>
-    <th>Tiempo de entrega</th>
+    @if($muestraTiempoEntrega)<th>Tiempo de entrega</th>@endif
 </tr>
 </thead>
 <tbody>
@@ -445,7 +453,7 @@ table.pdf-pago-resumen td:nth-child(4) { width: 45%; }
     <td>{{ $condicionesPagoPdf }}</td>
     <td>{{ $metodoPagoPdf }}</td>
     <td>{{ $monedaPdf }}</td>
-    <td>@if($tiempoEntregaPdf === '—')—@else{!! nl2br(e($tiempoEntregaPdf)) !!}@endif</td>
+    @if($muestraTiempoEntrega)<td>{!! nl2br(e($tiempoEntregaPdf)) !!}</td>@endif
 </tr>
 </tbody>
 </table>

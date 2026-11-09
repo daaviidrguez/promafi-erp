@@ -427,7 +427,7 @@ table.pdf-pago-resumen tbody td {
 <table class="pdf-pago-resumen" width="100%" cellpadding="0" cellspacing="0">
 <thead>
 <tr>
-    <th>Condiciones de pago</th>
+    <th>Condición de compra</th>
     <th>Método de pago</th>
     <th>Moneda</th>
     <th>Tiempo de entrega</th>

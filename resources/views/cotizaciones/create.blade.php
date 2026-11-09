@@ -91,7 +91,7 @@ $breadcrumbs = [
                     </select>
                 </div>
                 <div class="form-row responsive-grid" id="condicionesPagoRow"
-                     style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
+                     style="display:grid; grid-template-columns:minmax(100px, 0.9fr) minmax(0, 2.1fr); gap:16px; margin-bottom:14px;">
                     <div class="form-group" id="diasCreditoGroup" style="display:none; margin-bottom:0;">
                         <label class="form-label">Días de Crédito</label>
                         <input type="number"

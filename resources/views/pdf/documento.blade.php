@@ -129,7 +129,6 @@ table.pdf-pago-resumen thead th {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-size: 7pt;
-    width: 25%;
 }
 table.pdf-pago-resumen tbody td {
     border: 1px solid #DDE1E7;
@@ -137,9 +136,17 @@ table.pdf-pago-resumen tbody td {
     text-align: center;
     vertical-align: middle;
     background: #FAFBFC;
-    width: 25%;
     line-height: 1.35;
 }
+/* Condición / método / moneda / entrega: priorizar ancho para tiempo de entrega */
+table.pdf-pago-resumen th:nth-child(1),
+table.pdf-pago-resumen td:nth-child(1) { width: 20%; }
+table.pdf-pago-resumen th:nth-child(2),
+table.pdf-pago-resumen td:nth-child(2) { width: 23%; }
+table.pdf-pago-resumen th:nth-child(3),
+table.pdf-pago-resumen td:nth-child(3) { width: 12%; }
+table.pdf-pago-resumen th:nth-child(4),
+table.pdf-pago-resumen td:nth-child(4) { width: 45%; }
 
 .total-final {
     background: #0B3C5D;

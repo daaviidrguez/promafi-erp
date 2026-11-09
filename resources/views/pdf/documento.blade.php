@@ -111,6 +111,36 @@ body {
     text-align: right;
 }
 
+.totales-con-entrega {
+    width: 100%;
+    margin-top: 6px;
+    border-collapse: collapse;
+}
+
+.totales-con-entrega .totales-table {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 0;
+}
+
+.tiempo-entrega-pdf-box {
+    border: 1px solid #D1D5DB;
+    background-color: #F7F7F7;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 7.5pt;
+    line-height: 1.35;
+}
+
+.tiempo-entrega-pdf-box strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 7pt;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #475569;
+}
+
 .total-final {
     background: #0B3C5D;
     color: white;
@@ -382,11 +412,6 @@ body {
             @if($doc->usuario)
             Elaboro: {{ $doc->usuario->name ?? $doc->usuario->email }}
             @endif
-            @if(filled($doc->tiempo_entrega ?? null))
-            <div style="margin-top:4px; margin-bottom:1px; padding:3px 5px; border:1px solid #D1D5DB; background-color:#F7F7F7;">
-                <strong>Tiempo de entrega:</strong> {{ $doc->tiempo_entrega }}
-            </div>
-            @endif
         @endif
     </div>
 </td>
@@ -467,11 +492,11 @@ body {
 </tbody>
 </table>
 
-<table class="totales-table">
 @php
     $subtotalPdf = $doc->subtotal ?? 0;
     $ivaPdf = $doc->iva ?? 0;
     $totalPdf = $doc->total ?? 0;
+    $mostrarTiempoEntregaTotales = $esCotizacion && filled($doc->tiempo_entrega ?? null);
 
     if ($esRemision) {
         $subtotalPdf = 0;
@@ -495,6 +520,37 @@ body {
         $totalPdf = round((float) ($subtotalPdf + $ivaPdf), 2);
     }
 @endphp
+@if($mostrarTiempoEntregaTotales)
+<table class="totales-con-entrega" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+    <td width="58%" valign="middle" align="center" style="padding-right:14px;">
+        <table width="88%" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+        <tr>
+            <td class="tiempo-entrega-pdf-box">
+                <strong>Tiempo de entrega</strong>
+                {{ $doc->tiempo_entrega }}
+            </td>
+        </tr>
+        </table>
+    </td>
+    <td width="42%" valign="middle">
+        <table class="totales-table" width="100%" cellpadding="0" cellspacing="0">
+        <tr><td>Subtotal:</td><td>${{ number_format($subtotalPdf, 2) }}</td></tr>
+        @if(($doc->descuento ?? 0) > 0)
+        <tr><td>Descuento:</td><td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td></tr>
+        @endif
+        <tr><td>IVA:</td><td>${{ number_format($ivaPdf, 2) }}</td></tr>
+        @if(($doc->isr_retenido ?? 0) > 0)
+        <tr><td>ISR retenido:</td><td style="color:#EF4444;">-${{ number_format($doc->isr_retenido, 2) }}</td></tr>
+        @endif
+        <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($totalPdf, 2) }} MXN</td></tr>
+        <tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float) $totalPdf) }}</td></tr>
+        </table>
+    </td>
+</tr>
+</table>
+@else
+<table class="totales-table">
 <tr><td>Subtotal:</td><td>${{ number_format($subtotalPdf, 2) }}</td></tr>
 @if($esCotizacion && ($doc->descuento ?? 0) > 0)
 <tr><td>Descuento:</td><td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td></tr>
@@ -506,6 +562,7 @@ body {
 <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($totalPdf, 2) }} MXN</td></tr>
 <tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float) $totalPdf) }}</td></tr>
 </table>
+@endif
 @endif
 
 

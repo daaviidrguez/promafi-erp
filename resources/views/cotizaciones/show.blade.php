@@ -104,32 +104,36 @@ $breadcrumbs = [
                             <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>
                         </div>
                     </div>
-                    @if($cotizacion->usuario)
-                    <div class="info-row">
-                        <div class="info-label">Elaboró</div>
-                        <div class="info-value-sm">{{ $cotizacion->usuario->name }}</div>
+                    <div class="info-grid-3">
+                        <div class="info-row">
+                            <div class="info-label">Condición de Pago</div>
+                            <div style="margin-top: 4px;">
+                                @if($cotizacion->tipo_venta === 'credito')
+                                    <span class="badge badge-warning">💳 Crédito {{ $cotizacion->dias_credito_aplicados }} días</span>
+                                @else
+                                    <span class="badge badge-success">💵 Contado</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Forma de pago</div>
+                            <div class="info-value-sm">
+                                @if($cotizacion->forma_pago)
+                                    {{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}
+                                @else
+                                    —
+                                @endif
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Elaboró</div>
+                            <div class="info-value-sm">{{ $cotizacion->usuario->name ?? '—' }}</div>
+                        </div>
                     </div>
-                    @endif
                     @if($cotizacion->fecha_envio)
                     <div class="info-row">
                         <div class="info-label">Enviada el</div>
                         <div class="info-value-sm">{{ $cotizacion->fecha_envio->format('d/m/Y H:i') }}</div>
-                    </div>
-                    @endif
-                    <div class="info-row">
-                        <div class="info-label">Condición de Pago</div>
-                        <div style="margin-top: 4px;">
-                            @if($cotizacion->tipo_venta === 'credito')
-                                <span class="badge badge-warning">💳 Crédito {{ $cotizacion->dias_credito_aplicados }} días</span>
-                            @else
-                                <span class="badge badge-success">💵 Contado</span>
-                            @endif
-                        </div>
-                    </div>
-                    @if($cotizacion->forma_pago)
-                    <div class="info-row">
-                        <div class="info-label">Forma de pago</div>
-                        <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}</div>
                     </div>
                     @endif
                     @if(filled($cotizacion->tiempo_entrega))

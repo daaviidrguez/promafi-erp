@@ -244,7 +244,7 @@ table.pdf-pago-resumen tbody td {
                 <strong>Razón social:</strong> {{ $empresa->razon_social ?? '—' }}<br>
                 @endif
                 <strong>RFC:</strong> {{ $empresa->rfc }}<br>
-                <strong>Regimen Fiscal:</strong> {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}<br>
+                <strong>Régimen Fiscal:</strong> {{ $empresa->regimen_fiscal_etiqueta ?? $empresa->regimen_fiscal ?? '' }}<br>
                 {{ $empresa->calle ?? '' }} {{ $empresa->numero_exterior ?? '' }}{{ $empresa->numero_interior ? ' Int. ' . $empresa->numero_interior : '' }}<br>
                 {{ $empresa->colonia ?? '' }}{{ ($empresa->municipio ?? $empresa->ciudad ?? '') ? ', ' . ($empresa->municipio ?? $empresa->ciudad) : '' }}{{ ($empresa->estado ?? '') ? ', ' . $empresa->estado : '' }}{{ ($empresa->codigo_postal ?? '') ? ', C.P. ' . $empresa->codigo_postal : '' }}<br>
                 Tel: {{ $empresa->telefono ?? '' }} | Email: {{ $empresa->email ?? '' }}
@@ -359,7 +359,7 @@ table.pdf-pago-resumen tbody td {
                 );
             @endphp
             @if($dir !== '' && $dir !== ',  CP ')
-            Direccion: {{ trim($dir, ' ,') }}<br>
+            Dirección: {{ trim($dir, ' ,') }}<br>
             @endif
         @elseif($esRemision)
             @php
@@ -377,14 +377,14 @@ table.pdf-pago-resumen tbody td {
             @endphp
 
             @if($direccionEntrega !== '')
-                Direccion de entrega: {!! nl2br(e($direccionEntrega)) !!}<br>
+                Dirección de entrega: {!! nl2br(e($direccionEntrega)) !!}<br>
             @elseif($dirFiscal !== '')
-                Direccion de entrega: {{ $dirFiscal }}<br>
+                Dirección de entrega: {{ $dirFiscal }}<br>
             @endif
         @endif
 
         @if(!empty($doc->cliente_telefono))
-        Telefono: {{ $doc->cliente_telefono }}<br>
+        Teléfono: {{ $doc->cliente_telefono }}<br>
         @endif
         @if(!empty($doc->cliente_email))
         Email: {{ $doc->cliente_email }}
@@ -394,15 +394,15 @@ table.pdf-pago-resumen tbody td {
 <td width="4%"></td>
 <td width="48%" valign="top">
     <div class="info-box">
-        <div class="section-title">{{ $esCotizacion ? 'INFORMACION FISCAL' : 'INFORMACION' }}</div>
-        Fecha Emision: {{ \Carbon\Carbon::parse($doc->fecha ?? $doc->fecha_emision)->format('d/m/Y') }}<br>
+        <div class="section-title">{{ $esCotizacion ? 'INFORMACIÓN FISCAL' : 'INFORMACIÓN' }}</div>
+        Fecha Emisión: {{ \Carbon\Carbon::parse($doc->fecha ?? $doc->fecha_emision)->format('d/m/Y') }}<br>
         @if($esRemision && !empty($doc->orden_compra))
         Orden de compra: {{ $doc->orden_compra }}<br>
         @endif
         @if($esCotizacion)
-            Valida: {{ $doc->fecha_vencimiento ? \Carbon\Carbon::parse($doc->fecha_vencimiento)->format('d/m/Y') : '-' }}<br>
+            Válida: {{ $doc->fecha_vencimiento ? \Carbon\Carbon::parse($doc->fecha_vencimiento)->format('d/m/Y') : '-' }}<br>
             @if($doc->usuario)
-            Elaboro: {{ $doc->usuario->name ?? $doc->usuario->email }}
+            Elaboró: {{ $doc->usuario->name ?? $doc->usuario->email }}
             @endif
         @endif
     </div>
@@ -448,8 +448,8 @@ table.pdf-pago-resumen tbody td {
 <table class="productos-table">
 <thead>
 <tr>
-<th>Codigo</th>
-<th>Descripcion</th>
+<th>Código</th>
+<th>Descripción</th>
 <th class="center">Cant</th>
 @if($esCotizacion || $esRemision)<th class="center">Unidad</th>@endif
 <th class="right">{{ $esCotizacion ? 'Precio Unit.' : ($esRemision ? 'Precio Unit.' : 'Precio') }}</th>
@@ -617,7 +617,7 @@ table.pdf-pago-resumen tbody td {
 {{-- Aviso fijo: entre leyenda CFDI y bloque DATOS BANCARIOS / sello --}}
 @if($esFactura || $esRemision)
     <div style="margin-top:10px; margin-bottom:10px; text-align:center; font-size:7pt; line-height:1.35;">
-        <span style="color:#1E40AF;"><strong>TODO MATERIAL SE ENTREGA A PIE DE CALLE, NO INCLUYE DESCARGAS. NI MANIOBRAS</strong></span><span style="color:#DC2626;"> TODA CANCELACIÓN / DEVOLUCIÓN GENERA UN 20% DE PENALIZACIÓN Y SE TIENE UN PLAZO MAXIMO DE 5 DÍAS A PARTIR DE LA RECEPCIÓN DEL MATERIAL PARA SOLICITARLA Y QUEDA SUJETA A PREVIA AUTORIZACIÓN.</span>
+        <span style="color:#1E40AF;"><strong>TODO MATERIAL SE ENTREGA A PIE DE CALLE, NO INCLUYE DESCARGAS. NI MANIOBRAS</strong></span><span style="color:#DC2626;"> TODA CANCELACIÓN / DEVOLUCIÓN GENERA UN 20% DE PENALIZACIÓN Y SE TIENE UN PLAZO MÁXIMO DE 5 DÍAS A PARTIR DE LA RECEPCIÓN DEL MATERIAL PARA SOLICITARLA Y QUEDA SUJETA A PREVIA AUTORIZACIÓN.</span>
     </div>
 @endif
 <table width="100%" cellpadding="0" cellspacing="0">
@@ -689,7 +689,7 @@ table.pdf-pago-resumen tbody td {
 
 <script type="text/php">
 if (isset($pdf)) {
-    $pdf->page_text(520, 770, "Pagina {PAGE_NUM} de {PAGE_COUNT}", null, 8, [0,0,0]);
+    $pdf->page_text(520, 770, "Página {PAGE_NUM} de {PAGE_COUNT}", null, 8, [0,0,0]);
 }
 </script>
 

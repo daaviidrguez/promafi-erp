@@ -111,34 +111,34 @@ body {
     text-align: right;
 }
 
-.totales-con-entrega {
+/* Resumen comercial (cotización): condiciones / método / moneda / entrega */
+table.pdf-pago-resumen {
     width: 100%;
-    margin-top: 6px;
     border-collapse: collapse;
-}
-
-.totales-con-entrega .totales-table {
-    width: 100%;
-    margin-left: 0;
-    margin-top: 0;
-}
-
-.tiempo-entrega-pdf-box {
-    border: 1px solid #D1D5DB;
-    background-color: #F7F7F7;
-    padding: 8px 10px;
-    text-align: center;
+    margin: 0 0 8px 0;
     font-size: 7.5pt;
-    line-height: 1.35;
+    line-height: 1.3;
 }
-
-.tiempo-entrega-pdf-box strong {
-    display: block;
-    margin-bottom: 2px;
-    font-size: 7pt;
-    letter-spacing: 0.02em;
+table.pdf-pago-resumen thead th {
+    background: #0B3C5D;
+    color: #fff;
+    font-weight: bold;
+    padding: 4px 3px;
+    text-align: center;
+    border: 1px solid #0B3C5D;
     text-transform: uppercase;
-    color: #475569;
+    letter-spacing: 0.04em;
+    font-size: 7pt;
+    width: 25%;
+}
+table.pdf-pago-resumen tbody td {
+    border: 1px solid #DDE1E7;
+    padding: 4px 5px;
+    text-align: center;
+    vertical-align: middle;
+    background: #FAFBFC;
+    width: 25%;
+    line-height: 1.35;
 }
 
 .total-final {
@@ -400,15 +400,7 @@ body {
         Orden de compra: {{ $doc->orden_compra }}<br>
         @endif
         @if($esCotizacion)
-            @if($doc->tipo_venta === 'credito' && ($doc->dias_credito_aplicados ?? 0) > 0)
-            <strong>Condicion de Compra:</strong>
-            <span style="color:#F59E0B; font-weight:bold;">CREDITO {{ $doc->dias_credito_aplicados }} DIAS</span><br>
-            @else
-            <strong>Condicion de Compra:</strong>
-            <span style="color:#10B981; font-weight:bold;">CONTADO</span><br>
-            @endif
             Valida: {{ $doc->fecha_vencimiento ? \Carbon\Carbon::parse($doc->fecha_vencimiento)->format('d/m/Y') : '-' }}<br>
-            Moneda: MXN<br>
             @if($doc->usuario)
             Elaboro: {{ $doc->usuario->name ?? $doc->usuario->email }}
             @endif
@@ -417,6 +409,40 @@ body {
 </td>
 </tr>
 </table>
+
+@if($esCotizacion)
+@php
+    $formaPagoPdf = \App\Models\FormaPago::where('clave', $doc->forma_pago ?? null)->first();
+    $metodoPagoPdf = $formaPagoPdf?->descripcion
+        ?: ($formaPagoPdf?->etiqueta ?? null)
+        ?: (filled($doc->forma_pago ?? null) ? $doc->forma_pago : '—');
+    if ($doc->tipo_venta === 'credito' && (int) ($doc->dias_credito_aplicados ?? 0) > 0) {
+        $condicionesPagoPdf = 'Crédito ' . (int) $doc->dias_credito_aplicados . ' días';
+    } else {
+        $condicionesPagoPdf = 'Contado';
+    }
+    $tiempoEntregaPdf = filled($doc->tiempo_entrega ?? null) ? $doc->tiempo_entrega : '—';
+    $monedaPdf = $doc->moneda ?? 'MXN';
+@endphp
+<table class="pdf-pago-resumen" width="100%" cellpadding="0" cellspacing="0">
+<thead>
+<tr>
+    <th>Condiciones de pago</th>
+    <th>Método de pago</th>
+    <th>Moneda</th>
+    <th>Tiempo de entrega</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+    <td>{{ $condicionesPagoPdf }}</td>
+    <td>{{ $metodoPagoPdf }}</td>
+    <td>{{ $monedaPdf }}</td>
+    <td>@if($tiempoEntregaPdf === '—')—@else{!! nl2br(e($tiempoEntregaPdf)) !!}@endif</td>
+</tr>
+</tbody>
+</table>
+@endif
 
 {{-- PRODUCTOS (cotización, remisión) --}}
 <table class="productos-table">
@@ -496,7 +522,6 @@ body {
     $subtotalPdf = $doc->subtotal ?? 0;
     $ivaPdf = $doc->iva ?? 0;
     $totalPdf = $doc->total ?? 0;
-    $mostrarTiempoEntregaTotales = $esCotizacion && filled($doc->tiempo_entrega ?? null);
 
     if ($esRemision) {
         $subtotalPdf = 0;
@@ -520,36 +545,6 @@ body {
         $totalPdf = round((float) ($subtotalPdf + $ivaPdf), 2);
     }
 @endphp
-@if($mostrarTiempoEntregaTotales)
-<table class="totales-con-entrega" width="100%" cellpadding="0" cellspacing="0">
-<tr>
-    <td width="58%" valign="middle" align="center" style="padding-right:14px;">
-        <table width="88%" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-        <tr>
-            <td class="tiempo-entrega-pdf-box">
-                <strong>Tiempo de entrega</strong>
-                {{ $doc->tiempo_entrega }}
-            </td>
-        </tr>
-        </table>
-    </td>
-    <td width="42%" valign="middle">
-        <table class="totales-table" width="100%" cellpadding="0" cellspacing="0">
-        <tr><td>Subtotal:</td><td>${{ number_format($subtotalPdf, 2) }}</td></tr>
-        @if(($doc->descuento ?? 0) > 0)
-        <tr><td>Descuento:</td><td style="color:#EF4444;">-${{ number_format($doc->descuento, 2) }}</td></tr>
-        @endif
-        <tr><td>IVA:</td><td>${{ number_format($ivaPdf, 2) }}</td></tr>
-        @if(($doc->isr_retenido ?? 0) > 0)
-        <tr><td>ISR retenido:</td><td style="color:#EF4444;">-${{ number_format($doc->isr_retenido, 2) }}</td></tr>
-        @endif
-        <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($totalPdf, 2) }} MXN</td></tr>
-        <tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float) $totalPdf) }}</td></tr>
-        </table>
-    </td>
-</tr>
-</table>
-@else
 <table class="totales-table">
 <tr><td>Subtotal:</td><td>${{ number_format($subtotalPdf, 2) }}</td></tr>
 @if($esCotizacion && ($doc->descuento ?? 0) > 0)
@@ -562,7 +557,6 @@ body {
 <tr class="total-final"><td>TOTAL:</td><td>${{ number_format($totalPdf, 2) }} MXN</td></tr>
 <tr><td colspan="2" style="font-size:7pt; padding-top:4px; font-style:italic;">{{ importeEnLetra((float) $totalPdf) }}</td></tr>
 </table>
-@endif
 @endif
 
 
@@ -595,25 +589,13 @@ body {
     </div>
     @endif
 
-    {{-- Condiciones de pago --}}
+    {{-- Condiciones comerciales (texto libre; contado/crédito ya va en el resumen superior) --}}
+    @if(filled($doc->condiciones_pago ?? null))
     <div class="condiciones-box">
-        <strong>CONDICIONES DE PAGO</strong><br>
-        <strong>CONDICION:</strong>
-        @if($doc->tipo_venta === 'credito' && ($doc->dias_credito_aplicados ?? 0) > 0)
-            <span style="color:#F59E0B; font-weight:bold;">
-                CREDITO {{ $doc->dias_credito_aplicados }} DIAS
-            </span>
-        @else
-            <span style="color:#10B981; font-weight:bold;">
-                CONTADO
-            </span>
-        @endif
-
-        @if($doc->condiciones_pago)
-            <br>
-            {!! nl2br(e($doc->condiciones_pago)) !!}
-        @endif
+        <strong>CONDICIONES COMERCIALES</strong><br>
+        {!! nl2br(e($doc->condiciones_pago)) !!}
     </div>
+    @endif
 
     {{-- Cierre cotización: Gracias por su preferencia (datos de empresa) --}}
     <div style="text-align: center; margin-top: 12px; padding-top: 8px; font-size: 8pt; line-height: 1.5;">

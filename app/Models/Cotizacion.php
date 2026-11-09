@@ -55,10 +55,11 @@ class Cotizacion extends Model
         'isr_retenido',
         'total',
         
-        // Condiciones de pago
+        // Condiciones comerciales
         'tipo_venta',
         'dias_credito_aplicados',
         'forma_pago',
+        'tiempo_entrega',
         'condiciones_pago',
         'observaciones',
         'referencia_comercial',

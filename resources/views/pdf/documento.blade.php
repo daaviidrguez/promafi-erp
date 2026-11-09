@@ -382,6 +382,11 @@ body {
             @if($doc->usuario)
             Elaboro: {{ $doc->usuario->name ?? $doc->usuario->email }}
             @endif
+            @if(filled($doc->tiempo_entrega ?? null))
+            <div style="margin-top:4px; margin-bottom:1px; padding:3px 5px; border:1px solid #D1D5DB; background-color:#F7F7F7;">
+                <strong>Tiempo de entrega:</strong> {{ $doc->tiempo_entrega }}
+            </div>
+            @endif
         @endif
     </div>
 </td>

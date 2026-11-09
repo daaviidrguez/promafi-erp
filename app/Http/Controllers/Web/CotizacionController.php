@@ -161,6 +161,7 @@ class CotizacionController extends Controller
             'tipo_venta' => 'required|in:contado,credito',
             'dias_credito' => 'nullable|integer|min:0',
             'forma_pago' => 'nullable|string|exists:formas_pago,clave',
+            'tiempo_entrega' => 'nullable|string|max:120',
             'condiciones_pago' => 'nullable|string',
             'observaciones' => 'nullable|string',
             'referencia_comercial' => 'nullable|string|max:255',
@@ -284,12 +285,15 @@ class CotizacionController extends Controller
                 'isr_retenido' => $isrRetenido,
                 'total' => $totalGeneral,
                 
-                // Condiciones de pago
+                // Condiciones comerciales
                 'tipo_venta' => $validated['tipo_venta'],
                 'dias_credito_aplicados' => $validated['tipo_venta'] === 'credito' 
                     ? ($validated['dias_credito'] ?? 0) 
                     : 0,
                 'forma_pago' => $validated['forma_pago'] ?? $cliente->forma_pago ?? '03',
+                'tiempo_entrega' => filled($validated['tiempo_entrega'] ?? null)
+                    ? trim($validated['tiempo_entrega'])
+                    : null,
                 'condiciones_pago' => $validated['condiciones_pago'],
                 'observaciones' => $validated['observaciones'],
                 'referencia_comercial' => $validated['referencia_comercial'] ?? null,

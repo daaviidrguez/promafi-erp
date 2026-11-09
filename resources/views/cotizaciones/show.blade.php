@@ -114,6 +114,14 @@ $breadcrumbs = [
                         <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}</div>
                     </div>
                     @endif
+                    @if(filled($cotizacion->tiempo_entrega))
+                    <div class="info-row" style="grid-column: 1 / -1;">
+                        <div class="doc-comercial-inset">
+                            <div class="info-label">Tiempo de entrega</div>
+                            <div class="info-value-sm">{{ $cotizacion->tiempo_entrega }}</div>
+                        </div>
+                    </div>
+                    @endif
                     <div class="info-row">
                         <div class="info-label">Moneda</div>
                         <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>

@@ -75,7 +75,7 @@ $breadcrumbs = [
 
         <div class="card">
             <div class="card-header">
-                <div class="card-title">💳 Condiciones</div>
+                <div class="card-title">💳 Condiciones comerciales</div>
             </div>
             <div class="card-body">
                 <div class="form-group">
@@ -106,6 +106,20 @@ $breadcrumbs = [
                             <option value="{{ $fp->clave }}" {{ ($isEdit && ($cotizacion->forma_pago ?? '03') == $fp->clave) || (!$isEdit && old('forma_pago', '03') == $fp->clave) ? 'selected' : '' }}>{{ $fp->etiqueta }}</option>
                         @endforeach
                     </select>
+                </div>
+                <div class="form-comercial-inset">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label class="form-label" for="tiempoEntrega">Tiempo de entrega</label>
+                        <input type="text"
+                               name="tiempo_entrega"
+                               id="tiempoEntrega"
+                               class="form-control"
+                               maxlength="120"
+                               value="{{ old('tiempo_entrega', $isEdit ? ($cotizacion->tiempo_entrega ?? '') : '') }}"
+                               placeholder="Ej. 3 días hábiles, 7-10 días, Según existencia"
+                               autocomplete="off">
+                        <span class="form-hint" style="margin-top:6px;display:block;">A partir de confirmación de pedido o anticipo.</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -632,6 +646,7 @@ function getFormSnapshot() {
         tipo_venta: document.getElementById('tipoVenta').value,
         dias_credito: document.getElementById('diasCredito').value,
         forma_pago: form.querySelector('[name="forma_pago"]')?.value || '',
+        tiempo_entrega: (form.querySelector('[name="tiempo_entrega"]')?.value || '').trim(),
         fecha: form.querySelector('[name="fecha"]')?.value || '',
         fecha_vencimiento: form.querySelector('[name="fecha_vencimiento"]')?.value || '',
         condiciones_pago: form.querySelector('[name="condiciones_pago"]')?.value || '',
@@ -1719,7 +1734,7 @@ if (window.PromafiConexion) {
 function cotizacionAutosaveTieneContenido(data) {
     if (!data) return false;
     if (data.cliente_id) return true;
-    const textos = [data.condiciones_pago, data.observaciones, data.referencia_comercial, data.referencia_url, data.referencia_url_2, data.referencia_url_3];
+    const textos = [data.tiempo_entrega, data.condiciones_pago, data.observaciones, data.referencia_comercial, data.referencia_url, data.referencia_url_2, data.referencia_url_3];
     if (textos.some(t => String(t || '').trim() !== '')) return true;
     const prods = data.productos || [];
     if (prods.length > 1) return true;
@@ -1754,6 +1769,7 @@ function restaurarCotizacionAutosave(data) {
         if (el && val != null) el.value = val;
     };
     setVal('forma_pago', data.forma_pago);
+    setVal('tiempo_entrega', data.tiempo_entrega);
     setVal('fecha', data.fecha);
     setVal('fecha_vencimiento', data.fecha_vencimiento);
     setVal('condiciones_pago', data.condiciones_pago);

@@ -90,14 +90,32 @@ $breadcrumbs = [
             </div>
             <div class="card-body">
                 <div class="info-grid-2">
-                    <div class="info-row">
-                        <div class="info-label">Fecha de Emisión</div>
-                        <div class="info-value-sm">{{ $cotizacion->fecha->format('d/m/Y') }}</div>
+                    <div class="info-grid-3">
+                        <div class="info-row">
+                            <div class="info-label">Fecha de Emisión</div>
+                            <div class="info-value-sm">{{ $cotizacion->fecha->format('d/m/Y') }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Válida Hasta</div>
+                            <div class="info-value-sm">{{ $cotizacion->fecha_vencimiento->format('d/m/Y') }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Moneda</div>
+                            <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>
+                        </div>
                     </div>
+                    @if($cotizacion->usuario)
                     <div class="info-row">
-                        <div class="info-label">Válida Hasta</div>
-                        <div class="info-value-sm">{{ $cotizacion->fecha_vencimiento->format('d/m/Y') }}</div>
+                        <div class="info-label">Elaboró</div>
+                        <div class="info-value-sm">{{ $cotizacion->usuario->name }}</div>
                     </div>
+                    @endif
+                    @if($cotizacion->fecha_envio)
+                    <div class="info-row">
+                        <div class="info-label">Enviada el</div>
+                        <div class="info-value-sm">{{ $cotizacion->fecha_envio->format('d/m/Y H:i') }}</div>
+                    </div>
+                    @endif
                     <div class="info-row">
                         <div class="info-label">Condición de Pago</div>
                         <div style="margin-top: 4px;">
@@ -120,22 +138,6 @@ $breadcrumbs = [
                             <div class="info-label">Tiempo de entrega</div>
                             <div class="info-value-sm">{{ $cotizacion->tiempo_entrega }}</div>
                         </div>
-                    </div>
-                    @endif
-                    <div class="info-row">
-                        <div class="info-label">Moneda</div>
-                        <div class="info-value-sm">{{ $cotizacion->moneda ?? 'MXN' }}</div>
-                    </div>
-                    @if($cotizacion->usuario)
-                    <div class="info-row">
-                        <div class="info-label">Elaboró</div>
-                        <div class="info-value-sm">{{ $cotizacion->usuario->name }}</div>
-                    </div>
-                    @endif
-                    @if($cotizacion->fecha_envio)
-                    <div class="info-row">
-                        <div class="info-label">Enviada el</div>
-                        <div class="info-value-sm">{{ $cotizacion->fecha_envio->format('d/m/Y H:i') }}</div>
                     </div>
                     @endif
                 </div>

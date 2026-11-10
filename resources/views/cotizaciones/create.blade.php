@@ -16,11 +16,13 @@ $breadcrumbs = [
 @endphp
 
 @section('title', $isEdit ? 'Editar Cotización ' . $folioMostrar : 'Nueva Cotización')
-@section('page-title', $isEdit ? '✏️ Editar Cotización ' . $folioMostrar : '📝 Nueva Cotización')
-@section('page-title-aside')
-    @unless($isEdit)
+@section('page-title')
+    @if($isEdit)
+        ✏️ Editar Cotización {{ $folioMostrar }}
+    @else
+        📝 Nueva Cotización
         <span class="page-title-folio-badge text-mono" title="Próximo folio">{{ $folioMostrar }}</span>
-    @endunless
+    @endif
 @endsection
 @section('page-subtitle', $isEdit
     ? 'Modifica los datos del presupuesto'

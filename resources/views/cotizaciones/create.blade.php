@@ -21,7 +21,7 @@ $breadcrumbs = [
         ✏️ Editar Cotización {{ $folioMostrar }}
     @else
         📝 Nueva Cotización
-        <span class="page-title-folio-badge text-mono" title="Próximo folio">{{ $folioMostrar }}</span>
+        <span class="page-title-folio-badge" title="Próximo folio">{{ $folioMostrar }}</span>
     @endif
 @endsection
 @section('page-subtitle', $isEdit

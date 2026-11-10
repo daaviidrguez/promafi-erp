@@ -457,15 +457,25 @@ $breadcrumbs = [
             <div class="modal-title">Opciones de partida <span id="modalOpcionesPartidaNum" class="text-muted" style="font-weight:500;"></span></div>
             <button type="button" class="modal-close" onclick="cerrarModalOpcionesPartida()" aria-label="Cerrar">✕</button>
         </div>
-        <div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">
-            <button type="button" id="btnModalAdjImagen" class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:12px 14px;" onclick="desdeModalAdjuntarImagen()">
-                <span style="display:block; font-weight:600;">Adjuntar imagen de partida</span>
-                <span class="text-muted" style="display:block; font-size:12px; margin-top:2px; font-weight:400;">Hasta 3 fotos; se muestran en el anexo del PDF.</span>
-            </button>
-            <button type="button" class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:12px 14px;" onclick="desdeModalAbrirTiempoEntrega()">
-                <span style="display:block; font-weight:600;">Tiempo de entrega de esta partida</span>
-                <span class="text-muted" style="display:block; font-size:12px; margin-top:2px; font-weight:400;">Aparece en el PDF junto a la descripción.</span>
-            </button>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:14px;">
+            <div>
+                <button type="button" id="btnModalAdjImagen" class="btn btn-outline w-full" style="justify-content:flex-start; text-align:left; padding:12px 14px; font-weight:600;" onclick="desdeModalAdjuntarImagen()">
+                    Adjuntar imagen de partida
+                </button>
+                <div class="text-muted" style="display:flex; align-items:flex-start; gap:6px; margin-top:6px; font-size:12px; line-height:1.4;">
+                    <span aria-hidden="true" style="flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:var(--color-gray-100); border:1px solid var(--color-gray-300); color:var(--color-gray-600); font-size:11px; font-weight:700; line-height:1;">¡</span>
+                    <span>Hasta 3 fotos; se muestran en el anexo del PDF.</span>
+                </div>
+            </div>
+            <div>
+                <button type="button" class="btn btn-outline w-full" style="justify-content:flex-start; text-align:left; padding:12px 14px; font-weight:600;" onclick="desdeModalAbrirTiempoEntrega()">
+                    Tiempo de entrega de esta partida
+                </button>
+                <div class="text-muted" style="display:flex; align-items:flex-start; gap:6px; margin-top:6px; font-size:12px; line-height:1.4;">
+                    <span aria-hidden="true" style="flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:var(--color-gray-100); border:1px solid var(--color-gray-300); color:var(--color-gray-600); font-size:11px; font-weight:700; line-height:1;">¡</span>
+                    <span>Aparece en el PDF junto a la descripción.</span>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button type="button" class="btn btn-light" onclick="cerrarModalOpcionesPartida()">Cerrar</button>

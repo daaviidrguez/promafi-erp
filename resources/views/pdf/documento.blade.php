@@ -88,23 +88,24 @@ body {
 }
 
 .partida-entrega-badge {
-    display: inline-block;
     margin-top: 3px;
-    padding: 1px 6px 1px 4px;
+    border-collapse: collapse;
     background: #EFF6FF;
     border: 1px solid #BFDBFE;
-    border-radius: 10px;
+}
+.partida-entrega-badge td {
+    padding: 1px 5px 1px 4px;
     color: #0B3C5D;
     font-size: 6.5pt;
     font-weight: bold;
-    line-height: 1.35;
+    line-height: 1;
+    vertical-align: middle;
     white-space: nowrap;
 }
 .partida-entrega-badge img {
     width: 9px;
     height: 9px;
-    vertical-align: -1px;
-    margin-right: 3px;
+    display: block;
 }
 
 /* =====================
@@ -509,14 +510,16 @@ table.pdf-pago-resumen--sin-entrega td:nth-child(3) { width: 20%; }
 <td>
     {{ $d->descripcion }}
     @if($esCotizacion && filled($d->tiempo_entrega ?? null))
-        <div>
-            <span class="partida-entrega-badge">
+        <table class="partida-entrega-badge" cellpadding="0" cellspacing="0">
+            <tr>
                 @if($truckIconUri)
-                    <img src="{{ $truckIconUri }}" alt="">
+                    <td style="padding-right:3px; width:12px;">
+                        <img src="{{ $truckIconUri }}" alt="" width="9" height="9">
+                    </td>
                 @endif
-                {{ $d->tiempo_entrega }}
-            </span>
-        </div>
+                <td>{{ $d->tiempo_entrega }}</td>
+            </tr>
+        </table>
     @endif
 </td>
 <td class="center">{{ number_format($d->cantidad, 2) }}</td>

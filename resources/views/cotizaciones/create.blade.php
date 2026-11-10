@@ -9,16 +9,18 @@ $breadcrumbs = [
     ['title' => 'Cotizaciones', 'url' => route('cotizaciones.index')],
     [
         'title' => $isEdit
-            ? 'Editar Cotización'
+            ? $folioMostrar
             : 'Nueva Cotización'
     ]
 ];
 @endphp
 
-@section('title', $isEdit ? 'Editar Cotización' : 'Nueva Cotización')
-@section('page-title', $isEdit ? '✏️ Editar Cotización' : '📝 Nueva Cotización')
+@section('title', $isEdit ? 'Editar Cotización ' . $folioMostrar : 'Nueva Cotización')
+@section('page-title', $isEdit ? '✏️ Editar Cotización ' . $folioMostrar : '📝 Nueva Cotización')
 @section('page-title-aside')
-    <span class="page-title-folio-badge text-mono" title="Folio">{{ $folioMostrar }}</span>
+    @unless($isEdit)
+        <span class="page-title-folio-badge text-mono" title="Próximo folio">{{ $folioMostrar }}</span>
+    @endunless
 @endsection
 @section('page-subtitle', $isEdit
     ? 'Modifica los datos del presupuesto'

@@ -22,6 +22,12 @@
                     <td valign="top"><strong>Descripción:</strong></td>
                     <td>{{ $detalle->descripcion }}</td>
                 </tr>
+                @if(filled($detalle->tiempo_entrega))
+                <tr>
+                    <td><strong>Entrega:</strong></td>
+                    <td>{{ $detalle->tiempo_entrega }}</td>
+                </tr>
+                @endif
                 <tr>
                     <td><strong>Cantidad:</strong></td>
                     <td>{{ number_format($detalle->cantidad, 2) }} {{ $detalle->unidad ?? $detalle->producto?->unidad ?? 'PZA' }}</td>

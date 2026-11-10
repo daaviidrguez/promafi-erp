@@ -181,6 +181,7 @@ class CotizacionController extends Controller
             'productos.*.es_producto_manual' => 'nullable|boolean',
             'productos.*.sugerencia_id' => 'nullable|exists:sugerencias,id',
             'productos.*.codigo' => 'nullable|string|max:50',
+            'productos.*.tiempo_entrega' => 'nullable|string|max:120',
             'productos.*.imagenes_mantener' => 'nullable|array|max:3',
             'productos.*.imagenes_mantener.*' => 'nullable|string|max:500',
             'productos.*.imagenes' => 'nullable|array|max:3',
@@ -368,6 +369,9 @@ class CotizacionController extends Controller
                     'tasa_iva' => $item['tasa_iva'] ?? null,
                     'orden' => $index,
                     'imagenes' => $this->procesarImagenesPartida($request, $index, $cotizacion->id, $imagenesUsadas),
+                    'tiempo_entrega' => filled($item['tiempo_entrega'] ?? null)
+                        ? trim((string) $item['tiempo_entrega'])
+                        : null,
                 ]);
                 // Actualizar precio más reciente en la sugerencia para próximas cotizaciones (precio de venta)
                 if ($sugerenciaId) {

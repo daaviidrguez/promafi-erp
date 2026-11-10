@@ -36,6 +36,7 @@ class CotizacionDetalle extends Model
         'total',
         'orden',
         'imagenes',
+        'tiempo_entrega',
     ];
 
     protected $casts = [

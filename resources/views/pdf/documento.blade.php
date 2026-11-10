@@ -87,6 +87,26 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+.partida-entrega-badge {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 6px 1px 4px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 10px;
+    color: #0B3C5D;
+    font-size: 6.5pt;
+    font-weight: bold;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+.partida-entrega-badge img {
+    width: 9px;
+    height: 9px;
+    vertical-align: -1px;
+    margin-right: 3px;
+}
+
 /* =====================
    TOTALES
 ===================== */
@@ -474,10 +494,31 @@ table.pdf-pago-resumen--sin-entrega td:nth-child(3) { width: 20%; }
 </tr>
 </thead>
 <tbody>
+@php
+    $truckIconUri = null;
+    if ($esCotizacion) {
+        $truckIconPath = public_path('images/pdf/truck.png');
+        if (is_file($truckIconPath)) {
+            $truckIconUri = 'data:image/png;base64,'.base64_encode(file_get_contents($truckIconPath));
+        }
+    }
+@endphp
 @foreach($doc->detalles as $d)
 <tr>
 <td>{{ ($d->codigo === 'MANUAL' || $d->codigo === null) ? '-' : $d->codigo }}</td>
-<td>{{ $d->descripcion }}</td>
+<td>
+    {{ $d->descripcion }}
+    @if($esCotizacion && filled($d->tiempo_entrega ?? null))
+        <div>
+            <span class="partida-entrega-badge">
+                @if($truckIconUri)
+                    <img src="{{ $truckIconUri }}" alt="">
+                @endif
+                {{ $d->tiempo_entrega }}
+            </span>
+        </div>
+    @endif
+</td>
 <td class="center">{{ number_format($d->cantidad, 2) }}</td>
 @if($esCotizacion || $esRemision)
 <td class="center">{{ $d->unidad ?? $d->producto?->unidad ?? 'PZA' }}</td>

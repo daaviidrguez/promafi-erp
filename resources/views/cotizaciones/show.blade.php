@@ -224,6 +224,13 @@ $breadcrumbs = [
                                 @if($d->es_producto_manual)
                                     <div class="text-muted" style="font-size: 11px;">✎ Manual</div>
                                 @endif
+                                @if(filled($d->tiempo_entrega))
+                                    <div style="margin-top:4px;">
+                                        <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; background:#EFF6FF; border:1px solid #BFDBFE; color:#0B3C5D; font-size:11px; font-weight:600;">
+                                            <span aria-hidden="true">🚚</span>{{ $d->tiempo_entrega }}
+                                        </span>
+                                    </div>
+                                @endif
                             </td>
                             <td class="td-center fw-600">{{ number_format($d->cantidad, 2) }}</td>
                             <td class="td-center">{{ $d->unidad ?? $d->producto->unidad ?? 'PZA' }}</td>

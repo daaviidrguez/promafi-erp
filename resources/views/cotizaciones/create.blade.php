@@ -121,7 +121,7 @@ $breadcrumbs = [
                                value="{{ old('tiempo_entrega', $isEdit ? ($cotizacion->tiempo_entrega ?? '') : '') }}"
                                placeholder="Ej. 3 días hábiles, 7-10 días, Según existencia"
                                autocomplete="off">
-                        <span class="form-hint" style="margin-top:6px;display:block;">A partir de confirmación de pedido o anticipo.</span>
+                        <span class="form-hint" style="margin-top:6px;display:block;">General de la cotización (a partir de confirmación o anticipo). Puedes precisar por partida con el botón +.</span>
                     </div>
                 </div>
             </div>
@@ -450,6 +450,57 @@ $breadcrumbs = [
     </div>
 </div>
 
+{{-- Modal: opciones de partida (+ imagen / tiempo de entrega) --}}
+<div id="modalOpcionesPartida" class="modal">
+    <div class="modal-box" style="max-width: 420px;">
+        <div class="modal-header">
+            <div class="modal-title">Opciones de partida <span id="modalOpcionesPartidaNum" class="text-muted" style="font-weight:500;"></span></div>
+            <button type="button" class="modal-close" onclick="cerrarModalOpcionesPartida()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:10px;">
+            <button type="button" id="btnModalAdjImagen" class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:12px 14px;" onclick="desdeModalAdjuntarImagen()">
+                <span style="display:block; font-weight:600;">Adjuntar imagen de partida</span>
+                <span class="text-muted" style="display:block; font-size:12px; margin-top:2px; font-weight:400;">Hasta 3 fotos; se muestran en el anexo del PDF.</span>
+            </button>
+            <button type="button" class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:12px 14px;" onclick="desdeModalAbrirTiempoEntrega()">
+                <span style="display:block; font-weight:600;">Tiempo de entrega de esta partida</span>
+                <span class="text-muted" style="display:block; font-size:12px; margin-top:2px; font-weight:400;">Aparece en el PDF junto a la descripción.</span>
+            </button>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-light" onclick="cerrarModalOpcionesPartida()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+{{-- Modal: editar tiempo de entrega por partida --}}
+<div id="modalTiempoEntregaPartida" class="modal">
+    <div class="modal-box" style="max-width: 460px;">
+        <div class="modal-header">
+            <div class="modal-title">Tiempo de entrega — partida <span id="modalTiempoEntregaPartidaNum"></span></div>
+            <button type="button" class="modal-close" onclick="cerrarModalTiempoEntregaPartida()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="inputTiempoEntregaPartida">Texto en el PDF</label>
+                <input type="text"
+                       id="inputTiempoEntregaPartida"
+                       class="form-control"
+                       maxlength="120"
+                       placeholder="Ej. 3 días, 3 días de entrega, 7-10 días hábiles"
+                       autocomplete="off"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();guardarTiempoEntregaPartidaModal();}">
+                <span class="form-hint" style="margin-top:6px;display:block;">Déjalo vacío para quitar el badge de esta partida. El tiempo general de la cotización se mantiene aparte.</span>
+            </div>
+        </div>
+        <div class="modal-footer" style="flex-wrap:wrap;">
+            <button type="button" class="btn btn-light" onclick="quitarTiempoEntregaPartidaModal()">Quitar</button>
+            <button type="button" class="btn btn-light" onclick="cerrarModalTiempoEntregaPartida()">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="guardarTiempoEntregaPartidaModal()">Guardar</button>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @php
@@ -469,6 +520,7 @@ $breadcrumbs = [
                 'tasa_iva'  => $d->tasa_iva !== null ? (float) $d->tasa_iva : null,
                 'manual'    => (bool) $d->es_producto_manual,
                 'sugerencia_id' => $d->sugerencia_id,
+                'tiempo_entrega' => $d->tiempo_entrega ?? '',
                 'imagenes_existentes' => $d->rutasImagenes(),
                 'imagenes_urls' => $d->imagenes_urls,
             ];
@@ -533,6 +585,28 @@ $breadcrumbs = [
     line-height: 1;
 }
 .partida-imagenes-preview { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; max-width: 68px; }
+.partida-meta-preview { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; max-width: 92px; }
+.partida-entrega-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: #0B3C5D;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+}
+.partida-entrega-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 72px;
+}
 .partida-imagen-thumb {
     position: relative;
     width: 30px;
@@ -617,6 +691,8 @@ let initialSnapshot = '';
 let allowNavigation = false;
 let pendingNavUrl = null;
 let pendingImportRows = null;
+let partidaOpcionesIndex = null;
+let partidaTiempoEntregaIndex = null;
 
 const EXCEL_COLS = ['Origen', 'Descripción', 'Cantidad', 'Unidad', 'Costo', '% Util.', 'Desc%', 'IVA'];
 
@@ -671,6 +747,7 @@ function getFormSnapshot() {
             tasa_iva: p.tasa_iva,
             manual: p.manual,
             sugerencia_id: p.sugerencia_id || null,
+            tiempo_entrega: (p.tiempo_entrega || '').trim(),
         })),
     };
     return JSON.stringify(data);
@@ -861,6 +938,7 @@ function parseImportRows(rows) {
             tasa_iva,
             manual: true,
             sugerencia_id: null,
+            tiempo_entrega: '',
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         };
     }).filter(Boolean);
@@ -966,6 +1044,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tasa_iva: d.tasa_iva,
                 manual: d.manual,
                 sugerencia_id: d.sugerencia_id || null,
+                tiempo_entrega: d.tiempo_entrega || '',
                 imagenesExistentes: Array.isArray(d.imagenes_existentes) ? d.imagenes_existentes.slice() : [],
                 imagenesUrls: Array.isArray(d.imagenes_urls) ? d.imagenes_urls.slice() : [],
                 imagenesNuevas: [],
@@ -1178,6 +1257,7 @@ function cargarProductoListaByIdx(i) {
         id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
         utilidad: '', descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+        tiempo_entrega: '',
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     document.getElementById('buscarProductoLista').value = '';
@@ -1198,6 +1278,7 @@ if (btnCargar) btnCargar.addEventListener('click', async function() {
                     id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
                     cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio),
                     utilidad: '', descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+                    tiempo_entrega: '',
                     imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
                 });
             }
@@ -1243,6 +1324,7 @@ function agregarDesdeBusqueda(item) {
             id: null, codigo: item.codigo || '-', origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_unitario),
             utilidad: '', descuento: 0, tasa_iva: 0.16, manual: true, sugerencia_id: item.id,
+            tiempo_entrega: '',
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     } else {
@@ -1251,6 +1333,7 @@ function agregarDesdeBusqueda(item) {
             id: item.id, codigo: item.codigo, origen: '', nombre: item.nombre,
             cantidad: 1, unidad: item.unidad || 'PZA', precio: parseFloat(item.precio_venta),
             utilidad: '', descuento: 0, tasa_iva: item.tasa_iva, manual: false,
+            tiempo_entrega: '',
             imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
         });
     }
@@ -1265,6 +1348,7 @@ function agregarProducto(p) {
         id: p.id, codigo: p.codigo, origen: '', nombre: p.nombre,
         cantidad: 1, unidad: p.unidad || 'PZA', precio: parseFloat(p.precio_venta),
         utilidad: '', descuento: 0, tasa_iva: p.tasa_iva, manual: false,
+        tiempo_entrega: '',
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     document.getElementById('buscarProducto').value = '';
@@ -1276,6 +1360,7 @@ function agregarManual() {
     productos.push({
         id: null, codigo: '-', origen: '', nombre: '', cantidad: 1, unidad: 'PZA', precio: 0, utilidad: '', descuento: 0, tasa_iva: 0.16,
         manual: true, sugerencia_id: null,
+        tiempo_entrega: '',
         imagenesExistentes: [], imagenesUrls: [], imagenesNuevas: [], previewNuevas: [],
     });
     renderProductos();
@@ -1296,6 +1381,78 @@ function contarImagenesPartida(p) {
 function liberarPreviewNuevas(p) {
     (p.previewNuevas || []).forEach(url => { try { URL.revokeObjectURL(url); } catch (e) {} });
     p.previewNuevas = [];
+}
+
+function abrirOpcionesPartida(i) {
+    if (!productos[i]) return;
+    partidaOpcionesIndex = i;
+    const numEl = document.getElementById('modalOpcionesPartidaNum');
+    if (numEl) numEl.textContent = '#' + (i + 1);
+    const btnImg = document.getElementById('btnModalAdjImagen');
+    const lleno = contarImagenesPartida(productos[i]) >= MAX_IMAGENES_PARTIDA;
+    if (btnImg) {
+        btnImg.disabled = lleno;
+        btnImg.title = lleno
+            ? 'Máximo ' + MAX_IMAGENES_PARTIDA + ' imágenes por partida'
+            : 'Adjuntar imagen';
+        btnImg.style.opacity = lleno ? '0.55' : '1';
+    }
+    document.getElementById('modalOpcionesPartida').classList.add('show');
+}
+
+function cerrarModalOpcionesPartida() {
+    partidaOpcionesIndex = null;
+    document.getElementById('modalOpcionesPartida').classList.remove('show');
+}
+
+function desdeModalAdjuntarImagen() {
+    const i = partidaOpcionesIndex;
+    cerrarModalOpcionesPartida();
+    if (i == null) return;
+    agregarImagenPartida(i);
+}
+
+function desdeModalAbrirTiempoEntrega() {
+    const i = partidaOpcionesIndex;
+    cerrarModalOpcionesPartida();
+    if (i == null) return;
+    abrirModalTiempoEntregaPartida(i);
+}
+
+function abrirModalTiempoEntregaPartida(i) {
+    const p = productos[i];
+    if (!p) return;
+    partidaTiempoEntregaIndex = i;
+    const numEl = document.getElementById('modalTiempoEntregaPartidaNum');
+    if (numEl) numEl.textContent = String(i + 1);
+    const input = document.getElementById('inputTiempoEntregaPartida');
+    if (input) {
+        input.value = (p.tiempo_entrega || '').trim();
+        requestAnimationFrame(() => { input.focus(); input.select(); });
+    }
+    document.getElementById('modalTiempoEntregaPartida').classList.add('show');
+}
+
+function cerrarModalTiempoEntregaPartida() {
+    partidaTiempoEntregaIndex = null;
+    document.getElementById('modalTiempoEntregaPartida').classList.remove('show');
+}
+
+function guardarTiempoEntregaPartidaModal() {
+    const i = partidaTiempoEntregaIndex;
+    if (i == null || !productos[i]) return;
+    const raw = (document.getElementById('inputTiempoEntregaPartida')?.value || '').trim();
+    productos[i].tiempo_entrega = raw.slice(0, 120);
+    cerrarModalTiempoEntregaPartida();
+    renderProductos();
+}
+
+function quitarTiempoEntregaPartidaModal() {
+    const i = partidaTiempoEntregaIndex;
+    if (i == null || !productos[i]) return;
+    productos[i].tiempo_entrega = '';
+    cerrarModalTiempoEntregaPartida();
+    renderProductos();
 }
 
 function agregarImagenPartida(i) {
@@ -1356,6 +1513,19 @@ function quitarImagenNueva(i, idx) {
     renderProductos();
 }
 
+function renderEntregaPreview(i, p) {
+    const txt = (p.tiempo_entrega || '').trim();
+    if (!txt) return '';
+    const esc = txt
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    return `<button type="button" class="partida-entrega-chip" onclick="abrirModalTiempoEntregaPartida(${i})" title="${esc}">
+        <span aria-hidden="true">🚚</span><span>${esc}</span>
+    </button>`;
+}
+
 function renderImagenesPreview(i, p) {
     initImagenesPartida(p);
     const items = [];
@@ -1373,7 +1543,10 @@ function renderImagenesPreview(i, p) {
             <button type="button" onclick="quitarImagenNueva(${i}, ${j})" title="Quitar">×</button>
         </div>`);
     });
-    return items.length ? `<div class="partida-imagenes-preview">${items.join('')}</div>` : '';
+    const thumbs = items.length ? `<div class="partida-imagenes-preview">${items.join('')}</div>` : '';
+    const entrega = renderEntregaPreview(i, p);
+    if (!thumbs && !entrega) return '';
+    return `<div class="partida-meta-preview">${entrega}${thumbs}</div>`;
 }
 
 function syncImagenesAlFormulario() {
@@ -1496,13 +1669,13 @@ function renderProductos() {
                                 title="Bajar partida" ${i === productos.length - 1 ? 'disabled' : ''}>▼</button>
                     </div>
                     <div class="partida-acciones-btns">
-                        <button type="button" onclick="agregarImagenPartida(${i})" class="btn btn-outline btn-icon btn-sm"
-                                title="Agregar foto (${contarImagenesPartida(p)}/${MAX_IMAGENES_PARTIDA})"
-                                ${contarImagenesPartida(p) >= MAX_IMAGENES_PARTIDA ? 'disabled' : ''}>+</button>
+                        <button type="button" onclick="abrirOpcionesPartida(${i})" class="btn btn-outline btn-icon btn-sm"
+                                title="Imagen o tiempo de entrega (${contarImagenesPartida(p)}/${MAX_IMAGENES_PARTIDA} fotos)">+</button>
                         <button type="button" onclick="quitarProducto(${i})" class="btn btn-danger btn-icon btn-sm" title="Quitar partida">✕</button>
                     </div>
                     ${renderImagenesPreview(i, p)}
                 </div>
+                <input type="hidden" name="productos[${i}][tiempo_entrega]" value="${(p.tiempo_entrega || '').replace(/"/g,'&quot;')}">
                 <input type="file" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" multiple
                        id="imagenInput_${i}" style="display:none" onchange="onImagenPartidaSelected(${i}, this)">
             </td>
@@ -1749,6 +1922,7 @@ function cotizacionAutosaveTieneContenido(data) {
     return prods.some(p => {
         if (String(p.nombre || '').trim() !== '') return true;
         if (String(p.origen || '').trim() !== '') return true;
+        if (String(p.tiempo_entrega || '').trim() !== '') return true;
         const precio = parseFloat(p.precio);
         if (!Number.isNaN(precio) && precio > 0) return true;
         const cant = parseFloat(p.cantidad);
@@ -1799,6 +1973,7 @@ function restaurarCotizacionAutosave(data) {
         tasa_iva: p.tasa_iva,
         manual: !!p.manual,
         sugerencia_id: p.sugerencia_id || null,
+        tiempo_entrega: p.tiempo_entrega || '',
         imagenesExistentes: [],
         imagenesUrls: [],
         imagenesNuevas: [],

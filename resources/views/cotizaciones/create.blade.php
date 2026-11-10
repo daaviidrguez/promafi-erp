@@ -1,14 +1,9 @@
 @extends('layouts.app')
 {{-- resources/views/cotizaciones/create.blade.php --}}
 
-@section('title', isset($cotizacion) ? 'Editar Cotización' : 'Nueva Cotización')
-@section('page-title', isset($cotizacion) ? '✏️ Editar Cotización' : '📝 Nueva Cotización')
-@section('page-subtitle', isset($cotizacion) 
-    ? 'Modifica los datos del presupuesto'
-    : 'Crear presupuesto para tu cliente')
-
 @php
 $isEdit = isset($cotizacion);
+$folioMostrar = $isEdit ? $cotizacion->folio : $folio;
 
 $breadcrumbs = [
     ['title' => 'Cotizaciones', 'url' => route('cotizaciones.index')],
@@ -19,6 +14,15 @@ $breadcrumbs = [
     ]
 ];
 @endphp
+
+@section('title', $isEdit ? 'Editar Cotización' : 'Nueva Cotización')
+@section('page-title', $isEdit ? '✏️ Editar Cotización' : '📝 Nueva Cotización')
+@section('page-title-aside')
+    <span class="page-title-folio-badge text-mono" title="Folio">{{ $folioMostrar }}</span>
+@endsection
+@section('page-subtitle', $isEdit
+    ? 'Modifica los datos del presupuesto'
+    : 'Crear presupuesto para tu cliente')
 
 @section('content')
 
@@ -91,7 +95,7 @@ $breadcrumbs = [
                     </select>
                 </div>
                 <div class="form-row responsive-grid" id="condicionesPagoRow"
-                     style="display:grid; grid-template-columns:minmax(100px, 0.9fr) minmax(0, 2.1fr); gap:16px; margin-bottom:14px;">
+                     style="display:grid; grid-template-columns:minmax(100px, 0.9fr) minmax(0, 2.1fr); gap:16px; margin-bottom:0;">
                     <div class="form-group" id="diasCreditoGroup" style="display:none; margin-bottom:0;">
                         <label class="form-label">Días de Crédito</label>
                         <input type="number"
@@ -110,20 +114,6 @@ $breadcrumbs = [
                         </select>
                     </div>
                 </div>
-                <div class="form-comercial-inset">
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label class="form-label" for="tiempoEntrega">Tiempo de entrega</label>
-                        <input type="text"
-                               name="tiempo_entrega"
-                               id="tiempoEntrega"
-                               class="form-control"
-                               maxlength="120"
-                               value="{{ old('tiempo_entrega', $isEdit ? ($cotizacion->tiempo_entrega ?? '') : '') }}"
-                               placeholder="Ej. 3 días hábiles, 7-10 días, Según existencia"
-                               autocomplete="off">
-                        <span class="form-hint" style="margin-top:6px;display:block;">General de la cotización (a partir de confirmación o anticipo). Puedes precisar por partida con el botón +.</span>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -132,14 +122,6 @@ $breadcrumbs = [
                 <div class="card-title">📋 Información General</div>
             </div>
             <div class="card-body">
-                <div class="form-group">
-                    <label class="form-label">Folio</label>
-                    <input type="text"
-                           value="{{ $isEdit ? $cotizacion->folio : $folio }}"
-                           readonly
-                           class="form-control text-mono fw-bold"
-                           style="background: var(--color-gray-100);">
-                </div>
                 <div class="form-row responsive-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
                     <div class="form-group">
                         <label class="form-label">Fecha de Emisión <span class="req">*</span></label>
@@ -155,6 +137,18 @@ $breadcrumbs = [
                                value="{{ $isEdit ? $cotizacion->fecha_vencimiento->format('Y-m-d') : date('Y-m-d', strtotime('+15 days')) }}"
                                required class="form-control">
                     </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label" for="tiempoEntrega">Tiempo de entrega</label>
+                    <input type="text"
+                           name="tiempo_entrega"
+                           id="tiempoEntrega"
+                           class="form-control"
+                           maxlength="120"
+                           value="{{ old('tiempo_entrega', $isEdit ? ($cotizacion->tiempo_entrega ?? '') : '') }}"
+                           placeholder="Ej. 3 días hábiles, 7-10 días, Según existencia"
+                           autocomplete="off">
+                    <span class="form-hint" style="margin-top:6px;display:block;">General de la cotización (a partir de confirmación o anticipo). Puedes precisar por partida con el botón +.</span>
                 </div>
             </div>
         </div>
@@ -2000,7 +1994,7 @@ window.cotizacionAutosave = window.PromafiFormAutosave.create({
     pointerKey: @json('promafi:cotizacion-pointer:' . auth()->id()),
     modo: @json($isEdit ? 'edit' : 'create'),
     editUrl: @json($isEdit ? route('cotizaciones.create') . '?id=' . $cotizacion->id : ''),
-    folio: @json($isEdit ? $cotizacion->folio : $folio),
+    folio: @json($folioMostrar),
     entityId: @json($isEdit ? $cotizacion->id : null),
     entityIdField: 'cotizacionId',
     skipRestore: @json(old('cliente_id') !== null || $errors->any()),
@@ -2011,7 +2005,7 @@ window.cotizacionAutosave = window.PromafiFormAutosave.create({
                 tipo: isEditMode ? 'edit' : 'create',
                 cotizacionId: isEditMode ? @json($isEdit ? $cotizacion->id : null) : null,
                 editUrl: @json($isEdit ? route('cotizaciones.create') . '?id=' . $cotizacion->id : ''),
-                folio: @json($isEdit ? $cotizacion->folio : $folio),
+                folio: @json($folioMostrar),
             },
             clienteLabel: document.getElementById('buscarCliente').value || '',
             clienteTipoPersona: clienteTipoPersona,

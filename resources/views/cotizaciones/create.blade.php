@@ -258,6 +258,13 @@ $breadcrumbs = [
                 {{-- Dropdown de sugerencias posicionado fuera de la tabla para que se vea encima (igual que cliente/producto) --}}
                 <div id="sugerenciaResultsFlotante" class="autocomplete-results autocomplete-results-flotante" style="display:none; position:fixed; z-index:2000;"></div>
 
+                {{-- Mismo Agregar abajo a la izquierda: evita subir al header con muchas partidas --}}
+                <div class="cotizacion-productos-footer">
+                    <button type="button" onclick="agregarManual()" class="btn btn-primary btn-sm">
+                        ➕ Agregar
+                    </button>
+                </div>
+
             </div>
         </div>
 
@@ -662,6 +669,13 @@ $breadcrumbs = [
 }
 .cotizacion-excel-actions button:not(.btn):hover {
     color: var(--color-secondary);
+}
+.cotizacion-productos-footer {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--color-gray-200, #e5e7eb);
 }
 
 @media (max-width: 768px) {

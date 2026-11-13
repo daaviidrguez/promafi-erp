@@ -93,6 +93,13 @@ $clientePreseleccionadoJson = $clientePreseleccionado ? [
                         <div class="fw-600">Sin conceptos agregados</div>
                         <div style="font-size: 13px; margin-top: 4px;">Haz clic en "Agregar" para añadir productos</div>
                     </div>
+
+                    {{-- Mismo Agregar abajo a la izquierda: evita subir al header con muchos conceptos --}}
+                    <div class="factura-conceptos-footer">
+                        <button type="button" onclick="agregarProducto()" class="btn btn-primary btn-sm">
+                            ➕ Agregar
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -245,6 +252,18 @@ $clientePreseleccionadoJson = $clientePreseleccionado ? [
 ])
 
 @endsection
+
+@push('styles')
+<style>
+.factura-conceptos-footer {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--color-gray-200, #e5e7eb);
+}
+</style>
+@endpush
 
 @push('scripts')
 @include('partials.cliente-search-js')

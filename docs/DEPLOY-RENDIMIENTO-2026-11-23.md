@@ -128,7 +128,7 @@
 | Stats cotizaciones | Cache 60s (+ invalidación al guardar/aceptar/enviar/convertir/borrar) |
 | Select mínimo cotizaciones | Sin observaciones / dirección / PDF |
 | Búsqueda liviana | Prefijo folio; sin `orWhereHas` en cotizaciones |
-| UI index | Menos botones (XML/SAT/PDF → detalle); badge cancelación simple |
+| UI index | Menos botones (XML/SAT/PDF → detalle); badge cancelación con etiqueta legible (sin N+1 SAT) |
 | Índices | `(fecha_emision,id)` facturas; `(fecha,id)` cotizaciones |
 
 ### Deploy extra ronda 7

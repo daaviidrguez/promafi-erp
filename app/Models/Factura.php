@@ -1053,6 +1053,51 @@ class Factura extends Model
     }
 
     /**
+     * Subtítulo de cancelación para index: misma información útil que
+     * {@see getEstatusSolicitudLabelAttribute} pero sin consultar eventos SAT
+     * (evita N+1 / “Reintento disponible” en listados).
+     */
+    public function etiquetaSolicitudParaListado(): ?string
+    {
+        if ($this->estado !== 'cancelada' && ! $this->cancelacion_administrativa) {
+            return null;
+        }
+        if ($this->cancelacionFiscalVencidaSinResolver()) {
+            return 'Límite de respuesta vencido · CFDI vigente · Consulte el SAT antes de reenviar';
+        }
+        if ($this->intentoFiscalPrevioSinCancelar()) {
+            return 'Intento SAT sin efecto · CFDI vigente · Consulte el SAT antes de reenviar';
+        }
+        if ($this->solicitudFiscalPendiente()) {
+            $hasta = $this->fecha_vencimiento_aceptacion
+                ? $this->fecha_vencimiento_aceptacion->format('d/m/Y H:i')
+                : null;
+
+            return $hasta
+                ? 'Pendiente de cancelación SAT (hasta '.$hasta.')'
+                : 'Pendiente de cancelación SAT';
+        }
+        if ($this->canceladaAnteSat()) {
+            return 'Cancelada ante el SAT';
+        }
+        if ($this->cancelacionFiscalRechazada()) {
+            return 'Rechazada por el receptor · SAT vigente';
+        }
+        if ($this->pendienteCancelacionAntePac()) {
+            return 'Cancelación administrativa en ERP (pendiente de envío al SAT)';
+        }
+        if ($this->estatus_sat) {
+            return 'SAT: '.$this->estatus_sat;
+        }
+        $cod = $this->codigo_estatus_cancelacion;
+        if ($cod === null || $cod === '') {
+            return null;
+        }
+
+        return self::descripcionCodigoCancelacion($cod);
+    }
+
+    /**
      * Scope para búsqueda
      */
     public function scopeBuscar($query, $search)

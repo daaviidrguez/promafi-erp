@@ -108,18 +108,32 @@ $breadcrumbs = [
                 <td class="td-right text-mono fw-600" style="font-size: 15px;">
                     ${{ number_format($factura->total, 2, '.', ',') }}
                 </td>
-                <td class="td-center" style="min-width: 160px;">
+                <td class="td-center" style="min-width: 200px;">
                     @if($factura->estado === 'timbrada')
                         <span class="badge badge-success">✓ Timbrada</span>
                     @elseif($factura->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        <span class="badge badge-danger">
-                            {{ ($factura->cancelacion_administrativa ?? false) ? 'Cancelada (ERP)' : 'Cancelada' }}
+                        @php
+                            $tituloCancelFechas = '';
+                            if ($factura->cancelacion_administrativa ?? false) {
+                                if ($factura->fecha_cancelacion) {
+                                    $tituloCancelFechas = 'Administrativa (ERP): '.$factura->fecha_cancelacion->format('d/m/Y H:i');
+                                }
+                                if ($factura->fecha_cancelacion_pac ?? null) {
+                                    $tituloCancelFechas .= ($tituloCancelFechas ? ' | ' : '').'PAC/SAT: '.$factura->fecha_cancelacion_pac->format('d/m/Y H:i');
+                                }
+                            } elseif ($factura->fecha_cancelacion) {
+                                $tituloCancelFechas = $factura->fecha_cancelacion->format('d/m/Y H:i');
+                            }
+                            $subtituloCancel = $factura->etiquetaSolicitudParaListado();
+                        @endphp
+                        <span class="badge badge-danger" @if($tituloCancelFechas !== '') title="{{ $tituloCancelFechas }}" @endif>
+                            {{ $factura->estado_etiqueta }}
                         </span>
-                        @if($factura->codigo_estatus_cancelacion)
+                        @if($subtituloCancel)
                             <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);">
-                                {{ $factura->codigo_estatus_cancelacion }}
+                                {{ $subtituloCancel }}
                             </div>
                         @endif
                     @endif

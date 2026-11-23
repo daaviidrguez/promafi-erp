@@ -14,10 +14,12 @@ class CfdiListadoColumnas
     public static function factura(): array
     {
         // Index: sin xml/pdf paths ni textos PAC largos (van en show).
+        // uuid (corto) sí: etiquetas de cancelación necesitan saber si hubo envío fiscal.
         return [
             'id',
             'serie',
             'folio',
+            'uuid',
             'estado',
             'cliente_id',
             'fecha_emision',

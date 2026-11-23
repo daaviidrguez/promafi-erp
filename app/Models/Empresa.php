@@ -130,12 +130,22 @@ class Empresa extends Model
         return max($titulo, $this->pdfFacturaFontCuerpo() + 0.5);
     }
 
+    /** Memo por request: evita reconsultar en layout/sidebar/PDF del mismo ciclo. */
+    private static mixed $principalMemo = null;
+
+    private static bool $principalResuelto = false;
+
     /**
      * Obtener la empresa principal (singleton)
      */
     public static function principal()
     {
-        return self::where('activo', true)->first();
+        if (! self::$principalResuelto) {
+            self::$principalMemo = self::where('activo', true)->first();
+            self::$principalResuelto = true;
+        }
+
+        return self::$principalMemo;
     }
 
     /**

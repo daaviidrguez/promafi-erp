@@ -19,8 +19,19 @@ class Role extends Model
         return $this->hasMany(User::class);
     }
 
+    /** @var list<string>|null */
+    protected ?array $permissionKeysCache = null;
+
     public function hasPermission(string $key): bool
     {
-        return $this->permissions()->where('key', $key)->exists();
+        if ($this->relationLoaded('permissions')) {
+            return $this->permissions->contains('key', $key);
+        }
+
+        if ($this->permissionKeysCache === null) {
+            $this->permissionKeysCache = $this->permissions()->pluck('key')->all();
+        }
+
+        return in_array($key, $this->permissionKeysCache, true);
     }
 }

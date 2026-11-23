@@ -741,6 +741,7 @@ class FacturamaService
      */
     protected function descargarAcuseCancelacionDesdeFacturama(string $cfdiId, string $formato): ?array
     {
+        // Orden optimizado: URL canónica primero; menos intentos = menos timeouts acumulados.
         $formatos = match (strtolower($formato)) {
             'pdf' => ['pdf', 'html'],
             default => [strtolower($formato)],
@@ -768,7 +769,7 @@ class FacturamaService
      */
     protected function intentarDescargarAcuseUrl(string $url, bool $convertirHtmlAPdf): ?array
     {
-        $res = $this->http()->acceptJson()->timeout(30)->get($url);
+        $res = $this->http()->acceptJson()->timeout(10)->get($url);
         $headerType = strtolower((string) $res->header('Content-Type'));
         $raw = $res->body();
 

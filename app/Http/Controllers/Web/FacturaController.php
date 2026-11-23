@@ -1252,6 +1252,17 @@ class FacturaController extends Controller
             return back()->with('error', 'No hay empresa configurada.');
         }
 
+        $filename = 'AcuseCancelacion_'.($factura->uuid ?? $factura->folio_completo).'.pdf';
+        $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+        $cacheRel = 'documentos/acuses_cancelacion/'.$factura->id.'.pdf';
+        $cacheAbs = storage_path('app/'.$cacheRel);
+
+        if (is_file($cacheAbs) && filesize($cacheAbs) > 0) {
+            return response()->download($cacheAbs, $filename, [
+                'Content-Type' => 'application/pdf',
+            ]);
+        }
+
         try {
             $facturama = new FacturamaService($empresa);
             $resultado = $facturama->obtenerAcuseCancelacionPdfPorFactura($factura);
@@ -1262,8 +1273,11 @@ class FacturaController extends Controller
                 return back()->with('error', $resultado['message'] ?: 'No se pudo generar el comprobante PDF de cancelación.');
             }
 
-            $filename = 'AcuseCancelacion_'.($factura->uuid ?? $factura->folio_completo).'.pdf';
-            $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+            $dir = dirname($cacheAbs);
+            if (! is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            file_put_contents($cacheAbs, $resultado['content']);
 
             return response($resultado['content'], 200, [
                 'Content-Type' => $resultado['content_type'] ?? 'application/pdf',

@@ -11,6 +11,7 @@ use App\Support\Rendimiento\RendimientoRecolector;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\Client\Events\ConnectionFailed;
 use Illuminate\Http\Client\Events\ResponseReceived;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -55,7 +56,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Definir Gate por cada permiso (para @can y middleware)
         try {
-            foreach (Permission::pluck('key') as $key) {
+            $permissionKeys = Cache::remember('permissions:all_keys', 600, function () {
+                return Permission::query()->pluck('key')->all();
+            });
+            foreach ($permissionKeys as $key) {
                 Gate::define($key, function (User $user) use ($key) {
                     return $user->hasPermission($key);
                 });

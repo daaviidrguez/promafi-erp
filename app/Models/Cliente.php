@@ -168,11 +168,14 @@ class Cliente extends Model
      */
     public function getSaldoActualCoherenteAttribute(): float
     {
-        return $this->cuentasPorCobrar()
+        $cuentas = $this->cuentasPorCobrar()
             ->excluirFacturaBorrador()
             ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->get()
-            ->sum(fn ($c) => $c->saldo_pendiente_real);
+            ->get(['id', 'cliente_id', 'factura_id', 'monto_pendiente', 'estado', 'fecha_vencimiento', 'monto_pagado']);
+
+        \App\Support\CobranzaSaldoBatch::hidratarCuentas($cuentas);
+
+        return (float) $cuentas->sum(fn ($c) => $c->saldo_pendiente_real);
     }
 
     /**
@@ -239,11 +242,29 @@ class Cliente extends Model
      */
     public function scopeBuscar($query, $search)
     {
-        return $query->where(function($q) use ($search) {
-            $q->where('nombre', 'like', "%{$search}%")
-              ->orWhere('rfc', 'like', "%{$search}%")
-              ->orWhere('codigo', 'like', "%{$search}%")
-              ->orWhere('email', 'like', "%{$search}%");
+        $escaped = addcslashes(trim((string) $search), '%_\\');
+        if ($escaped === '') {
+            return $query;
+        }
+
+        $term = '%'.$escaped.'%';
+        $prefix = $escaped.'%';
+
+        // RFC / código: preferir prefijo (usa índices UNIQUE).
+        $pareceCodigoORfc = (bool) preg_match('/^[A-Z0-9&\-]{3,}$/i', $escaped);
+
+        return $query->where(function ($q) use ($term, $prefix, $pareceCodigoORfc) {
+            if ($pareceCodigoORfc) {
+                $q->where('rfc', 'like', $prefix)
+                    ->orWhere('codigo', 'like', $prefix)
+                    ->orWhere('nombre', 'like', $term)
+                    ->orWhere('email', 'like', $term);
+            } else {
+                $q->where('nombre', 'like', $term)
+                    ->orWhere('rfc', 'like', $term)
+                    ->orWhere('codigo', 'like', $term)
+                    ->orWhere('email', 'like', $term);
+            }
         });
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\Permission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class RoleController extends Controller
 {
@@ -41,6 +42,8 @@ class RoleController extends Controller
             'description' => $validated['description'] ?? null,
         ]);
         $role->permissions()->sync($validated['permissions'] ?? []);
+        Cache::forget('permissions:all_keys');
+
         return redirect()->route('roles.show', $role->id)->with('success', 'Rol actualizado');
     }
 }

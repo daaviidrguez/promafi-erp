@@ -697,6 +697,7 @@ $breadcrumbs = [
 <script>
 let productos = [];
 let timerCliente, timerProducto, timerSugerencia = {};
+let abortCliente = null, abortProducto = null;
 let lastSugerenciaRowIndex = 0;
 let clienteTipoPersona = @json($isEdit ? ($cotizacion->cliente->tipo_persona ?? 'fisica') : 'fisica');
 const empresaIsrConfig = {
@@ -1086,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(timerCliente);
         const q = this.value.trim();
         if (q.length < 2) { closeDropdown('clienteResults'); return; }
-        timerCliente = setTimeout(() => buscarClientes(q), 280);
+        timerCliente = setTimeout(() => buscarClientes(q), 400);
     });
 
     // Buscador producto
@@ -1094,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(timerProducto);
         const q = this.value.trim();
         if (q.length < 2) { closeDropdown('productoResults'); return; }
-        timerProducto = setTimeout(() => buscarProductos(q), 280);
+        timerProducto = setTimeout(() => buscarProductos(q), 400);
     });
 
     // Cerrar dropdowns al hacer click fuera (no cerrar sugerencias si el clic es dentro del flotante)
@@ -1124,8 +1125,10 @@ function closeDropdown(id) {
 }
 
 async function buscarClientes(q) {
+    if (abortCliente) abortCliente.abort();
+    abortCliente = new AbortController();
     try {
-        const r = await fetch(`{{ route('clientes.buscar') }}?q=${encodeURIComponent(q)}`);
+        const r = await fetch(`{{ route('clientes.buscar') }}?q=${encodeURIComponent(q)}`, { signal: abortCliente.signal });
         const data = await r.json();
         const box = document.getElementById('clienteResults');
         if (!data.length) {
@@ -1139,7 +1142,9 @@ async function buscarClientes(q) {
             `).join('');
         }
         box.classList.add('show');
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        if (e.name !== 'AbortError') console.error(e);
+    }
 }
 
 function aplicaRetencionIsrPm(tipoPersona) {
@@ -1310,8 +1315,10 @@ if (btnCargar) btnCargar.addEventListener('click', async function() {
 });
 
 async function buscarProductos(q) {
+    if (abortProducto) abortProducto.abort();
+    abortProducto = new AbortController();
     try {
-        const r = await fetch(`{{ route('cotizaciones.buscar-productos') }}?q=${encodeURIComponent(q)}`);
+        const r = await fetch(`{{ route('cotizaciones.buscar-productos') }}?q=${encodeURIComponent(q)}`, { signal: abortProducto.signal });
         const data = await r.json();
         window._busquedaProductosTemp = data;
         const box = document.getElementById('productoResults');
@@ -1336,7 +1343,9 @@ async function buscarProductos(q) {
             }).join('');
         }
         box.classList.add('show');
-    } catch(e) { console.error(e); }
+    } catch(e) {
+        if (e.name !== 'AbortError') console.error(e);
+    }
 }
 
 function agregarDesdeBusqueda(item) {

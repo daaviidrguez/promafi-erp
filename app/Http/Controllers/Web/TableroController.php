@@ -44,6 +44,7 @@ class TableroController extends Controller
         $cuentasCobranza = CuentaPorCobrar::excluirFacturaBorrador()
             ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
             ->get();
+        \App\Support\CobranzaSaldoBatch::hidratarCuentas($cuentasCobranza);
         $cobranzaPendiente = (float) $cuentasCobranza->sum(fn ($c) => $c->saldo_pendiente_real);
         $cobranzaCobradoMes = (float) ComplementoPago::whereMonth('fecha_emision', $mesActual)
             ->whereYear('fecha_emision', $añoActual)

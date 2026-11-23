@@ -163,14 +163,36 @@ class CuentaPorCobrar extends Model
     }
 
     /**
+     * Saldo pendiente real precalculado en lote (evita N+1).
+     * No es columna de BD; solo vive en memoria del modelo.
+     */
+    protected ?float $saldoPendienteRealBatch = null;
+
+    /**
+     * Hidratar saldo real desde un batch de NC (misma fórmula que el accessor).
+     */
+    public function hidratarSaldoPendienteReal(float $saldo): static
+    {
+        $this->saldoPendienteRealBatch = $saldo;
+
+        return $this;
+    }
+
+    /**
      * Saldo pendiente real (considerando notas de crédito timbradas).
      * Coherente con complemento de pago y estado de cuenta.
+     * Si fue hidratado en lote, no consulta BD.
      */
     public function getSaldoPendienteRealAttribute(): float
     {
+        if ($this->saldoPendienteRealBatch !== null) {
+            return $this->saldoPendienteRealBatch;
+        }
+
         $montoCubiertoPorNC = (float) \App\Models\NotaCredito::where('factura_id', $this->factura_id)
             ->where('estado', 'timbrada')
             ->sum('total');
+
         return max(0, (float) $this->monto_pendiente - $montoCubiertoPorNC);
     }
 
@@ -180,19 +202,7 @@ class CuentaPorCobrar extends Model
      */
     public function getEstadoDisplayAttribute(): string
     {
-        if ($this->estado === 'cancelada') {
-            return 'cancelada';
-        }
-        if ($this->saldo_pendiente_real <= 0) {
-            return 'pagada';
-        }
-        if ($this->estaVencida()) {
-            return 'vencida';
-        }
-        if ((float) $this->monto_pagado > 0) {
-            return 'parcial';
-        }
-        return 'pendiente';
+        return \App\Support\CobranzaSaldoBatch::estadoDisplayFromSaldo($this, $this->saldo_pendiente_real);
     }
 
     /**

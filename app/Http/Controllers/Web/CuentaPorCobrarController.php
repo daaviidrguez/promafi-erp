@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\FormaPago;
-use App\Models\NotaCredito;
 use App\Services\CobranzaResumenService;
 use Illuminate\Http\Request;
 
@@ -44,41 +43,20 @@ class CuentaPorCobrarController extends Controller
         $cuentas = (clone $baseQuery)->orderBy('fecha_vencimiento', 'asc')->paginate(20);
 
         // Totales coherentes con saldo_pendiente_real (factura show, complemento, dashboard)
-        $cuentasParaTotales = CuentaPorCobrar::with(['cliente', 'factura'])
+        $cuentasParaTotales = CuentaPorCobrar::query()
             ->excluirFacturaBorrador()
             ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->get();
+            ->get(['id', 'factura_id', 'monto_pendiente', 'estado', 'fecha_vencimiento', 'monto_pagado']);
+        \App\Support\CobranzaSaldoBatch::hidratarCuentas($cuentasParaTotales);
+        $basesVencidas = CuentaPorCobrar::query()
+            ->excluirFacturaBorrador()
+            ->vencidas()
+            ->get(['id', 'factura_id', 'monto_pendiente']);
+        \App\Support\CobranzaSaldoBatch::hidratarCuentas($basesVencidas);
         $totales = [
             'pendiente' => $cuentasParaTotales->sum(fn ($c) => $c->saldo_pendiente_real),
-            // "Total Vencido" debe reflejar el mismo criterio que Notificaciones:
-            // 1) scopeVencidas() (vencimiento por fecha: < hoy, y estado vencida en BD)
-            // 2) saldo real pendiente = monto_pendiente - NC timbradas (por factura)
-            'vencido' => (function () {
-                $basesVencidas = CuentaPorCobrar::query()
-                    ->excluirFacturaBorrador()
-                    ->vencidas()
-                    ->get(['id', 'factura_id', 'monto_pendiente']);
-
-                if ($basesVencidas->isEmpty()) {
-                    return 0.0;
-                }
-
-                $facturaIds = $basesVencidas->pluck('factura_id')->unique()->values();
-
-                $ncPorFactura = NotaCredito::query()
-                    ->whereIn('factura_id', $facturaIds)
-                    ->where('estado', 'timbrada')
-                    ->groupBy('factura_id')
-                    ->selectRaw('factura_id, SUM(total) as total_nc')
-                    ->pluck('total_nc', 'factura_id');
-
-                return (float) $basesVencidas
-                    ->map(function ($cuenta) use ($ncPorFactura) {
-                        $totalNc = (float) ($ncPorFactura[$cuenta->factura_id] ?? 0);
-                        return max(0.0, (float) $cuenta->monto_pendiente - $totalNc);
-                    })
-                    ->sum();
-            })(),
+            // Mismo criterio que Notificaciones: scopeVencidas + saldo real (monto - NC)
+            'vencido' => (float) $basesVencidas->sum(fn ($c) => $c->saldo_pendiente_real),
         ];
 
         $mes = (int) $request->get('mes', now()->month);

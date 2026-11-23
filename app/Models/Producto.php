@@ -310,11 +310,20 @@ class Producto extends Model
      */
     public function scopeBuscar($query, $search)
     {
-        return $query->where(function ($q) use ($search) {
-            $q->where('nombre', 'like', "%{$search}%")
-                ->orWhere('codigo', 'like', "%{$search}%")
-                ->orWhere('codigo_barras', 'like', "%{$search}%")
-                ->orWhere('clave_sat', 'like', "%{$search}%");
+        $escaped = addcslashes(trim((string) $search), '%_\\');
+        if ($escaped === '') {
+            return $query;
+        }
+
+        $term = '%'.$escaped.'%';
+        $prefix = $escaped.'%';
+
+        return $query->where(function ($q) use ($term, $prefix) {
+            $q->where('codigo', 'like', $prefix)
+                ->orWhere('codigo', 'like', $term)
+                ->orWhere('nombre', 'like', $term)
+                ->orWhere('codigo_barras', 'like', $prefix)
+                ->orWhere('clave_sat', 'like', $prefix);
         });
     }
 

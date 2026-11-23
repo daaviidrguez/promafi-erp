@@ -27,16 +27,32 @@ class CatalogoOnlineApiController extends Controller
         }
 
         if ($request->filled('q')) {
-            $q = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->get('q')).'%';
-            $query->where(function ($qry) use ($q) {
-                $qry->where('codigo', 'like', $q)
-                    ->orWhere('nombre', 'like', $q)
-                    ->orWhere('descripcion', 'like', $q);
+            $raw = trim((string) $request->get('q'));
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $raw);
+            $term = '%'.$escaped.'%';
+            $prefix = $escaped.'%';
+            $incluirDescripcion = $request->boolean('buscar_descripcion');
+
+            $query->where(function ($qry) use ($term, $prefix, $incluirDescripcion) {
+                $qry->where('codigo', 'like', $prefix)
+                    ->orWhere('codigo', 'like', $term)
+                    ->orWhere('nombre', 'like', $term);
+                if ($incluirDescripcion) {
+                    $qry->orWhere('descripcion', 'like', $term);
+                }
             });
         }
 
         $perPage = min(max((int) $request->get('per_page', 50), 1), 200);
-        $paginator = $query->orderBy('codigo')->paginate($perPage);
+        $paginator = $query
+            ->select([
+                'id', 'codigo', 'nombre', 'marca', 'descripcion', 'unidad', 'categoria_id',
+                'precio_venta', 'tasa_iva', 'aplica_iva', 'tipo_factor',
+                'catalogo_online_visible', 'catalogo_online_mostrar_precio',
+                'imagen_principal', 'imagenes',
+            ])
+            ->orderBy('codigo')
+            ->paginate($perPage);
 
         $data = $paginator->getCollection()->map(fn (Producto $p) => $this->serializarProducto($p));
 

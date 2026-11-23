@@ -92,21 +92,27 @@ class CotizacionController extends Controller
             $query->where('usuario_id', $request->asesor_id);
         }
 
-        // Actualizar estado de vencidas automáticamente
-        Cotizacion::vencidas()->update(['estado' => 'vencida']);
+        // Marcar vencidas como máximo cada 15 min (evita UPDATE en cada listado).
+        // También existe: php artisan cotizaciones:marcar-vencidas
+        if (\Illuminate\Support\Facades\Cache::add('cotizaciones:marcar_vencidas_lock', 1, now()->addMinutes(15))) {
+            Cotizacion::vencidas()->update(['estado' => 'vencida']);
+        }
 
         $cotizaciones = $query->orderBy('created_at', 'desc')->paginate(20);
 
-        // Estadísticas (vendedor solo cuenta las suyas)
+        // Estadísticas (vendedor solo cuenta las suyas) — 2 queries en lugar de 4
         $statsQuery = $this->queryCotizaciones();
+        $porEstado = (clone $statsQuery)
+            ->whereIn('estado', ['borrador', 'enviada', 'aceptada'])
+            ->selectRaw('estado, COUNT(*) as total')
+            ->groupBy('estado')
+            ->pluck('total', 'estado');
         $estadisticas = [
-            'borradores' => (clone $statsQuery)->estado('borrador')->count(),
-            'enviadas' => (clone $statsQuery)->estado('enviada')->count(),
-            'aceptadas' => (clone $statsQuery)->estado('aceptada')->count(),
+            'borradores' => (int) ($porEstado['borrador'] ?? 0),
+            'enviadas' => (int) ($porEstado['enviada'] ?? 0),
+            'aceptadas' => (int) ($porEstado['aceptada'] ?? 0),
             'por_vencer' => (clone $statsQuery)->porVencer()->count(),
         ];
-
-        $clientes = Cliente::activos()->orderBy('nombre')->get();
 
         $asesores = Auth::user()->isVendedor()
             ? collect()
@@ -115,7 +121,7 @@ class CotizacionController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']);
 
-        return view('cotizaciones.index', compact('cotizaciones', 'estadisticas', 'clientes', 'asesores'));
+        return view('cotizaciones.index', compact('cotizaciones', 'estadisticas', 'asesores'));
     }
 
     /**
@@ -135,8 +141,11 @@ class CotizacionController extends Controller
 
         // Modo edición: cargar cotización con detalles ordenados para repoblar el formulario
         if ($request->has('id')) {
-            $cotizacion = Cotizacion::with(['detalles' => fn ($q) => $q->orderBy('orden'), 'detalles.producto'])
-                ->findOrFail($request->id);
+            $cotizacion = Cotizacion::with([
+                'cliente',
+                'detalles' => fn ($q) => $q->orderBy('orden'),
+                'detalles.producto',
+            ])->findOrFail($request->id);
             $this->authorizeCotizacion($cotizacion);
 
             if (!$cotizacion->puedeEditarse()) {
@@ -1517,15 +1526,27 @@ class CotizacionController extends Controller
         $search = trim($request->get('q', ''));
         $resultados = [];
 
-        // Productos del catálogo (mínimo 2 caracteres)
+        // Productos del catálogo (mínimo 2 caracteres). Prefijo en codigo usa índice.
         if (strlen($search) >= 2) {
-            $productos = Producto::where('activo', true)
-                ->where(function ($query) use ($search) {
-                    $query->where('nombre', 'like', '%' . addcslashes($search, '%_\\') . '%')
-                        ->orWhere('codigo', 'like', '%' . addcslashes($search, '%_\\') . '%');
-                })
+            $escaped = addcslashes($search, '%_\\');
+            $cols = ['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto'];
+            $porCodigo = Producto::where('activo', true)
+                ->where('codigo', 'like', $escaped.'%')
                 ->limit(10)
-                ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor', 'objeto_impuesto', 'tipo_impuesto']);
+                ->get($cols);
+
+            $productos = $porCodigo;
+            if ($porCodigo->count() < 10) {
+                $resto = Producto::where('activo', true)
+                    ->where(function ($query) use ($escaped) {
+                        $query->where('nombre', 'like', '%'.$escaped.'%')
+                            ->orWhere('codigo', 'like', '%'.$escaped.'%');
+                    })
+                    ->whereNotIn('id', $porCodigo->pluck('id'))
+                    ->limit(10 - $porCodigo->count())
+                    ->get($cols);
+                $productos = $porCodigo->concat($resto)->values();
+            }
 
             foreach ($productos as $p) {
                 $resultados[] = [
@@ -1542,12 +1563,7 @@ class CotizacionController extends Controller
 
         // Sugerencias (mínimo 2 caracteres, coherente con búsqueda de producto)
         if (strlen($search) >= 2) {
-            $term = '%' . addcslashes($search, '%_\\') . '%';
-            $sugerencias = Sugerencia::query()
-                ->where(function ($q) use ($term) {
-                    $q->where('descripcion', 'like', $term)
-                        ->orWhere('codigo', 'like', $term);
-                })
+            $sugerencias = Sugerencia::buscar($search)
                 ->orderBy('descripcion')
                 ->limit(10)
                 ->get(['id', 'codigo', 'descripcion', 'unidad', 'precio_unitario']);

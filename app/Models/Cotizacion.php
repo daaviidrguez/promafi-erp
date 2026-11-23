@@ -227,24 +227,16 @@ class Cotizacion extends Model
 
     /**
      * Máximo número de folio ya usado para una serie (incluye soft-deleted por unique).
+     * Usa MAX en SQL (MySQL) para no cargar todos los folios en PHP.
      */
     private static function maxNumeroFolioParaSerie(string $serie, bool $lock = false): int
     {
-        $max = 0;
-        $pattern = '/^'.preg_quote($serie, '/').'-(\d+)$/';
-
-        $query = self::withTrashed()->where('folio', 'like', $serie.'-%');
+        $query = self::withTrashed();
         if ($lock) {
             $query->lockForUpdate();
         }
 
-        foreach ($query->pluck('folio') as $folio) {
-            if (preg_match($pattern, (string) $folio, $m)) {
-                $max = max($max, (int) $m[1]);
-            }
-        }
-
-        return $max;
+        return \App\Support\FolioNumerico::maxSecuencia($query, $serie.'-%');
     }
 
     /**

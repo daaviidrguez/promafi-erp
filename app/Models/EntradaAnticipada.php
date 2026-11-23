@@ -94,12 +94,7 @@ class EntradaAnticipada extends Model
 
     public static function generarFolio(): string
     {
-        $max = 0;
-        foreach (self::where('folio', 'like', 'EA-%')->pluck('folio') as $folio) {
-            if (preg_match('/^EA-(\d{4})$/', $folio, $m)) {
-                $max = max($max, (int) $m[1]);
-            }
-        }
+        $max = \App\Support\FolioNumerico::maxSecuencia(self::query(), 'EA-%');
 
         return 'EA-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
     }

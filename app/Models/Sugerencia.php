@@ -31,17 +31,23 @@ class Sugerencia extends Model
         if (strlen($q) < 3) {
             return $query->whereRaw('1 = 0');
         }
-        $term = '%' . addcslashes($q, '%_\\') . '%';
+        $escaped = addcslashes($q, '%_\\');
+        $term = '%'.$escaped.'%';
+        $prefix = $escaped.'%';
         $driver = $query->getConnection()->getDriverName();
         if ($driver === 'pgsql') {
-            return $query->where(function ($qry) use ($term) {
-                $qry->where('codigo', 'ilike', $term)
+            return $query->where(function ($qry) use ($term, $prefix) {
+                $qry->where('codigo', 'ilike', $prefix)
+                    ->orWhere('codigo', 'ilike', $term)
                     ->orWhere('descripcion', 'ilike', $term);
             });
         }
-        return $query->where(function ($qry) use ($term) {
-            $qry->whereRaw('LOWER(COALESCE(codigo, \'\')) LIKE LOWER(?)', [$term])
-                ->orWhereRaw('LOWER(descripcion) LIKE LOWER(?)', [$term]);
+
+        // utf8mb4_*_ci ya es case-insensitive: LIKE sin LOWER() permite usar índice en codigo.
+        return $query->where(function ($qry) use ($term, $prefix) {
+            $qry->where('codigo', 'like', $prefix)
+                ->orWhere('codigo', 'like', $term)
+                ->orWhere('descripcion', 'like', $term);
         });
     }
 }

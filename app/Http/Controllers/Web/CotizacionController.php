@@ -43,6 +43,16 @@ class CotizacionController extends Controller
     }
 
     /**
+     * Stats del index se cachean 60s; invalidar tras cambios de estado.
+     */
+    private function olvidarStatsCotizaciones(): void
+    {
+        $uid = Auth::id() ?? 0;
+        $v = Auth::user()?->isVendedor() ? '1' : '0';
+        \Illuminate\Support\Facades\Cache::forget('cotizaciones:stats:u'.$uid.':v'.$v);
+    }
+
+    /**
      * Autorizar acceso a una cotización: vendedor solo puede acceder a las suyas.
      */
     private function authorizeCotizacion(Cotizacion $cotizacion): void
@@ -58,13 +68,13 @@ class CotizacionController extends Controller
     public function index(Request $request)
     {
         $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
-        $query = $this->queryCotizaciones()->with([
-            'cliente:id,nombre,rfc',
-            'usuario:id,name',
-            'factura' => fn ($q) => $q->select($facturaCols),
-        ]);
+        $query = $this->queryCotizaciones()
+            ->select(\App\Support\CfdiListadoColumnas::cotizacion())
+            ->with([
+                'usuario:id,name',
+                'factura' => fn ($q) => $q->select($facturaCols),
+            ]);
 
-        // Filtros
         if ($request->filled('estado')) {
             $query->where('estado', $request->estado);
         }
@@ -74,59 +84,61 @@ class CotizacionController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('folio', 'like', "%{$search}%")
-                  ->orWhereHas('cliente', function($q2) use ($search) {
-                      $q2->where('nombre', 'like', "%{$search}%")
-                         ->orWhere('rfc', 'like', "%{$search}%");
-                  });
-            });
+            \App\Support\ListadoIndex::buscarCotizacion($query, (string) $request->search);
         }
 
-        if ($request->filled('fecha_inicio')) {
-            $query->where('fecha', '>=', $request->fecha_inicio);
-        }
+        [$fechaInicio, $fechaFin, $rangoDefault] = \App\Support\ListadoIndex::aplicarRangoFecha(
+            $query,
+            $request,
+            'fecha'
+        );
 
-        if ($request->filled('fecha_fin')) {
-            $query->where('fecha', '<=', $request->fecha_fin);
-        }
-
-        // Filtro por asesor (solo útil cuando el usuario puede ver varias)
-        if ($request->filled('asesor_id') && !Auth::user()->isVendedor()) {
+        if ($request->filled('asesor_id') && ! Auth::user()->isVendedor()) {
             $query->where('usuario_id', $request->asesor_id);
         }
 
-        // Marcar vencidas como máximo cada 15 min (evita UPDATE en cada listado).
-        // También existe: php artisan cotizaciones:marcar-vencidas
-        if (\Illuminate\Support\Facades\Cache::add('cotizaciones:marcar_vencidas_lock', 1, now()->addMinutes(15))) {
-            Cotizacion::vencidas()->update(['estado' => 'vencida']);
-        }
+        // Vencidas: solo cron/schedule (cotizaciones:marcar-vencidas). Sin UPDATE en el GET.
 
-        $cotizaciones = $query->orderBy('fecha', 'desc')->orderBy('id', 'desc')->paginate(20);
+        $cotizaciones = $query
+            ->orderBy('fecha', 'desc')
+            ->orderBy('id', 'desc')
+            ->simplePaginate(20)
+            ->withQueryString();
 
-        // Estadísticas (vendedor solo cuenta las suyas) — 2 queries en lugar de 4
-        $statsQuery = $this->queryCotizaciones();
-        $porEstado = (clone $statsQuery)
-            ->whereIn('estado', ['borrador', 'enviada', 'aceptada'])
-            ->selectRaw('estado, COUNT(*) as total')
-            ->groupBy('estado')
-            ->pluck('total', 'estado');
-        $estadisticas = [
-            'borradores' => (int) ($porEstado['borrador'] ?? 0),
-            'enviadas' => (int) ($porEstado['enviada'] ?? 0),
-            'aceptadas' => (int) ($porEstado['aceptada'] ?? 0),
-            'por_vencer' => (clone $statsQuery)->porVencer()->count(),
-        ];
+        $statsCacheKey = 'cotizaciones:stats:u'.(Auth::id() ?? 0).':v'.(Auth::user()?->isVendedor() ? '1' : '0');
+        $estadisticas = \Illuminate\Support\Facades\Cache::remember($statsCacheKey, 60, function () {
+            $statsQuery = $this->queryCotizaciones();
+            $porEstado = (clone $statsQuery)
+                ->whereIn('estado', ['borrador', 'enviada', 'aceptada'])
+                ->selectRaw('estado, COUNT(*) as total')
+                ->groupBy('estado')
+                ->pluck('total', 'estado');
+
+            return [
+                'borradores' => (int) ($porEstado['borrador'] ?? 0),
+                'enviadas' => (int) ($porEstado['enviada'] ?? 0),
+                'aceptadas' => (int) ($porEstado['aceptada'] ?? 0),
+                'por_vencer' => (int) (clone $statsQuery)->porVencer()->count(),
+            ];
+        });
 
         $asesores = Auth::user()->isVendedor()
             ? collect()
-            : User::activos()
-                ->whereHas('role', fn ($q) => $q->where('name', 'vendedor'))
-                ->orderBy('name')
-                ->get(['id', 'name']);
+            : \Illuminate\Support\Facades\Cache::remember('cotizaciones:asesores_vendedores', 300, function () {
+                return User::activos()
+                    ->whereHas('role', fn ($q) => $q->where('name', 'vendedor'))
+                    ->orderBy('name')
+                    ->get(['id', 'name']);
+            });
 
-        return view('cotizaciones.index', compact('cotizaciones', 'estadisticas', 'asesores'));
+        return view('cotizaciones.index', compact(
+            'cotizaciones',
+            'estadisticas',
+            'asesores',
+            'fechaInicio',
+            'fechaFin',
+            'rangoDefault'
+        ));
     }
 
     /**
@@ -396,6 +408,7 @@ class CotizacionController extends Controller
             $this->eliminarImagenesHuerfanas($imagenesAntiguas, $imagenesUsadas);
 
             DB::commit();
+            $this->olvidarStatsCotizaciones();
 
             return redirect()->route('cotizaciones.show', $cotizacion->id)
                 ->with('success', $cotizacionId ? 'Cotización actualizada' : 'Cotización creada exitosamente');
@@ -547,6 +560,7 @@ class CotizacionController extends Controller
             }
 
             $cotizacion->aceptar();
+            $this->olvidarStatsCotizaciones();
 
             return redirect()->route('cotizaciones.show', $id)
                 ->with('success', 'Cotización aceptada exitosamente');
@@ -586,6 +600,7 @@ class CotizacionController extends Controller
 
             // Marcar como enviada
             $cotizacion->marcarComoEnviada();
+            $this->olvidarStatsCotizaciones();
 
             return redirect()->route('cotizaciones.show', $id)
                 ->with('success', 'Cotización enviada exitosamente a ' . $cotizacion->cliente_email);
@@ -918,6 +933,7 @@ class CotizacionController extends Controller
             $cotizacion->marcarComoFacturada();
 
             DB::commit();
+            $this->olvidarStatsCotizaciones();
 
             return redirect()->route('facturas.show', $factura->id)
                 ->with('success', 'Cotización convertida a factura en borrador. Puede timbrar cuando esté listo.');
@@ -1433,6 +1449,7 @@ class CotizacionController extends Controller
             $cotizacion->forceDelete();
 
             DB::commit();
+            $this->olvidarStatsCotizaciones();
 
             return redirect()->route('cotizaciones.index')
                 ->with('success', 'Cotización eliminada permanentemente');

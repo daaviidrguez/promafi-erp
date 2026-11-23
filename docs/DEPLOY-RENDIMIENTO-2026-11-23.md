@@ -118,6 +118,26 @@
 
 ---
 
+## 1.g Ronda 7 — index facturas + cotizaciones más ágiles
+
+| Cambio | Detalle |
+|--------|---------|
+| Sin UPDATE vencidas en GET | Solo `schedule` / `cotizaciones:marcar-vencidas` (cron) |
+| `simplePaginate(20)` | Evita `COUNT(*)` caro en Hostinger |
+| Rango default 90 días | Link «Todas» para historial completo |
+| Stats cotizaciones | Cache 60s (+ invalidación al guardar/aceptar/enviar/convertir/borrar) |
+| Select mínimo cotizaciones | Sin observaciones / dirección / PDF |
+| Búsqueda liviana | Prefijo folio; sin `orWhereHas` en cotizaciones |
+| UI index | Menos botones (XML/SAT/PDF → detalle); badge cancelación simple |
+| Índices | `(fecha_emision,id)` facturas; `(fecha,id)` cotizaciones |
+
+### Deploy extra ronda 7
+- [ ] `php artisan migrate --force` (índices compuestos)
+- [ ] Cron `schedule:run` activo (vencidas ya **no** se marcan al abrir el listado)
+- [ ] Probar `/facturas` y `/cotizaciones`: prev/next, «Todas», búsqueda por folio
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos
@@ -211,9 +231,9 @@ En Hostinger → Advanced → Cron Jobs:
 Eso ejecuta `cotizaciones:marcar-vencidas` cada 15 minutos (definido en `routes/console.php`).
 
 Checklist:
-- [ ] Cron `schedule:run` creado
+- [ ] Cron `schedule:run` creado (**obligatorio** para marcar vencidas; el index ya no hace UPDATE)
 - [ ] Ruta PHP correcta (`php` o `/usr/bin/php` del panel)
-- [ ] Si **no** hay cron: el throttle por `Cache::add` (15 min al visitar `/cotizaciones`) sigue cubriendo el caso; el Schedule es la vía limpia
+- [ ] Si no hay cron: las cotizaciones pueden quedar en enviada/aceptada tras la vigencia (poco relevante operativamente); el comando manual sigue disponible
 
 ### F. Permisos / storage
 - [ ] `storage/` y `bootstrap/cache/` escribibles

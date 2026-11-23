@@ -95,22 +95,31 @@ $breadcrumbs = [
                 @endif
                 <div class="form-group">
                     <label class="form-label">Desde</label>
-                    <input type="date" name="fecha_inicio" value="{{ request('fecha_inicio') }}" class="form-control">
+                    <input type="date" name="fecha_inicio" value="{{ $fechaInicio ?? request('fecha_inicio') }}" class="form-control">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Hasta</label>
-                    <input type="date" name="fecha_fin" value="{{ request('fecha_fin') }}" class="form-control">
+                    <input type="date" name="fecha_fin" value="{{ $fechaFin ?? request('fecha_fin') }}" class="form-control">
                 </div>
                 <div class="form-group" style="justify-content: flex-end;">
                     <label class="form-label">&nbsp;</label>
-                    <div style="display:flex; gap:8px;">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
                         <button type="submit" class="btn btn-primary">Buscar</button>
-                        @if(request()->hasAny(['search','estado','asesor_id','fecha_inicio','fecha_fin']))
-                        <a href="{{ route('cotizaciones.index') }}" class="btn btn-light">✕</a>
+                        @if(request()->boolean('todas') || request()->hasAny(['search','estado','asesor_id','fecha_inicio','fecha_fin']))
+                        <a href="{{ route('cotizaciones.index') }}" class="btn btn-light" title="Últimos 90 días">↺</a>
+                        @endif
+                        @if(!request()->boolean('todas'))
+                        <a href="{{ route('cotizaciones.index', array_merge(request()->except('fecha_inicio','fecha_fin'), ['todas' => 1])) }}"
+                           class="btn btn-light" title="Sin límite de fechas">Todas</a>
                         @endif
                     </div>
                 </div>
             </div>
+            @if(!empty($rangoDefault))
+                <div class="text-muted" style="font-size: 12px; margin-top: 8px;">
+                    Mostrando últimos 90 días. Usa «Todas» para el historial completo.
+                </div>
+            @endif
         </form>
     </div>
 </div>
@@ -140,15 +149,16 @@ $breadcrumbs = [
                     </span>
                 </td>
                 <td>
-                    <div class="fw-600">{{ $c->cliente->nombre ?? $c->cliente_nombre }}</div>
-                    <div class="text-muted" style="font-size:12px;">{{ $c->cliente->rfc ?? $c->cliente_rfc }}</div>
+                    <div class="fw-600">{{ $c->cliente_nombre }}</div>
+                    <div class="text-muted" style="font-size:12px;">{{ $c->cliente_rfc }}</div>
                 </td>
                 <td>{{ $c->usuario->name ?? '—' }}</td>
                 <td>{{ $c->fecha->format('d/m/Y') }}</td>
                 <td>
                     <span>{{ $c->fecha_vencimiento->format('d/m/Y') }}</span>
-                    @if($c->diasHastaVencimiento() !== null && $c->diasHastaVencimiento() <= 7 && $c->diasHastaVencimiento() >= 0)
-                        <span class="badge badge-warning" style="font-size:10px; margin-left:4px;">{{ $c->diasHastaVencimiento() }}d</span>
+                    @php $diasVig = $c->diasHastaVencimiento(); @endphp
+                    @if($diasVig !== null && $diasVig <= 7 && $diasVig >= 0)
+                        <span class="badge badge-warning" style="font-size:10px; margin-left:4px;">{{ $diasVig }}d</span>
                     @endif
                 </td>
                 <td class="td-right text-mono fw-bold" style="color: var(--color-secondary);">
@@ -210,9 +220,6 @@ $breadcrumbs = [
                     <div style="display:flex; gap:6px; justify-content:center;">
                         <a href="{{ route('cotizaciones.show', $c->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
-
-                        <a href="{{ route('cotizaciones.descargar-pdf', $c->id) }}"
-                           class="btn btn-light btn-sm btn-icon" title="PDF">📄</a>
 
                         @if($c->puedeEliminarse())
                         <button type="button"

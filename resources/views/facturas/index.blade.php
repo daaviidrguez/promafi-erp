@@ -38,15 +38,32 @@ $breadcrumbs = [
                     <option value="cancelada" {{ ($estado ?? '') == 'cancelada' ? 'selected' : '' }}>❌ Cancelada</option>
                 </select>
 
+                <input type="date" name="fecha_inicio" value="{{ $fechaInicio ?? '' }}"
+                       class="form-control" style="min-width: 150px;" title="Desde">
+                <input type="date" name="fecha_fin" value="{{ $fechaFin ?? '' }}"
+                       class="form-control" style="min-width: 150px;" title="Hasta">
+
                 <button type="submit"
                         style="padding: 9px 20px; background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
                     🔍 Buscar
                 </button>
+                @if(request()->boolean('todas') || request()->hasAny(['search','estado','fecha_inicio','fecha_fin']))
+                    <a href="{{ route('facturas.index') }}" class="btn btn-light" title="Últimos 90 días">↺</a>
+                @endif
+                @if(!request()->boolean('todas'))
+                    <a href="{{ route('facturas.index', array_merge(request()->except('fecha_inicio','fecha_fin'), ['todas' => 1])) }}"
+                       class="btn btn-light" title="Sin límite de fechas">Todas</a>
+                @endif
             </div>
             @can('facturas.crear')
             <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Nueva Factura</a>
             @endcan
         </form>
+        @if(!empty($rangoDefault))
+            <div class="text-muted" style="font-size: 12px; margin-top: 8px;">
+                Mostrando últimos 90 días. Usa «Todas» para ver el historial completo.
+            </div>
+        @endif
     </div>
 </div>
 
@@ -72,8 +89,8 @@ $breadcrumbs = [
                     <div class="text-mono fw-600" style="font-size: 14px;">{{ $factura->folio_completo }}</div>
                 </td>
                 <td>
-                    <div class="fw-600 text-primary">{{ $factura->cliente->nombre }}</div>
-                    <div class="text-muted" style="font-size: 12px;">{{ $factura->cliente->rfc }}</div>
+                    <div class="fw-600 text-primary">{{ $factura->cliente->nombre ?? $factura->nombre_receptor }}</div>
+                    <div class="text-muted" style="font-size: 12px;">{{ $factura->cliente->rfc ?? $factura->rfc_receptor }}</div>
                 </td>
                 <td>
                     <div>{{ $factura->fecha_emision->format('d/m/Y') }}</div>
@@ -91,31 +108,16 @@ $breadcrumbs = [
                 <td class="td-right text-mono fw-600" style="font-size: 15px;">
                     ${{ number_format($factura->total, 2, '.', ',') }}
                 </td>
-                <td class="td-center" style="min-width: 200px;">
+                <td class="td-center" style="min-width: 160px;">
                     @if($factura->estado === 'timbrada')
                         <span class="badge badge-success">✓ Timbrada</span>
                     @elseif($factura->estado === 'borrador')
                         <span class="badge badge-warning">📝 Borrador</span>
                     @else
-                        @php
-                            $tituloCancelFechas = '';
-                            if ($factura->cancelacion_administrativa ?? false) {
-                                if ($factura->fecha_cancelacion) {
-                                    $tituloCancelFechas = 'Administrativa (ERP): '.$factura->fecha_cancelacion->format('d/m/Y H:i');
-                                }
-                                if ($factura->fecha_cancelacion_pac ?? null) {
-                                    $tituloCancelFechas .= ($tituloCancelFechas ? ' | ' : '').'PAC/SAT: '.$factura->fecha_cancelacion_pac->format('d/m/Y H:i');
-                                }
-                            } elseif ($factura->fecha_cancelacion) {
-                                $tituloCancelFechas = $factura->fecha_cancelacion->format('d/m/Y H:i');
-                            }
-                        @endphp
-                        <span class="badge badge-danger" title="{{ $tituloCancelFechas }}">{{ $factura->estado_etiqueta }}</span>
-                        @if($factura->estatus_solicitud_label)
-                            <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);">
-                                {{ $factura->estatus_solicitud_label }}
-                            </div>
-                        @elseif($factura->codigo_estatus_cancelacion)
+                        <span class="badge badge-danger">
+                            {{ ($factura->cancelacion_administrativa ?? false) ? 'Cancelada (ERP)' : 'Cancelada' }}
+                        </span>
+                        @if($factura->codigo_estatus_cancelacion)
                             <div class="text-mono" style="font-size: 11px; margin-top: 4px; color: var(--color-gray-600);">
                                 {{ $factura->codigo_estatus_cancelacion }}
                             </div>
@@ -124,23 +126,11 @@ $breadcrumbs = [
                 </td>
                 <td class="td-actions">
                     <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                        @if($factura->puedeConsultarEstatusCancelacion())
-                            <button type="button"
-                                    class="btn btn-outline-primary btn-sm btn-icon js-actualizar-estatus-sat"
-                                    title="Consultar estatus SAT"
-                                    data-action="{{ route('facturas.actualizar-estatus-cancelacion', $factura->id) }}"
-                                    data-folio="{{ $factura->folio_completo }}"
-                                    data-tipo="factura">Consultar SAT</button>
-                        @endif
                         <a href="{{ route('facturas.show', $factura->id) }}"
                            class="btn btn-info btn-sm btn-icon" title="Ver">👁️</a>
                         @if($factura->esBorrador() && auth()->user()->can('facturas.crear'))
                             <a href="{{ route('facturas.edit', $factura->id) }}"
                                class="btn btn-primary btn-sm btn-icon" title="Editar">✏️</a>
-                        @endif
-                        @if($factura->xml_path)
-                            <a href="{{ route('facturas.descargar-xml', $factura->id) }}"
-                               class="btn btn-success btn-sm btn-icon" title="Descargar XML">📄</a>
                         @endif
                     </div>
                 </td>
@@ -149,13 +139,20 @@ $breadcrumbs = [
         </tbody>
     </table>
     <div style="padding: 16px 20px; border-top: 1px solid var(--color-gray-100);">
-        {{ $facturas->withQueryString()->links() }}
+        {{ $facturas->links() }}
     </div>
     @else
     <div class="empty-state">
         <div class="empty-state-icon">🧾</div>
-        <div class="empty-state-title">No hay facturas registradas</div>
-        <div class="empty-state-text">Comienza creando tu primera factura</div>
+        <div class="empty-state-title">No hay facturas en este rango</div>
+        <div class="empty-state-text">
+            @if(!request()->boolean('todas'))
+                Prueba ampliar fechas o
+                <a href="{{ route('facturas.index', ['todas' => 1]) }}" style="color: var(--color-primary);">ver todas</a>.
+            @else
+                Comienza creando tu primera factura.
+            @endif
+        </div>
         <div style="margin-top: 20px;">
             @can('facturas.crear')
             <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Crear Primera Factura</a>
@@ -164,7 +161,5 @@ $breadcrumbs = [
     </div>
     @endif
 </div>
-
-@include('partials.modal-actualizar-estatus-sat')
 
 @endsection

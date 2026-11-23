@@ -49,20 +49,36 @@ class FacturaController extends Controller
         $search = $request->get('search');
         $estado = $request->get('estado');
 
-        $facturas = Factura::query()
+        $query = Factura::query()
             ->paraListado()
             ->with(['cliente:id,nombre,rfc'])
-            ->when($search, function ($query) use ($search) {
-                $query->buscar($search);
+            ->when($search, function ($q) use ($search) {
+                \App\Support\ListadoIndex::buscarFactura($q, (string) $search);
             })
-            ->when($estado, function ($query) use ($estado) {
-                $query->where('estado', $estado);
-            })
+            ->when($estado, function ($q) use ($estado) {
+                $q->where('estado', $estado);
+            });
+
+        [$fechaInicio, $fechaFin, $rangoDefault] = \App\Support\ListadoIndex::aplicarRangoFecha(
+            $query,
+            $request,
+            'fecha_emision'
+        );
+
+        $facturas = $query
             ->orderBy('fecha_emision', 'desc')
             ->orderBy('id', 'desc')
-            ->paginate(20);
+            ->simplePaginate(20)
+            ->withQueryString();
 
-        return view('facturas.index', compact('facturas', 'search', 'estado'));
+        return view('facturas.index', compact(
+            'facturas',
+            'search',
+            'estado',
+            'fechaInicio',
+            'fechaFin',
+            'rangoDefault'
+        ));
     }
 
     /**

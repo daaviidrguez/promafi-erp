@@ -26,7 +26,6 @@ class CfdiListadoColumnas
             'fecha_timbrado',
             'metodo_pago',
             'total',
-            'uuid',
             'nombre_receptor',
             'rfc_receptor',
             'xml_path',
@@ -62,7 +61,6 @@ class CfdiListadoColumnas
             'estado',
             'cliente_id',
             'cotizacion_id',
-            'uuid',
             'deleted_at',
         ];
     }

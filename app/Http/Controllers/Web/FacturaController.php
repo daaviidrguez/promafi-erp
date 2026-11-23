@@ -610,7 +610,7 @@ class FacturaController extends Controller
 
         $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
         $factura->sincronizarDatosFiscalesDesdeProductos();
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
+        $factura->load(['detalles.producto', 'detalles.impuestos']);
         $empresa = Empresa::principal();
         $formasPago = FormaPago::activos()->get();
         $metodosPago = MetodoPago::activos()->get();

@@ -412,11 +412,12 @@ class CotizacionController extends Controller
      */
     public function show($id)
     {
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
         $cotizacion = Cotizacion::with([
             'cliente',
             'detalles.producto',
             'usuario',
-            'factura',
+            'factura' => fn ($q) => $q->select($facturaCols),
             'adjuntos.usuario',
         ])->findOrFail($id);
         $this->authorizeCotizacion($cotizacion);

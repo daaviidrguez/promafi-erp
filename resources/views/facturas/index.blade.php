@@ -70,9 +70,6 @@ $breadcrumbs = [
             <tr>
                 <td>
                     <div class="text-mono fw-600" style="font-size: 14px;">{{ $factura->folio_completo }}</div>
-                    @if($factura->uuid)
-                        <div class="text-mono text-muted" style="font-size: 11px;">{{ substr($factura->uuid, 0, 18) }}...</div>
-                    @endif
                 </td>
                 <td>
                     <div class="fw-600 text-primary">{{ $factura->cliente->nombre }}</div>

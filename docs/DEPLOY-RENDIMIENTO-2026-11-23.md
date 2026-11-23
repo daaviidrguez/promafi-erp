@@ -90,6 +90,17 @@
 
 ---
 
+## 1.e Ronda 5 — limpieza index facturas + show cotización
+
+| Cambio | Motivo |
+|--------|--------|
+| Index facturas sin UUID bajo el folio | No aporta (truncado); UUID completo en show |
+| `CfdiListadoColumnas::factura` sin `uuid` | Listado no lo usa |
+| Cotización show: factura eager ligera | Evita traer XML de la factura relacionada |
+| Factura edit: menos reload de relaciones | Evita `load` duplicado de cliente |
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

@@ -205,14 +205,28 @@ document.addEventListener("DOMContentLoaded", function () {
     const ddInner = document.getElementById('notificationsDropdownInner');
     const badge = document.getElementById('notificationsBadgeDot');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const STORAGE_KEY = 'promafi_notifs_v2';
-    const CLIENT_TTL_MS = 90000;
+    // Aviso diario: localStorage por día (sin fetch al navegar).
+    const STORAGE_KEY = 'promafi_notifs_v3';
 
     if (!btn || !dd || !ddInner || !badge) return;
 
     let unreadCount = 0;
     let detailLoaded = false;
     let detailLoading = false;
+    let cachedDetail = null;
+
+    function todayKey() {
+        try {
+            return new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'America/Mexico_City',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            }).format(new Date());
+        } catch (e) {
+            return new Date().toISOString().slice(0, 10);
+        }
+    }
 
     function escapeHtml(str) {
         return String(str ?? '').replace(/[&<>"']/g, (m) => ({
@@ -235,11 +249,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function readClientState() {
         try {
-            const raw = sessionStorage.getItem(STORAGE_KEY);
+            const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return null;
             const parsed = JSON.parse(raw);
-            if (!parsed || typeof parsed.ts !== 'number') return null;
-            if (Date.now() - parsed.ts > CLIENT_TTL_MS) return null;
+            if (!parsed || parsed.day !== todayKey()) return null;
             return parsed;
         } catch (e) {
             return null;
@@ -248,13 +261,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function writeClientState(partial) {
         try {
-            const prev = readClientState() || {};
-            sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+            const prev = readClientState() || { day: todayKey() };
+            const next = {
                 ...prev,
                 ...partial,
-                ts: Date.now(),
-            }));
-        } catch (e) { /* sessionStorage no disponible */ }
+                day: todayKey(),
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+            if (next.detail) cachedDetail = next.detail;
+        } catch (e) { /* localStorage no disponible */ }
     }
 
     function applyBadge(count) {
@@ -262,6 +277,14 @@ document.addEventListener("DOMContentLoaded", function () {
         badge.style.display = unreadCount > 0 ? 'flex' : 'none';
         badge.textContent = unreadCount > 0 ? String(unreadCount) : '';
         btn.classList.toggle('notifications-bell-pulse', unreadCount > 0);
+    }
+
+    function placeholderHtml() {
+        return `
+            <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
+                Abre la campana para ver el resumen del día.
+            </div>
+        `;
     }
 
     function buildMarkup(data) {
@@ -380,8 +403,23 @@ document.addEventListener("DOMContentLoaded", function () {
         }, 8500);
     }
 
+    function applyDetail(data) {
+        cachedDetail = data || null;
+        ddInner.innerHTML = buildMarkup(data || {});
+        detailLoaded = true;
+    }
+
     async function loadDetail() {
-        if (detailLoaded || detailLoading) return;
+        if (detailLoaded && cachedDetail) {
+            ddInner.innerHTML = buildMarkup(cachedDetail);
+            return;
+        }
+        const local = readClientState();
+        if (local?.detail) {
+            applyDetail(local.detail);
+            return;
+        }
+        if (detailLoading) return;
         detailLoading = true;
         ddInner.innerHTML = `
             <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
@@ -396,10 +434,9 @@ document.addEventListener("DOMContentLoaded", function () {
             });
             if (!r.ok) throw new Error('http');
             const data = await r.json();
-            ddInner.innerHTML = buildMarkup(data || {});
-            detailLoaded = true;
+            applyDetail(data);
             applyBadge(data?.unread_count ?? unreadCount);
-            writeClientState({ unread: unreadCount });
+            writeClientState({ unread: unreadCount, detail: data });
         } catch (e) {
             ddInner.innerHTML = `
                 <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
@@ -411,6 +448,24 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    async function markReadToday() {
+        if (unreadCount <= 0) return;
+        try {
+            await fetch('{{ route('notificaciones.admin.leer') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin'
+            });
+            applyBadge(0);
+            writeClientState({ unread: 0, read: true });
+        } catch (e) {
+            // Si falla el marcado, no rompemos la UX.
+        }
+    }
+
     window.toggleNotifications = async function () {
         if (!dd || !ddInner || !badge) return;
         const opening = dd.style.display !== 'block';
@@ -418,24 +473,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (opening) {
             await loadDetail();
-        }
-
-        if (unreadCount > 0) {
-            try {
-                await fetch('{{ route('notificaciones.admin.leer') }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                    },
-                    credentials: 'same-origin'
-                });
-
-                applyBadge(0);
-                writeClientState({ unread: 0 });
-            } catch (e) {
-                // Si falla el marcado, no rompemos la UX: mantenemos el badge.
-            }
+            await markReadToday();
         }
     };
 
@@ -445,18 +483,21 @@ document.addEventListener("DOMContentLoaded", function () {
         dd.style.display = 'none';
     });
 
-    // Badge sin martillar PHP en cada navegación: reutilizar estado de pestaña 90s.
+    // Estado del día en localStorage → cero requests al cambiar de pantalla.
     const cached = readClientState();
-    if (cached && typeof cached.unread === 'number') {
-        applyBadge(cached.unread);
-        ddInner.innerHTML = `
-            <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
-                Abre la campana para ver el detalle.
-            </div>
-        `;
+    if (cached) {
+        applyBadge(cached.read ? 0 : (cached.unread ?? 0));
+        if (cached.detail) {
+            cachedDetail = cached.detail;
+            detailLoaded = true;
+            ddInner.innerHTML = buildMarkup(cached.detail);
+        } else {
+            ddInner.innerHTML = placeholderHtml();
+        }
         return;
     }
 
+    // Primera carga del día (o sin localStorage): un solo resumen.
     fetch('{{ route('notificaciones.admin.resumen') }}', {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
@@ -464,16 +505,25 @@ document.addEventListener("DOMContentLoaded", function () {
     })
         .then(r => r.ok ? r.json() : Promise.reject(r))
         .then(data => {
-            applyBadge(data?.unread_count ?? 0);
-            writeClientState({ unread: unreadCount });
+            const unread = Number(data?.unread_count ?? 0) || 0;
+            applyBadge(unread);
 
-            ddInner.innerHTML = `
-                <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
-                    Abre la campana para ver el detalle.
-                </div>
-            `;
+            const hasDetail = data && (data.credito_excedente !== undefined || data.vencidas || data.logistica);
+            if (hasDetail) {
+                cachedDetail = data;
+                detailLoaded = true;
+                ddInner.innerHTML = buildMarkup(data);
+            } else {
+                ddInner.innerHTML = placeholderHtml();
+            }
 
-            if (Boolean(data?.show_toast)) {
+            writeClientState({
+                unread,
+                read: Boolean(data?.already_read_today),
+                detail: hasDetail ? data : null,
+            });
+
+            if (Boolean(data?.show_toast) && hasDetail) {
                 showToastFromData(data);
             }
         })

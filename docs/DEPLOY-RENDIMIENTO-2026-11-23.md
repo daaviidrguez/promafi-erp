@@ -73,6 +73,23 @@
 
 ---
 
+## 1.d Ronda 4 — campana = aviso diario (no en vivo)
+
+| Antes | Después |
+|-------|---------|
+| Fetch resumen al navegar (TTL 90s) | `localStorage` por **día**; **0 fetch** al cambiar pantallas |
+| Caché datos 120s | Snapshot compartido hasta **medianoche** |
+| Leído = sesión | Leído = **hasta mañana** (sesión + cache del día) |
+| Toast / badge recurrentes | Toast 1× al día; badge desaparece al abrir/leer |
+
+### Deploy extra ronda 4
+- [ ] `php artisan view:cache`
+- [ ] Hard refresh (Ctrl+F5) para JS del header
+- [ ] Network: navegar 5 pantallas → sin `/notificaciones/*` tras el primer hit del día
+- [ ] Abrir campana → badge se apaga hasta el día siguiente
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

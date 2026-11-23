@@ -11,31 +11,44 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
+/**
+ * Aviso diario (no en vivo): como máximo 1 cálculo pesado por día;
+ * si el usuario ya leyó hoy, no se vuelve a consultar CxC/NC/logística.
+ */
 class NotificacionesController extends Controller
 {
-    private const CACHE_KEY = 'notifs_admin_data_shared';
-
-    private const CACHE_TTL_SECONDS = 120;
-
     /**
-     * Resumen ligero para cada navegación: badge + toast.
-     * El detalle pesado vive en caché compartida; el dropdown lo pide en admin().
+     * Resumen del día: badge + toast (solo si aún no se leyó hoy).
      */
     public function resumen(Request $request)
     {
         $user = $request->user();
-        $uid = $user?->id ?? 'anon';
-        $data = $this->datosCompartidos();
-        $flags = $this->flagsSesion($request, $uid, $data);
+        $uid = (string) ($user?->id ?? 'anon');
+        $dia = $this->claveDia();
+
+        if ($this->yaLeidoHoy($request, $uid, $dia)) {
+            return response()->json([
+                'day' => $dia,
+                'has_notifications' => false,
+                'show_toast' => false,
+                'unread_count' => 0,
+                'already_read_today' => true,
+            ]);
+        }
+
+        $data = $this->datosCompartidos($dia);
+        $flags = $this->flagsDia($request, $uid, $dia, $data);
 
         $payload = [
+            'day' => $dia,
             'has_notifications' => $flags['tiene_alguna'],
             'show_toast' => $flags['show_toast'],
             'unread_count' => $flags['unread_count'],
+            'already_read_today' => false,
         ];
 
-        // Solo en el toast de entrada enviamos el detalle (evita 2º payload pesado en cada página).
-        if ($flags['show_toast']) {
+        // Toast de entrada del día: incluir detalle una sola vez.
+        if ($flags['show_toast'] || $flags['tiene_alguna']) {
             $payload = array_merge($payload, $this->detalleParaUsuario($user, $data));
         }
 
@@ -43,46 +56,99 @@ class NotificacionesController extends Controller
     }
 
     /**
-     * Detalle completo (dropdown al abrir la campana).
+     * Detalle (dropdown). Reutiliza snapshot del día; no recalcula si ya está en caché.
      */
     public function admin(Request $request)
     {
         $user = $request->user();
-        $uid = $user?->id ?? 'anon';
-        $data = $this->datosCompartidos();
-        $flags = $this->flagsSesion($request, $uid, $data, marcarToastSiAplica: false);
+        $uid = (string) ($user?->id ?? 'anon');
+        $dia = $this->claveDia();
+
+        if ($this->yaLeidoHoy($request, $uid, $dia)) {
+            // Aun leído: puede abrir la campana y ver el snapshot del día sin badge.
+            $data = $this->datosCompartidos($dia);
+
+            return response()->json(array_merge([
+                'day' => $dia,
+                'has_notifications' => $this->tieneAlguna($data),
+                'show_toast' => false,
+                'unread_count' => 0,
+                'already_read_today' => true,
+            ], $this->detalleParaUsuario($user, $data)));
+        }
+
+        $data = $this->datosCompartidos($dia);
+        $flags = $this->flagsDia($request, $uid, $dia, $data, marcarToastSiAplica: false);
 
         return response()->json(array_merge([
+            'day' => $dia,
             'has_notifications' => $flags['tiene_alguna'],
             'show_toast' => false,
             'unread_count' => $flags['unread_count'],
+            'already_read_today' => false,
         ], $this->detalleParaUsuario($user, $data)));
     }
 
     /**
-     * Marcar notificaciones de admin como leídas para esta sesión.
+     * Marcar como leídas hasta mañana (sesión + caché del día).
      */
     public function leer(Request $request)
     {
         $user = $request->user();
-        $uid = $user?->id ?? 'anon';
-        $request->session()->put("notifs_admin_read_{$uid}", true);
+        $uid = (string) ($user?->id ?? 'anon');
+        $dia = $this->claveDia();
 
-        return response()->json(['ok' => true]);
+        $request->session()->put($this->sessionReadKey($uid, $dia), true);
+        Cache::put($this->cacheReadKey($uid, $dia), true, $this->segundosHastaFinDeDia());
+
+        return response()->json(['ok' => true, 'day' => $dia]);
+    }
+
+    private function claveDia(): string
+    {
+        return Carbon::today()->toDateString();
+    }
+
+    private function segundosHastaFinDeDia(): int
+    {
+        $secs = (int) now()->diffInSeconds(now()->endOfDay(), false);
+
+        return max(60, $secs > 0 ? $secs : 60);
+    }
+
+    private function sessionReadKey(string $uid, string $dia): string
+    {
+        return "notifs_admin_read_{$uid}_{$dia}";
+    }
+
+    private function sessionToastKey(string $uid, string $dia): string
+    {
+        return "notifs_admin_toast_{$uid}_{$dia}";
+    }
+
+    private function cacheReadKey(string $uid, string $dia): string
+    {
+        return "notifs_admin_read_{$uid}_{$dia}";
+    }
+
+    private function yaLeidoHoy(Request $request, string $uid, string $dia): bool
+    {
+        if ($request->session()->get($this->sessionReadKey($uid, $dia), false)) {
+            return true;
+        }
+
+        return (bool) Cache::get($this->cacheReadKey($uid, $dia), false);
     }
 
     /**
      * @return array{tiene_alguna: bool, show_toast: bool, unread_count: int}
      */
-    private function flagsSesion(Request $request, string $uid, array $data, bool $marcarToastSiAplica = true): array
+    private function flagsDia(Request $request, string $uid, string $dia, array $data, bool $marcarToastSiAplica = true): array
     {
         $tieneAlguna = $this->tieneAlguna($data);
-
-        $toastKey = "notifs_admin_toast_shown_{$uid}";
-        $readKey = "notifs_admin_read_{$uid}";
-
+        $toastKey = $this->sessionToastKey($uid, $dia);
         $toastShown = (bool) $request->session()->get($toastKey, false);
-        $alreadyRead = (bool) $request->session()->get($readKey, false);
+        $alreadyRead = $this->yaLeidoHoy($request, $uid, $dia);
 
         $showToast = $tieneAlguna && ! $toastShown && ! $alreadyRead;
         $unreadCount = $tieneAlguna && ! $alreadyRead ? 1 : 0;
@@ -133,13 +199,15 @@ class NotificacionesController extends Controller
     }
 
     /**
-     * Datos compartidos entre admins (no dependen del usuario).
+     * Snapshot compartido del día (todos los admins). TTL hasta medianoche.
      *
      * @return array{credito_excedente: ?array, vencidas: array, logistica: array}
      */
-    private function datosCompartidos(): array
+    private function datosCompartidos(string $dia): array
     {
-        return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, function () {
+        $ttl = $this->segundosHastaFinDeDia();
+
+        return Cache::remember("notifs_admin_data_shared_{$dia}", $ttl, function () {
             $creditoExcedente = null;
 
             $candidatos = Cliente::query()

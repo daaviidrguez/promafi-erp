@@ -21,7 +21,11 @@ class CuentaPorCobrarController extends Controller
         $estado = $request->filled('estado') ? $request->get('estado') : 'vencidas';
         $cliente_id = $request->get('cliente_id');
         
-        $baseQuery = CuentaPorCobrar::with(['cliente', 'factura'])
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
+        $baseQuery = CuentaPorCobrar::with([
+            'cliente:id,nombre,rfc',
+            'factura' => fn ($q) => $q->select($facturaCols),
+        ])
             ->excluirFacturaBorrador()
             ->when($estado !== 'todos', function($query) use ($estado) {
                 if ($estado === 'vencidas') {

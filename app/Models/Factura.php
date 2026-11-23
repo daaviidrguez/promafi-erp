@@ -1065,4 +1065,12 @@ class Factura extends Model
                 ->orWhere('rfc_receptor', 'like', "%{$search}%");
         });
     }
+
+    /**
+     * Listados/index: sin xml_content, sellos, cadena ni acuse (I/O).
+     */
+    public function scopeParaListado($query)
+    {
+        return $query->select(\App\Support\CfdiListadoColumnas::factura());
+    }
 }

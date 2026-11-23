@@ -98,4 +98,12 @@ class NotaCredito extends Model
         }
         return round(((float) $this->subtotal - (float) $this->descuento) * 0.16, 2);
     }
+
+    /**
+     * Listados/index: sin xml_content, sellos, cadena ni acuse (I/O).
+     */
+    public function scopeParaListado($query)
+    {
+        return $query->select(\App\Support\CfdiListadoColumnas::notaCredito());
+    }
 }

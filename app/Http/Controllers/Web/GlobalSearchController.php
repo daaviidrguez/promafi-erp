@@ -67,7 +67,9 @@ class GlobalSearchController extends Controller
 
             // Facturas
             if ($user->can('facturas.ver')) {
-                $data['facturas'] = Factura::with('cliente')
+                $data['facturas'] = Factura::query()
+                    ->paraListado()
+                    ->with(['cliente:id,nombre,rfc'])
                     ->buscar($query)
                     ->orderBy('fecha_emision', 'desc')
                     ->limit(6)
@@ -112,7 +114,9 @@ class GlobalSearchController extends Controller
 
             // Compras (facturas de compra)
             if ($user->can('ordenes_compra.ver')) {
-                $data['compras'] = FacturaCompra::with('proveedor')
+                $data['compras'] = FacturaCompra::query()
+                    ->paraListado()
+                    ->with(['proveedor:id,nombre,rfc'])
                     ->buscar($query)
                     ->orderBy('fecha_emision', 'desc')
                     ->limit(6)

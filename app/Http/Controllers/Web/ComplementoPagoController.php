@@ -39,14 +39,22 @@ class ComplementoPagoController extends Controller
         $estado = $request->get('estado');
         $cliente_id = $request->get('cliente_id');
 
-        $complementos = ComplementoPago::with(['cliente', 'usuario'])
-            ->when($estado, function($query) use ($estado) {
+        $complementos = ComplementoPago::query()
+            ->paraListado()
+            ->with([
+                'cliente:id,nombre,rfc',
+                'usuario:id,name',
+                'pagosRecibidos:id,complemento_pago_id',
+                'pagosRecibidos.documentosRelacionados:id,pago_recibido_id',
+            ])
+            ->when($estado, function ($query) use ($estado) {
                 $query->where('estado', $estado);
             })
-            ->when($cliente_id, function($query) use ($cliente_id) {
+            ->when($cliente_id, function ($query) use ($cliente_id) {
                 $query->where('cliente_id', $cliente_id);
             })
-            ->orderBy('created_at', 'desc')
+            ->orderBy('fecha_emision', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(20);
 
         $clientes = Cliente::activos()->orderBy('nombre')->get();

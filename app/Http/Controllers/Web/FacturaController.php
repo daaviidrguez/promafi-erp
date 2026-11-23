@@ -49,14 +49,17 @@ class FacturaController extends Controller
         $search = $request->get('search');
         $estado = $request->get('estado');
 
-        $facturas = Factura::with(['cliente', 'usuario'])
+        $facturas = Factura::query()
+            ->paraListado()
+            ->with(['cliente:id,nombre,rfc'])
             ->when($search, function ($query) use ($search) {
                 $query->buscar($search);
             })
             ->when($estado, function ($query) use ($estado) {
                 $query->where('estado', $estado);
             })
-            ->orderBy('created_at', 'desc')
+            ->orderBy('fecha_emision', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(20);
 
         return view('facturas.index', compact('facturas', 'search', 'estado'));

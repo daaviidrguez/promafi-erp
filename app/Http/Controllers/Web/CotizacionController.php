@@ -57,7 +57,12 @@ class CotizacionController extends Controller
      */
     public function index(Request $request)
     {
-        $query = $this->queryCotizaciones()->with(['cliente', 'usuario', 'factura']);
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
+        $query = $this->queryCotizaciones()->with([
+            'cliente:id,nombre,rfc',
+            'usuario:id,name',
+            'factura' => fn ($q) => $q->select($facturaCols),
+        ]);
 
         // Filtros
         if ($request->filled('estado')) {
@@ -98,7 +103,7 @@ class CotizacionController extends Controller
             Cotizacion::vencidas()->update(['estado' => 'vencida']);
         }
 
-        $cotizaciones = $query->orderBy('created_at', 'desc')->paginate(20);
+        $cotizaciones = $query->orderBy('fecha', 'desc')->orderBy('id', 'desc')->paginate(20);
 
         // Estadísticas (vendedor solo cuenta las suyas) — 2 queries en lugar de 4
         $statsQuery = $this->queryCotizaciones();

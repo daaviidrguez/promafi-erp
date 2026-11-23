@@ -53,6 +53,26 @@
 
 ---
 
+## 1.c Ronda 3 — listados CFDI sin blobs (LCP Facturas ~28s)
+
+**Síntoma:** LCP ~27.85s en `/facturas` (TTFB/servidor). Causa: `SELECT *` incluía `xml_content`/sellos/acuses.
+
+| Cambio | Detalle |
+|--------|---------|
+| `CfdiListadoColumnas` + `scopeParaListado` | Factura, Complemento, NC, FacturaCompra |
+| Index facturas/complementos/NC/compras | Sin columnas TEXT fiscales |
+| Cotizaciones / CxC / devoluciones | Eager `factura` solo columnas mínimas |
+| Dashboard / búsqueda global | Facturas y compras ligeras |
+| Orden | `fecha_emision` / `fecha` (indexadas) en lugar de `created_at` donde aplica |
+| Migración | `2026_11_23_210000_add_created_at_indexes_for_cfdi_listados.php` |
+
+### Deploy extra ronda 3
+- [ ] `php artisan migrate --force`
+- [ ] Probar `/facturas` → LCP/TTFB mucho menor; misma tabla visible
+- [ ] Probar complementos, NC, compras, cotizaciones, CxC
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

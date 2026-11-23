@@ -331,4 +331,12 @@ class FacturaCompra extends Model
                 ->orWhere('nombre_emisor', 'like', "%{$search}%");
         });
     }
+
+    /**
+     * Listados/index: sin xml_content (I/O).
+     */
+    public function scopeParaListado($query)
+    {
+        return $query->select(\App\Support\CfdiListadoColumnas::facturaCompra());
+    }
 }

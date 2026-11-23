@@ -63,8 +63,11 @@ class DashboardController extends Controller
             ->values();
         $cuentasVencidas = $cuentasVencidasFiltradas->count();
 
-        $facturasRecientes = Factura::with('cliente')
-            ->orderBy('created_at', 'desc')
+        $facturasRecientes = Factura::query()
+            ->paraListado()
+            ->with(['cliente:id,nombre,rfc'])
+            ->orderBy('fecha_emision', 'desc')
+            ->orderBy('id', 'desc')
             ->limit(10)
             ->get();
 

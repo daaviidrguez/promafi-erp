@@ -32,10 +32,18 @@ class NotaCreditoController extends Controller
         $estado = $request->get('estado');
         $cliente_id = $request->get('cliente_id');
 
-        $notas = NotaCredito::with(['factura', 'cliente', 'usuario'])
+        $facturaCols = implode(',', \App\Support\CfdiListadoColumnas::facturaRelacion());
+        $notas = NotaCredito::query()
+            ->paraListado()
+            ->with([
+                'factura:'.$facturaCols,
+                'cliente:id,nombre,rfc',
+                'usuario:id,name',
+            ])
             ->when($estado, fn ($q) => $q->where('estado', $estado))
             ->when($cliente_id, fn ($q) => $q->where('cliente_id', $cliente_id))
-            ->orderBy('created_at', 'desc')
+            ->orderBy('fecha_emision', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(20);
 
         $clientes = \App\Models\Cliente::activos()->orderBy('nombre')->get();

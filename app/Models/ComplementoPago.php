@@ -247,4 +247,12 @@ class ComplementoPago extends Model
     {
         return EstatusCancelacionCfdi::descripcionCodigo($codigo);
     }
+
+    /**
+     * Listados/index: sin xml_content, sellos, cadena ni acuse (I/O).
+     */
+    public function scopeParaListado($query)
+    {
+        return $query->select(\App\Support\CfdiListadoColumnas::complemento());
+    }
 }

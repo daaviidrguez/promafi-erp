@@ -30,7 +30,13 @@ class CompraController extends Controller
 {
     public function index(Request $request)
     {
-        $query = FacturaCompra::with(['proveedor', 'usuario', 'ordenCompra']);
+        $query = FacturaCompra::query()
+            ->paraListado()
+            ->with([
+                'proveedor:id,nombre,rfc,codigo',
+                'usuario:id,name',
+                'ordenCompra:id,folio',
+            ]);
         if ($request->filled('search')) {
             $s = $request->search;
             $query->where(function ($q) use ($s) {

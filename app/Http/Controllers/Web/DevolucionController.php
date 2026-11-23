@@ -17,7 +17,12 @@ class DevolucionController extends Controller
         $estado = $request->get('estado');
         $factura_id = $request->get('factura_id');
 
-        $devoluciones = Devolucion::with(['factura', 'cliente', 'usuario'])
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
+        $devoluciones = Devolucion::with([
+            'factura' => fn ($q) => $q->select($facturaCols),
+            'cliente:id,nombre,rfc',
+            'usuario:id,name',
+        ])
             ->when($estado, fn ($q) => $q->where('estado', $estado))
             ->when($factura_id, fn ($q) => $q->where('factura_id', $factura_id))
             ->orderBy('created_at', 'desc')

@@ -13,17 +13,133 @@ use Illuminate\Support\Facades\Cache;
 
 class NotificacionesController extends Controller
 {
+    private const CACHE_KEY = 'notifs_admin_data_shared';
+
+    private const CACHE_TTL_SECONDS = 120;
+
     /**
-     * Notificaciones visibles solo para administración (protegido por permiso).
+     * Resumen ligero para cada navegación: badge + toast.
+     * El detalle pesado vive en caché compartida; el dropdown lo pide en admin().
+     */
+    public function resumen(Request $request)
+    {
+        $user = $request->user();
+        $uid = $user?->id ?? 'anon';
+        $data = $this->datosCompartidos();
+        $flags = $this->flagsSesion($request, $uid, $data);
+
+        $payload = [
+            'has_notifications' => $flags['tiene_alguna'],
+            'show_toast' => $flags['show_toast'],
+            'unread_count' => $flags['unread_count'],
+        ];
+
+        // Solo en el toast de entrada enviamos el detalle (evita 2º payload pesado en cada página).
+        if ($flags['show_toast']) {
+            $payload = array_merge($payload, $this->detalleParaUsuario($user, $data));
+        }
+
+        return response()->json($payload);
+    }
+
+    /**
+     * Detalle completo (dropdown al abrir la campana).
      */
     public function admin(Request $request)
     {
-        $hoy = Carbon::today();
         $user = $request->user();
         $uid = $user?->id ?? 'anon';
+        $data = $this->datosCompartidos();
+        $flags = $this->flagsSesion($request, $uid, $data, marcarToastSiAplica: false);
 
-        // Datos pesados: caché corta (misma UX; reduce presión en cada navegación).
-        $data = Cache::remember("notifs_admin_data_{$uid}", 45, function () {
+        return response()->json(array_merge([
+            'has_notifications' => $flags['tiene_alguna'],
+            'show_toast' => false,
+            'unread_count' => $flags['unread_count'],
+        ], $this->detalleParaUsuario($user, $data)));
+    }
+
+    /**
+     * Marcar notificaciones de admin como leídas para esta sesión.
+     */
+    public function leer(Request $request)
+    {
+        $user = $request->user();
+        $uid = $user?->id ?? 'anon';
+        $request->session()->put("notifs_admin_read_{$uid}", true);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * @return array{tiene_alguna: bool, show_toast: bool, unread_count: int}
+     */
+    private function flagsSesion(Request $request, string $uid, array $data, bool $marcarToastSiAplica = true): array
+    {
+        $tieneAlguna = $this->tieneAlguna($data);
+
+        $toastKey = "notifs_admin_toast_shown_{$uid}";
+        $readKey = "notifs_admin_read_{$uid}";
+
+        $toastShown = (bool) $request->session()->get($toastKey, false);
+        $alreadyRead = (bool) $request->session()->get($readKey, false);
+
+        $showToast = $tieneAlguna && ! $toastShown && ! $alreadyRead;
+        $unreadCount = $tieneAlguna && ! $alreadyRead ? 1 : 0;
+
+        if ($marcarToastSiAplica && $showToast) {
+            $request->session()->put($toastKey, true);
+        }
+
+        return [
+            'tiene_alguna' => $tieneAlguna,
+            'show_toast' => $showToast,
+            'unread_count' => $unreadCount,
+        ];
+    }
+
+    private function tieneAlguna(array $data): bool
+    {
+        return (bool) (
+            ($data['credito_excedente'] ?? null)
+            || ((int) ($data['vencidas']['cuentas_vencidas'] ?? 0) > 0)
+            || ((int) ($data['logistica']['envios_factura_en_ruta'] ?? 0) > 0)
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function detalleParaUsuario($user, array $data): array
+    {
+        $hoy = Carbon::today();
+
+        return [
+            'credito_excedente' => $data['credito_excedente'],
+            'vencidas' => [
+                'cuentas_vencidas' => (int) ($data['vencidas']['cuentas_vencidas'] ?? 0),
+                'monto_vencido' => $data['vencidas']['monto_vencido'] ?? 0,
+                'primeras_fechas' => $data['vencidas']['primeras_fechas'] ?? [],
+                'hoy' => $hoy->format('d/m/Y'),
+                'url' => $user?->can('cuentas_cobrar.ver')
+                    ? route('cuentas-cobrar.index', ['estado' => 'vencidas'])
+                    : null,
+            ],
+            'logistica' => [
+                'envios_factura_en_ruta' => (int) ($data['logistica']['envios_factura_en_ruta'] ?? 0),
+                'url' => $user?->can('logistica.ver') ? route('logistica.index', ['estado' => 'en_ruta']) : null,
+            ],
+        ];
+    }
+
+    /**
+     * Datos compartidos entre admins (no dependen del usuario).
+     *
+     * @return array{credito_excedente: ?array, vencidas: array, logistica: array}
+     */
+    private function datosCompartidos(): array
+    {
+        return Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, function () {
             $creditoExcedente = null;
 
             $candidatos = Cliente::query()
@@ -66,7 +182,6 @@ class NotificacionesController extends Controller
             }
 
             $basesVencidas = CuentaPorCobrar::query()
-                ->with(['factura', 'cliente'])
                 ->excluirFacturaBorrador()
                 ->vencidas()
                 ->orderBy('fecha_vencimiento', 'asc')
@@ -80,9 +195,6 @@ class NotificacionesController extends Controller
                     'saldo_real' => $cuenta->saldo_pendiente_real,
                 ])
                 ->filter(fn ($x) => $x['saldo_real'] > 0);
-
-            $cuentasVencidasCount = $cuentasVencidasConReal->count();
-            $montoVencido = round($cuentasVencidasConReal->sum('saldo_real'), 2);
 
             $primeras3 = $cuentasVencidasConReal
                 ->sortBy(fn ($x) => $x['cuenta']->fecha_vencimiento?->toDateString() ?? '9999-12-31')
@@ -103,8 +215,8 @@ class NotificacionesController extends Controller
             return [
                 'credito_excedente' => $creditoExcedente,
                 'vencidas' => [
-                    'cuentas_vencidas' => $cuentasVencidasCount,
-                    'monto_vencido' => $montoVencido,
+                    'cuentas_vencidas' => $cuentasVencidasConReal->count(),
+                    'monto_vencido' => round($cuentasVencidasConReal->sum('saldo_real'), 2),
                     'primeras_fechas' => $primeras3,
                 ],
                 'logistica' => [
@@ -112,56 +224,5 @@ class NotificacionesController extends Controller
                 ],
             ];
         });
-
-        $creditoExcedente = $data['credito_excedente'];
-        $cuentasVencidasCount = (int) ($data['vencidas']['cuentas_vencidas'] ?? 0);
-        $enviosFacturaEnRuta = (int) ($data['logistica']['envios_factura_en_ruta'] ?? 0);
-        $tieneAlguna = (bool) ($creditoExcedente || $cuentasVencidasCount > 0 || $enviosFacturaEnRuta > 0);
-
-        // Toast / leído: siempre por sesión (fuera del caché de datos).
-        $toastKey = "notifs_admin_toast_shown_{$uid}";
-        $readKey = "notifs_admin_read_{$uid}";
-
-        $toastShown = (bool) $request->session()->get($toastKey, false);
-        $alreadyRead = (bool) $request->session()->get($readKey, false);
-
-        $showToast = $tieneAlguna && ! $toastShown && ! $alreadyRead;
-        $unreadCount = $tieneAlguna && ! $alreadyRead ? 1 : 0;
-
-        if ($showToast) {
-            $request->session()->put($toastKey, true);
-        }
-
-        return response()->json([
-            'has_notifications' => $tieneAlguna,
-            'show_toast' => $showToast,
-            'unread_count' => $unreadCount,
-            'credito_excedente' => $creditoExcedente,
-            'vencidas' => [
-                'cuentas_vencidas' => $cuentasVencidasCount,
-                'monto_vencido' => $data['vencidas']['monto_vencido'] ?? 0,
-                'primeras_fechas' => $data['vencidas']['primeras_fechas'] ?? [],
-                'hoy' => $hoy->format('d/m/Y'),
-                'url' => $user?->can('cuentas_cobrar.ver')
-                    ? route('cuentas-cobrar.index', ['estado' => 'vencidas'])
-                    : null,
-            ],
-            'logistica' => [
-                'envios_factura_en_ruta' => $enviosFacturaEnRuta,
-                'url' => $user?->can('logistica.ver') ? route('logistica.index', ['estado' => 'en_ruta']) : null,
-            ],
-        ]);
-    }
-
-    /**
-     * Marcar notificaciones de admin como leídas para esta sesión.
-     */
-    public function leer(Request $request)
-    {
-        $user = $request->user();
-        $uid = $user?->id ?? 'anon';
-        $request->session()->put("notifs_admin_read_{$uid}", true);
-
-        return response()->json(['ok' => true]);
     }
 }

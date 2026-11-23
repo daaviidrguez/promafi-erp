@@ -4,7 +4,7 @@
    public/css/app.css
    ========================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
+/* Fuentes locales (system UI): evita latencia/bloqueo por Google Fonts en Hostinger. */
 
 /* ========== VARIABLES ========== */
 :root {
@@ -46,9 +46,9 @@
     --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    --font-display: 'Outfit', system-ui, sans-serif;
-    --font-body:    'Inter', system-ui, sans-serif;
-    --font-mono:    'JetBrains Mono', 'Courier New', monospace;
+    --font-display: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-body:    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono:    ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace;
 }
 
 /* ========== RESET ========== */

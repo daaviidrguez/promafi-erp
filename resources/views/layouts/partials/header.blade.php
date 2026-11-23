@@ -205,10 +205,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const ddInner = document.getElementById('notificationsDropdownInner');
     const badge = document.getElementById('notificationsBadgeDot');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const STORAGE_KEY = 'promafi_notifs_v2';
+    const CLIENT_TTL_MS = 90000;
 
     if (!btn || !dd || !ddInner || !badge) return;
 
     let unreadCount = 0;
+    let detailLoaded = false;
+    let detailLoading = false;
 
     function escapeHtml(str) {
         return String(str ?? '').replace(/[&<>"']/g, (m) => ({
@@ -227,6 +231,37 @@ document.addEventListener("DOMContentLoaded", function () {
         } catch (e) {
             return '$' + num.toFixed(2);
         }
+    }
+
+    function readClientState() {
+        try {
+            const raw = sessionStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed.ts !== 'number') return null;
+            if (Date.now() - parsed.ts > CLIENT_TTL_MS) return null;
+            return parsed;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function writeClientState(partial) {
+        try {
+            const prev = readClientState() || {};
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...prev,
+                ...partial,
+                ts: Date.now(),
+            }));
+        } catch (e) { /* sessionStorage no disponible */ }
+    }
+
+    function applyBadge(count) {
+        unreadCount = Number(count ?? 0) || 0;
+        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+        badge.textContent = unreadCount > 0 ? String(unreadCount) : '';
+        btn.classList.toggle('notifications-bell-pulse', unreadCount > 0);
     }
 
     function buildMarkup(data) {
@@ -312,11 +347,79 @@ document.addEventListener("DOMContentLoaded", function () {
         `;
     }
 
+    function showToastFromData(data) {
+        const html = buildMarkup(data || {});
+        const toastId = 'notificationsToast';
+        let toast = document.getElementById(toastId);
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = toastId;
+            toast.style.position = 'fixed';
+            toast.style.top = 'calc(var(--header-height) + 10px)';
+            toast.style.right = '20px';
+            toast.style.zIndex = '2500';
+            toast.style.width = '420px';
+            toast.style.maxWidth = 'calc(100vw - 32px)';
+            toast.style.background = '#fff';
+            toast.style.border = '1px solid var(--color-gray-200)';
+            toast.style.borderRadius = 'var(--radius-lg)';
+            toast.style.boxShadow = 'var(--shadow-xl)';
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity .25s ease';
+            toast.style.pointerEvents = 'none';
+            document.body.appendChild(toast);
+        }
+
+        toast.innerHTML = html;
+        toast.style.pointerEvents = 'auto';
+        toast.style.opacity = '1';
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.remove(); }, 350);
+        }, 8500);
+    }
+
+    async function loadDetail() {
+        if (detailLoaded || detailLoading) return;
+        detailLoading = true;
+        ddInner.innerHTML = `
+            <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
+                Cargando…
+            </div>
+        `;
+        try {
+            const r = await fetch('{{ route('notificaciones.admin') }}', {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            });
+            if (!r.ok) throw new Error('http');
+            const data = await r.json();
+            ddInner.innerHTML = buildMarkup(data || {});
+            detailLoaded = true;
+            applyBadge(data?.unread_count ?? unreadCount);
+            writeClientState({ unread: unreadCount });
+        } catch (e) {
+            ddInner.innerHTML = `
+                <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
+                    No se pudieron cargar las notificaciones.
+                </div>
+            `;
+        } finally {
+            detailLoading = false;
+        }
+    }
+
     window.toggleNotifications = async function () {
         if (!dd || !ddInner || !badge) return;
-        dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+        const opening = dd.style.display !== 'block';
+        dd.style.display = opening ? 'block' : 'none';
 
-        // Al hacer clic, marcar como leídas SOLO para esta sesión (y ocultar el badge).
+        if (opening) {
+            await loadDetail();
+        }
+
         if (unreadCount > 0) {
             try {
                 await fetch('{{ route('notificaciones.admin.leer') }}', {
@@ -328,10 +431,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     credentials: 'same-origin'
                 });
 
-                unreadCount = 0;
-                badge.style.display = 'none';
-                badge.textContent = '';
-                btn.classList.remove('notifications-bell-pulse');
+                applyBadge(0);
+                writeClientState({ unread: 0 });
             } catch (e) {
                 // Si falla el marcado, no rompemos la UX: mantenemos el badge.
             }
@@ -344,53 +445,36 @@ document.addEventListener("DOMContentLoaded", function () {
         dd.style.display = 'none';
     });
 
-    fetch('{{ route('notificaciones.admin') }}', {
+    // Badge sin martillar PHP en cada navegación: reutilizar estado de pestaña 90s.
+    const cached = readClientState();
+    if (cached && typeof cached.unread === 'number') {
+        applyBadge(cached.unread);
+        ddInner.innerHTML = `
+            <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
+                Abre la campana para ver el detalle.
+            </div>
+        `;
+        return;
+    }
+
+    fetch('{{ route('notificaciones.admin.resumen') }}', {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         credentials: 'same-origin'
     })
         .then(r => r.ok ? r.json() : Promise.reject(r))
         .then(data => {
-            const html = buildMarkup(data || {});
-            ddInner.innerHTML = html;
+            applyBadge(data?.unread_count ?? 0);
+            writeClientState({ unread: unreadCount });
 
-            unreadCount = Number(data?.unread_count ?? 0) || 0;
-            const showToast = Boolean(data?.show_toast);
-            badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-            badge.textContent = unreadCount > 0 ? String(unreadCount) : '';
-            btn.classList.toggle('notifications-bell-pulse', unreadCount > 0);
+            ddInner.innerHTML = `
+                <div style="padding: 10px 12px; font-size: 13.5px; color: var(--color-gray-500);">
+                    Abre la campana para ver el detalle.
+                </div>
+            `;
 
-            // Toast (aparece al entrar al sistema).
-            if (showToast) {
-                const toastId = 'notificationsToast';
-                let toast = document.getElementById(toastId);
-                if (!toast) {
-                    toast = document.createElement('div');
-                    toast.id = toastId;
-                    toast.style.position = 'fixed';
-                    toast.style.top = 'calc(var(--header-height) + 10px)';
-                    toast.style.right = '20px';
-                    toast.style.zIndex = '2500';
-                    toast.style.width = '420px';
-                    toast.style.maxWidth = 'calc(100vw - 32px)';
-                    toast.style.background = '#fff';
-                    toast.style.border = '1px solid var(--color-gray-200)';
-                    toast.style.borderRadius = 'var(--radius-lg)';
-                    toast.style.boxShadow = 'var(--shadow-xl)';
-                    toast.style.opacity = '0';
-                    toast.style.transition = 'opacity .25s ease';
-                    toast.style.pointerEvents = 'none';
-                    document.body.appendChild(toast);
-                }
-
-                toast.innerHTML = html;
-                toast.style.pointerEvents = 'auto';
-                toast.style.opacity = '1';
-
-                setTimeout(() => {
-                    toast.style.opacity = '0';
-                    setTimeout(() => { toast.remove(); }, 350);
-                }, 8500);
+            if (Boolean(data?.show_toast)) {
+                showToastFromData(data);
             }
         })
         .catch(() => {

@@ -443,6 +443,10 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/buscar', [GlobalSearchController::class, 'search'])->name('global.search');
 
     // ───── NOTIFICACIONES (Admin) ─────
+    Route::get('/notificaciones/admin/resumen', [\App\Http\Controllers\Web\NotificacionesController::class, 'resumen'])
+        ->name('notificaciones.admin.resumen')
+        ->middleware('can:notificaciones.ver');
+
     Route::get('/notificaciones/admin', [\App\Http\Controllers\Web\NotificacionesController::class, 'admin'])
         ->name('notificaciones.admin')
         ->middleware('can:notificaciones.ver');

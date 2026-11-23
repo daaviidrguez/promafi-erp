@@ -19,10 +19,37 @@
 | Sesión (plantilla) | `SESSION_DRIVER=file` | `SESSION_DRIVER=database` en `.env.example` |
 | Búsquedas | `LOWER()` + `LIKE %q%` | Prefijos en códigos; sin `LOWER()` (collation CI) |
 | Índices BD | Faltaban en nombre / catálogo / NC / CxC | Migración `2026_11_23_190000_...` |
-| Notificaciones admin | Query pesada en **cada** page load | Caché 45s de datos; toast/sesión igual |
+| Notificaciones admin | Query pesada en **cada** page load | Ver **ronda 2** abajo |
 | Permisos / Empresa | EXISTS por check; query empresa repetida | Keys en memoria; memo request; cache Gate 10 min |
 | Acuse cancelación PDF | Timeouts 30s × varios intentos Facturama | Timeout 10s + PDF cacheado en disco |
 | Autocomplete cotización | Debounce 280ms, sin cancelar fetch | 400ms + `AbortController` |
+
+---
+
+## 1.b Ronda 2 — lentitud al cambiar *cualquier* pantalla (2026-11-23 tarde)
+
+**Síntoma reportado tras ronda 1:** planeo al navegar menú → menú (coste fijo por request).
+
+| Área | Antes (post ronda 1) | Después (ronda 2) |
+|------|----------------------|-------------------|
+| Notificaciones | `GET /notificaciones/admin` en **cada** `DOMContentLoaded` | `GET .../resumen` solo si no hay estado en `sessionStorage` (TTL 90s); detalle completo al **abrir** la campana |
+| Caché notifs | Por usuario, 45s | Compartida `notifs_admin_data_shared`, 120s |
+| Permisos sidebar | `role.permissions` podía consultar por checks | `loadMissing(['role.permissions'])` en middleware de rutas |
+| Fuentes | `@import` Google Fonts (Outfit/Inter) vía red | System UI local (sin request externo); rebuild Vite |
+
+### Archivos ronda 2
+- `app/Http/Controllers/Web/NotificacionesController.php` — `resumen()` + `admin()` detalle
+- `routes/web.php` — ruta `notificaciones.admin.resumen`
+- `resources/views/layouts/partials/header.blade.php` — fetch diferido + sessionStorage
+- `app/Http/Middleware/EnsureUserHasRoutePermission.php` — preload permisos
+- `resources/css/app.css`, `public/css/app.css`, `public/build/*` — sin Google Fonts
+
+### Deploy extra ronda 2
+- [ ] Subir también `public/build/` (manifest + CSS nuevo) o correr `npm run build` en servidor
+- [ ] `php artisan route:cache` (ruta nueva de resumen)
+- [ ] `php artisan view:cache`
+- [ ] Probar: navegar 5 pantallas → no debe disparar notifs en cada una (Network: solo 1 resumen / 90s)
+- [ ] Abrir campana → carga detalle; toast al primer login de sesión igual que antes
 
 ---
 

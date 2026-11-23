@@ -55,6 +55,9 @@ class EnsureUserHasRoutePermission
             return redirect()->route('login');
         }
 
+        // Una sola carga de permisos del rol por request (sidebar @can / Gates).
+        $user->loadMissing(['role.permissions']);
+
         if ($user->isAdmin()) {
             return $next($request);
         }

@@ -3,6 +3,11 @@
 @section('title', 'Facturas')
 @section('page-title', '🧾 Facturas')
 @section('page-subtitle', 'Gestión de comprobantes fiscales CFDI 4.0')
+@section('page-actions')
+    @can('facturas.crear')
+    <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Nueva Factura</a>
+    @endcan
+@endsection
 
 @php
 $breadcrumbs = [
@@ -22,29 +27,35 @@ $breadcrumbs = [
     <div class="alert alert-info"><span>ℹ</span> {{ session('info') }}</div>
 @endif
 
-{{-- Filtros + Acción --}}
+{{-- Filtros: búsqueda + estado + fechas en una sola línea --}}
 <div class="card">
     <div class="card-body">
-        <form method="GET" action="{{ route('facturas.index') }}" class="filtros-bar">
+        <form method="GET" action="{{ route('facturas.index') }}" class="filtros-bar filtros-bar--inline">
             <div class="filtros-bar-left">
                 <input type="text" name="search" value="{{ $search ?? '' }}"
                        placeholder="Buscar por folio, UUID, cliente..."
-                       class="form-control" style="flex: 1; min-width: 200px;">
+                       class="form-control filtros-bar__search"
+                       aria-label="Buscar">
 
-                <select name="estado" class="form-control" style="min-width: 140px;">
+                <select name="estado" class="form-control filtros-bar__estado" aria-label="Estado">
                     <option value="">Todos los estados</option>
                     <option value="borrador"  {{ ($estado ?? '') == 'borrador'  ? 'selected' : '' }}>📝 Borrador</option>
                     <option value="timbrada"  {{ ($estado ?? '') == 'timbrada'  ? 'selected' : '' }}>Timbrada</option>
                     <option value="cancelada" {{ ($estado ?? '') == 'cancelada' ? 'selected' : '' }}>❌ Cancelada</option>
                 </select>
 
-                <input type="date" name="fecha_inicio" value="{{ $fechaInicio ?? '' }}"
-                       class="form-control" style="min-width: 150px;" title="Desde">
-                <input type="date" name="fecha_fin" value="{{ $fechaFin ?? '' }}"
-                       class="form-control" style="min-width: 150px;" title="Hasta">
+                <label class="filtros-bar__fecha">
+                    <span>Desde</span>
+                    <input type="date" name="fecha_inicio" value="{{ $fechaInicio ?? '' }}"
+                           class="form-control" title="Desde">
+                </label>
+                <label class="filtros-bar__fecha">
+                    <span>Hasta</span>
+                    <input type="date" name="fecha_fin" value="{{ $fechaFin ?? '' }}"
+                           class="form-control" title="Hasta">
+                </label>
 
-                <button type="submit"
-                        style="padding: 9px 20px; background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
+                <button type="submit" class="btn btn-primary filtros-bar__submit">
                     🔍 Buscar
                 </button>
                 @if(request()->boolean('todas') || request()->hasAny(['search','estado','fecha_inicio','fecha_fin']))
@@ -55,9 +66,6 @@ $breadcrumbs = [
                        class="btn btn-light" title="Sin límite de fechas">Todas</a>
                 @endif
             </div>
-            @can('facturas.crear')
-            <a href="{{ route('facturas.create') }}" class="btn btn-primary">➕ Nueva Factura</a>
-            @endcan
         </form>
         @if(!empty($rangoDefault))
             <div class="text-muted" style="font-size: 12px; margin-top: 8px;">

@@ -1215,9 +1215,63 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 .form-row     { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .filtros-bar  { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .filtros-bar-left { display: flex; gap: 12px; flex: 1; flex-wrap: wrap; min-width: 0; }
+
+/* Una sola fila: búsqueda + estado + fechas + acciones */
+.filtros-bar--inline .filtros-bar-left {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+}
+.filtros-bar--inline .filtros-bar__search {
+    flex: 1 1 auto;
+    min-width: 160px;
+    width: auto;
+}
+.filtros-bar--inline .filtros-bar__estado {
+    flex: 0 0 150px;
+    width: 150px;
+    min-width: 0;
+}
+.filtros-bar--inline .filtros-bar__fecha {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-gray-600);
+    white-space: nowrap;
+}
+.filtros-bar--inline .filtros-bar__fecha .form-control {
+    width: 138px;
+    min-width: 0;
+}
+.filtros-bar--inline .filtros-bar__submit,
+.filtros-bar--inline .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+    .filtros-bar--inline .filtros-bar-left { flex-wrap: wrap; }
+    .filtros-bar--inline .filtros-bar__search { min-width: 220px; }
+    .filtros-bar--inline .filtros-bar__estado { flex: 1 1 160px; width: auto; }
+}
+
 @media (max-width: 1024px) {
     .filtros-bar, .filtros-bar-left { flex-direction: column; align-items: stretch; }
     .filtros-bar-left .form-control { min-width: 0; }
+    .filtros-bar--inline .filtros-bar-left { flex-direction: column; align-items: stretch; }
+    .filtros-bar--inline .filtros-bar__estado,
+    .filtros-bar--inline .filtros-bar__fecha .form-control {
+        width: 100%;
+        flex: none;
+    }
+    .filtros-bar--inline .filtros-bar__fecha {
+        width: 100%;
+        justify-content: space-between;
+    }
 }
 .form-group   { display: flex; flex-direction: column; gap: 6px; }
 .form-label   { font-size: 12px; font-weight: 600; color: var(--color-gray-700); }

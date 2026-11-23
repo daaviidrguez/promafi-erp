@@ -29,6 +29,9 @@ $breadcrumbs = [
 
 {{-- Filtros: búsqueda + estado + fechas en una sola línea --}}
 <div class="card">
+    <div class="card-header">
+        <div class="card-title">🔍 Filtros</div>
+    </div>
     <div class="card-body">
         <form method="GET" action="{{ route('facturas.index') }}" class="filtros-bar filtros-bar--inline">
             <div class="filtros-bar-left">

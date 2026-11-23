@@ -1385,31 +1385,7 @@ class CotizacionController extends Controller
      */
     private function obtenerSiguientePsiNumDesde(int $desde): int
     {
-        $usados = Producto::withTrashed()
-            ->where('codigo', 'like', 'PSI-%')
-            ->pluck('codigo')
-            ->map(function ($codigo) {
-                if (! is_string($codigo)) {
-                    return null;
-                }
-                if (preg_match('/^PSI-(\d+)$/', $codigo, $m)) {
-                    return (int) $m[1];
-                }
-
-                return null;
-            })
-            ->filter(fn ($n) => $n !== null)
-            ->unique()
-            ->values()
-            ->all();
-
-        $set = array_flip($usados);
-        $n = max(1, $desde);
-        while (isset($set[$n])) {
-            $n++;
-        }
-
-        return $n;
+        return \App\Support\ProductoPsiConsecutivo::siguienteNumeroDesde($desde);
     }
 
     /**
@@ -1417,46 +1393,7 @@ class CotizacionController extends Controller
      */
     private function nombreProductoActivoSiDescripcionSuperaSimilitud(string $descripcion): ?string
     {
-        $desc = mb_strtoupper(trim($descripcion));
-        if (mb_strlen($desc) < 10) {
-            return null;
-        }
-
-        foreach (Producto::query()->where('activo', true)->select(['id', 'nombre', 'descripcion'])->cursor() as $p) {
-            foreach ([$p->nombre, $p->descripcion] as $campo) {
-                if (! is_string($campo) || trim($campo) === '') {
-                    continue;
-                }
-                $cmp = mb_strtoupper(trim($campo));
-                if (mb_strlen($cmp) < 10) {
-                    continue;
-                }
-                $percent = 0.0;
-                similar_text($desc, $cmp, $percent);
-                if ($percent > 80 && $this->sonDescripcionesCasiIdenticasParaBloqueoSimilitud($desc, $cmp)) {
-                    return (string) $p->nombre;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private function sonDescripcionesCasiIdenticasParaBloqueoSimilitud(string $a, string $b): bool
-    {
-        $na = preg_replace('/\s+/u', ' ', $a) ?? $a;
-        $nb = preg_replace('/\s+/u', ' ', $b) ?? $b;
-        if ($na === $nb) {
-            return true;
-        }
-        $lenA = mb_strlen($na);
-        $lenB = mb_strlen($nb);
-        if ($lenA === 0 || $lenB === 0) {
-            return false;
-        }
-        $ratio = min($lenA, $lenB) / max($lenA, $lenB);
-
-        return $ratio >= 0.85;
+        return \App\Support\ProductoSimilitudCatalogo::nombreActivoSiDescripcionSuperaSimilitud($descripcion);
     }
 
     /**

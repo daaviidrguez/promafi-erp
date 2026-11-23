@@ -28,31 +28,7 @@ class ProductoController extends Controller
 
     private function obtenerSiguientePsiNumDesde(int $desde): int
     {
-        $usados = Producto::withTrashed()
-            ->where('codigo', 'like', 'PSI-%')
-            ->pluck('codigo')
-            ->map(function ($codigo) {
-                if (!is_string($codigo)) {
-                    return null;
-                }
-                if (preg_match('/^PSI-(\d+)$/', $codigo, $m)) {
-                    return (int) $m[1];
-                }
-                return null;
-            })
-            ->filter(fn ($n) => $n !== null)
-            ->unique()
-            ->values()
-            ->all();
-
-        $set = array_flip($usados);
-
-        $n = max(1, $desde);
-        while (isset($set[$n])) {
-            $n++;
-        }
-
-        return $n;
+        return \App\Support\ProductoPsiConsecutivo::siguienteNumeroDesde($desde);
     }
 
     public function index(Request $request)

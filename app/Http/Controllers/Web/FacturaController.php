@@ -940,14 +940,14 @@ class FacturaController extends Controller
                     $factura->update(['xml_path' => $xmlPath]);
                 }
 
-                // Generar PDF automáticamente
-                $pdfPath = $this->pdfService->generarFacturaPDF($factura);
-                $factura->update(['pdf_path' => $pdfPath]);
+                // PDF: no generar aquí (DomPDF satura workers en Hostinger).
+                // Se genera lazy en verPDF / descargarPDF la primera vez.
+                $factura->update(['pdf_path' => null]);
 
                 DB::commit();
 
                 return redirect()->route('facturas.show', $factura->id)
-                    ->with('success', $resultado['message'].' - PDF generado automáticamente');
+                    ->with('success', $resultado['message'].' — El PDF se generará al abrirlo o descargarlo.');
 
             } catch (\Exception $e) {
                 DB::rollBack();
@@ -1324,8 +1324,17 @@ class FacturaController extends Controller
      */
     public function descargarPDF(Factura $factura)
     {
-        if (! $factura->pdf_path) {
-            return back()->with('error', 'PDF no disponible');
+        $regenerar = $factura->esBorrador()
+            || ! $factura->pdf_path
+            || ! file_exists(storage_path('app/'.$factura->pdf_path));
+
+        if ($regenerar) {
+            try {
+                $pdfPath = $this->pdfService->generarFacturaPDF($factura);
+                $factura->update(['pdf_path' => $pdfPath]);
+            } catch (\Exception $e) {
+                return back()->with('error', 'Error al generar PDF: '.$e->getMessage());
+            }
         }
 
         $fullPath = storage_path('app/'.$factura->pdf_path);

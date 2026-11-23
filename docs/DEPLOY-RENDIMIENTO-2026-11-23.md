@@ -101,6 +101,23 @@
 
 ---
 
+## 1.f Ronda 6 — producto-rápido + PDF lazy al timbrar
+
+**Sin cambiar lógica fiscal ni TimbradoConcurrencyGuard.**
+
+| Cambio | Detalle |
+|--------|---------|
+| `ProductoSimilitudCatalogo` | Misma regla (>80% + casi idénticas); solo ≤200 candidatos por LIKE/tokens (no full-scan) |
+| `ProductoPsiConsecutivo` | `MAX` SQL en lugar de pluck de todos los `PSI-*` |
+| Timbrar factura | PAC + XML + inventario igual; **sin DomPDF en el POST**; PDF en `verPDF`/`descargarPDF` |
+
+### Deploy extra ronda 6
+- [ ] Probar crear producto rápido (confirmación de similitud sigue funcionando)
+- [ ] Timbrar: redirect rápido; abrir PDF genera archivo la 1ª vez
+- [ ] Verificar que doble clic / guard de timbrado sigue activo
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

@@ -20,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
             LogSlowRequests::class,
         ]);
 
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureSingleWebSession::class,
+        ]);
+
         $middleware->alias([
             'permiso' => \App\Http\Middleware\CheckPermission::class,
             'route.permission' => \App\Http\Middleware\EnsureUserHasRoutePermission::class,

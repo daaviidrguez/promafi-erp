@@ -21,12 +21,29 @@
                 <p>Sistema de Gestión Empresarial</p>
             </div>
 
+            {{-- Avisos de sesión (desalojo / política) --}}
+            @if (session('warning'))
+                <div class="alert alert-warning">
+                    <strong>⚠ Atención:</strong> {{ session('warning') }}
+                </div>
+            @endif
+            @if (session('info'))
+                <div class="alert alert-info">
+                    <strong>ℹ</strong> {{ session('info') }}
+                </div>
+            @endif
+
             {{-- Mostrar errores --}}
             @if ($errors->any())
                 <div class="alert alert-danger">
                     <strong>⚠️ Error:</strong> {{ $errors->first() }}
                 </div>
             @endif
+
+            <div class="alert alert-info" style="font-size: 13px; line-height: 1.45;">
+                Solo se permite <strong>una sesión activa</strong> por usuario.
+                Si inicias sesión aquí, se cerrará automáticamente en cualquier otro dispositivo.
+            </div>
 
             {{-- Formulario de Login --}}
             <form method="POST" action="{{ route('login.submit') }}" id="loginForm">

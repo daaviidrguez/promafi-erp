@@ -45,6 +45,7 @@ class User extends Authenticatable
         'role_id',
         'activo',
         'meta_ventas_mensual',
+        'current_session_id',
     ];
 
     /**

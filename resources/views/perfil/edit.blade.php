@@ -175,11 +175,12 @@
             </div>
             <div class="card-body">
                 <p class="text-muted" style="margin-bottom: 16px; font-size: 13px;">
-                    Cerrar sesión en todos los dispositivos donde hayas iniciado sesión con tu cuenta.
+                    Cierra tu sesión en este dispositivo. Solo puede haber una sesión activa a la vez:
+                    si alguien inicia sesión con tu usuario en otro equipo, esta sesión se cerrará automáticamente.
                 </p>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <button type="submit" class="btn btn-danger">🚪 Cerrar Sesión en Todos los Dispositivos</button>
+                    <button type="submit" class="btn btn-danger">🚪 Cerrar Sesión</button>
                 </form>
             </div>
         </div>

@@ -189,6 +189,24 @@
 
     @RegisterServiceWorkerScript
 
+    {{-- Tras deploy: activar SW nuevo sin dejar versión vieja pegada (PWA + pestaña). --}}
+    <script>
+    (function () {
+        if (!('serviceWorker' in navigator)) return;
+        var refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+        });
+        navigator.serviceWorker.ready.then(function (reg) {
+            if (reg && typeof reg.update === 'function') {
+                try { reg.update(); } catch (e) { /* ignore */ }
+            }
+        }).catch(function () { /* ignore */ });
+    })();
+    </script>
+
     @include('partials.conexion_status', ['conexionPart' => 'body'])
 
     {{-- Overlay al navegar (tablas/filtros/menú). No sustituye “Timbrando…” del PAC. --}}
@@ -203,7 +221,9 @@
         if (window.PromafiNavLoader && window.PromafiNavLoader._initDone) return;
 
         const DELAY_MS = 200;
+        const FAILSAFE_MS = 15000;
         let showTimer = null;
+        let failsafeTimer = null;
         let visible = false;
 
         function overlay() {
@@ -216,11 +236,18 @@
             visible = true;
             el.hidden = false;
             document.documentElement.style.cursor = 'wait';
+            clearTimeout(failsafeTimer);
+            // Evita overlay eterno en PWA si la navegación no dispara pageshow.
+            failsafeTimer = setTimeout(function () {
+                if (visible) hide();
+            }, FAILSAFE_MS);
         }
 
         function hide() {
             clearTimeout(showTimer);
             showTimer = null;
+            clearTimeout(failsafeTimer);
+            failsafeTimer = null;
             visible = false;
             const el = overlay();
             if (el) el.hidden = true;
@@ -230,6 +257,13 @@
         function scheduleShow() {
             clearTimeout(showTimer);
             showTimer = setTimeout(showNow, DELAY_MS);
+        }
+
+        /** Si otro handler canceló la navegación tras capture, no dejar el overlay. */
+        function cancelIfPrevented(e) {
+            setTimeout(function () {
+                if (e.defaultPrevented) hide();
+            }, 0);
         }
 
         function isModifiedClick(e) {
@@ -275,6 +309,7 @@
             if (!a || shouldSkipLink(a)) return;
             if (e.defaultPrevented) return;
             scheduleShow();
+            cancelIfPrevented(e);
         }, true);
 
         document.addEventListener('submit', function (e) {
@@ -283,13 +318,29 @@
             if (shouldSkipForm(form)) return;
             if (e.defaultPrevented) return;
             scheduleShow();
+            cancelIfPrevented(e);
         }, true);
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && visible) hide();
+        });
+
+        const navEl = overlay();
+        if (navEl) {
+            navEl.addEventListener('click', function () {
+                if (visible) hide();
+            });
+        }
 
         window.addEventListener('pageshow', function () {
             hide();
         });
         window.addEventListener('pagehide', function () {
             clearTimeout(showTimer);
+            clearTimeout(failsafeTimer);
+        });
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') hide();
         });
 
         window.PromafiNavLoader = {

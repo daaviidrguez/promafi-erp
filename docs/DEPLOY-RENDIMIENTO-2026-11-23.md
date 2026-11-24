@@ -244,6 +244,30 @@
 
 ---
 
+## 1.o Ronda 15 — PWA / service worker + overlay failsafe
+
+**Sin rehacer rondas 1–14.** Solo capa PWA / cliente. Síntoma: en app instalada (standalone) el velo “Cargando, espere…” podía quedar eterno; SW antiguo hacía cache-first de assets/XHR.
+
+| Cambio | Detalle |
+|--------|---------|
+| `public/sw.js` | Caché `promafi-offline-v2`; solo intercepta **navigate GET** (network-first → `offline.html`); **no** intercepta CSS/JS/XHR/API; `skipWaiting` + `clients.claim` |
+| Overlay | Failsafe **15 s**; Escape / clic en velo cierran; si otro handler hace `preventDefault`, se cancela el show |
+| Actualización SW | Tras `@RegisterServiceWorkerScript`: `reg.update()` + reload 1× en `controllerchange` |
+
+### Deploy extra ronda 15
+- [ ] Subir `public/sw.js` + layout (y `public/build/` si hubo Vite)
+- [ ] `php artisan view:cache`
+- [ ] En PWA instalada: abrir/cerrar una vez (o esperar reload por SW nuevo) para activar `v2`
+- [ ] Network: assets/XHR **sin** pasar por respondWith del SW (solo documentos navigate)
+- [ ] Forzar overlay pegado (red lenta) → a los ~15 s desaparece; Escape también cierra
+
+### Archivos ronda 15
+- `public/sw.js`
+- `resources/views/layouts/app.blade.php`
+- `docs/DEPLOY-RENDIMIENTO-2026-11-23.md`
+
+---
+
 ## 1.l Ronda 12 — complementos de pago (index/create/edit/show)
 
 **Sin tocar timbrar/cancelar PAC.** Misma fórmula de saldo vs NC; cálculo en lote.

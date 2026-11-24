@@ -1234,24 +1234,23 @@ let timerBuscarLista;
 
 const selLista = document.getElementById('selectListaPrecio');
 const btnCargar = document.getElementById('btnCargarLista');
-if (selLista) selLista.addEventListener('change', async function() {
+let abortBuscarLista = null;
+const productosListaPrecioUrl = @json(route('cotizaciones.productos-lista-precio'));
+if (selLista) selLista.addEventListener('change', function() {
     const listaId = this.value;
     if (btnCargar) btnCargar.disabled = !listaId;
     const searchBox = document.getElementById('searchListaPrecioBox');
     const buscarInput = document.getElementById('buscarProductoLista');
+    productosDeLista = [];
+    if (abortBuscarLista) abortBuscarLista.abort();
     if (listaId) {
         searchBox.style.display = 'block';
         document.getElementById('cardListaPreciosBody').style.gridTemplateColumns = '1fr 1fr';
-        try {
-            const r = await fetch(`{{ route('cotizaciones.productos-lista-precio') }}?lista_id=${listaId}`);
-            productosDeLista = await r.json();
-        } catch (e) { productosDeLista = []; }
-        buscarInput.value = '';
+        if (buscarInput) buscarInput.value = '';
         document.getElementById('productoListaResults').classList.remove('show');
     } else {
         searchBox.style.display = 'none';
         document.getElementById('cardListaPreciosBody').style.gridTemplateColumns = '1fr';
-        productosDeLista = [];
     }
 });
 
@@ -1259,21 +1258,34 @@ document.getElementById('buscarProductoLista')?.addEventListener('input', functi
     clearTimeout(timerBuscarLista);
     const q = this.value.trim();
     const box = document.getElementById('productoListaResults');
-    if (q.length < 2) { box.classList.remove('show'); return; }
-    timerBuscarLista = setTimeout(() => {
-        const ql = q.toLowerCase();
-        const list = productosDeLista.filter(p =>
-            (p.nombre || '').toLowerCase().includes(ql) || (p.codigo || '').toLowerCase().includes(ql)
-        ).slice(0, 10);
-        window._productosListaFiltrados = list;
-        box.innerHTML = list.length ? list.map((p, i) => `
-            <div class="autocomplete-item" onclick="cargarProductoListaByIdx(${i})">
-                <div class="autocomplete-item-name">${(p.nombre || '').replace(/</g,'&lt;')}</div>
-                <div class="autocomplete-item-sub">${(p.codigo || '')} — $${parseFloat(p.precio).toFixed(2)}</div>
-            </div>
-        `).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
-        box.classList.add('show');
-    }, 200);
+    const listaId = document.getElementById('selectListaPrecio')?.value;
+    if (!listaId || q.length < 2) {
+        if (abortBuscarLista) abortBuscarLista.abort();
+        box.classList.remove('show');
+        return;
+    }
+    timerBuscarLista = setTimeout(async () => {
+        if (abortBuscarLista) abortBuscarLista.abort();
+        abortBuscarLista = new AbortController();
+        try {
+            const r = await fetch(
+                `${productosListaPrecioUrl}?lista_id=${encodeURIComponent(listaId)}&q=${encodeURIComponent(q)}`,
+                { signal: abortBuscarLista.signal }
+            );
+            const list = await r.json();
+            window._productosListaFiltrados = Array.isArray(list) ? list : [];
+            box.innerHTML = window._productosListaFiltrados.length ? window._productosListaFiltrados.map((p, i) => `
+                <div class="autocomplete-item" onclick="cargarProductoListaByIdx(${i})">
+                    <div class="autocomplete-item-name">${(p.nombre || '').replace(/</g,'&lt;')}</div>
+                    <div class="autocomplete-item-sub">${(p.codigo || '')} — $${parseFloat(p.precio).toFixed(2)}</div>
+                </div>
+            `).join('') : '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+            box.classList.add('show');
+        } catch (e) {
+            if (e && e.name === 'AbortError') return;
+            console.error(e);
+        }
+    }, 400);
 });
 
 function cargarProductoListaByIdx(i) {
@@ -1296,7 +1308,7 @@ if (btnCargar) btnCargar.addEventListener('click', async function() {
     const listaId = document.getElementById('selectListaPrecio')?.value;
     if (!listaId) return;
     try {
-        const r = await fetch(`{{ route('cotizaciones.productos-lista-precio') }}?lista_id=${listaId}`);
+        const r = await fetch(`${productosListaPrecioUrl}?lista_id=${encodeURIComponent(listaId)}&todas=1`);
         const items = await r.json();
         if (!items.length) { alert('La lista no tiene productos.'); return; }
         items.forEach(p => {
@@ -1773,7 +1785,7 @@ function onManualDescInput(rowIndex, value) {
         closeSugerenciaFlotante();
         return;
     }
-    timerSugerencia[rowIndex] = setTimeout(() => buscarSugerencias(rowIndex, q), 280);
+    timerSugerencia[rowIndex] = setTimeout(() => buscarSugerencias(rowIndex, q), 400);
 }
 
 const MANUAL_DESC_MAX_LINES = 9;
@@ -1841,9 +1853,14 @@ window.addEventListener('resize', () => {
     timerManualDescResize = setTimeout(autoResizeAllManualDescs, 120);
 });
 
+let abortSugerencia = null;
 async function buscarSugerencias(rowIndex, q) {
+    if (abortSugerencia) abortSugerencia.abort();
+    abortSugerencia = new AbortController();
     try {
-        const r = await fetch(`{{ route('sugerencias.buscar') }}?q=${encodeURIComponent(q)}`);
+        const r = await fetch(`{{ route('sugerencias.buscar') }}?q=${encodeURIComponent(q)}`, {
+            signal: abortSugerencia.signal,
+        });
         const data = await r.json();
         const input = document.getElementById('manualDesc_' + rowIndex);
         const flotante = document.getElementById('sugerenciaResultsFlotante');
@@ -1869,7 +1886,10 @@ async function buscarSugerencias(rowIndex, q) {
         }
         flotante.classList.add('show');
         flotante.style.display = 'block';
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        console.error(e);
+    }
 }
 
 function aplicarSugerencia(rowIndex, el) {

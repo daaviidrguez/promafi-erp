@@ -191,6 +191,34 @@
 
 ---
 
+## 1.j Ronda 10 — create/edit cotización + factura (sin tocar PAC)
+
+**Alcance explícito:** solo formularios y autocompletes. **No** cambia timbrado, cancelación PAC/SAT, XML, guards ni validaciones fiscales.
+
+| Cambio | Detalle |
+|--------|---------|
+| Factura buscar productos | Prefijo en código + cupo; debounce **400 ms** + `AbortController` |
+| Factura edit | `paraShow()` (sin blobs); sin sync SAT en GET; eager mínimo |
+| Cliente search | Debounce 400 ms + abort |
+| Cotización lista precios | Búsqueda server `q` (15); `todas=1` solo al «Cargar lista»; sin `costo_promedio_calculado` |
+| Cotización sugerencias | Debounce 400 + abort |
+| Cotización edit eager | Cliente/producto columnas mínimas |
+| Catálogos SAT | Cache 10 min formas/métodos/usos CFDI |
+
+### Deploy extra ronda 10
+- [ ] `php artisan view:cache` / `route:cache`
+- [ ] Teclear producto en factura create/edit → Network: menos requests, cancelados al seguir tipando
+- [ ] Edit factura borrador: abre rápido; claves SAT con botón en show (no auto al editar)
+- [ ] Cotización: elegir lista → buscar con `q`; «Cargar lista» sigue trayendo todos
+- [ ] Timbrar / cancelar PAC: igual que antes (smoke)
+
+### Archivos ronda 10
+- `FacturaController`, `CotizacionController`
+- `facturas/create.blade.php`, `facturas/edit.blade.php`
+- `cotizaciones/create.blade.php`, `partials/cliente-search-js.blade.php`
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

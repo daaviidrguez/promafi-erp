@@ -3,6 +3,7 @@
 window.ClienteSearch = window.ClienteSearch || (function () {
     const searchUrl = @json(route('clientes.buscar'));
     const timers = {};
+    const aborts = {};
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -40,9 +41,12 @@ window.ClienteSearch = window.ClienteSearch || (function () {
         const box = document.getElementById(opts.resultsId);
         if (!box) return;
 
+        if (aborts[opts.inputId]) aborts[opts.inputId].abort();
+        aborts[opts.inputId] = new AbortController();
+
         try {
             const url = (opts.url || searchUrl) + '?q=' + encodeURIComponent(q);
-            const r = await fetch(url);
+            const r = await fetch(url, { signal: aborts[opts.inputId].signal });
             const data = await r.json();
             if (!Array.isArray(data) || !data.length) {
                 box.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
@@ -62,6 +66,7 @@ window.ClienteSearch = window.ClienteSearch || (function () {
             }
             box.classList.add('show');
         } catch (e) {
+            if (e && e.name === 'AbortError') return;
             console.error(e);
         }
     }
@@ -72,7 +77,7 @@ window.ClienteSearch = window.ClienteSearch || (function () {
             hiddenId: 'cliente_id',
             resultsId: 'clienteResults',
             minChars: 2,
-            debounce: 280,
+            debounce: 400,
             allowEmpty: false,
         }, opts);
 
@@ -87,6 +92,7 @@ window.ClienteSearch = window.ClienteSearch || (function () {
                 return;
             }
             if (q.length < opts.minChars) {
+                if (aborts[opts.inputId]) aborts[opts.inputId].abort();
                 closeResults(opts.resultsId);
                 return;
             }

@@ -180,12 +180,12 @@ class CotizacionController extends Controller
         $cotizacion = null;
         $folio = Cotizacion::siguienteFolioDisponible($empresa);
 
-        // Modo edición: cargar cotización con detalles ordenados para repoblar el formulario
+        // Modo edición: detalles (+ producto mínimo). Cliente va denormalizado en la cotización.
         if ($request->has('id')) {
             $cotizacion = Cotizacion::with([
-                'cliente',
+                'cliente:id,nombre,rfc,tipo_persona',
                 'detalles' => fn ($q) => $q->orderBy('orden'),
-                'detalles.producto',
+                'detalles.producto:id,codigo,nombre,unidad,tasa_iva,tipo_factor',
             ])->findOrFail($request->id);
             $this->authorizeCotizacion($cotizacion);
 
@@ -195,7 +195,11 @@ class CotizacionController extends Controller
             }
         }
 
-        $formasPago = FormaPago::activos()->get();
+        $formasPago = \Illuminate\Support\Facades\Cache::remember(
+            'catalogo:formas_pago_activos',
+            600,
+            fn () => FormaPago::activos()->get()
+        );
         return view('cotizaciones.create', compact('empresa', 'folio', 'cotizacion', 'formasPago'));
     }
 
@@ -1584,22 +1588,67 @@ class CotizacionController extends Controller
     }
 
     /**
-     * API: Productos de una lista de precios con precio calculado
+     * API: Productos de una lista de precios con precio calculado.
+     * - Con q: hasta 15 coincidencias (búsqueda en UI).
+     * - Con todas=1: dump para «Cargar lista» (columnas mínimas; sin costo_promedio_calculado).
      */
     public function productosListaPrecio(Request $request)
     {
-        $listaId = $request->get('lista_id');
-        if (!$listaId) {
+        $listaId = (int) $request->get('lista_id');
+        if (! $listaId) {
             return response()->json([]);
         }
-        $lista = ListaPrecio::with(['detalles.producto'])->find($listaId);
-        if (!$lista) {
+
+        if (! ListaPrecio::query()->whereKey($listaId)->exists()) {
             return response()->json([]);
         }
-        $items = $lista->detalles->map(function ($d) {
+
+        $todas = $request->boolean('todas');
+        $search = trim((string) $request->get('q', ''));
+        if (! $todas && strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $prodCols = [
+            'id', 'codigo', 'nombre', 'unidad', 'tasa_iva', 'tipo_factor',
+            'objeto_impuesto', 'tipo_impuesto', 'costo', 'costo_promedio',
+        ];
+
+        $detallesQuery = \App\Models\ListaPrecioDetalle::query()
+            ->where('lista_precio_id', $listaId)
+            ->where('activo', true)
+            ->with(['producto' => fn ($q) => $q->select($prodCols)])
+            ->orderBy('orden')
+            ->orderBy('id');
+
+        if (! $todas) {
+            $escaped = addcslashes($search, '%_\\');
+            $detallesQuery->whereHas('producto', function ($pq) use ($escaped) {
+                $pq->where('codigo', 'like', $escaped.'%')
+                    ->orWhere('nombre', 'like', '%'.$escaped.'%')
+                    ->orWhere('codigo', 'like', '%'.$escaped.'%');
+            })->limit(15);
+        }
+
+        $items = $detallesQuery->get()->map(function ($d) {
             $p = $d->producto;
-            if (!$p) return null;
-            $precio = $d->precio_resultante;
+            if (! $p) {
+                return null;
+            }
+
+            // Costo almacenado solamente (evita N queries de costo_promedio_calculado).
+            $costo = ($p->costo_promedio !== null && (float) $p->costo_promedio > 0)
+                ? (float) $p->costo_promedio
+                : (float) ($p->costo ?? 0);
+            $pct = max(1, min(99, (float) $d->valor_utilidad)) / 100;
+            if ($d->tipo_utilidad === 'factorizado') {
+                $precio = round($costo * (1 + $pct), 2);
+            } elseif ($pct >= 1) {
+                $precio = round($costo, 2);
+            } else {
+                $precio = round($costo / (1 - $pct), 2);
+            }
+
             return [
                 'id' => $p->id,
                 'codigo' => $p->codigo,
@@ -1612,6 +1661,7 @@ class CotizacionController extends Controller
                 'tipo_impuesto' => $p->tipo_impuesto ?? '002',
             ];
         })->filter()->values()->all();
+
         return response()->json($items);
     }
 

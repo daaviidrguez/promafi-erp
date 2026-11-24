@@ -30,6 +30,7 @@ use App\Services\PACServiceInterface;
 use App\Services\PDFService;
 use App\Services\TimbradoConcurrencyGuard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -148,13 +149,17 @@ class FacturaController extends Controller
                 ->with('error', 'Debes configurar los datos de la empresa primero');
         }
 
-        $formasPago = FormaPago::activos()->get();
-        $metodosPago = MetodoPago::activos()->get();
-        $usosCfdi = UsoCfdi::activos()->get();
+        $formasPago = $this->catalogoFormasPago();
+        $metodosPago = $this->catalogoMetodosPago();
+        $usosCfdi = $this->catalogoUsosCfdi();
 
         $clientePreseleccionado = null;
         if ($request->has('cliente_id')) {
-            $clientePreseleccionado = Cliente::find($request->cliente_id);
+            $clientePreseleccionado = Cliente::query()
+                ->find($request->cliente_id, [
+                    'id', 'nombre', 'rfc', 'regimen_fiscal', 'tipo_persona',
+                    'uso_cfdi_default', 'forma_pago', 'dias_credito',
+                ]);
         }
 
         $remisionId = null;
@@ -162,9 +167,13 @@ class FacturaController extends Controller
         $observacionesPre = null;
         $ordenCompraPreseleccionado = null;
         if ($request->filled('remision_id')) {
-            $rem = Remision::with(['detalles.producto', 'cliente'])
+            $prodCols = ['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor'];
+            $rem = Remision::with([
+                'detalles.producto' => fn ($q) => $q->select($prodCols),
+                'cliente:id,nombre,rfc,regimen_fiscal,tipo_persona,uso_cfdi_default,forma_pago,dias_credito',
+                'factura' => fn ($q) => $q->select(\App\Support\CfdiListadoColumnas::facturaRelacion()),
+            ])
                 ->where('estado', 'entregada')
-                ->with('factura')
                 ->find($request->remision_id);
             if (! $rem) {
                 return redirect()->route('remisiones.index')
@@ -228,6 +237,7 @@ class FacturaController extends Controller
 
     /**
      * Autocomplete de productos para crear/editar factura (sin cargar el catálogo completo).
+     * Prefijo en código primero (índice); nombre con LIKE solo para completar el cupo.
      */
     public function buscarProductos(Request $request)
     {
@@ -238,15 +248,26 @@ class FacturaController extends Controller
             return response()->json([]);
         }
 
-        $term = '%'.addcslashes($search, '%_\\').'%';
-        $productos = Producto::activos()
-            ->where(function ($query) use ($term) {
-                $query->where('nombre', 'like', $term)
-                    ->orWhere('codigo', 'like', $term);
-            })
-            ->orderBy('nombre')
+        $escaped = addcslashes($search, '%_\\');
+        $cols = ['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor'];
+        $porCodigo = Producto::activos()
+            ->where('codigo', 'like', $escaped.'%')
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'unidad', 'precio_venta', 'tasa_iva', 'tipo_factor']);
+            ->get($cols);
+
+        $productos = $porCodigo;
+        if ($porCodigo->count() < 10) {
+            $resto = Producto::activos()
+                ->where(function ($query) use ($escaped) {
+                    $query->where('nombre', 'like', '%'.$escaped.'%')
+                        ->orWhere('codigo', 'like', '%'.$escaped.'%');
+                })
+                ->whereNotIn('id', $porCodigo->pluck('id'))
+                ->orderBy('nombre')
+                ->limit(10 - $porCodigo->count())
+                ->get($cols);
+            $productos = $porCodigo->concat($resto)->values();
+        }
 
         return response()->json($productos->map(fn (Producto $p) => [
             'id' => $p->id,
@@ -664,22 +685,28 @@ class FacturaController extends Controller
     /**
      * Formulario editar factura (solo borrador)
      */
-    public function edit(Factura $factura)
+    public function edit(string $factura)
     {
         abort_unless(auth()->user()?->can('facturas.crear'), 403);
+
+        // Sin type-hint Eloquent: evita SELECT * (xml_content/sellos). Sync SAT solo vía POST.
+        $factura = Factura::query()
+            ->paraShow()
+            ->with([
+                'cliente:id,nombre,rfc,regimen_fiscal,tipo_persona,uso_cfdi_default,forma_pago,dias_credito',
+                'detalles.producto:id,codigo,nombre,unidad,tasa_iva,tipo_factor,clave_sat,clave_unidad_sat',
+            ])
+            ->findOrFail($factura);
 
         if (! $factura->esBorrador()) {
             return redirect()->route('facturas.show', $factura)
                 ->with('error', 'Solo se pueden editar facturas en borrador.');
         }
 
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos']);
-        $factura->sincronizarDatosFiscalesDesdeProductos();
-        $factura->load(['detalles.producto', 'detalles.impuestos']);
         $empresa = Empresa::principal();
-        $formasPago = FormaPago::activos()->get();
-        $metodosPago = MetodoPago::activos()->get();
-        $usosCfdi = UsoCfdi::activos()->get();
+        $formasPago = $this->catalogoFormasPago();
+        $metodosPago = $this->catalogoMetodosPago();
+        $usosCfdi = $this->catalogoUsosCfdi();
 
         return view('facturas.edit', compact('factura', 'empresa', 'formasPago', 'metodosPago', 'usosCfdi'));
     }
@@ -1557,5 +1584,21 @@ class FacturaController extends Controller
             'uuid_referencia' => Str::limit(implode(', ', $uuids), 500, ''),
             'tipo_relacion' => $tipoRelacion ?: '04',
         ];
+    }
+
+    /** Catálogos SAT chicos: cache 10 min (create/edit). */
+    private function catalogoFormasPago()
+    {
+        return Cache::remember('catalogo:formas_pago_activos', 600, fn () => FormaPago::activos()->get());
+    }
+
+    private function catalogoMetodosPago()
+    {
+        return Cache::remember('catalogo:metodos_pago_activos', 600, fn () => MetodoPago::activos()->get());
+    }
+
+    private function catalogoUsosCfdi()
+    {
+        return Cache::remember('catalogo:usos_cfdi_activos', 600, fn () => UsoCfdi::activos()->get());
     }
 }

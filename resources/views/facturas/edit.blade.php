@@ -292,6 +292,7 @@ let filaBusquedaActiva = null;
 let clienteTipoPersonaActual = @json($factura->cliente->tipo_persona ?? 'fisica');
 const productosBusquedaCache = {};
 const timersBusquedaProducto = {};
+const abortBusquedaProducto = {};
 const buscarProductosUrl = @json(route('facturas.buscar-productos'));
 const detallesIniciales = @json($detallesIniciales);
 const empresaIsrConfig = {
@@ -425,14 +426,19 @@ function buscarProductosFila(i, query) {
     const q = (query || '').trim();
     if (q.length < 2) {
         clearTimeout(timersBusquedaProducto[i]);
+        if (abortBusquedaProducto[i]) abortBusquedaProducto[i].abort();
         cerrarFlotanteProductosFactura();
         return;
     }
 
     clearTimeout(timersBusquedaProducto[i]);
     timersBusquedaProducto[i] = setTimeout(async () => {
+        if (abortBusquedaProducto[i]) abortBusquedaProducto[i].abort();
+        abortBusquedaProducto[i] = new AbortController();
         try {
-            const r = await fetch(`${buscarProductosUrl}?q=${encodeURIComponent(q)}`);
+            const r = await fetch(`${buscarProductosUrl}?q=${encodeURIComponent(q)}`, {
+                signal: abortBusquedaProducto[i].signal,
+            });
             const encontrados = await r.json();
             if (filaBusquedaActiva !== i) return;
             if (!Array.isArray(encontrados) || !encontrados.length) {
@@ -454,9 +460,10 @@ function buscarProductosFila(i, query) {
             flotante.classList.add('show');
             flotante.style.display = 'block';
         } catch (e) {
+            if (e && e.name === 'AbortError') return;
             console.error(e);
         }
-    }, 280);
+    }, 400);
 }
 
 function seleccionarProductoPorId(i, productoId) {

@@ -243,6 +243,54 @@ class Cotizacion extends Model
     }
 
     /**
+     * Nombre sugerido al ver/descargar el PDF: folio + cliente.
+     * No renombra el archivo en storage; solo Content-Disposition.
+     */
+    public function nombreArchivoPdfDescarga(): string
+    {
+        $partes = [trim((string) $this->folio)];
+
+        $cliente = trim((string) ($this->cliente_nombre ?? ''));
+        if ($cliente === '') {
+            $cliente = trim((string) ($this->cliente?->nombre ?? ''));
+        }
+        if ($cliente !== '') {
+            $partes[] = $cliente;
+        }
+
+        $base = implode(' ', $partes);
+        $base = preg_replace('/[\/\\\\:\*\?"<>\|\x00-\x1F]+/u', ' ', $base) ?? $base;
+        $base = preg_replace('/\s+/u', ' ', trim($base)) ?? trim($base);
+
+        if (mb_strlen($base) > 180) {
+            $base = rtrim(mb_substr($base, 0, 180));
+        }
+
+        if ($base === '') {
+            $base = 'Cotizacion_'.$this->id;
+        }
+
+        return $base.'.pdf';
+    }
+
+    /**
+     * Fallback ASCII para Content-Disposition (navegadores antiguos).
+     */
+    public function nombreArchivoPdfDescargaAscii(): string
+    {
+        $stem = pathinfo($this->nombreArchivoPdfDescarga(), PATHINFO_FILENAME);
+        $ascii = \Illuminate\Support\Str::ascii($stem);
+        $ascii = preg_replace('/[^A-Za-z0-9._ -]+/', '', $ascii) ?? '';
+        $ascii = preg_replace('/\s+/', ' ', trim($ascii)) ?? '';
+
+        if ($ascii === '') {
+            $ascii = 'Cotizacion_'.$this->id;
+        }
+
+        return $ascii.'.pdf';
+    }
+
+    /**
      * Verificar si está vencida
      */
     public function estaVencida(): bool

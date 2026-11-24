@@ -1196,19 +1196,33 @@ class FacturaController extends Controller
             return back()->with('error', 'XML no disponible');
         }
 
+        $nombre = $factura->nombreArchivoXmlDescarga();
+        $nombreAscii = $factura->nombreArchivoXmlDescargaAscii();
+
         $filepath = storage_path('app/'.$factura->xml_path);
         if ($factura->xml_path && file_exists($filepath)) {
-            return response()->download($filepath, $factura->folio_completo.'.xml');
+            return response()->download($filepath)->setContentDisposition(
+                'attachment',
+                $nombre,
+                $nombreAscii
+            );
         }
         $filepathPrivate = storage_path('app/private/'.$factura->xml_path);
         if ($factura->xml_path && file_exists($filepathPrivate)) {
-            return response()->download($filepathPrivate, $factura->folio_completo.'.xml');
+            return response()->download($filepathPrivate)->setContentDisposition(
+                'attachment',
+                $nombre,
+                $nombreAscii
+            );
         }
         if (! empty($factura->xml_content)) {
             return response($factura->xml_content, 200, [
                 'Content-Type' => 'application/xml',
-                'Content-Disposition' => 'attachment; filename="'.$factura->folio_completo.'.xml"',
-            ]);
+            ])->setContentDisposition(
+                'attachment',
+                $nombre,
+                $nombreAscii
+            );
         }
 
         return back()->with('error', 'Archivo XML no encontrado');
@@ -1554,7 +1568,8 @@ class FacturaController extends Controller
             mkdir($directory, 0755, true);
         }
 
-        $filename = $factura->folio_completo.'.xml';
+        // Mismo criterio que el PDF (folio + cliente [+ OC]); ASCII para path seguro en disco.
+        $filename = $factura->nombreArchivoXmlDescargaAscii();
         $filepath = $directory.'/'.$filename;
 
         file_put_contents($filepath, $xml);

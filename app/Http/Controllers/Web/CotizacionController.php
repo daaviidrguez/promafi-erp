@@ -652,9 +652,10 @@ class CotizacionController extends Controller
             $cotizacion->pdf_path = $pdfPath;
             $cotizacion->save();
 
-            return response()->download(
-                storage_path('app/' . $pdfPath),
-                'Cotizacion_' . $cotizacion->folio . '.pdf'
+            return response()->download(storage_path('app/' . $pdfPath))->setContentDisposition(
+                'attachment',
+                $cotizacion->nombreArchivoPdfDescarga(),
+                $cotizacion->nombreArchivoPdfDescargaAscii()
             );
 
         } catch (\Exception $e) {
@@ -674,9 +675,10 @@ class CotizacionController extends Controller
             return $this->generarPDF($id);
         }
 
-        return response()->download(
-            storage_path('app/' . $cotizacion->pdf_path),
-            'Cotizacion_' . $cotizacion->folio . '.pdf'
+        return response()->download(storage_path('app/' . $cotizacion->pdf_path))->setContentDisposition(
+            'attachment',
+            $cotizacion->nombreArchivoPdfDescarga(),
+            $cotizacion->nombreArchivoPdfDescargaAscii()
         );
     }
 
@@ -695,7 +697,13 @@ class CotizacionController extends Controller
                 $cotizacion->save();
             }
 
-            return response()->file(storage_path('app/' . $cotizacion->pdf_path));
+            return response()->file(storage_path('app/' . $cotizacion->pdf_path), [
+                'Content-Type' => 'application/pdf',
+            ])->setContentDisposition(
+                'inline',
+                $cotizacion->nombreArchivoPdfDescarga(),
+                $cotizacion->nombreArchivoPdfDescargaAscii()
+            );
 
         } catch (\Exception $e) {
             return back()->with('error', 'Error al mostrar PDF: ' . $e->getMessage());

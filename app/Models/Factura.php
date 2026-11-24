@@ -932,6 +932,22 @@ class Factura extends Model
     }
 
     /**
+     * Nombre al guardar/descargar el XML: mismo criterio que el PDF (.xml).
+     */
+    public function nombreArchivoXmlDescarga(): string
+    {
+        return pathinfo($this->nombreArchivoPdfDescarga(), PATHINFO_FILENAME).'.xml';
+    }
+
+    /**
+     * Fallback ASCII para el XML (navegadores antiguos / storage).
+     */
+    public function nombreArchivoXmlDescargaAscii(): string
+    {
+        return pathinfo($this->nombreArchivoPdfDescargaAscii(), PATHINFO_FILENAME).'.xml';
+    }
+
+    /**
      * Calcular solo IVA (traslados); no incluye retenciones (ISR, etc.).
      */
     public function calcularIVA(): float

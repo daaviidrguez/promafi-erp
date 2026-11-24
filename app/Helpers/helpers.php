@@ -74,6 +74,27 @@ if (!function_exists('formatMoney')) {
     }
 }
 
+if (!function_exists('formatValorUnitario')) {
+    /**
+     * Precio unitario CFDI: hasta 4 decimales (mínimo 2), sin ceros sobrantes.
+     */
+    function formatValorUnitario($amount): string
+    {
+        $n = round((float) ($amount ?? 0), 4);
+        $s = number_format($n, 4, '.', ',');
+        if (!str_contains($s, '.')) {
+            return $s . '.00';
+        }
+        [$entero, $dec] = explode('.', $s, 2);
+        $dec = rtrim($dec, '0');
+        if (strlen($dec) < 2) {
+            $dec = str_pad($dec, 2, '0');
+        }
+
+        return $entero . '.' . $dec;
+    }
+}
+
 if (!function_exists('formatDate')) {
     /**
      * Formatear fecha en español

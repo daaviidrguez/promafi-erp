@@ -539,7 +539,7 @@ table.pdf-pago-resumen--sin-entrega td:nth-child(3) { width: 20%; }
     @elseif($esRemision)
         ${{ number_format($d->precio_unitario ?? $d->producto?->precio_venta ?? 0, 2) }}
     @else
-        ${{ number_format($d->valor_unitario ?? 0, 2) }}
+        ${{ formatValorUnitario($d->valor_unitario ?? 0) }}
     @endif
 </td>
 <td class="center">

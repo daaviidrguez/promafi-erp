@@ -254,7 +254,7 @@ $breadcrumbs = [
                                 </td>
                                 <td class="td-center">{{ number_format($detalle->cantidad, 2) }}</td>
                                 <td class="td-right text-mono">
-                                    ${{ number_format($detalle->valor_unitario, 2, '.', ',') }}
+                                    ${{ formatValorUnitario($detalle->valor_unitario) }}
                                 </td>
                                 <td class="td-right text-mono fw-600">
                                     ${{ number_format($detalle->importe, 2, '.', ',') }}

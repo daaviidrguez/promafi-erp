@@ -156,7 +156,7 @@
     <td class="center">{{ number_format($d->cantidad, 4, '.', ',') }}</td>
     <td>{{ $d->unidad ?? $d->clave_unidad ?? 'Pieza' }}</td>
     <td>{{ $d->descripcion }}</td>
-    <td class="right">{{ formatMoney($d->valor_unitario) }}</td>
+    <td class="right">${{ formatValorUnitario($d->valor_unitario) }}</td>
     <td class="right">{{ formatMoney($d->importe) }}</td>
     <td class="right">{{ formatMoney($d->descuento ?? 0) }}</td>
     <td class="right">{{ formatMoney($impuestosTrasladadosLinea) }}</td>

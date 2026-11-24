@@ -389,6 +389,13 @@ function prefillFacturaDesdeRemision() {
 
 document.addEventListener('DOMContentLoaded', prefillFacturaDesdeRemision);
 
+/** Precio unitario: hasta 4 decimales (importe/totales siguen en 2). */
+function fmtValorUnitarioInput(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '';
+    return String(Number(v.toFixed(4)));
+}
+
 function agregarProducto(datos = null) {
     document.getElementById('emptyProductos').style.display = 'none';
     const i = productoIndex++;
@@ -396,7 +403,9 @@ function agregarProducto(datos = null) {
     const desc = datos ? (datos.nombre || datos.descripcion || '') : '';
     const prodId = datos ? (datos.producto_id || '') : '';
     const cant = datos ? datos.cantidad : 1;
-    const precio = datos ? datos.valor_unitario : '';
+    const precio = datos != null && datos.valor_unitario !== undefined && datos.valor_unitario !== null && datos.valor_unitario !== ''
+        ? fmtValorUnitarioInput(datos.valor_unitario)
+        : '';
     const descuento = datos ? (datos.descuento ?? 0) : 0;
     const tasaIva = datos ? (datos.tasa_iva ?? 0) : 0;
 
@@ -432,8 +441,8 @@ function agregarProducto(datos = null) {
         </td>
         <td class="td-right">
             <input type="number" name="productos[${i}][valor_unitario]"
-                   class="form-control" style="text-align: right; width: 100px;"
-                   value="${precio}" min="0" step="0.01" onchange="calcularTotales()" required>
+                   class="form-control" style="text-align: right; width: 110px;"
+                   value="${precio}" min="0" step="0.0001" onchange="calcularTotales()" required>
         </td>
         <td class="td-right">
             <input type="number" name="productos[${i}][descuento]"
@@ -515,7 +524,7 @@ function seleccionarProductoPorId(i, productoId) {
     }
     row.querySelector('.input-tasa-iva').value = String(tasa);
     row.querySelector('[name*="[descripcion]"]').value        = p.nombre || '';
-    row.querySelector('[name*="[valor_unitario]"]').value      = (parseFloat(p.precio_venta) || 0).toFixed(2);
+    row.querySelector('[name*="[valor_unitario]"]').value      = fmtValorUnitarioInput(p.precio_venta || 0);
     row.querySelector('.input-producto-id').value             = p.id;
     cerrarFlotanteProductosFactura();
     calcularTotales();

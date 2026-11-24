@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\AuditoriaExcepcionService;
 use App\Support\Rendimiento\RendimientoLogLector;
 use App\Support\Rendimiento\RendimientoRecolector;
+use App\Support\Rendimiento\RendimientoSemaforo;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,7 @@ use Throwable;
 
 /**
  * Instrumenta requests lentos para detectar rutas que saturan los procesos PHP del hosting.
+ * Además muestrea navegaciones HTML (carga de página UX: verde / amarillo / rojo).
  * Escribe en el canal `rendimiento` (nivel propio, independiente de LOG_LEVEL).
  * Si PHP corta la petición con un error fatal (memoria o tiempo agotado), la registra al apagarse.
  */
@@ -36,6 +38,12 @@ class LogSlowRequests
     public static function umbralSegundos(): float
     {
         return (float) config('logging.channels.rendimiento.umbral_segundos', 5.0);
+    }
+
+    /** Porcentaje 0–100 de muestras verdes (&lt; 2 s) en navegaciones HTML. */
+    public static function muestraPaginaPct(): int
+    {
+        return max(0, min(100, (int) config('logging.channels.rendimiento.muestra_pagina_pct', 10)));
     }
 
     public static function liberarMemoriaSiSeAgoto(string $mensajeError): void
@@ -68,20 +76,22 @@ class LogSlowRequests
 
         $segundos = microtime(true) - $inicio;
 
-        if ($segundos < self::umbralSegundos()) {
+        if ($segundos >= self::umbralSegundos()) {
+            try {
+                Log::channel('rendimiento')->warning(RendimientoLogLector::TIPO_LENTA, [
+                    'segundos' => round($segundos, 2),
+                    ...$this->contexto($request),
+                    'status' => $response->getStatusCode(),
+                    ...$this->recolector->resumen(),
+                ]);
+            } catch (Throwable) {
+                // El registro de métricas nunca debe romper la respuesta.
+            }
+
             return $response;
         }
 
-        try {
-            Log::channel('rendimiento')->warning(RendimientoLogLector::TIPO_LENTA, [
-                'segundos' => round($segundos, 2),
-                ...$this->contexto($request),
-                'status' => $response->getStatusCode(),
-                ...$this->recolector->resumen(),
-            ]);
-        } catch (Throwable) {
-            // El registro de métricas nunca debe romper la respuesta.
-        }
+        $this->registrarMuestraPaginaSiAplica($request, $response, $segundos);
 
         return $response;
     }
@@ -121,6 +131,70 @@ class LogSlowRequests
         } catch (Throwable) {
             // Idem: la bitácora es de mejor esfuerzo durante el apagado.
         }
+    }
+
+    /**
+     * Navegación HTML: siempre registra ≥ 2 s (amarillo/rojo UX); verdes solo por muestreo.
+     * No sustituye `request_lento` (≥ umbral de saturación).
+     */
+    private function registrarMuestraPaginaSiAplica(Request $request, Response $response, float $segundos): void
+    {
+        if (! $this->esNavegacionHtml($request, $response)) {
+            return;
+        }
+
+        $nivel = RendimientoSemaforo::nivelPorSegundosPagina($segundos);
+        if ($nivel === RendimientoSemaforo::VERDE) {
+            $pct = self::muestraPaginaPct();
+            if ($pct <= 0 || random_int(1, 100) > $pct) {
+                return;
+            }
+        }
+
+        try {
+            $resumen = $this->recolector->resumen();
+            Log::channel('rendimiento')->info(RendimientoLogLector::TIPO_PAGINA_SERVIDOR, [
+                'origen' => 'servidor',
+                'nivel' => $nivel,
+                'segundos' => round($segundos, 2),
+                ...$this->contexto($request),
+                'status' => $response->getStatusCode(),
+                'sql_consultas' => $resumen['sql_consultas'] ?? 0,
+                'sql_total_ms' => $resumen['sql_total_ms'] ?? 0,
+            ]);
+        } catch (Throwable) {
+            // Nunca romper la respuesta por telemetría.
+        }
+    }
+
+    private function esNavegacionHtml(Request $request, Response $response): bool
+    {
+        if (! in_array($request->method(), ['GET', 'HEAD'], true)) {
+            return false;
+        }
+        if ($request->ajax() || $request->expectsJson()) {
+            return false;
+        }
+        if (! $request->accepts(['text/html', 'application/xhtml+xml'])) {
+            return false;
+        }
+
+        $ruta = (string) ($request->route()?->getName() ?? '');
+        if ($ruta === 'rendimiento.pagina' || str_starts_with($ruta, 'auditoria.')) {
+            return false;
+        }
+
+        $disposition = (string) $response->headers->get('Content-Disposition', '');
+        if ($disposition !== '' && stripos($disposition, 'attachment') !== false) {
+            return false;
+        }
+
+        $contentType = (string) $response->headers->get('Content-Type', '');
+        if ($contentType !== '' && ! str_contains($contentType, 'text/html')) {
+            return false;
+        }
+
+        return $response->getStatusCode() < 500;
     }
 
     /**

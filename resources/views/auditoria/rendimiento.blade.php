@@ -2,7 +2,7 @@
 
 @section('title', 'Auditoría · Rendimiento')
 @section('page-title', '🩺 Auditoría')
-@section('page-subtitle', 'Peticiones lentas, peticiones cortadas por PHP y errores de MySQL que pueden saturar el hosting. Solo lectura.')
+@section('page-subtitle', 'Saturación (peticiones lentas) y carga de páginas (UX verde/amarillo/rojo). Solo lectura.')
 
 @php
 $breadcrumbs = [
@@ -15,9 +15,18 @@ $nombreUsuario = fn ($id) => $id ? ($usuarios[$id] ?? '#'.$id) : '—';
 $Semaforo = \App\Support\Rendimiento\RendimientoSemaforo::class;
 $Lector = \App\Support\Rendimiento\RendimientoLogLector::class;
 $claseTiempo = fn ($s) => (float) $s >= $Semaforo::SEGUNDOS_ROJO ? 'badge-danger' : 'badge-warning';
+$claseTiempoPagina = function ($s) use ($Semaforo) {
+    $n = $Semaforo::nivelPorSegundosPagina((float) $s);
+    return $n === $Semaforo::ROJO ? 'badge-danger' : ($n === $Semaforo::AMARILLO ? 'badge-warning' : 'badge-success');
+};
 $colorNivel = ['verde' => 'var(--color-success)', 'amarillo' => 'var(--color-warning)', 'rojo' => 'var(--color-danger)'];
 $claseNivel = ['verde' => 'badge-success', 'amarillo' => 'badge-warning', 'rojo' => 'badge-danger'];
 $filtrosBase = ['desde' => $desde->toDateString(), 'hasta' => $hasta->toDateString()];
+$paginasTotales = $paginasTotales ?? ['total' => 0, 'verdes' => 0, 'amarillos' => 0, 'rojos' => 0];
+$resumenPaginas = $resumenPaginas ?? [];
+$detallePaginas = $detallePaginas ?? [];
+$detallePaginasTotal = $detallePaginasTotal ?? 0;
+$muestraPct = $muestraPct ?? 10;
 @endphp
 
 @section('content')
@@ -48,9 +57,11 @@ $filtrosBase = ['desde' => $desde->toDateString(), 'hasta' => $hasta->toDateStri
             <a href="{{ route('auditoria.rendimiento') }}" class="btn btn-light">Hoy</a>
         </form>
         <p class="form-hint" style="margin:12px 0 0;">
-            Se registran las peticiones que tardan <strong>{{ $umbral }} s o más</strong>, las que PHP corta por memoria o tiempo agotado
-            y los errores de MySQL por saturación o bloqueo. Varias peticiones lentas en el mismo minuto indican que los procesos PHP
-            del hosting se llenaron y el resto de usuarios quedó esperando (causa típica del error 503/504).
+            <strong>Saturación:</strong> peticiones ≥ <strong>{{ $umbral }} s</strong>, abortadas por PHP y errores MySQL.
+            Varias lentas en el mismo minuto → procesos PHP llenos (503/504 típico).
+            <br>
+            <strong>Carga de página (UX):</strong> verde &lt; {{ $Semaforo::PAGINA_VERDE_MAX }} s · amarillo {{ $Semaforo::PAGINA_VERDE_MAX }}–{{ $Semaforo::PAGINA_AMARILLO_MAX }} s · rojo ≥ {{ $Semaforo::PAGINA_AMARILLO_MAX }} s.
+            Se registran siempre amarillo/rojo; verdes al {{ $muestraPct }}% (servidor + beacon navegador).
             Se conservan {{ $Lector::MAX_DIAS }} días.
         </p>
     </div>
@@ -83,11 +94,93 @@ $filtrosBase = ['desde' => $desde->toDateString(), 'hasta' => $hasta->toDateStri
                 <li><strong>Ruta:</strong> el peor color de sus peticiones; además rojo si participó en un minuto con saturación, promedia {{ $Semaforo::PROMEDIO_RUTA_ROJO }} s o más, o se repite {{ $Semaforo::VECES_POR_DIA_RUTA_ROJO }} veces o más por día.</li>
                 <li><strong>Periodo:</strong> rojo con cualquier petición cortada por PHP, minuto con saturación o error de MySQL; amarillo con alguna ruta en rojo o {{ $Semaforo::LENTAS_POR_DIA_AMARILLO }} peticiones lentas o más por día.</li>
                 <li>Verde significa que no se detectó riesgo en lo registrado: si el servidor web corta la conexión por fuera de PHP (error 504 del hosting), esa petición no alcanza a quedar en este registro.</li>
+                <li><strong>Carga de página:</strong> capa aparte (no mezcla saturación). Servidor = tiempo PHP; cliente = DOMContentLoaded del navegador.</li>
             </ul>
         </details>
     </div>
 </div>
 
+<h3 style="font-size:15px; margin:4px 0 8px;">Carga de páginas (UX)</h3>
+<div class="stats-grid" style="margin-bottom:16px;">
+    <div class="stat-card {{ ($paginasTotales['total'] ?? 0) > 0 ? 'stat-success' : 'stat-success' }}">
+        <div class="stat-info-box">
+            <div class="stat-label">Muestras de página</div>
+            <div class="stat-value">{{ $paginasTotales['total'] ?? 0 }}</div>
+            <div class="stat-sub">Servidor + navegador</div>
+        </div>
+        <div class="stat-icon">📄</div>
+    </div>
+    <div class="stat-card stat-success">
+        <div class="stat-info-box">
+            <div class="stat-label">Verde (&lt; {{ $Semaforo::PAGINA_VERDE_MAX }} s)</div>
+            <div class="stat-value">{{ $paginasTotales['verdes'] ?? 0 }}</div>
+            <div class="stat-sub">Muestreo {{ $muestraPct }}%</div>
+        </div>
+        <div class="stat-icon">🟢</div>
+    </div>
+    <div class="stat-card {{ ($paginasTotales['amarillos'] ?? 0) > 0 ? 'stat-warning' : 'stat-success' }}">
+        <div class="stat-info-box">
+            <div class="stat-label">Amarillo</div>
+            <div class="stat-value">{{ $paginasTotales['amarillos'] ?? 0 }}</div>
+            <div class="stat-sub">{{ $Semaforo::PAGINA_VERDE_MAX }}–{{ $Semaforo::PAGINA_AMARILLO_MAX }} s</div>
+        </div>
+        <div class="stat-icon">🟡</div>
+    </div>
+    <div class="stat-card {{ ($paginasTotales['rojos'] ?? 0) > 0 ? 'stat-danger' : 'stat-success' }}">
+        <div class="stat-info-box">
+            <div class="stat-label">Rojo (≥ {{ $Semaforo::PAGINA_AMARILLO_MAX }} s)</div>
+            <div class="stat-value">{{ $paginasTotales['rojos'] ?? 0 }}</div>
+            <div class="stat-sub">Priorizar optimización</div>
+        </div>
+        <div class="stat-icon">🔴</div>
+    </div>
+</div>
+
+@if ($resumenPaginas !== [])
+    <div class="table-container table-container--scroll" style="margin-bottom:16px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>UX</th>
+                    <th>Ruta</th>
+                    <th class="td-right">Muestras</th>
+                    <th class="td-right">🟢</th>
+                    <th class="td-right">🟡</th>
+                    <th class="td-right">🔴</th>
+                    <th class="td-right">Promedio</th>
+                    <th class="td-right">Máximo</th>
+                    <th>Última</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($resumenPaginas as $r)
+                    <tr>
+                        <td>@include('auditoria._semaforo', ['semaforo' => $r['semaforo']])</td>
+                        <td>
+                            <a href="{{ route('auditoria.rendimiento', $filtrosBase + ['ruta' => $r['ruta']]) }}" class="fw-600">{{ $r['ruta'] }}</a>
+                            <div class="text-muted" style="font-size:12px;">{{ $r['path'] }}</div>
+                        </td>
+                        <td class="td-right">{{ $r['veces'] }}</td>
+                        <td class="td-right">{{ $r['verdes'] }}</td>
+                        <td class="td-right">{{ $r['amarillos'] }}</td>
+                        <td class="td-right">{{ $r['rojos'] }}</td>
+                        <td class="td-right"><span class="badge {{ $claseTiempoPagina($r['promedio']) }}">{{ $fmtSeg($r['promedio']) }}</span></td>
+                        <td class="td-right"><span class="badge {{ $claseTiempoPagina($r['maximo']) }}">{{ $fmtSeg($r['maximo']) }}</span></td>
+                        <td class="text-muted" style="font-size:12px; white-space:nowrap;">{{ $r['ultima']->format('d/m H:i') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+@elseif (($paginasTotales['total'] ?? 0) === 0)
+    <div class="card" style="margin-bottom:16px;">
+        <div class="card-body text-center text-muted" style="padding:20px;">
+            Aún no hay muestras de carga de página en este rango. Navega el ERP unos minutos y vuelve a filtrar.
+        </div>
+    </div>
+@endif
+
+<h3 style="font-size:15px; margin:20px 0 8px;">Saturación (peticiones lentas)</h3>
 <div class="stats-grid">
     <div class="stat-card {{ $totales['peticiones'] > 0 ? 'stat-warning' : 'stat-success' }}">
         <div class="stat-info-box">
@@ -133,8 +226,8 @@ $filtrosBase = ['desde' => $desde->toDateString(), 'hasta' => $hasta->toDateStri
 
 @if ($totales['peticiones'] === 0 && $totales['errores_mysql'] === 0)
     <div class="card" style="margin-bottom:16px;">
-        <div class="card-body text-center text-muted" style="padding:32px;">
-            Sin peticiones lentas ni errores de MySQL en el rango seleccionado.
+        <div class="card-body text-center text-muted" style="padding:24px;">
+            Sin peticiones lentas (≥ {{ $umbral }} s) ni errores de MySQL en el rango. La sección de carga de páginas (arriba) es independiente.
         </div>
     </div>
 @endif
@@ -240,9 +333,61 @@ $filtrosBase = ['desde' => $desde->toDateString(), 'hasta' => $hasta->toDateStri
     </div>
 @endif
 
+@if ($detallePaginas !== [])
+    <h3 style="font-size:15px; margin:20px 0 8px;">
+        Detalle carga de página{{ $ruta !== '' ? ': '.$ruta : '' }}
+        @if ($detallePaginasTotal > count($detallePaginas))
+            <span class="text-muted" style="font-size:12px; font-weight:400;">(últimas {{ count($detallePaginas) }} de {{ $detallePaginasTotal }})</span>
+        @endif
+    </h3>
+    <div class="table-container table-container--scroll" style="margin-bottom:16px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>UX</th>
+                    <th>Fecha</th>
+                    <th>Origen</th>
+                    <th>Tiempo</th>
+                    <th>Ruta</th>
+                    <th>Usuario</th>
+                    <th>Extra</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($detallePaginas as $e)
+                    @php $d = $e['datos']; @endphp
+                    <tr>
+                        <td>@include('auditoria._semaforo', ['semaforo' => $e['semaforo']])</td>
+                        <td style="white-space:nowrap;">{{ $e['fecha']->format('d/m H:i:s') }}</td>
+                        <td>{{ ($d['origen'] ?? '') === 'cliente' ? 'Navegador' : 'Servidor' }}</td>
+                        <td><span class="badge {{ $claseTiempoPagina($d['segundos'] ?? $d['dcl_s'] ?? 0) }}">{{ $fmtSeg($d['segundos'] ?? $d['dcl_s'] ?? 0) }}</span></td>
+                        <td>
+                            {{ $d['route'] ?? '—' }}
+                            <div class="text-muted" style="font-size:12px;">{{ $d['path'] ?? '' }}</div>
+                        </td>
+                        <td>{{ $nombreUsuario($d['user_id'] ?? null) }}</td>
+                        <td class="text-muted" style="font-size:12px;">
+                            @if (($d['origen'] ?? '') === 'cliente')
+                                load {{ isset($d['load_s']) ? $fmtSeg($d['load_s']) : '—' }}
+                                · TTFB {{ isset($d['ttfb_s']) ? $fmtSeg($d['ttfb_s']) : '—' }}
+                            @else
+                                @if (isset($d['sql_consultas']))
+                                    {{ number_format($d['sql_consultas']) }} SQL · {{ $fmtMs($d['sql_total_ms'] ?? null) }}
+                                @else
+                                    —
+                                @endif
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+@endif
+
 @if ($detalle !== [])
     <h3 style="font-size:15px; margin:20px 0 8px;">
-        Detalle{{ $ruta !== '' ? ': '.$ruta : '' }}
+        Detalle saturación{{ $ruta !== '' ? ': '.$ruta : '' }}
         @if ($detalleTotal > count($detalle))
             <span class="text-muted" style="font-size:12px; font-weight:400;">(últimas {{ count($detalle) }} de {{ $detalleTotal }})</span>
         @endif

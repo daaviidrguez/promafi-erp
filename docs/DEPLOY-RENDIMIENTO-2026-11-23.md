@@ -268,6 +268,34 @@
 
 ---
 
+## 1.n Ronda 14 — auditoría: carga de página (UX verde/amarillo/rojo)
+
+Capa **aparte** de saturación (`request_lento` ≥ 5 s). No sustituye el semáforo de riesgo.
+
+| Color | Umbral | Qué registra |
+|-------|--------|----------------|
+| Verde | &lt; 2 s | Muestra ~10% (`LOG_RENDIMIENTO_MUESTRA_PCT`) |
+| Amarillo | 2–5 s | Siempre (navegación HTML + beacon) |
+| Rojo | ≥ 5 s | Siempre (alineado con umbral de lentas) |
+
+| Cambio | Detalle |
+|--------|---------|
+| Servidor | `LogSlowRequests` muestrea GET HTML; ≥2 s siempre; &lt;2 s al % |
+| Cliente | Beacon `POST /rendimiento/pagina` (DOMContentLoaded) desde `layouts/app` |
+| UI | Bloque «Carga de páginas (UX)» + resumen/detalle; saturación intacta |
+| Log | Canal `rendimiento` nivel `info` (muestras); tipos `pagina_servidor` / `pagina_cliente` |
+
+### Deploy extra ronda 14
+- [ ] `php artisan view:cache` / `route:cache` / `config:cache`
+- [ ] Opcional `.env`: `LOG_RENDIMIENTO_MUESTRA_PCT=10`
+- [ ] Navegar ERP → Auditoría → Rendimiento: deben aparecer muestras UX
+
+### Archivos ronda 14
+- `RendimientoSemaforo`, `RendimientoLogLector`, `LogSlowRequests`, `AuditoriaController`
+- `layouts/app.blade.php`, `auditoria/rendimiento.blade.php`, `config/logging.php`, `routes/web.php`
+
+---
+
 ## 1.m Ronda 13 — productos (index/show/create/edit)
 
 **Sin PAC.** Misma UI de catálogo; menos I/O en listado y ficha.
@@ -344,6 +372,7 @@ Opcional recomendado:
 ```env
 LOG_STACK=daily
 # LOG_RENDIMIENTO_UMBRAL=5
+# LOG_RENDIMIENTO_MUESTRA_PCT=10
 ```
 
 Checklist:

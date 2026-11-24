@@ -75,17 +75,19 @@ return [
         ],
 
         /*
-         * Peticiones lentas, peticiones cortadas por PHP y errores MySQL. Nivel fijo (no usa LOG_LEVEL)
-         * para seguir capturando aunque producción esté en `error`. Lo lee la pantalla
-         * Auditoría → Rendimiento (RendimientoLogLector), por eso el formato JSON por línea.
+         * Peticiones lentas, muestras de carga de página, abortadas PHP y errores MySQL.
+         * Nivel `info` para poder registrar muestras verdes/amarillas; las lentas siguen en warning+.
+         * Independiente de LOG_LEVEL. Lo lee Auditoría → Rendimiento (JSON por línea).
          */
         'rendimiento' => [
             'driver' => 'daily',
             'path' => storage_path('logs/rendimiento.log'),
-            'level' => 'warning',
+            'level' => 'info',
             'days' => env('LOG_RENDIMIENTO_DAYS', 14),
             'formatter' => JsonFormatter::class,
             'umbral_segundos' => (float) env('LOG_RENDIMIENTO_UMBRAL', 5),
+            /** % de navegaciones HTML &lt; 2 s que se registran (amarillo/rojo siempre). */
+            'muestra_pagina_pct' => (int) env('LOG_RENDIMIENTO_MUESTRA_PCT', 10),
         ],
 
         'slack' => [

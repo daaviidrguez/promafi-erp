@@ -10,8 +10,10 @@ use App\Services\AuditoriaExcepcionService;
 use App\Support\Rendimiento\RendimientoLogLector;
 use App\Support\Rendimiento\RendimientoSemaforo;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Throwable;
 
@@ -40,6 +42,10 @@ class AuditoriaController extends Controller
             fn (array $e) => $e + ['semaforo' => RendimientoSemaforo::peticion($e['datos'])],
             RendimientoLogLector::soloPeticiones($entradas)
         );
+        $paginas = array_map(
+            fn (array $e) => $e + ['semaforo' => RendimientoSemaforo::pagina($e['datos'])],
+            RendimientoLogLector::soloPaginas($entradas)
+        );
         $erroresMysql = RendimientoLogLector::soloErroresMysql($entradas);
         $picos = RendimientoLogLector::picos($peticiones);
         $dias = (int) round($desde->diffInDays($hasta)) + 1;
@@ -59,10 +65,35 @@ class AuditoriaController extends Controller
             RendimientoLogLector::resumenPorRuta($peticiones)
         );
 
+        $resumenPaginas = array_map(
+            function (array $r) {
+                $nivel = $r['rojos'] > 0
+                    ? RendimientoSemaforo::ROJO
+                    : ($r['amarillos'] > 0 ? RendimientoSemaforo::AMARILLO : RendimientoSemaforo::VERDE);
+                $seg = (float) $r['promedio'];
+
+                return $r + [
+                    'semaforo' => RendimientoSemaforo::pagina([
+                        'nivel' => $nivel,
+                        'segundos' => $seg,
+                        'origen' => 'servidor',
+                    ]),
+                ];
+            },
+            RendimientoLogLector::resumenPaginasPorRuta($paginas)
+        );
+
         $detalle = $ruta === ''
             ? $peticiones
             : array_values(array_filter(
                 $peticiones,
+                fn (array $e) => ($e['datos']['route'] ?? null) === $ruta || ($e['datos']['path'] ?? null) === $ruta
+            ));
+
+        $detallePaginas = $ruta === ''
+            ? $paginas
+            : array_values(array_filter(
+                $paginas,
                 fn (array $e) => ($e['datos']['route'] ?? null) === $ruta || ($e['datos']['path'] ?? null) === $ruta
             ));
 
@@ -76,12 +107,29 @@ class AuditoriaController extends Controller
             : User::query()->whereIn('id', $userIds)->pluck('name', 'id');
 
         $segundos = array_map(fn (array $e) => (float) ($e['datos']['segundos'] ?? 0), $peticiones);
+        $conteoPaginas = [
+            'total' => count($paginas),
+            'verdes' => 0,
+            'amarillos' => 0,
+            'rojos' => 0,
+        ];
+        foreach ($paginas as $p) {
+            $n = $p['semaforo']['nivel'];
+            if ($n === RendimientoSemaforo::ROJO) {
+                $conteoPaginas['rojos']++;
+            } elseif ($n === RendimientoSemaforo::AMARILLO) {
+                $conteoPaginas['amarillos']++;
+            } else {
+                $conteoPaginas['verdes']++;
+            }
+        }
 
         return view('auditoria.rendimiento', [
             'desde' => $desde,
             'hasta' => $hasta,
             'ruta' => $ruta,
             'umbral' => LogSlowRequests::umbralSegundos(),
+            'muestraPct' => LogSlowRequests::muestraPaginaPct(),
             'totales' => [
                 'peticiones' => count($peticiones),
                 'abortadas' => count(array_filter($peticiones, fn (array $e) => RendimientoSemaforo::esAbortada($e['datos']))),
@@ -92,16 +140,69 @@ class AuditoriaController extends Controller
                     fn (array $e) => ! empty($e['datos']['http_externas'])
                 )),
             ],
+            'paginasTotales' => $conteoPaginas,
             'semaforo' => RendimientoSemaforo::global($peticiones, $erroresMysql, count($picos), $resumen, $dias),
             'resumen' => $resumen,
+            'resumenPaginas' => $resumenPaginas,
             'picos' => $picos,
             'erroresMysql' => array_slice($erroresMysql, 0, self::MAX_DETALLE),
             'detalle' => array_slice($detalle, 0, self::MAX_DETALLE),
+            'detallePaginas' => array_slice($detallePaginas, 0, self::MAX_DETALLE),
+            'detallePaginasTotal' => count($detallePaginas),
             'detalleTotal' => count($detalle),
             'maxDetalle' => self::MAX_DETALLE,
             'truncado' => count($entradas) >= RendimientoLogLector::MAX_ENTRADAS,
             'usuarios' => $usuarios,
         ]);
+    }
+
+    /**
+     * Beacon ligero del navegador (DOMContentLoaded / load). Cualquier usuario autenticado.
+     */
+    public function registrarPagina(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'path' => 'required|string|max:500',
+            'route' => 'nullable|string|max:120',
+            'dcl_s' => 'required|numeric|min:0|max:600',
+            'load_s' => 'nullable|numeric|min:0|max:600',
+            'ttfb_s' => 'nullable|numeric|min:0|max:600',
+        ]);
+
+        $path = '/'.ltrim(parse_url($validated['path'], PHP_URL_PATH) ?: $validated['path'], '/');
+        if (str_starts_with($path, '/auditoria') || $path === '/rendimiento/pagina') {
+            return response()->json(['ok' => true, 'skipped' => true]);
+        }
+
+        $dcl = round((float) $validated['dcl_s'], 2);
+        $nivel = RendimientoSemaforo::nivelPorSegundosPagina($dcl);
+
+        if ($nivel === RendimientoSemaforo::VERDE) {
+            $pct = LogSlowRequests::muestraPaginaPct();
+            if ($pct <= 0 || random_int(1, 100) > $pct) {
+                return response()->json(['ok' => true, 'skipped' => true]);
+            }
+        }
+
+        try {
+            Log::channel('rendimiento')->info(RendimientoLogLector::TIPO_PAGINA_CLIENTE, [
+                'origen' => 'cliente',
+                'nivel' => $nivel,
+                'segundos' => $dcl,
+                'dcl_s' => $dcl,
+                'load_s' => isset($validated['load_s']) ? round((float) $validated['load_s'], 2) : null,
+                'ttfb_s' => isset($validated['ttfb_s']) ? round((float) $validated['ttfb_s'], 2) : null,
+                'method' => 'GET',
+                'path' => $path,
+                'route' => $validated['route'] ?? null,
+                'user_id' => $request->user()?->id,
+                'status' => 200,
+            ]);
+        } catch (Throwable) {
+            // Telemetría best-effort.
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     public function errores(Request $request): View

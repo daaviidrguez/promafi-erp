@@ -45,6 +45,7 @@ class EnsureUserHasRoutePermission
         'roles' => 'roles.ver',
         'importador-cfdi' => 'importador_cfdi.ver',
         'auditoria' => 'auditoria.ver',
+        'rendimiento' => null, // beacon de carga de página (todos los autenticados)
         'cancelaciones-administrativas' => 'cancelaciones_administrativas.administrar',
     ];
 

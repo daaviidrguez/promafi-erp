@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="promafi-route" content="{{ Route::currentRouteName() }}">
+    <meta name="promafi-rendimiento-pagina" content="{{ route('rendimiento.pagina') }}">
     <title>@yield('title', 'Dashboard') — PROMAFI ERP</title>
 
     @PwaHead
@@ -297,6 +299,67 @@
             hide: hide,
             get visible() { return visible; },
         };
+    })();
+    </script>
+
+    {{-- Beacon UX: DOMContentLoaded (siempre ≥2 s; verdes muestreados en servidor). --}}
+    <script>
+    (function () {
+        if (window.PromafiPageBeacon && window.PromafiPageBeacon._done) return;
+        window.PromafiPageBeacon = { _done: true };
+
+        function meta(name) {
+            var el = document.querySelector('meta[name="' + name + '"]');
+            return el ? el.getAttribute('content') : '';
+        }
+
+        function enviar() {
+            var url = meta('promafi-rendimiento-pagina');
+            var csrf = meta('csrf-token');
+            if (!url || !csrf || !window.performance || !performance.getEntriesByType) return;
+
+            var nav = performance.getEntriesByType('navigation')[0];
+            if (!nav) return;
+
+            var dcl = Math.max(0, (nav.domContentLoadedEventEnd || 0) / 1000);
+            var load = Math.max(0, (nav.loadEventEnd || 0) / 1000);
+            var ttfb = Math.max(0, ((nav.responseStart || 0) - (nav.requestStart || 0)) / 1000);
+            if (dcl <= 0 && load <= 0) return;
+
+            // Espejo del servidor: verdes (~10%) se filtran en el endpoint.
+            var body = JSON.stringify({
+                path: window.location.pathname + window.location.search,
+                route: meta('promafi-route') || null,
+                dcl_s: Math.round(dcl * 100) / 100,
+                load_s: Math.round(load * 100) / 100,
+                ttfb_s: Math.round(ttfb * 100) / 100,
+            });
+
+            try {
+                if (navigator.sendBeacon) {
+                    var blob = new Blob([body], { type: 'application/json' });
+                    // sendBeacon no manda CSRF fácil: usamos fetch keepalive
+                }
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: body,
+                    credentials: 'same-origin',
+                    keepalive: true,
+                }).catch(function () {});
+            } catch (e) {}
+        }
+
+        if (document.readyState === 'complete') {
+            setTimeout(enviar, 0);
+        } else {
+            window.addEventListener('load', function () { setTimeout(enviar, 0); });
+        }
     })();
     </script>
 

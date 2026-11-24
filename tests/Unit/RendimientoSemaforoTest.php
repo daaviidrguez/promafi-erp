@@ -191,4 +191,20 @@ class RendimientoSemaforoTest extends TestCase
         $this->assertSame(RendimientoSemaforo::AMARILLO, $s['nivel']);
         $this->assertSame('~5.0 peticiones lentas por día', $s['motivos'][0]['texto']);
     }
+
+    #[Test]
+    public function carga_de_pagina_usa_umbrales_verde_amarillo_rojo(): void
+    {
+        $this->assertSame(RendimientoSemaforo::VERDE, RendimientoSemaforo::nivelPorSegundosPagina(1.9));
+        $this->assertSame(RendimientoSemaforo::AMARILLO, RendimientoSemaforo::nivelPorSegundosPagina(2.0));
+        $this->assertSame(RendimientoSemaforo::AMARILLO, RendimientoSemaforo::nivelPorSegundosPagina(4.9));
+        $this->assertSame(RendimientoSemaforo::ROJO, RendimientoSemaforo::nivelPorSegundosPagina(5.0));
+
+        $verde = RendimientoSemaforo::pagina(['origen' => 'servidor', 'segundos' => 1.2]);
+        $this->assertSame(RendimientoSemaforo::VERDE, $verde['nivel']);
+
+        $cliente = RendimientoSemaforo::pagina(['origen' => 'cliente', 'dcl_s' => 3.4]);
+        $this->assertSame(RendimientoSemaforo::AMARILLO, $cliente['nivel']);
+        $this->assertStringContainsString('DOM listo', $cliente['motivos'][0]['texto']);
+    }
 }

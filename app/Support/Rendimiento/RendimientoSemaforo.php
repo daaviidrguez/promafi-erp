@@ -32,6 +32,14 @@ final class RendimientoSemaforo
 
     public const LENTAS_POR_DIA_AMARILLO = 5.0;
 
+    /**
+     * Carga de página (UX): verde &lt; 2 s, amarillo 2–5 s, rojo ≥ 5 s.
+     * Alineado con LOG_RENDIMIENTO_UMBRAL (5 s) para riesgo de saturación.
+     */
+    public const PAGINA_VERDE_MAX = 2.0;
+
+    public const PAGINA_AMARILLO_MAX = 5.0;
+
     private const PESO = [self::VERDE => 0, self::AMARILLO => 1, self::ROJO => 2];
 
     private const ETIQUETAS = [self::VERDE => 'Sin riesgo', self::AMARILLO => 'Riesgo medio', self::ROJO => 'Riesgo alto'];
@@ -43,6 +51,51 @@ final class RendimientoSemaforo
     public static function etiqueta(string $nivel): string
     {
         return self::ETIQUETAS[$nivel] ?? $nivel;
+    }
+
+    /**
+     * Nivel UX por segundos de carga (servidor TTFB/respuesta o DOMContentLoaded en cliente).
+     */
+    public static function nivelPorSegundosPagina(float $segundos): string
+    {
+        if ($segundos >= self::PAGINA_AMARILLO_MAX) {
+            return self::ROJO;
+        }
+        if ($segundos >= self::PAGINA_VERDE_MAX) {
+            return self::AMARILLO;
+        }
+
+        return self::VERDE;
+    }
+
+    /**
+     * Semáforo de una muestra de carga de página (no es riesgo de saturación).
+     *
+     * @param  array<string, mixed>  $datos  Contexto `pagina_servidor` o `pagina_cliente`.
+     * @return Semaforo
+     */
+    public static function pagina(array $datos): array
+    {
+        $origen = (string) ($datos['origen'] ?? 'servidor');
+        $seg = (float) ($datos['segundos'] ?? 0);
+        if ($seg <= 0 && isset($datos['dcl_s'])) {
+            $seg = (float) $datos['dcl_s'];
+        }
+        $nivel = isset($datos['nivel']) && in_array($datos['nivel'], [self::VERDE, self::AMARILLO, self::ROJO], true)
+            ? (string) $datos['nivel']
+            : self::nivelPorSegundosPagina($seg);
+
+        $metrica = $origen === 'cliente' ? 'DOM listo' : 'respuesta PHP';
+        $texto = $metrica.' en '.number_format($seg, 1).' s';
+        $accion = match ($nivel) {
+            self::ROJO => 'Prioriza esta ruta: supera '.self::PAGINA_AMARILLO_MAX.' s de carga percibida/servidor.',
+            self::AMARILLO => 'Se nota lenta ('.self::PAGINA_VERDE_MAX.'–'.self::PAGINA_AMARILLO_MAX.' s): conviene optimizar select/eager/cache.',
+            default => 'Dentro del objetivo (< '.self::PAGINA_VERDE_MAX.' s).',
+        };
+
+        return self::semaforo([
+            self::motivo('tiempo_pagina', $nivel, $texto, $accion, $seg),
+        ]);
     }
 
     /**

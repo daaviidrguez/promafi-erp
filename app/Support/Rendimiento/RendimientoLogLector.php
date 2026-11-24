@@ -25,6 +25,12 @@ final class RendimientoLogLector
 
     public const TIPO_MYSQL = 'mysql_error';
 
+    /** Muestra de navegación HTML (tiempo respuesta PHP / TTFB aproximado). */
+    public const TIPO_PAGINA_SERVIDOR = 'pagina_servidor';
+
+    /** Beacon del navegador (DOMContentLoaded / load). */
+    public const TIPO_PAGINA_CLIENTE = 'pagina_cliente';
+
     public function __construct(
         private readonly ?string $directorio = null,
     ) {}
@@ -237,6 +243,84 @@ final class RendimientoLogLector
     public static function soloErroresMysql(array $entradas): array
     {
         return array_values(array_filter($entradas, fn (array $e) => $e['tipo'] === self::TIPO_MYSQL));
+    }
+
+    /**
+     * Muestras de carga de página (servidor y/o cliente). No entran en saturación.
+     *
+     * @param  list<array{tipo: string, fecha: CarbonImmutable, datos: array<string, mixed>}>  $entradas
+     * @return list<array{tipo: string, fecha: CarbonImmutable, datos: array<string, mixed>}>
+     */
+    public static function soloPaginas(array $entradas): array
+    {
+        return array_values(array_filter(
+            $entradas,
+            fn (array $e) => $e['tipo'] === self::TIPO_PAGINA_SERVIDOR || $e['tipo'] === self::TIPO_PAGINA_CLIENTE
+        ));
+    }
+
+    /**
+     * @param  list<array{tipo: string, fecha: CarbonImmutable, datos: array<string, mixed>}>  $paginas
+     * @return list<array{
+     *     ruta: string, path: string, veces: int, promedio: float, maximo: float,
+     *     verdes: int, amarillos: int, rojos: int, ultima: CarbonImmutable
+     * }>
+     */
+    public static function resumenPaginasPorRuta(array $paginas): array
+    {
+        $grupos = [];
+        foreach ($paginas as $e) {
+            $d = $e['datos'];
+            $clave = self::claveRuta($d);
+            $seg = (float) ($d['segundos'] ?? $d['dcl_s'] ?? 0);
+            $nivel = (string) ($d['nivel'] ?? RendimientoSemaforo::nivelPorSegundosPagina($seg));
+
+            $g = $grupos[$clave] ?? [
+                'ruta' => $clave,
+                'path' => (string) ($d['path'] ?? ''),
+                'veces' => 0,
+                'total' => 0.0,
+                'maximo' => 0.0,
+                'verdes' => 0,
+                'amarillos' => 0,
+                'rojos' => 0,
+                'ultima' => $e['fecha'],
+            ];
+
+            $g['veces']++;
+            $g['total'] += $seg;
+            $g['maximo'] = max($g['maximo'], $seg);
+            if ($nivel === RendimientoSemaforo::ROJO) {
+                $g['rojos']++;
+            } elseif ($nivel === RendimientoSemaforo::AMARILLO) {
+                $g['amarillos']++;
+            } else {
+                $g['verdes']++;
+            }
+            if ($e['fecha']->greaterThan($g['ultima'])) {
+                $g['ultima'] = $e['fecha'];
+            }
+
+            $grupos[$clave] = $g;
+        }
+
+        $resultado = array_map(fn (array $g) => [
+            'ruta' => $g['ruta'],
+            'path' => $g['path'],
+            'veces' => $g['veces'],
+            'promedio' => round($g['total'] / max(1, $g['veces']), 1),
+            'maximo' => round($g['maximo'], 1),
+            'verdes' => $g['verdes'],
+            'amarillos' => $g['amarillos'],
+            'rojos' => $g['rojos'],
+            'ultima' => $g['ultima'],
+        ], array_values($grupos));
+
+        usort($resultado, function (array $a, array $b) {
+            return [$b['rojos'], $b['amarillos'], $b['promedio']] <=> [$a['rojos'], $a['amarillos'], $a['promedio']];
+        });
+
+        return $resultado;
     }
 
     private function rutaArchivo(CarbonImmutable $dia): string

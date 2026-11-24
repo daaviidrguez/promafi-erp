@@ -484,4 +484,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/auditoria/rendimiento', [AuditoriaController::class, 'rendimiento'])->name('auditoria.rendimiento');
     Route::get('/auditoria/errores', [AuditoriaController::class, 'errores'])->name('auditoria.errores');
 
+    // Beacon de carga de página (cualquier usuario autenticado; no exige auditoria.ver).
+    Route::post('/rendimiento/pagina', [AuditoriaController::class, 'registrarPagina'])->name('rendimiento.pagina');
+
 });

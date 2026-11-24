@@ -438,6 +438,47 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
 }
 @keyframes conexion-spin { to { transform: rotate(360deg); } }
 
+/* Overlay navegación (menú / filtros / paginación): percepción de carga */
+.nav-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 9400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    margin: 0;
+    box-sizing: border-box;
+    background: rgba(248, 250, 252, 0.72);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: all;
+    cursor: wait;
+}
+.nav-loading[hidden] { display: none !important; }
+.nav-loading__panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+}
+.nav-loading__spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid rgba(11, 60, 93, 0.18);
+    border-top-color: var(--color-primary);
+    animation: conexion-spin 0.75s linear infinite;
+}
+.nav-loading__text {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-primary);
+    letter-spacing: 0.01em;
+}
+
 /* Estado borrador local */
 .promafi-autosave-status {
     font-size: 13px;

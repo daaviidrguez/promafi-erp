@@ -189,6 +189,117 @@
 
     @include('partials.conexion_status', ['conexionPart' => 'body'])
 
+    {{-- Overlay al navegar (tablas/filtros/menú). No sustituye “Timbrando…” del PAC. --}}
+    <div id="promafiNavLoading" class="nav-loading" hidden role="status" aria-live="polite" aria-busy="true">
+        <div class="nav-loading__panel">
+            <div class="nav-loading__spinner" aria-hidden="true"></div>
+            <p class="nav-loading__text">Cargando, espere…</p>
+        </div>
+    </div>
+    <script>
+    (function () {
+        if (window.PromafiNavLoader && window.PromafiNavLoader._initDone) return;
+
+        const DELAY_MS = 200;
+        let showTimer = null;
+        let visible = false;
+
+        function overlay() {
+            return document.getElementById('promafiNavLoading');
+        }
+
+        function showNow() {
+            const el = overlay();
+            if (!el) return;
+            visible = true;
+            el.hidden = false;
+            document.documentElement.style.cursor = 'wait';
+        }
+
+        function hide() {
+            clearTimeout(showTimer);
+            showTimer = null;
+            visible = false;
+            const el = overlay();
+            if (el) el.hidden = true;
+            document.documentElement.style.cursor = '';
+        }
+
+        function scheduleShow() {
+            clearTimeout(showTimer);
+            showTimer = setTimeout(showNow, DELAY_MS);
+        }
+
+        function isModifiedClick(e) {
+            return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1;
+        }
+
+        function shouldSkipLink(a) {
+            if (!a) return true;
+            if (a.hasAttribute('download')) return true;
+            if (a.getAttribute('data-no-nav-loader') !== null) return true;
+            const target = (a.getAttribute('target') || '').toLowerCase();
+            if (target === '_blank') return true;
+            const href = a.getAttribute('href');
+            if (!href || href === '#' || href.startsWith('#')) return true;
+            const lower = href.toLowerCase();
+            if (lower.startsWith('javascript:') || lower.startsWith('mailto:') || lower.startsWith('tel:')) return true;
+            try {
+                const url = new URL(href, window.location.href);
+                if (url.origin !== window.location.origin) return true;
+                if (url.pathname === window.location.pathname
+                    && url.search === window.location.search
+                    && url.hash) {
+                    return true;
+                }
+            } catch (err) {
+                return true;
+            }
+            return false;
+        }
+
+        function shouldSkipForm(form) {
+            if (!form) return true;
+            if (form.getAttribute('data-no-nav-loader') !== null) return true;
+            if (form.classList.contains('form-timbrar-protegido')) return true;
+            const target = (form.getAttribute('target') || '').toLowerCase();
+            if (target === '_blank') return true;
+            return false;
+        }
+
+        document.addEventListener('click', function (e) {
+            if (isModifiedClick(e)) return;
+            const a = e.target.closest && e.target.closest('a[href]');
+            if (!a || shouldSkipLink(a)) return;
+            if (e.defaultPrevented) return;
+            scheduleShow();
+        }, true);
+
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (!(form instanceof HTMLFormElement)) return;
+            if (shouldSkipForm(form)) return;
+            if (e.defaultPrevented) return;
+            scheduleShow();
+        }, true);
+
+        window.addEventListener('pageshow', function () {
+            hide();
+        });
+        window.addEventListener('pagehide', function () {
+            clearTimeout(showTimer);
+        });
+
+        window.PromafiNavLoader = {
+            _initDone: true,
+            show: scheduleShow,
+            showNow: showNow,
+            hide: hide,
+            get visible() { return visible; },
+        };
+    })();
+    </script>
+
     @stack('scripts')
 </body>
 </html>

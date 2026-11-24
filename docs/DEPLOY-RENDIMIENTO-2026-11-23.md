@@ -219,6 +219,31 @@
 
 ---
 
+## 1.k Ronda 11 — overlay “Cargando, espere…” en navegación
+
+**Objetivo:** percepción (evitar página en blanco al cambiar de listado/filtro), **sin** tocar PAC/timbrar.
+
+| Cambio | Detalle |
+|--------|---------|
+| Overlay global | Velo claro + spinner + texto; `z-index` bajo el de “sin conexión” |
+| Cuándo | Clic en enlaces same-origin; submit de formularios (filtros GET, etc.) |
+| Umbral | 200 ms (evita parpadeo si ya es muy rápido) |
+| Exclusiones | `form-timbrar-protegido`, `target=_blank`, `download`, hash, `data-no-nav-loader`, Cmd/Ctrl+clic |
+
+### Deploy extra ronda 11
+- [ ] `npm run build` (o subir `public/build/` + CSS)
+- [ ] `php artisan view:cache`
+- [ ] Navegar menú → cotizaciones/facturas: si tarda >~200 ms aparece overlay
+- [ ] Timbrar: solo texto del botón, **sin** overlay global
+- [ ] Autocomplete: sin overlay
+
+### Archivos ronda 11
+- `resources/css/app.css`
+- `resources/views/layouts/app.blade.php`
+- `public/build/*` (tras Vite)
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

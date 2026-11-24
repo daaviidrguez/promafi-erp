@@ -1212,6 +1212,90 @@ body.sidebar-collapsed .sidebar-menu-text { opacity: 0; }
     opacity: 0.35;
 }
 
+/* ========== PAGINACIÓN PROMAFI ========== */
+.pagination-promafi {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+.pagination-promafi__info {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-gray-600);
+    line-height: 1.4;
+}
+.pagination-promafi__info strong {
+    color: var(--color-dark);
+    font-weight: 700;
+}
+.pagination-promafi__info--muted {
+    color: var(--color-gray-500);
+}
+.pagination-promafi__list {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex-wrap: wrap;
+}
+.pagination-promafi__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius-sm);
+    background: var(--color-white);
+    color: var(--color-dark);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+a.pagination-promafi__btn:hover {
+    background: var(--color-gray-50);
+    border-color: var(--color-secondary);
+    color: var(--color-primary);
+}
+.pagination-promafi__btn.is-active {
+    background: var(--color-info);
+    border-color: var(--color-info);
+    color: #fff;
+    cursor: default;
+}
+.pagination-promafi__btn.is-disabled,
+.pagination-promafi__btn.is-ellipsis {
+    color: var(--color-gray-400);
+    background: var(--color-white);
+    cursor: default;
+}
+.pagination-promafi__btn.is-ellipsis {
+    border-color: transparent;
+    background: transparent;
+    min-width: 24px;
+    padding: 0 4px;
+}
+@media (max-width: 640px) {
+    .pagination-promafi {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .pagination-promafi__list {
+        justify-content: center;
+    }
+    .pagination-promafi__info {
+        text-align: center;
+    }
+}
+
 .form-row     { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .filtros-bar  { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .filtros-bar-left { display: flex; gap: 12px; flex: 1; flex-wrap: wrap; min-width: 0; }

@@ -123,7 +123,7 @@
 | Cambio | Detalle |
 |--------|---------|
 | Sin UPDATE vencidas en GET | Solo `schedule` / `cotizaciones:marcar-vencidas` (cron) |
-| `simplePaginate(20)` | Evita `COUNT(*)` caro en Hostinger |
+| Paginación numerada (`paginate(20)`) | UX con salto de página; COUNT acotado por rango 90 días / filtros (revisar «Todas») |
 | Rango default 90 días | Link «Todas» para historial completo |
 | Stats cotizaciones | Cache 60s (+ invalidación al guardar/aceptar/enviar/convertir/borrar) |
 | Select mínimo cotizaciones | Sin observaciones / dirección / PDF |
@@ -134,7 +134,7 @@
 ### Deploy extra ronda 7
 - [ ] `php artisan migrate --force` (índices compuestos)
 - [ ] Cron `schedule:run` activo (vencidas ya **no** se marcan al abrir el listado)
-- [ ] Probar `/facturas` y `/cotizaciones`: prev/next, «Todas», búsqueda por folio
+- [ ] Probar `/facturas` y `/cotizaciones`: números de página, «Todas», búsqueda por folio
 
 ---
 

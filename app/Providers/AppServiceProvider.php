@@ -11,6 +11,7 @@ use App\Support\Rendimiento\RendimientoRecolector;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\Client\Events\ConnectionFailed;
 use Illuminate\Http\Client\Events\ResponseReceived;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -34,6 +35,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Paginator::defaultView('vendor.pagination.promafi');
+        Paginator::defaultSimpleView('vendor.pagination.simple-promafi');
+
         Event::listen(FacturaCompraDesdeCfdiRegistrada::class, AlmacenarRevisionPrecioTrasCompraCfdi::class);
 
         // CA bundle del proyecto para SSL (evita error 60 en laptops/servidores sin bundle del sistema)

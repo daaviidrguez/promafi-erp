@@ -68,7 +68,7 @@ class FacturaController extends Controller
         $facturas = $query
             ->orderBy('fecha_emision', 'desc')
             ->orderBy('id', 'desc')
-            ->simplePaginate(20)
+            ->paginate(20)
             ->withQueryString();
 
         return view('facturas.index', compact(

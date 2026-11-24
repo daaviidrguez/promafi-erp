@@ -102,7 +102,7 @@ class CotizacionController extends Controller
         $cotizaciones = $query
             ->orderBy('fecha', 'desc')
             ->orderBy('id', 'desc')
-            ->simplePaginate(20)
+            ->paginate(20)
             ->withQueryString();
 
         $statsCacheKey = 'cotizaciones:stats:u'.(Auth::id() ?? 0).':v'.(Auth::user()?->isVendedor() ? '1' : '0');

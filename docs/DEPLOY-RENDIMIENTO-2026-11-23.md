@@ -244,6 +244,30 @@
 
 ---
 
+## 1.l Ronda 12 — complementos de pago (index/create/edit/show)
+
+**Sin tocar timbrar/cancelar PAC.** Misma fórmula de saldo vs NC; cálculo en lote.
+
+| Cambio | Detalle |
+|--------|---------|
+| Index | Sin dump de clientes; `withCount(documentosRelacionados)`; rango 90 días / «Todas»; listado sin paths XML/PDF |
+| Create | Sin `Cliente::all`; factura CxC ligera; `FormaPago` cacheada |
+| API facturas pendientes + edit | `CobranzaSaldoBatch` (1 query NC); `facturaParaComplemento` |
+| Show/edit | `paraShow()` sin xml/sellos; binding por id; eventos cancelación solo si cancelado |
+| Store/update | Validación vs NC en lote (misma regla) |
+
+### Deploy extra ronda 12
+- [ ] `php artisan view:cache` / `route:cache`
+- [ ] Index complementos: filtro fechas; contar facturas sin N+1
+- [ ] Crear: elegir cliente → facturas pendientes rápidas
+- [ ] Show/edit borrador: TTFB menor; timbrar igual
+
+### Archivos ronda 12
+- `CfdiListadoColumnas`, `ComplementoPago`, `ComplementoPagoController`
+- `complementos/index.blade.php`, `create.blade.php`
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

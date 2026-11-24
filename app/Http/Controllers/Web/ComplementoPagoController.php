@@ -13,14 +13,17 @@ use App\Models\CuentaPorCobrar;
 use App\Models\Cliente;
 use App\Models\Empresa;
 use App\Models\FormaPago;
-use App\Models\NotaCredito;
 use App\Services\CancelacionFiscalService;
 use App\Services\EstatusCancelacionCfdi;
 use App\Services\FacturamaService;
 use App\Services\PACServiceInterface;
 use App\Services\PDFService;
 use App\Services\TimbradoConcurrencyGuard;
+use App\Support\CobranzaSaldoBatch;
+use App\Support\ListadoIndex;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ComplementoPagoController extends Controller
@@ -39,27 +42,43 @@ class ComplementoPagoController extends Controller
         $estado = $request->get('estado');
         $cliente_id = $request->get('cliente_id');
 
-        $complementos = ComplementoPago::query()
+        $query = ComplementoPago::query()
             ->paraListado()
-            ->with([
-                'cliente:id,nombre,rfc',
-                'usuario:id,name',
-                'pagosRecibidos:id,complemento_pago_id',
-                'pagosRecibidos.documentosRelacionados:id,pago_recibido_id',
-            ])
-            ->when($estado, function ($query) use ($estado) {
-                $query->where('estado', $estado);
+            ->with(['cliente:id,nombre,rfc'])
+            ->withCount('documentosRelacionados')
+            ->when($estado, function ($q) use ($estado) {
+                $q->where('estado', $estado);
             })
-            ->when($cliente_id, function ($query) use ($cliente_id) {
-                $query->where('cliente_id', $cliente_id);
-            })
+            ->when($cliente_id, function ($q) use ($cliente_id) {
+                $q->where('cliente_id', $cliente_id);
+            });
+
+        [$fechaInicio, $fechaFin, $rangoDefault] = ListadoIndex::aplicarRangoFecha(
+            $query,
+            $request,
+            'fecha_emision'
+        );
+
+        $complementos = $query
             ->orderBy('fecha_emision', 'desc')
             ->orderBy('id', 'desc')
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString();
 
-        $clientes = Cliente::activos()->orderBy('nombre')->get();
+        $clienteNombre = null;
+        if ($cliente_id) {
+            $clienteNombre = Cliente::query()->whereKey($cliente_id)->value('nombre');
+        }
 
-        return view('complementos.index', compact('complementos', 'clientes', 'estado', 'cliente_id'));
+        return view('complementos.index', compact(
+            'complementos',
+            'estado',
+            'cliente_id',
+            'clienteNombre',
+            'fechaInicio',
+            'fechaFin',
+            'rangoDefault'
+        ));
     }
 
     /**
@@ -68,32 +87,49 @@ class ComplementoPagoController extends Controller
     public function create(Request $request)
     {
         $empresa = Empresa::principal();
-        
-        if (!$empresa) {
+
+        if (! $empresa) {
             return redirect()->route('dashboard')
                 ->with('error', 'Debes configurar los datos de la empresa primero');
         }
 
-        $clientes = Cliente::activos()->orderBy('nombre')->get();
-        $formasPago = FormaPago::activos()->get();
+        $formasPago = $this->catalogoFormasPago();
 
-        // Si viene de una cuenta por cobrar específica
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaParaComplemento();
         $cuentaPreseleccionada = null;
         if ($request->has('cuenta_id')) {
-            $cuentaPreseleccionada = CuentaPorCobrar::with(['factura', 'cliente'])->find($request->cuenta_id);
+            $cuentaPreseleccionada = CuentaPorCobrar::query()
+                ->with([
+                    'factura' => fn ($q) => $q->select($facturaCols),
+                    'cliente:id,nombre,rfc',
+                ])
+                ->find($request->cuenta_id);
         }
 
-        // Si el cliente ya tiene complemento en borrador, redirigir al show (evitar duplicados)
-        $clienteId = $cuentaPreseleccionada?->cliente_id ?? $request->get('cliente_id');
+        $clienteId = $cuentaPreseleccionada?->cliente_id ?? $request->get('cliente_id') ?? old('cliente_id');
         if ($clienteId) {
-            $complementoBorrador = ComplementoPago::where('cliente_id', $clienteId)->where('estado', 'borrador')->first();
+            $complementoBorrador = ComplementoPago::query()
+                ->where('cliente_id', $clienteId)
+                ->where('estado', 'borrador')
+                ->first(['id', 'cliente_id', 'estado']);
             if ($complementoBorrador) {
                 return redirect()->route('complementos.show', $complementoBorrador->id)
                     ->with('info', 'Este cliente ya tiene un complemento de pago en borrador. Complétalo, edítalo o elimínalo antes de crear otro.');
             }
         }
 
-        return view('complementos.create', compact('empresa', 'clientes', 'cuentaPreseleccionada', 'formasPago'));
+        $clienteOld = null;
+        if (! $cuentaPreseleccionada?->cliente && old('cliente_id')) {
+            $clienteOld = Cliente::query()
+                ->find(old('cliente_id'), ['id', 'nombre', 'rfc']);
+        }
+
+        return view('complementos.create', compact(
+            'empresa',
+            'cuentaPreseleccionada',
+            'formasPago',
+            'clienteOld'
+        ));
     }
 
     /**
@@ -139,26 +175,10 @@ class ComplementoPagoController extends Controller
                 ->with('error', 'Este cliente ya tiene un complemento de pago en borrador. No se puede crear otro hasta completarlo o eliminarlo.');
         }
 
-        // No permitir registrar pago por montos ya cubiertos por Notas de Crédito (coherencia SAT)
-        foreach ($validated['facturas'] as $facturaData) {
-            $montoPagado = (float) ($facturaData['monto_pagado'] ?? 0);
-            if ($montoPagado < 0.01) {
-                continue;
-            }
-            $facturaId = (int) $facturaData['factura_id'];
-            $cuenta = CuentaPorCobrar::where('factura_id', $facturaId)->first();
-            if (!$cuenta) {
-                continue;
-            }
-            $montoCubiertoPorNC = (float) NotaCredito::where('factura_id', $facturaId)->where('estado', 'timbrada')->sum('total');
-            $maxPermitido = max(0, (float) $cuenta->monto_pendiente - $montoCubiertoPorNC);
-            if ($montoPagado > $maxPermitido + 0.01) {
-                $factura = $cuenta->factura;
-                $folio = $factura ? $factura->folio_completo : $facturaId;
-                return back()->withInput()->withErrors([
-                    'facturas' => ["No se puede registrar un Complemento de Pago por un monto mayor al disponible en la factura {$folio}. El monto ya cubierto por Notas de Crédito no puede pagarse con un complemento (máximo permitido: " . number_format($maxPermitido, 2) . ")."],
-                ]);
-            }
+        // Validar montos vs NC (misma regla; NC en lote)
+        $errorNc = $this->validarMontosContraNc($validated['facturas']);
+        if ($errorNc !== null) {
+            return back()->withInput()->withErrors(['facturas' => [$errorNc]]);
         }
 
         DB::beginTransaction();
@@ -279,14 +299,25 @@ class ComplementoPagoController extends Controller
     /**
      * Ver detalle de complemento
      */
-    public function show(ComplementoPago $complemento)
+    public function show(string $complemento)
     {
-        $complemento->load([
-            'cliente',
-            'pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar',
-            'usuario',
-            'cancelacionEventos.user',
-        ]);
+        // Sin binding Eloquent: evita SELECT * (xml_content/sellos).
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaParaComplemento();
+        $complemento = ComplementoPago::query()
+            ->paraShow()
+            ->with([
+                'cliente:id,nombre,rfc',
+                'usuario:id,name',
+                'pagosRecibidos.documentosRelacionados.factura' => fn ($q) => $q->select($facturaCols),
+                'pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar',
+            ])
+            ->findOrFail($complemento);
+
+        if ($complemento->estado === 'cancelado') {
+            $complemento->load(['cancelacionEventos.user:id,name']);
+        } else {
+            $complemento->setRelation('cancelacionEventos', collect());
+        }
 
         return view('complementos.show', compact('complemento'));
     }
@@ -294,32 +325,39 @@ class ComplementoPagoController extends Controller
     /**
      * Editar complemento (solo borrador)
      */
-    public function edit(ComplementoPago $complemento)
+    public function edit(string $complemento)
     {
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaParaComplemento();
+        $complemento = ComplementoPago::query()
+            ->paraShow()
+            ->with([
+                'cliente:id,nombre,rfc',
+                'pagosRecibidos.documentosRelacionados.factura' => fn ($q) => $q->select($facturaCols),
+            ])
+            ->findOrFail($complemento);
+
         if ($complemento->estado !== 'borrador') {
             return redirect()->route('complementos.show', $complemento->id)
                 ->with('error', 'Solo se pueden editar complementos en borrador.');
         }
-        $complemento->load(['pagosRecibidos.documentosRelacionados.factura.cuentaPorCobrar', 'cliente']);
+
         $pago = $complemento->pagosRecibidos->first();
-        if (!$pago) {
+        if (! $pago) {
             return redirect()->route('complementos.show', $complemento->id)
                 ->with('error', 'El complemento no tiene pago asociado.');
         }
 
-        $cuentas = CuentaPorCobrar::with('factura')
-            ->excluirFacturaBorrador()
-            ->where('cliente_id', $complemento->cliente_id)
-            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->where('monto_pendiente', '>', 0)
-            ->whereHas('factura', fn ($q) => $q->whereNotNull('uuid'))
-            ->get();
-
+        $cuentas = $this->cuentasPendientesCliente((int) $complemento->cliente_id);
         $montosPorFactura = $pago->documentosRelacionados->pluck('monto_pagado', 'factura_id')->map(fn ($v) => (float) $v);
+        $ncPorFactura = CobranzaSaldoBatch::ncTimbradaPorFactura($cuentas->pluck('factura_id'));
 
-        $facturasDisponibles = $cuentas->map(function ($cuenta) use ($montosPorFactura) {
-            $montoCubiertoPorNC = (float) NotaCredito::where('factura_id', $cuenta->factura_id)->where('estado', 'timbrada')->sum('total');
-            $pendiente = max(0, (float) $cuenta->monto_pendiente - $montoCubiertoPorNC);
+        $facturasDisponibles = $cuentas->map(function ($cuenta) use ($montosPorFactura, $ncPorFactura) {
+            $pendiente = CobranzaSaldoBatch::saldoDesdeMontoYNc(
+                (float) $cuenta->monto_pendiente,
+                $cuenta->factura_id,
+                $ncPorFactura
+            );
+
             return [
                 'id' => $cuenta->factura_id,
                 'folio' => $cuenta->factura->folio_completo,
@@ -332,7 +370,8 @@ class ComplementoPagoController extends Controller
         })->filter(fn ($f) => $f['pendiente'] > 0 || $f['monto_pagado'] > 0)->values();
 
         $empresa = Empresa::principal();
-        $formasPago = FormaPago::activos()->get();
+        $formasPago = $this->catalogoFormasPago();
+
         return view('complementos.edit', compact('complemento', 'pago', 'facturasDisponibles', 'empresa', 'formasPago'));
     }
 
@@ -369,20 +408,9 @@ class ComplementoPagoController extends Controller
             return back()->withInput()->withErrors(['facturas' => ['Indica al menos un monto mayor a 0.']]);
         }
 
-        foreach ($validated['facturas'] as $facturaData) {
-            $montoPagado = (float) ($facturaData['monto_pagado'] ?? 0);
-            if ($montoPagado < 0.01) continue;
-            $facturaId = (int) $facturaData['factura_id'];
-            $cuenta = CuentaPorCobrar::where('factura_id', $facturaId)->first();
-            if (!$cuenta) continue;
-            $montoCubiertoPorNC = (float) NotaCredito::where('factura_id', $facturaId)->where('estado', 'timbrada')->sum('total');
-            $maxPermitido = max(0, (float) $cuenta->monto_pendiente - $montoCubiertoPorNC);
-            if ($montoPagado > $maxPermitido + 0.01) {
-                $factura = $cuenta->factura;
-                return back()->withInput()->withErrors([
-                    'facturas' => ["Monto mayor al disponible en factura " . ($factura->folio_completo ?? $facturaId) . ". Máximo: " . number_format($maxPermitido, 2) . "."],
-                ]);
-            }
+        $errorNc = $this->validarMontosContraNc($validated['facturas']);
+        if ($errorNc !== null) {
+            return back()->withInput()->withErrors(['facturas' => [$errorNc]]);
         }
 
         DB::beginTransaction();
@@ -853,21 +881,16 @@ class ComplementoPagoController extends Controller
             ]);
         }
 
-        $cuentas = CuentaPorCobrar::with('factura')
-            ->excluirFacturaBorrador()
-            ->where('cliente_id', $clienteId)
-            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
-            ->where('monto_pendiente', '>', 0)
-            ->whereHas('factura', function ($q) {
-                $q->whereNotNull('uuid'); // SOLO facturas timbradas
-            })
-            ->get();
+        $cuentas = $this->cuentasPendientesCliente((int) $clienteId);
+        $ncPorFactura = CobranzaSaldoBatch::ncTimbradaPorFactura($cuentas->pluck('factura_id'));
 
-        $facturas = $cuentas->map(function ($cuenta) {
-            $montoCubiertoPorNC = (float) NotaCredito::where('factura_id', $cuenta->factura_id)
-                ->where('estado', 'timbrada')
-                ->sum('total');
-            $pendienteDisponible = max(0, (float) $cuenta->monto_pendiente - $montoCubiertoPorNC);
+        $facturas = $cuentas->map(function ($cuenta) use ($ncPorFactura) {
+            $pendienteDisponible = CobranzaSaldoBatch::saldoDesdeMontoYNc(
+                (float) $cuenta->monto_pendiente,
+                $cuenta->factura_id,
+                $ncPorFactura
+            );
+
             return [
                 'id' => $cuenta->factura_id,
                 'folio' => $cuenta->factura->folio_completo,
@@ -890,16 +913,91 @@ class ComplementoPagoController extends Controller
     protected function guardarXML(ComplementoPago $complemento, string $xml): string
     {
         $directory = storage_path('app/complementos/' . now()->format('Y/m'));
-        
-        if (!file_exists($directory)) {
+
+        if (! file_exists($directory)) {
             mkdir($directory, 0755, true);
         }
 
-        $filename = $complemento->folio_completo . '.xml';
-        $filepath = $directory . '/' . $filename;
-        
+        $filename = $complemento->folio_completo.'.xml';
+        $filepath = $directory.'/'.$filename;
+
         file_put_contents($filepath, $xml);
 
-        return 'complementos/' . now()->format('Y/m') . '/' . $filename;
+        return 'complementos/'.now()->format('Y/m').'/'.$filename;
+    }
+
+    /**
+     * CxC pendientes del cliente con factura ligera (sin blobs).
+     *
+     * @return Collection<int, CuentaPorCobrar>
+     */
+    private function cuentasPendientesCliente(int $clienteId): Collection
+    {
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaParaComplemento();
+
+        return CuentaPorCobrar::query()
+            ->with(['factura' => fn ($q) => $q->select($facturaCols)])
+            ->excluirFacturaBorrador()
+            ->where('cliente_id', $clienteId)
+            ->whereIn('estado', ['pendiente', 'parcial', 'vencida'])
+            ->where('monto_pendiente', '>', 0)
+            ->whereHas('factura', fn ($q) => $q->whereNotNull('uuid'))
+            ->get();
+    }
+
+    /**
+     * Misma regla de tope vs NC; una query de NC para todas las facturas del request.
+     *
+     * @param  array<int, array{factura_id?: mixed, monto_pagado?: mixed}>  $facturas
+     */
+    private function validarMontosContraNc(array $facturas): ?string
+    {
+        $ids = collect($facturas)
+            ->filter(fn ($f) => ((float) ($f['monto_pagado'] ?? 0)) >= 0.01)
+            ->pluck('factura_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return null;
+        }
+
+        $cuentas = CuentaPorCobrar::query()
+            ->with(['factura' => fn ($q) => $q->select(\App\Support\CfdiListadoColumnas::facturaParaComplemento())])
+            ->whereIn('factura_id', $ids)
+            ->get()
+            ->keyBy('factura_id');
+
+        $ncPorFactura = CobranzaSaldoBatch::ncTimbradaPorFactura($ids);
+
+        foreach ($facturas as $facturaData) {
+            $montoPagado = (float) ($facturaData['monto_pagado'] ?? 0);
+            if ($montoPagado < 0.01) {
+                continue;
+            }
+            $facturaId = (int) $facturaData['factura_id'];
+            $cuenta = $cuentas->get($facturaId);
+            if (! $cuenta) {
+                continue;
+            }
+            $maxPermitido = CobranzaSaldoBatch::saldoDesdeMontoYNc(
+                (float) $cuenta->monto_pendiente,
+                $facturaId,
+                $ncPorFactura
+            );
+            if ($montoPagado > $maxPermitido + 0.01) {
+                $folio = $cuenta->factura?->folio_completo ?? $facturaId;
+
+                return "No se puede registrar un Complemento de Pago por un monto mayor al disponible en la factura {$folio}. El monto ya cubierto por Notas de Crédito no puede pagarse con un complemento (máximo permitido: ".number_format($maxPermitido, 2).').';
+            }
+        }
+
+        return null;
+    }
+
+    private function catalogoFormasPago()
+    {
+        return Cache::remember('catalogo:formas_pago_activos', 600, fn () => FormaPago::activos()->get());
     }
 }

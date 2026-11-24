@@ -27,7 +27,7 @@ $breadcrumbs = [
     <div class="card-body">
         <form method="GET" action="{{ route('complementos.index') }}"
               style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <div style="display: flex; gap: 12px; flex: 1; flex-wrap: wrap;">
+            <div style="display: flex; gap: 12px; flex: 1; flex-wrap: wrap; align-items: flex-end;">
                 @include('partials.cliente-search-field', [
                     'required' => false,
                     'allowEmpty' => true,
@@ -36,23 +36,40 @@ $breadcrumbs = [
                     'compact' => true,
                     'placeholder' => 'Buscar cliente...',
                     'clienteIdValue' => $cliente_id ?? '',
-                    'clientes' => $clientes,
+                    'clienteNombreValue' => $clienteNombre ?? '',
                 ])
-                <select name="estado" class="form-control" style="min-width: 150px;">
+                <select name="estado" class="form-control" style="min-width: 150px;" aria-label="Estado">
                     <option value="">Todos los estados</option>
                     <option value="borrador"  {{ ($estado ?? '') == 'borrador'  ? 'selected' : '' }}>📝 Borrador</option>
                     <option value="timbrado"  {{ ($estado ?? '') == 'timbrado'  ? 'selected' : '' }}>Timbrado</option>
                     <option value="cancelado" {{ ($estado ?? '') == 'cancelado' ? 'selected' : '' }}>❌ Cancelado</option>
                 </select>
-                <button type="submit"
-                        style="padding: 9px 20px; background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">
-                    🔍 Filtrar
-                </button>
+                <label class="filtros-bar__fecha" style="display:inline-flex; flex-direction:column; gap:4px; font-size:12px; color:var(--color-gray-500);">
+                    <span>Desde</span>
+                    <input type="date" name="fecha_inicio" value="{{ $fechaInicio ?? '' }}" class="form-control" title="Desde">
+                </label>
+                <label class="filtros-bar__fecha" style="display:inline-flex; flex-direction:column; gap:4px; font-size:12px; color:var(--color-gray-500);">
+                    <span>Hasta</span>
+                    <input type="date" name="fecha_fin" value="{{ $fechaFin ?? '' }}" class="form-control" title="Hasta">
+                </label>
+                <button type="submit" class="btn btn-primary">🔍 Filtrar</button>
+                @if(request()->boolean('todas') || request()->hasAny(['estado','cliente_id','fecha_inicio','fecha_fin']))
+                    <a href="{{ route('complementos.index') }}" class="btn btn-light" title="Últimos 90 días">↺</a>
+                @endif
+                @if(!request()->boolean('todas'))
+                    <a href="{{ route('complementos.index', array_merge(request()->except('fecha_inicio','fecha_fin'), ['todas' => 1])) }}"
+                       class="btn btn-light" title="Sin límite de fechas">Todas</a>
+                @endif
             </div>
             <a href="{{ route('complementos.create') }}" class="btn btn-primary">
                 ➕ Nuevo Complemento
             </a>
         </form>
+        @if(!empty($rangoDefault))
+            <div class="text-muted" style="font-size: 12px; margin-top: 8px;">
+                Mostrando últimos 90 días. Usa «Todas» para el historial completo.
+            </div>
+        @endif
     </div>
 </div>
 
@@ -101,7 +118,7 @@ $breadcrumbs = [
                 </td>
                 <td class="td-center">
                     <span class="badge badge-info">
-                        {{ $complemento->pagosRecibidos->sum(fn($p) => $p->documentosRelacionados->count()) }} facturas
+                        {{ (int) ($complemento->documentos_relacionados_count ?? 0) }} facturas
                     </span>
                 </td>
                 <td class="td-center">

@@ -164,6 +164,8 @@ class CfdiListadoColumnas
     }
 
     /**
+     * Index de complementos: sin xml/sellos/paths (van en show/descargas).
+     *
      * @return list<string>
      */
     public static function complemento(): array
@@ -179,18 +181,80 @@ class CfdiListadoColumnas
             'fecha_timbrado',
             'monto_total',
             'uuid',
-            'xml_path',
-            'pdf_path',
             'fecha_cancelacion',
             'codigo_estatus_cancelacion',
             'estatus_cancelacion_pac',
             'estatus_sat',
             'is_cancelable',
-            'mensaje_cancelacion_pac',
             'fecha_solicitud_cancelacion',
             'fecha_vencimiento_aceptacion',
+            'deleted_at',
+        ];
+    }
+
+    /**
+     * Show HTML de complemento: sin xml_content / sellos / cadena.
+     *
+     * @return list<string>
+     */
+    public static function complementoShow(): array
+    {
+        return [
+            'id',
+            'serie',
+            'folio',
+            'estado',
+            'cliente_id',
+            'empresa_id',
+            'rfc_emisor',
+            'nombre_emisor',
+            'rfc_receptor',
+            'nombre_receptor',
+            'fecha_emision',
+            'lugar_expedicion',
+            'monto_total',
+            'uuid',
+            'pac_cfdi_id',
+            'fecha_timbrado',
+            'no_certificado_sat',
+            'xml_path',
+            'pdf_path',
+            'fecha_cancelacion',
+            'acuse_cancelacion',
+            'codigo_estatus_cancelacion',
+            'estatus_cancelacion_pac',
+            'mensaje_cancelacion_pac',
+            'is_cancelable',
+            'fecha_solicitud_cancelacion',
+            'fecha_vencimiento_aceptacion',
+            'estatus_sat',
+            'motivo_cancelacion',
+            'uuid_sustitucion_cancelacion',
+            'uuid_referencia',
+            'tipo_relacion',
+            'usuario_id',
             'created_at',
             'updated_at',
+            'deleted_at',
+        ];
+    }
+
+    /**
+     * Factura embebida en create/edit/API de complemento (sin blobs).
+     *
+     * @return list<string>
+     */
+    public static function facturaParaComplemento(): array
+    {
+        return [
+            'id',
+            'serie',
+            'folio',
+            'uuid',
+            'estado',
+            'cliente_id',
+            'fecha_emision',
+            'total',
             'deleted_at',
         ];
     }

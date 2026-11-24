@@ -9,10 +9,7 @@ $breadcrumbs = [
     ['title' => 'Complementos de Pago', 'url' => route('complementos.index')],
     ['title' => 'Nuevo Complemento']
 ];
-$clientePreComplemento = $cuentaPreseleccionada?->cliente ?? null;
-if (!$clientePreComplemento && old('cliente_id')) {
-    $clientePreComplemento = $clientes->firstWhere('id', (int) old('cliente_id'));
-}
+$clientePreComplemento = $cuentaPreseleccionada?->cliente ?? ($clienteOld ?? null);
 $clientePreComplementoJson = $clientePreComplemento ? [
     'id' => $clientePreComplemento->id,
     'nombre' => $clientePreComplemento->nombre,

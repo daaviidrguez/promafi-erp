@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class ComplementoPago extends Model
 {
@@ -120,6 +121,21 @@ class ComplementoPago extends Model
     public function pagosRecibidos(): HasMany
     {
         return $this->hasMany(PagoRecibido::class);
+    }
+
+    /**
+     * Documentos relacionados (facturas aplicadas) vía pagos recibidos.
+     */
+    public function documentosRelacionados(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            DocumentoRelacionadoPago::class,
+            PagoRecibido::class,
+            'complemento_pago_id',
+            'pago_recibido_id',
+            'id',
+            'id'
+        );
     }
 
     /**
@@ -254,5 +270,13 @@ class ComplementoPago extends Model
     public function scopeParaListado($query)
     {
         return $query->select(\App\Support\CfdiListadoColumnas::complemento());
+    }
+
+    /**
+     * Show HTML: sin xml_content / sellos / cadena (siguen en descargas/timbrar).
+     */
+    public function scopeParaShow($query)
+    {
+        return $query->select(\App\Support\CfdiListadoColumnas::complementoShow());
     }
 }

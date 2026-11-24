@@ -138,6 +138,31 @@
 
 ---
 
+## 1.h Ronda 8 — index cotizaciones al nivel de facturas (TTFB)
+
+**Síntoma:** `/facturas` se siente rápido tras ronda 3–7; `/cotizaciones` aún pagaba stats + eager `factura` en el HTML.
+
+| Cambio | Detalle |
+|--------|---------|
+| Stats fuera del GET HTML | Placeholders + `GET /cotizaciones/estadisticas` (AJAX); listado no espera counts |
+| Cache stats compartida | Key `cotizaciones:stats:shared` para no-vendedores; `…:u{id}:v1` solo vendedor |
+| API `estadisticas` | Mismo cálculo cacheado (1 `GROUP BY` + 1 `porVencer`), no 5 `COUNT` sueltos |
+| Eager `factura` condicional | Solo filas `estado = facturada` de la página |
+| Índices | `(estado, fecha_vencimiento)`, `cliente_nombre` |
+
+### Deploy extra ronda 8
+- [ ] `php artisan migrate --force` (`2026_11_23_240000_…`)
+- [ ] `php artisan route:cache` / `view:cache` (si aplica)
+- [ ] Network: abrir `/cotizaciones` → HTML rápido; luego 1 request a `/cotizaciones/estadisticas`
+- [ ] Stats se rellenan; badge/link de facturada igual que antes
+
+### Archivos ronda 8
+- `app/Http/Controllers/Web/CotizacionController.php`
+- `resources/views/cotizaciones/index.blade.php`
+- `database/migrations/2026_11_23_240000_add_cotizaciones_index_stats_and_search_indexes.php`
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

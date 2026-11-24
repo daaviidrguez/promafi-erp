@@ -43,13 +43,52 @@ class CotizacionController extends Controller
     }
 
     /**
+     * Stats del index: compartidas entre no-vendedores; por usuario si es vendedor.
+     */
+    private function statsCacheKey(): string
+    {
+        if (Auth::user()?->isVendedor()) {
+            return 'cotizaciones:stats:u'.(Auth::id() ?? 0).':v1';
+        }
+
+        return 'cotizaciones:stats:shared';
+    }
+
+    /**
      * Stats del index se cachean 60s; invalidar tras cambios de estado.
      */
     private function olvidarStatsCotizaciones(): void
     {
+        \Illuminate\Support\Facades\Cache::forget('cotizaciones:stats:shared');
         $uid = Auth::id() ?? 0;
-        $v = Auth::user()?->isVendedor() ? '1' : '0';
-        \Illuminate\Support\Facades\Cache::forget('cotizaciones:stats:u'.$uid.':v'.$v);
+        \Illuminate\Support\Facades\Cache::forget('cotizaciones:stats:u'.$uid.':v1');
+        // Keys legacy ronda 7 (por usuario también para no-vendedores)
+        \Illuminate\Support\Facades\Cache::forget('cotizaciones:stats:u'.$uid.':v0');
+    }
+
+    /**
+     * Conteos del index (misma forma que consume la vista / AJAX).
+     *
+     * @return array{borradores:int,enviadas:int,aceptadas:int,por_vencer:int,vencidas:int}
+     */
+    private function calcularEstadisticasCotizaciones(): array
+    {
+        return \Illuminate\Support\Facades\Cache::remember($this->statsCacheKey(), 60, function () {
+            $statsQuery = $this->queryCotizaciones();
+            $porEstado = (clone $statsQuery)
+                ->whereIn('estado', ['borrador', 'enviada', 'aceptada', 'vencida'])
+                ->selectRaw('estado, COUNT(*) as total')
+                ->groupBy('estado')
+                ->pluck('total', 'estado');
+
+            return [
+                'borradores' => (int) ($porEstado['borrador'] ?? 0),
+                'enviadas' => (int) ($porEstado['enviada'] ?? 0),
+                'aceptadas' => (int) ($porEstado['aceptada'] ?? 0),
+                'por_vencer' => (int) (clone $statsQuery)->porVencer()->count(),
+                'vencidas' => (int) ($porEstado['vencida'] ?? 0),
+            ];
+        });
     }
 
     /**
@@ -67,13 +106,9 @@ class CotizacionController extends Controller
      */
     public function index(Request $request)
     {
-        $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
         $query = $this->queryCotizaciones()
             ->select(\App\Support\CfdiListadoColumnas::cotizacion())
-            ->with([
-                'usuario:id,name',
-                'factura' => fn ($q) => $q->select($facturaCols),
-            ]);
+            ->with(['usuario:id,name']);
 
         if ($request->filled('estado')) {
             $query->where('estado', $request->estado);
@@ -105,22 +140,11 @@ class CotizacionController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $statsCacheKey = 'cotizaciones:stats:u'.(Auth::id() ?? 0).':v'.(Auth::user()?->isVendedor() ? '1' : '0');
-        $estadisticas = \Illuminate\Support\Facades\Cache::remember($statsCacheKey, 60, function () {
-            $statsQuery = $this->queryCotizaciones();
-            $porEstado = (clone $statsQuery)
-                ->whereIn('estado', ['borrador', 'enviada', 'aceptada'])
-                ->selectRaw('estado, COUNT(*) as total')
-                ->groupBy('estado')
-                ->pluck('total', 'estado');
-
-            return [
-                'borradores' => (int) ($porEstado['borrador'] ?? 0),
-                'enviadas' => (int) ($porEstado['enviada'] ?? 0),
-                'aceptadas' => (int) ($porEstado['aceptada'] ?? 0),
-                'por_vencer' => (int) (clone $statsQuery)->porVencer()->count(),
-            ];
-        });
+        // Factura solo para filas facturadas (evita eager de 20 relaciones innecesarias).
+        $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
+        $cotizaciones->getCollection()
+            ->filter(fn (Cotizacion $c) => $c->estado === 'facturada')
+            ->load(['factura' => fn ($q) => $q->select($facturaCols)]);
 
         $asesores = Auth::user()->isVendedor()
             ? collect()
@@ -131,9 +155,9 @@ class CotizacionController extends Controller
                     ->get(['id', 'name']);
             });
 
+        // Stats: diferidas vía GET cotizaciones.estadisticas (mismo cache) para no bloquear TTFB.
         return view('cotizaciones.index', compact(
             'cotizaciones',
-            'estadisticas',
             'asesores',
             'fechaInicio',
             'fechaFin',
@@ -1592,18 +1616,11 @@ class CotizacionController extends Controller
     }
 
     /**
-     * API: Estadísticas
+     * API: Estadísticas del index (cache 60s; no bloquea el HTML del listado).
      */
-    public function estadisticas()
+    public function estadisticas(): JsonResponse
     {
-        $q = $this->queryCotizaciones();
-        return response()->json([
-            'borradores' => (clone $q)->estado('borrador')->count(),
-            'enviadas' => (clone $q)->estado('enviada')->count(),
-            'aceptadas' => (clone $q)->estado('aceptada')->count(),
-            'por_vencer' => (clone $q)->porVencer()->count(),
-            'vencidas' => (clone $q)->estado('vencida')->count(),
-        ]);
+        return response()->json($this->calcularEstadisticasCotizaciones());
     }
 
     /**

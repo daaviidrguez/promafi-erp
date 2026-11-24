@@ -21,33 +21,33 @@ $breadcrumbs = [
     </a>
 </div>
 
-{{-- Stats --}}
-<div class="stats-grid">
+{{-- Stats: se rellenan por AJAX para no bloquear el TTFB del listado --}}
+<div class="stats-grid" id="cotizaciones-stats" aria-busy="true">
     <div class="stat-card stat-warning">
         <div class="stat-info-box">
             <div class="stat-label">Borradores</div>
-            <div class="stat-value">{{ $estadisticas['borradores'] ?? 0 }}</div>
+            <div class="stat-value" data-stat="borradores">—</div>
         </div>
         <div class="stat-icon">📝</div>
     </div>
     <div class="stat-card stat-info">
         <div class="stat-info-box">
             <div class="stat-label">Enviadas</div>
-            <div class="stat-value">{{ $estadisticas['enviadas'] ?? 0 }}</div>
+            <div class="stat-value" data-stat="enviadas">—</div>
         </div>
         <div class="stat-icon">📧</div>
     </div>
     <div class="stat-card stat-success">
         <div class="stat-info-box">
             <div class="stat-label">Aceptadas</div>
-            <div class="stat-value">{{ $estadisticas['aceptadas'] ?? 0 }}</div>
+            <div class="stat-value" data-stat="aceptadas">—</div>
         </div>
         <div class="stat-icon">✅</div>
     </div>
     <div class="stat-card stat-danger">
         <div class="stat-info-box">
             <div class="stat-label">Por Vencer</div>
-            <div class="stat-value">{{ $estadisticas['por_vencer'] ?? 0 }}</div>
+            <div class="stat-value" data-stat="por_vencer">—</div>
         </div>
         <div class="stat-icon">⏰</div>
     </div>
@@ -302,6 +302,30 @@ function cerrarModalEliminarCotizacion() {
     const modal = document.getElementById('modalEliminarCotizacion');
     if (modal) modal.classList.remove('show');
 }
+
+(function cargarStatsCotizaciones() {
+    const root = document.getElementById('cotizaciones-stats');
+    if (!root) return;
+
+    fetch(@json(route('cotizaciones.estadisticas')), {
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+    })
+        .then(function (res) { return res.ok ? res.json() : Promise.reject(res); })
+        .then(function (data) {
+            ['borradores', 'enviadas', 'aceptadas', 'por_vencer'].forEach(function (key) {
+                const el = root.querySelector('[data-stat="' + key + '"]');
+                if (el) el.textContent = String(data[key] ?? 0);
+            });
+            root.setAttribute('aria-busy', 'false');
+        })
+        .catch(function () {
+            root.querySelectorAll('[data-stat]').forEach(function (el) {
+                if (el.textContent === '—') el.textContent = '0';
+            });
+            root.setAttribute('aria-busy', 'false');
+        });
+})();
 </script>
 
 @endsection

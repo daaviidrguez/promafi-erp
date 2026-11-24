@@ -289,6 +289,29 @@ class Producto extends Model
     }
 
     /**
+     * Columnas del index de catálogo (sin imagenes JSON / notas / textos largos).
+     * descripcion se acota con LEFT() en el controlador.
+     *
+     * @return list<string>
+     */
+    public static function columnasListado(): array
+    {
+        return [
+            'productos.id',
+            'productos.codigo',
+            'productos.nombre',
+            'productos.clave_sat',
+            'productos.categoria_id',
+            'productos.precio_venta',
+            'productos.stock',
+            'productos.stock_minimo',
+            'productos.controla_inventario',
+            'productos.activo',
+            'productos.deleted_at',
+        ];
+    }
+
+    /**
      * Scope para productos activos
      */
     public function scopeActivos($query)
@@ -319,11 +342,11 @@ class Producto extends Model
         $prefix = $escaped.'%';
 
         return $query->where(function ($q) use ($term, $prefix) {
-            $q->where('codigo', 'like', $prefix)
-                ->orWhere('codigo', 'like', $term)
-                ->orWhere('nombre', 'like', $term)
-                ->orWhere('codigo_barras', 'like', $prefix)
-                ->orWhere('clave_sat', 'like', $prefix);
+            $q->where('productos.codigo', 'like', $prefix)
+                ->orWhere('productos.codigo', 'like', $term)
+                ->orWhere('productos.nombre', 'like', $term)
+                ->orWhere('productos.codigo_barras', 'like', $prefix)
+                ->orWhere('productos.clave_sat', 'like', $prefix);
         });
     }
 

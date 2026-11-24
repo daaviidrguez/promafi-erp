@@ -333,15 +333,16 @@ $breadcrumbs = [
     sel.addEventListener('change', syncUnidadDesdeSelect);
     syncUnidadDesdeSelect();
 
-    // Autocomplete Clave Prod./Serv. SAT
+    // Autocomplete Clave Prod./Serv. SAT (debounce 400 ms + AbortController)
     var timerClaveSat = null;
+    var abortClaveSat = null;
     var claveSatInput = document.getElementById('clave_sat_input');
     var claveSatResults = document.getElementById('claveSatResults');
     claveSatInput.addEventListener('input', function() {
         clearTimeout(timerClaveSat);
         var q = this.value.trim();
         if (q.length < 2) { claveSatResults.classList.remove('show'); return; }
-        timerClaveSat = setTimeout(function() { buscarClaveSat(q); }, 280);
+        timerClaveSat = setTimeout(function() { buscarClaveSat(q); }, 400);
     });
     claveSatInput.addEventListener('focus', function() {
         var v = this.value.trim();
@@ -353,14 +354,15 @@ $breadcrumbs = [
         if (!e.target.closest('.search-box')) claveSatResults.classList.remove('show');
     });
     function buscarClaveSat(q) {
-        fetch('{{ route("productos.buscar-clave-sat") }}?q=' + encodeURIComponent(q))
+        if (abortClaveSat) abortClaveSat.abort();
+        abortClaveSat = new AbortController();
+        fetch('{{ route("productos.buscar-clave-sat") }}?q=' + encodeURIComponent(q), { signal: abortClaveSat.signal })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.length) {
                     claveSatResults.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
                 } else {
                     claveSatResults.innerHTML = data.map(function(item) {
-                        var desc = (item.descripcion || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
                         var clave = (item.clave || '').replace(/"/g, '&quot;');
                         var etiqueta = (item.clave || '') + ' - ' + (item.descripcion || '');
                         return '<div class="autocomplete-item" data-clave="' + clave + '" data-etiqueta="' + etiqueta.replace(/"/g, '&quot;') + '">' +
@@ -378,7 +380,10 @@ $breadcrumbs = [
                 }
                 claveSatResults.classList.add('show');
             })
-            .catch(function(err) { console.error(err); });
+            .catch(function(err) {
+                if (err && err.name === 'AbortError') return;
+                console.error(err);
+            });
     }
 </script>
 @endpush

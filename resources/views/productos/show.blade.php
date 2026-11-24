@@ -107,6 +107,7 @@ $breadcrumbs = [
                                                     onclick="abrirModalCodigoProveedorEditar(this)"
                                                     data-id="{{ $cp->id }}"
                                                     data-proveedor-id="{{ $cp->proveedor_id }}"
+                                                    data-proveedor-etiqueta="{{ ($cp->proveedor->nombre_comercial ?: $cp->proveedor->nombre) }}{{ $cp->proveedor->codigo ? ' ('.$cp->proveedor->codigo.')' : '' }}"
                                                     data-codigo="{{ $cp->codigo }}">
                                                 ✏️
                                             </button>
@@ -208,11 +209,19 @@ $breadcrumbs = [
                     <div class="info-row">
                         <div class="info-label">Costo promedio</div>
                         <div class="info-value text-mono">
-                            @if($producto->costo_promedio_mostrar !== null)
-                                ${{ number_format($producto->costo_promedio_mostrar, 2, '.', ',') }}
+                            @if($producto->costo_promedio !== null && (float) $producto->costo_promedio > 0)
+                                ${{ number_format((float) $producto->costo_promedio, 2, '.', ',') }}
                             @else
                                 <span class="text-muted">—</span>
                             @endif
+                            <form method="POST"
+                                  action="{{ route('productos.recalcular-costo-promedio', $producto) }}"
+                                  style="display:inline; margin-left: 8px;">
+                                @csrf
+                                <button type="submit" class="btn btn-light btn-sm" title="Recalcular desde compras recibidas">
+                                    Recalcular
+                                </button>
+                            </form>
                         </div>
                     </div>
                     <div class="info-row">
@@ -379,13 +388,17 @@ $breadcrumbs = [
 
                 <div class="form-group" style="margin-top: 12px;">
                     <label class="form-label">Proveedor <span class="req">*</span></label>
-                    <select id="pp_proveedor_select" class="form-control" required>
-                        @foreach($proveedores as $prov)
-                            <option value="{{ $prov->id }}">{{ $prov->nombre_comercial ?: $prov->nombre }} ({{ $prov->codigo ?? '—' }})</option>
-                        @endforeach
-                    </select>
+                    <div class="search-box" id="pp_proveedor_search_box" style="position: relative;">
+                        <input type="text"
+                               id="pp_proveedor_buscar"
+                               class="form-control"
+                               placeholder="Buscar proveedor (mín. 2 letras)…"
+                               autocomplete="off">
+                        <div id="pp_proveedor_results" class="autocomplete-results"></div>
+                    </div>
+                    <p class="form-control" id="pp_proveedor_readonly" style="display:none; margin: 0; background: var(--color-gray-50);"></p>
                     <p class="form-hint" id="pp_proveedor_hint" style="margin: 8px 0 0; color: var(--color-gray-600);">
-                        Selecciona el proveedor del catálogo.
+                        Escribe para buscar en el catálogo de proveedores.
                     </p>
                 </div>
             </div>
@@ -405,57 +418,125 @@ $breadcrumbs = [
     var ppId = document.getElementById('pp_producto_proveedor_id');
     var ppCodigo = document.getElementById('pp_codigo');
     var ppProveedorHidden = document.getElementById('pp_proveedor_id');
-    var ppProveedorSelect = document.getElementById('pp_proveedor_select');
+    var ppProveedorBuscar = document.getElementById('pp_proveedor_buscar');
+    var ppProveedorResults = document.getElementById('pp_proveedor_results');
+    var ppProveedorReadonly = document.getElementById('pp_proveedor_readonly');
+    var ppProveedorSearchBox = document.getElementById('pp_proveedor_search_box');
     var ppProveedorHint = document.getElementById('pp_proveedor_hint');
+    var buscarProveedoresUrl = @json(route('productos.buscar-proveedores'));
+    var timerProveedor = null;
+    var abortProveedor = null;
+    var modoEdicion = false;
 
-    function setProveedorSeleccionado(id) {
-        ppProveedorSelect.value = String(id ?? '');
+    function setProveedorSeleccionado(id, etiqueta) {
         ppProveedorHidden.value = String(id ?? '');
+        if (ppProveedorBuscar) {
+            ppProveedorBuscar.value = etiqueta || '';
+        }
+        if (ppProveedorResults) {
+            ppProveedorResults.classList.remove('show');
+        }
+    }
+
+    function mostrarBusqueda(activo) {
+        if (ppProveedorSearchBox) ppProveedorSearchBox.style.display = activo ? '' : 'none';
+        if (ppProveedorReadonly) ppProveedorReadonly.style.display = activo ? 'none' : '';
+        if (ppProveedorBuscar) {
+            ppProveedorBuscar.required = !!activo;
+            if (!activo) ppProveedorBuscar.removeAttribute('required');
+        }
     }
 
     window.abrirModalCodigoProveedorNuevo = function() {
+        modoEdicion = false;
         ppId.value = '';
         ppCodigo.value = '';
         titulo.textContent = '➕ Nuevo Código de Proveedor';
-        ppProveedorSelect.disabled = false;
-        ppProveedorHint.textContent = 'Selecciona el proveedor del catálogo.';
-
-        // Predeterminar al primer proveedor si existe.
-        var first = ppProveedorSelect.options[0];
-        if (first) {
-            setProveedorSeleccionado(first.value);
-        } else {
-            ppProveedorHidden.value = '';
-        }
-
+        ppProveedorHint.textContent = 'Escribe para buscar en el catálogo de proveedores.';
+        mostrarBusqueda(true);
+        setProveedorSeleccionado('', '');
         modal.classList.add('show');
+        if (ppProveedorBuscar) ppProveedorBuscar.focus();
     };
 
     window.abrirModalCodigoProveedorEditar = function(btn) {
+        modoEdicion = true;
         ppId.value = btn.dataset.id || '';
         ppCodigo.value = btn.dataset.codigo || '';
-
         var provId = btn.dataset.proveedorId || '';
+        var etq = btn.dataset.proveedorEtiqueta || '';
         titulo.textContent = '✏️ Editar Código de Proveedor';
-
-        // En edición asumimos que solo cambia el código (no el proveedor).
-        ppProveedorSelect.disabled = true;
         ppProveedorHint.textContent = 'El proveedor está bloqueado en edición (solo cambia el código).';
-
-        setProveedorSeleccionado(provId);
+        mostrarBusqueda(false);
+        if (ppProveedorReadonly) ppProveedorReadonly.textContent = etq || ('Proveedor #' + provId);
+        setProveedorSeleccionado(provId, etq);
         modal.classList.add('show');
     };
 
     window.cerrarModalCodigoProveedor = function() {
         modal.classList.remove('show');
+        if (abortProveedor) abortProveedor.abort();
     };
 
-    // Cuando el usuario cambia el proveedor en modo "Nuevo", sincronizamos el hidden.
-    ppProveedorSelect.addEventListener('change', function() {
-        if (!ppProveedorSelect.disabled) {
-            ppProveedorHidden.value = ppProveedorSelect.value;
+    function buscarProveedores(q) {
+        if (abortProveedor) abortProveedor.abort();
+        abortProveedor = new AbortController();
+        fetch(buscarProveedoresUrl + '?q=' + encodeURIComponent(q), { signal: abortProveedor.signal })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!ppProveedorResults) return;
+                if (!data.length) {
+                    ppProveedorResults.innerHTML = '<div class="autocomplete-item"><div class="autocomplete-item-name text-muted">Sin resultados</div></div>';
+                } else {
+                    ppProveedorResults.innerHTML = data.map(function(item) {
+                        var etq = (item.etiqueta || item.nombre || '').replace(/"/g, '&quot;');
+                        return '<div class="autocomplete-item" data-id="' + item.id + '" data-etiqueta="' + etq + '">' +
+                            '<div class="autocomplete-item-name">' + (item.etiqueta || item.nombre || '') + '</div>' +
+                            '</div>';
+                    }).join('');
+                    ppProveedorResults.querySelectorAll('.autocomplete-item[data-id]').forEach(function(el) {
+                        el.addEventListener('click', function() {
+                            setProveedorSeleccionado(this.dataset.id, this.dataset.etiqueta);
+                        });
+                    });
+                }
+                ppProveedorResults.classList.add('show');
+            })
+            .catch(function(err) {
+                if (err && err.name === 'AbortError') return;
+                console.error(err);
+            });
+    }
+
+    if (ppProveedorBuscar) {
+        ppProveedorBuscar.addEventListener('input', function() {
+            if (modoEdicion) return;
+            clearTimeout(timerProveedor);
+            ppProveedorHidden.value = '';
+            var q = this.value.trim();
+            if (q.length < 2) {
+                if (ppProveedorResults) ppProveedorResults.classList.remove('show');
+                return;
+            }
+            timerProveedor = setTimeout(function() { buscarProveedores(q); }, 400);
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#pp_proveedor_search_box') && ppProveedorResults) {
+            ppProveedorResults.classList.remove('show');
         }
     });
+
+    var formPp = document.getElementById('formCodigoProveedor');
+    if (formPp) {
+        formPp.addEventListener('submit', function(e) {
+            if (!ppProveedorHidden.value) {
+                e.preventDefault();
+                alert('Selecciona un proveedor de la lista.');
+            }
+        });
+    }
 })();
 </script>
 

@@ -312,11 +312,14 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/productos/revision-precios', [ProductoRevisionPrecioController::class, 'index'])->name('productos.revision-precios');
     Route::post('/productos/revision-precios/aplicar', [ProductoRevisionPrecioController::class, 'aplicar'])->name('productos.revision-precios.aplicar');
     Route::get('/productos/buscar-clave-sat', [ProductoController::class, 'buscarClaveSat'])->name('productos.buscar-clave-sat');
+    Route::get('/productos/buscar-proveedores', [ProductoController::class, 'buscarProveedores'])->name('productos.buscar-proveedores');
     Route::get('/productos/plantilla', [ProductoController::class, 'descargarPlantilla'])->name('productos.plantilla');
     Route::post('/productos/importar-lote', [ProductoController::class, 'importarLote'])->name('productos.importar-lote');
     Route::get('/catalogo-online', [CatalogoOnlineController::class, 'index'])->name('catalogo-online.index');
     Route::put('/catalogo-online/productos/{producto}', [CatalogoOnlineController::class, 'updateProducto'])->name('catalogo-online.productos.update');
     Route::resource('productos', ProductoController::class);
+    Route::post('/productos/{producto}/recalcular-costo-promedio', [ProductoController::class, 'recalcularCostoPromedio'])
+        ->name('productos.recalcular-costo-promedio');
     Route::post('/productos/{producto}/proveedores-codigo', [ProductoProveedorController::class, 'save'])->name('productos.proveedores-codigo.save');
     Route::delete('/productos/{producto}/proveedores-codigo/{productoProveedor}', [ProductoProveedorController::class, 'destroy'])
         ->name('productos.proveedores-codigo.destroy');

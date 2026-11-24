@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CategoriaProducto;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class CategoriaProductoController extends Controller
 {
@@ -43,6 +44,7 @@ class CategoriaProductoController extends Controller
 
         try {
             CategoriaProducto::create($validated);
+            Cache::forget('catalogo:categorias_productos_activas');
         } catch (QueryException $e) {
             return $this->respuestaErrorBdCategorias($request, $e);
         }
@@ -68,6 +70,7 @@ class CategoriaProductoController extends Controller
 
         try {
             $categoria->update($validated);
+            Cache::forget('catalogo:categorias_productos_activas');
         } catch (QueryException $e) {
             return $this->respuestaErrorBdCategorias($request, $e);
         }
@@ -87,6 +90,7 @@ class CategoriaProductoController extends Controller
         }
 
         $categoria->delete();
+        Cache::forget('catalogo:categorias_productos_activas');
 
         return redirect()->route('categorias.index')
             ->with('success', 'Categoría eliminada exitosamente');

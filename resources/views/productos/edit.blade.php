@@ -227,13 +227,13 @@ $breadcrumbs = [
                     <div class="form-group">
                         <label class="form-label">Costo promedio</label>
                         <div class="form-control text-mono" style="background: var(--color-gray-50); font-weight: 600;" readonly tabindex="-1">
-                            @if($producto->costo_promedio_mostrar !== null)
-                                ${{ number_format($producto->costo_promedio_mostrar, 2, '.', ',') }}
+                            @if($producto->costo_promedio !== null && (float) $producto->costo_promedio > 0)
+                                ${{ number_format((float) $producto->costo_promedio, 2, '.', ',') }}
                             @else
                                 —
                             @endif
                         </div>
-                        <span class="form-hint">Promedio sobre compras recibidas</span>
+                        <span class="form-hint">Valor almacenado (recalcular desde la ficha del producto)</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -397,8 +397,9 @@ $breadcrumbs = [
     }
     if (sel) { sel.addEventListener('change', syncUnidadDesdeSelect); syncUnidadDesdeSelect(); }
 
-    // Autocomplete Clave Prod./Serv. SAT
+    // Autocomplete Clave Prod./Serv. SAT (debounce 400 ms + AbortController)
     var timerClaveSat = null;
+    var abortClaveSat = null;
     var claveSatInput = document.getElementById('clave_sat_input');
     var claveSatResults = document.getElementById('claveSatResults');
     if (claveSatInput && claveSatResults) {
@@ -406,7 +407,7 @@ $breadcrumbs = [
             clearTimeout(timerClaveSat);
             var q = this.value.trim();
             if (q.length < 2) { claveSatResults.classList.remove('show'); return; }
-            timerClaveSat = setTimeout(function() { buscarClaveSat(q); }, 280);
+            timerClaveSat = setTimeout(function() { buscarClaveSat(q); }, 400);
         });
         claveSatInput.addEventListener('focus', function() {
             var v = this.value.trim();
@@ -419,7 +420,9 @@ $breadcrumbs = [
         });
     }
     function buscarClaveSat(q) {
-        fetch('{{ route("productos.buscar-clave-sat") }}?q=' + encodeURIComponent(q))
+        if (abortClaveSat) abortClaveSat.abort();
+        abortClaveSat = new AbortController();
+        fetch('{{ route("productos.buscar-clave-sat") }}?q=' + encodeURIComponent(q), { signal: abortClaveSat.signal })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!claveSatResults) return;
@@ -445,7 +448,10 @@ $breadcrumbs = [
                 }
                 claveSatResults.classList.add('show');
             })
-            .catch(function(err) { console.error(err); });
+            .catch(function(err) {
+                if (err && err.name === 'AbortError') return;
+                console.error(err);
+            });
     }
 </script>
 @endpush

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\UnidadMedidaSat;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class UnidadMedidaSatController extends Controller
 {
@@ -29,6 +30,7 @@ class UnidadMedidaSatController extends Controller
         ]);
         $validated['activo'] = $request->boolean('activo');
         UnidadMedidaSat::create($validated);
+        Cache::forget('catalogo:unidades_medida_sat_activos');
         return redirect()->route('catalogos-sat.unidades-medida.index')
             ->with('success', 'Unidad de medida creada.');
     }
@@ -49,6 +51,7 @@ class UnidadMedidaSatController extends Controller
         ]);
         $validated['activo'] = $request->boolean('activo');
         $unidades_medida->update($validated);
+        Cache::forget('catalogo:unidades_medida_sat_activos');
         return redirect()->route('catalogos-sat.unidades-medida.index')
             ->with('success', 'Unidad de medida actualizada.');
     }
@@ -56,6 +59,7 @@ class UnidadMedidaSatController extends Controller
     public function destroy(UnidadMedidaSat $unidades_medida)
     {
         $unidades_medida->delete();
+        Cache::forget('catalogo:unidades_medida_sat_activos');
         return redirect()->route('catalogos-sat.unidades-medida.index')
             ->with('success', 'Unidad de medida eliminada.');
     }

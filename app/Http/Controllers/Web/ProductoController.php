@@ -13,7 +13,9 @@ use App\Models\UnidadMedidaSat;
 use App\Models\Proveedor;
 use App\Services\ProductoImportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -29,6 +31,26 @@ class ProductoController extends Controller
     private function obtenerSiguientePsiNumDesde(int $desde): int
     {
         return \App\Support\ProductoPsiConsecutivo::siguienteNumeroDesde($desde);
+    }
+
+    /**
+     * Categorías activas con padre (cache 10 min).
+     */
+    private function categoriasActivasCached()
+    {
+        return Cache::remember('catalogo:categorias_productos_activas', 600, function () {
+            return CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
+        });
+    }
+
+    /**
+     * Unidades SAT activas (cache 10 min).
+     */
+    private function unidadesMedidaCached()
+    {
+        return Cache::remember('catalogo:unidades_medida_sat_activos', 600, function () {
+            return UnidadMedidaSat::activos()->get();
+        });
     }
 
     public function index(Request $request)
@@ -71,62 +93,73 @@ class ProductoController extends Controller
             $q->buscar($search);
         });
         $query->when($categoria_id, function ($q) use ($categoria_id) {
-            $q->where('categoria_id', $categoria_id);
+            $q->where('productos.categoria_id', $categoria_id);
         });
 
+        // Prefijo en código (aprovecha índice); nombre sin barrer descripcion TEXT.
         if ($fCodigo !== '') {
-            $query->where('codigo', 'like', '%' . $fCodigo . '%');
+            $escaped = addcslashes($fCodigo, '%_\\');
+            $query->where('productos.codigo', 'like', $escaped . '%');
         }
         if ($fNombre !== '') {
-            $query->where(function ($q) use ($fNombre) {
-                $q->where('nombre', 'like', '%' . $fNombre . '%')
-                    ->orWhere('descripcion', 'like', '%' . $fNombre . '%');
-            });
+            $escaped = addcslashes($fNombre, '%_\\');
+            $query->where('productos.nombre', 'like', '%' . $escaped . '%');
         }
         if ($fCategoriaCol === 'sin') {
-            $query->whereNull('categoria_id');
+            $query->whereNull('productos.categoria_id');
         } elseif ($fCategoriaCol !== '' && $fCategoriaCol !== null && is_numeric($fCategoriaCol)) {
-            $query->where('categoria_id', (int) $fCategoriaCol);
+            $query->where('productos.categoria_id', (int) $fCategoriaCol);
         }
         if ($fPrecioMin !== '' && $fPrecioMin !== null && is_numeric($fPrecioMin)) {
-            $query->where('precio_venta', '>=', (float) $fPrecioMin);
+            $query->where('productos.precio_venta', '>=', (float) $fPrecioMin);
         }
         if ($fPrecioMax !== '' && $fPrecioMax !== null && is_numeric($fPrecioMax)) {
-            $query->where('precio_venta', '<=', (float) $fPrecioMax);
+            $query->where('productos.precio_venta', '<=', (float) $fPrecioMax);
         }
         if ($fStock === 'na') {
-            $query->where('controla_inventario', false);
+            $query->where('productos.controla_inventario', false);
         } elseif ($fStock === 'inventario') {
-            $query->where('controla_inventario', true);
+            $query->where('productos.controla_inventario', true);
         } elseif ($fStock === 'bajo') {
-            $query->where('controla_inventario', true)
-                ->whereColumn('stock', '<=', 'stock_minimo');
+            $query->where('productos.controla_inventario', true)
+                ->whereColumn('productos.stock', '<=', 'productos.stock_minimo');
         }
         if ($fActivo === '1' || $fActivo === '0') {
-            $query->where('activo', (bool) (int) $fActivo);
+            $query->where('productos.activo', (bool) (int) $fActivo);
         }
+
+        $cols = Producto::columnasListado();
+        $query->select($cols)
+            ->selectRaw('LEFT(productos.descripcion, 80) as descripcion');
 
         if ($sort === 'categoria') {
             $query->leftJoin('categorias_productos as cat_sort', 'productos.categoria_id', '=', 'cat_sort.id')
-                ->select('productos.*')
                 ->orderByRaw('COALESCE(cat_sort.nombre, \'\') ' . $dir);
         } else {
-            $query->orderBy($sort, $dir);
+            $query->orderBy('productos.' . $sort, $dir);
         }
 
         $appends = array_merge($request->except('page'), [
             'sort' => $sort,
             'dir' => $dir,
         ]);
-        $productos = $query->with(['categoria.parent', 'claveProdServicio'])->paginate(20)->appends($appends);
+        $productos = $query
+            ->with([
+                'categoria:id,nombre,color,icono,parent_id',
+                'categoria.parent:id,nombre,color,icono',
+                'claveProdServicio:clave,descripcion',
+            ])
+            ->paginate(20)
+            ->appends($appends);
 
-        $categorias = CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
+        $categorias = $this->categoriasActivasCached();
 
         $hayFiltrosColumna = $fCodigo !== '' || $fNombre !== '' || ($fCategoriaCol !== '' && $fCategoriaCol !== null)
             || ($fPrecioMin !== '' && $fPrecioMin !== null) || ($fPrecioMax !== '' && $fPrecioMax !== null)
             || ($fStock !== '' && $fStock !== null) || ($fActivo === '1' || $fActivo === '0');
         $hayFiltros = $search || $categoria_id || $hayFiltrosColumna;
-        $mostrarTablaFiltros = $productos->isNotEmpty() || $hayFiltros || Producto::exists();
+        $hayCatalogo = Cache::remember('productos:catalogo_existe', 120, fn () => Producto::query()->exists());
+        $mostrarTablaFiltros = $productos->isNotEmpty() || $hayFiltros || $hayCatalogo;
 
         if ($request->boolean('imported') && ! session()->has('success')) {
             session()->flash('success', sprintf(
@@ -158,8 +191,8 @@ class ProductoController extends Controller
 
     public function create()
     {
-        $categorias = CategoriaProducto::activas()->orderBy('nombre')->get();
-        $unidadesMedida = UnidadMedidaSat::activos()->get();
+        $categorias = $this->categoriasActivasCached();
+        $unidadesMedida = $this->unidadesMedidaCached();
         $claveSatDefault = old('clave_sat', '01010101');
         $catalogoCreate = ClaveProdServicio::where('clave', $claveSatDefault)->first();
         $claveSatEtiqueta = $catalogoCreate ? $catalogoCreate->etiqueta : $claveSatDefault;
@@ -260,6 +293,9 @@ class ProductoController extends Controller
         ]);
 
         $result = $service->upsertFilas($validated['items']);
+        if (($result['creados'] ?? 0) > 0) {
+            Cache::forget('productos:catalogo_existe');
+        }
 
         return response()->json([
             'ok' => true,
@@ -320,6 +356,7 @@ class ProductoController extends Controller
         $producto = Producto::create($validated);
 
         $this->procesarImagenesEnCreacion($request, $producto);
+        Cache::forget('productos:catalogo_existe');
 
         if ($psiCandidateCode && $codigoGuardado === $psiCandidateCode) {
             $nuevoNum = $this->obtenerSiguientePsiNumDesde($psiNextNum + 1);
@@ -332,18 +369,61 @@ class ProductoController extends Controller
 
     public function show(Producto $producto)
     {
-        $producto->load(['categoria.parent', 'codigosProveedores.proveedor']);
+        $producto->load([
+            'categoria.parent',
+            'codigosProveedores.proveedor:id,codigo,nombre,nombre_comercial',
+        ]);
         $catalogo = ClaveProdServicio::where('clave', $producto->clave_sat)->first();
         $claveSatEtiqueta = $catalogo ? $catalogo->etiqueta : $producto->clave_sat;
-        $proveedores = Proveedor::activos()->orderBy('nombre')->get();
 
-        return view('productos.show', compact('producto', 'claveSatEtiqueta', 'proveedores'));
+        return view('productos.show', compact('producto', 'claveSatEtiqueta'));
+    }
+
+    /**
+     * Autocomplete de proveedores para el modal de código proveedor (sin dump completo).
+     */
+    public function buscarProveedores(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        return response()->json(
+            Proveedor::activos()
+                ->buscar($q)
+                ->limit(15)
+                ->get(['id', 'codigo', 'nombre', 'nombre_comercial'])
+                ->map(fn ($p) => [
+                    'id' => $p->id,
+                    'codigo' => $p->codigo,
+                    'nombre' => $p->nombre,
+                    'nombre_comercial' => $p->nombre_comercial ?? '',
+                    'etiqueta' => $p->etiqueta_con_codigo,
+                ])
+        );
+    }
+
+    /**
+     * Recalcula y guarda costo_promedio desde compras recibidas (bajo demanda).
+     */
+    public function recalcularCostoPromedio(Producto $producto)
+    {
+        $calc = $producto->costo_promedio_calculado;
+        $producto->update(['costo_promedio' => $calc]);
+
+        return back()->with(
+            'success',
+            $calc !== null
+                ? 'Costo promedio actualizado: $'.number_format($calc, 2, '.', ',')
+                : 'Sin compras recibidas para calcular costo promedio.'
+        );
     }
 
     public function edit(Producto $producto)
     {
-        $categorias = CategoriaProducto::with('parent')->activas()->orderBy('nombre')->get();
-        $unidadesMedida = UnidadMedidaSat::activos()->get();
+        $categorias = $this->categoriasActivasCached();
+        $unidadesMedida = $this->unidadesMedidaCached();
         $claveSat = old('clave_sat', $producto->clave_sat);
         $catalogo = ClaveProdServicio::where('clave', $claveSat)->first();
         $claveSatEtiqueta = $catalogo ? $catalogo->etiqueta : $claveSat;
@@ -408,6 +488,7 @@ class ProductoController extends Controller
 
         // Borrado físico SOLO si no hay trazabilidad.
         $producto->forceDelete();
+        Cache::forget('productos:catalogo_existe');
 
         return redirect()->route('productos.index')
             ->with('success', 'Producto eliminado exitosamente');

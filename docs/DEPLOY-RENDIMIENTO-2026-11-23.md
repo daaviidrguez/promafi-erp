@@ -268,6 +268,31 @@
 
 ---
 
+## 1.m Ronda 13 — productos (index/show/create/edit)
+
+**Sin PAC.** Misma UI de catálogo; menos I/O en listado y ficha.
+
+| Cambio | Detalle |
+|--------|---------|
+| Index | Select columnas listado + `LEFT(descripcion,80)`; sin `imagenes`/notas; eager categoría/SAT acotado |
+| Filtros | `f_codigo` prefijo; `f_nombre` solo en `nombre` (no barre `descripcion`) |
+| Index misc | Categorías cache 10 min; `exists` catálogo cache 120s |
+| Show | Sin dump de proveedores → autocomplete + AbortController; costo promedio **almacenado** + botón Recalcular |
+| Create/edit | Unidades/categorías cache; clave SAT debounce **400 ms** + `AbortController` |
+| Edit | Costo promedio solo valor almacenado (sin agregados OC en el GET) |
+
+### Deploy extra ronda 13
+- [ ] `php artisan view:cache` / `route:cache`
+- [ ] Index productos: filtros código/nombre; paginación rápida
+- [ ] Show: agregar código proveedor vía búsqueda; Recalcular costo
+- [ ] Create/edit: teclear clave SAT sin requests en vuelo
+
+### Archivos ronda 13
+- `Producto`, `ProductoController`, `CategoriaProductoController`, `UnidadMedidaSatController`, `routes/web.php`
+- `productos/index|show|create|edit.blade.php`
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

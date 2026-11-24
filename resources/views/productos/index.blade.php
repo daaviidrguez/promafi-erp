@@ -168,10 +168,10 @@ $dirAsc = ($dir ?? 'asc') === 'asc';
             </tr>
             <tr class="tr-filtros-columna">
                 <th>
-                    <input type="text" name="f_codigo" value="{{ $fCodigo ?? '' }}" class="form-control input-col-filter" placeholder="Contiene…">
+                    <input type="text" name="f_codigo" value="{{ $fCodigo ?? '' }}" class="form-control input-col-filter" placeholder="Empieza con…">
                 </th>
                 <th>
-                    <input type="text" name="f_nombre" value="{{ $fNombre ?? '' }}" class="form-control input-col-filter" placeholder="Nombre o desc.">
+                    <input type="text" name="f_nombre" value="{{ $fNombre ?? '' }}" class="form-control input-col-filter" placeholder="Nombre…">
                 </th>
                 <th></th>
                 <th>

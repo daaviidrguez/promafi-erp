@@ -499,10 +499,52 @@ class FacturaController extends Controller
     /**
      * Ver detalle de factura
      */
-    public function show(Factura $factura)
+    public function show(string $factura)
     {
-        $factura->load(['cliente', 'detalles.producto', 'detalles.impuestos', 'cuentaPorCobrar', 'cotizacion', 'usuario', 'cancelacionAdministrativaUsuario', 'soporte.usuario', 'cancelacionEventos.user', 'cancelacionesAdministrativas.user']);
-        $facturaSustituta = $factura->resolverFacturaSustituta();
+        // Sin type-hint Eloquent: evita SELECT * del route binding (xml_content/sellos).
+        $with = [
+            'detalles.impuestos',
+            'cuentaPorCobrar',
+            'cotizacion:id,folio',
+            'usuario:id,name',
+            'soporte.usuario:id,name',
+        ];
+
+        $facturaModel = Factura::query()
+            ->paraShow()
+            ->with($with)
+            ->findOrFail($factura);
+
+        if ($facturaModel->esBorrador()) {
+            $facturaModel->load([
+                'detalles.producto:id,clave_sat,clave_unidad_sat,nombre,unidad',
+            ]);
+        }
+
+        $cargaExpedienteCancelacion = $facturaModel->estado === 'cancelada'
+            || (bool) $facturaModel->cancelacion_administrativa
+            || $facturaModel->cancelacionesAdministrativas()->exists();
+
+        if ($cargaExpedienteCancelacion) {
+            $facturaModel->load([
+                'cancelacionAdministrativaUsuario:id,name',
+                'cancelacionEventos.user:id,name',
+                'cancelacionesAdministrativas.user:id,name',
+            ]);
+        } else {
+            $facturaModel->setRelation('cancelacionEventos', collect());
+            $facturaModel->setRelation('cancelacionesAdministrativas', collect());
+        }
+
+        $factura = $facturaModel;
+
+        $facturaSustituta = null;
+        if (filled($factura->uuid_sustitucion_cancelacion)
+            || $factura->estado === 'cancelada'
+            || $factura->cancelacion_administrativa) {
+            $facturaSustituta = $factura->resolverFacturaSustituta();
+        }
+
         $cancelacionAdminService = app(CancelacionAdministrativaFacturaService::class);
         $puedeCancelarAdmin = false;
         $motivoNoCancelarAdmin = null;
@@ -521,6 +563,7 @@ class FacturaController extends Controller
             $motivoNoReactivarCancelacionAdmin = $checkReactivar['mensaje'];
         }
 
+        // Sync SAT: solo vía POST sincronizar-clave-sat (no escritura en el GET del show).
         $mensajeSyncSat = null;
         $datosFiscalesBorrador = [
             'puede_sincronizar_desde_catalogo' => false,
@@ -528,18 +571,20 @@ class FacturaController extends Controller
             'partidas' => [],
         ];
         if ($factura->esBorrador()) {
-            $actualizados = $factura->sincronizarDatosFiscalesDesdeProductos();
-            if ($actualizados > 0) {
-                $factura->load(['detalles.producto', 'detalles.impuestos']);
-                $mensajeSyncSat = $actualizados === 1
-                    ? 'Se actualizó la clave SAT desde el catálogo en 1 partida.'
-                    : "Se actualizó la clave SAT desde el catálogo en {$actualizados} partidas.";
-            }
             $datosFiscalesBorrador = $factura->diagnosticoDatosFiscalesBorrador();
         }
 
-        $ncBorrador = \App\Models\NotaCredito::where('factura_id', $factura->id)->where('estado', 'borrador')->first();
-        $complementoBorrador = $factura->cliente_id ? \App\Models\ComplementoPago::where('cliente_id', $factura->cliente_id)->where('estado', 'borrador')->first() : null;
+        $ncBorrador = \App\Models\NotaCredito::query()
+            ->where('factura_id', $factura->id)
+            ->where('estado', 'borrador')
+            ->first(['id', 'serie', 'folio', 'estado', 'factura_id']);
+
+        $complementoBorrador = $factura->cliente_id
+            ? \App\Models\ComplementoPago::query()
+                ->where('cliente_id', $factura->cliente_id)
+                ->where('estado', 'borrador')
+                ->first(['id', 'serie', 'folio', 'estado', 'cliente_id'])
+            : null;
 
         $remisionIds = Remision::query()->where('factura_id', $factura->id)->pluck('id');
         $envioIds = LogisticaEnvio::query()
@@ -559,9 +604,13 @@ class FacturaController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
+        $complementoCols = \App\Support\CfdiListadoColumnas::complementoRelacionPago();
         $pagosAplicados = \App\Models\DocumentoRelacionadoPago::query()
             ->where('factura_id', $factura->id)
-            ->with(['pagoRecibido.complementoPago'])
+            ->with([
+                'pagoRecibido:id,complemento_pago_id,fecha_pago',
+                'pagoRecibido.complementoPago' => fn ($q) => $q->select($complementoCols),
+            ])
             ->orderBy('parcialidad')
             ->orderBy('id')
             ->get();

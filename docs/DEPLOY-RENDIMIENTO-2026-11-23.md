@@ -163,6 +163,34 @@
 
 ---
 
+## 1.i Ronda 9 — show cotización + show factura más ágiles
+
+**Síntoma:** index ya rápido; los show seguían pesados (factura con `xml_content`/sellos vía route binding; cotización con eager muerto + EXISTS repetidos).
+
+| Cambio | Detalle |
+|--------|---------|
+| Factura show sin blobs | `paraShow()` / `facturaShow()`: sin `xml_content`, sellos ni cadena; sin type-hint Eloquent en `show` |
+| Eager condicional factura | Sin `cliente`; `producto` solo en borrador; expediente cancelación solo si aplica |
+| Sin sync SAT en GET | Diagnóstico sí; escritura solo con `POST …/sincronizar-clave-sat` |
+| Pagos / NC / complemento | Selects mínimos (complemento sin XML) |
+| `resolverFacturaSustituta` | Select corto + `limit 50` |
+| Cotización show | Sin `cliente`/`producto`; helpers usan colección en memoria; motivo 1× en blade |
+| `FormaPago::etiquetaDe` | Sin query por fila en show |
+
+### Deploy extra ronda 9
+- [ ] `php artisan view:cache` / `route:cache` (firma `show` sin binding)
+- [ ] Abrir factura timbrada → TTFB menor; XML/PDF download siguen OK
+- [ ] Borrador: claves SAT ya **no** se auto-escriben al abrir; usar botón sincronizar
+- [ ] Cotización show: convertir/asignar/adjuntos igual que antes
+
+### Archivos ronda 9
+- `app/Support/CfdiListadoColumnas.php`
+- `app/Models/Factura.php`, `Cotizacion.php`, `FormaPago.php`
+- `app/Http/Controllers/Web/FacturaController.php`, `CotizacionController.php`
+- `resources/views/facturas/show.blade.php`, `cotizaciones/show.blade.php`
+
+---
+
 ## 2. Archivos tocados (inventario exacto)
 
 ### Nuevos

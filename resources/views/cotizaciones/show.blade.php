@@ -33,6 +33,10 @@ $breadcrumbs = [
     $puedeCrearFactura = $cotizacion->puedeFacturarse() && auth()->user()?->can('facturas.crear');
     $verFacturaComoPrincipal = ! $cotizacion->puedeAceptarse() && ! $puedeCrearFactura
         && $cotizacion->factura && auth()->user()?->can('facturas.ver');
+    $puedeConvertirAFactura = $puedeCrearFactura && $cotizacion->puedeConvertirAFactura();
+    $motivoNoConvertirAFactura = $puedeCrearFactura && ! $puedeConvertirAFactura
+        ? $cotizacion->motivoNoConvertirAFactura()
+        : null;
 
     $tabInicial = $errors->has('archivo') || $errors->has('nota') ? 'documentos' : 'productos';
 @endphp
@@ -119,7 +123,7 @@ $breadcrumbs = [
                             <div class="info-label">Forma de pago</div>
                             <div class="info-value-sm">
                                 @if($cotizacion->forma_pago)
-                                    {{ optional(\App\Models\FormaPago::where('clave', $cotizacion->forma_pago)->first())->etiqueta ?? $cotizacion->forma_pago }}
+                                    {{ \App\Models\FormaPago::etiquetaDe($cotizacion->forma_pago) ?: ($cotizacion->forma_pago ?? '—') }}
                                 @else
                                     —
                                 @endif
@@ -233,7 +237,7 @@ $breadcrumbs = [
                                 @endif
                             </td>
                             <td class="td-center fw-600">{{ number_format($d->cantidad, 2) }}</td>
-                            <td class="td-center">{{ $d->unidad ?? $d->producto->unidad ?? 'PZA' }}</td>
+                            <td class="td-center">{{ $d->unidad ?: (($d->relationLoaded('producto') ? $d->producto?->unidad : null) ?: 'PZA') }}</td>
                             <td class="td-right text-mono">${{ number_format($d->precio_unitario, 2) }}</td>
                             <td class="td-center">
                                 @if($d->utilidad !== null && (float) $d->utilidad > 0)
@@ -492,7 +496,7 @@ $breadcrumbs = [
                     </button>
                 </form>
                 @elseif($puedeCrearFactura)
-                    @if($cotizacion->puedeConvertirAFactura())
+                    @if($puedeConvertirAFactura)
                     <form id="formConvertirFacturaCotizacion" method="POST" action="{{ route('cotizaciones.convertir-factura', $cotizacion->id) }}">
                         @csrf
                         <button type="button" class="btn btn-primary w-full" onclick="abrirModalConvertirFactura()">
@@ -501,10 +505,10 @@ $breadcrumbs = [
                     </form>
                     @else
                     <button type="button" class="btn btn-primary w-full" disabled
-                            title="{{ $cotizacion->motivoNoConvertirAFactura() }}">
+                            title="{{ $motivoNoConvertirAFactura }}">
                         💰 Convertir a Factura
                     </button>
-                    <p class="text-muted small mb-0" style="margin-top: -4px; font-size: 12px; line-height: 1.45;">{{ $cotizacion->motivoNoConvertirAFactura() }}</p>
+                    <p class="text-muted small mb-0" style="margin-top: -4px; font-size: 12px; line-height: 1.45;">{{ $motivoNoConvertirAFactura }}</p>
                     @endif
                 @elseif($verFacturaComoPrincipal)
                 <a href="{{ route('facturas.show', [$cotizacion->factura->id, 'from' => 'cotizacion', 'from_id' => $cotizacion->id]) }}"
@@ -607,7 +611,7 @@ $breadcrumbs = [
 @endif
 
 {{-- Modal: Confirmar conversión a factura --}}
-@if($cotizacion->puedeFacturarse() && $cotizacion->puedeConvertirAFactura())
+@if($puedeConvertirAFactura)
 @can('facturas.crear')
 <div id="modalConvertirFacturaCotizacion" class="modal">
     <div class="modal-box" style="max-width:480px;">

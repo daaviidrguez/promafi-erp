@@ -18,6 +18,9 @@ class Cotizacion extends Model
 
     protected $table = 'cotizaciones';
 
+    /** @var bool|null Memo request-local: factura asociada (incl. soft-deleted). */
+    private ?bool $tieneFacturaAsociadaMemo = null;
+
     protected $fillable = [
         // Identificación
         'folio',
@@ -297,6 +300,10 @@ class Cotizacion extends Model
      */
     public function tienePartidasSinProductoAsignado(): bool
     {
+        if ($this->relationLoaded('detalles')) {
+            return $this->detalles->contains(fn (CotizacionDetalle $d) => $d->producto_id === null);
+        }
+
         return $this->detalles()->whereNull('producto_id')->exists();
     }
 
@@ -318,6 +325,10 @@ class Cotizacion extends Model
             return false;
         }
 
+        if ($this->relationLoaded('detalles')) {
+            return $this->detalles->contains(fn (CotizacionDetalle $d) => (float) $d->cantidad > 0);
+        }
+
         return $this->detalles()->where('cantidad', '>', 0)->exists();
     }
 
@@ -326,17 +337,39 @@ class Cotizacion extends Model
      */
     public function motivoNoConvertirAFactura(): ?string
     {
-        if (\App\Models\Factura::withTrashed()->where('cotizacion_id', $this->id)->exists()) {
+        if ($this->relationLoaded('factura') && $this->factura) {
             return 'Esta cotización ya tiene una factura asociada.';
         }
-        if (!$this->puedeFacturarse()) {
+
+        $this->tieneFacturaAsociadaMemo ??= Factura::withTrashed()
+            ->where('cotizacion_id', $this->id)
+            ->exists();
+
+        if ($this->tieneFacturaAsociadaMemo) {
+            return 'Esta cotización ya tiene una factura asociada.';
+        }
+        if (! $this->puedeFacturarse()) {
             return 'La cotización debe estar aceptada o enviada.';
         }
         if ($this->tienePartidasSinProductoAsignado()) {
             return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
         }
+
+        if ($this->relationLoaded('detalles')) {
+            foreach ($this->detalles as $d) {
+                if (! $d->producto_id) {
+                    return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
+                }
+                if ($d->relationLoaded('producto') && ! $d->producto) {
+                    return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
+                }
+            }
+
+            return null;
+        }
+
         foreach ($this->detalles as $d) {
-            if (!$d->producto_id || !$d->producto) {
+            if (! $d->producto_id || ! $d->producto) {
                 return 'Primero debe asignar un producto en cada partida usando la lupita (📦 Asignar producto(s)).';
             }
         }

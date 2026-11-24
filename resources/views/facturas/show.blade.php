@@ -143,7 +143,7 @@ $breadcrumbs = [
                 </div>
                 <div class="info-row">
                     <div class="info-label">Forma de Pago</div>
-                    <div class="info-value-sm">{{ optional(\App\Models\FormaPago::where('clave', $factura->forma_pago)->first())->etiqueta ?? $factura->forma_pago }}</div>
+                    <div class="info-value-sm">{{ \App\Models\FormaPago::etiquetaDe($factura->forma_pago) ?: ($factura->forma_pago ?? '—') }}</div>
                 </div>
                 @if($factura->usuario)
                 <div class="info-row">
@@ -638,7 +638,7 @@ $breadcrumbs = [
                     @if(!empty($datosFiscalesBorrador['pendiente_en_catalogo']))
                     <div class="alert alert-warning" style="margin: 0; padding: 10px 12px; font-size: 12px; line-height: 1.5;">
                         <strong>Faltan datos SAT en catálogo</strong> para poder timbrar.
-                        Complételos en el producto; al volver a esta factura se sincronizarán solos.
+                        Complételos en el producto y luego pulse «Actualizar claves SAT».
                     </div>
                     @endif
                     @if(!empty($datosFiscalesBorrador['puede_sincronizar_desde_catalogo']))
@@ -650,7 +650,7 @@ $breadcrumbs = [
                         </button>
                     </form>
                     <p class="doc-show-acciones-nota">
-                        El catálogo ya tiene datos listos; pulse para traerlos a este borrador (o recargue la página).
+                        El catálogo ya tiene datos listos; pulse para traerlos a este borrador.
                     </p>
                     @endif
                     @endcanany

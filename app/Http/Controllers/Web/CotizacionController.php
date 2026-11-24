@@ -450,12 +450,12 @@ class CotizacionController extends Controller
     public function show($id)
     {
         $facturaCols = \App\Support\CfdiListadoColumnas::facturaRelacion();
+        // Cliente va denormalizado en cotización; producto no hace falta para pintar el detalle.
         $cotizacion = Cotizacion::with([
-            'cliente',
-            'detalles.producto',
-            'usuario',
+            'detalles',
+            'usuario:id,name',
             'factura' => fn ($q) => $q->select($facturaCols),
-            'adjuntos.usuario',
+            'adjuntos.usuario:id,name',
         ])->findOrFail($id);
         $this->authorizeCotizacion($cotizacion);
 

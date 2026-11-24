@@ -713,9 +713,14 @@ class Factura extends Model
 
     public function resolverFacturaSustituta(): ?self
     {
+        $cols = [
+            'id', 'serie', 'folio', 'uuid', 'estado', 'cliente_id',
+            'tipo_relacion', 'uuid_referencia', 'uuid_sustitucion_cancelacion', 'deleted_at',
+        ];
+
         $uuidSustituto = trim((string) $this->uuid_sustitucion_cancelacion);
         if ($uuidSustituto !== '') {
-            $factura = self::query()->where('uuid', $uuidSustituto)->first();
+            $factura = self::query()->select($cols)->where('uuid', $uuidSustituto)->first();
             if ($factura) {
                 return $factura;
             }
@@ -727,10 +732,12 @@ class Factura extends Model
         }
 
         return self::query()
+            ->select($cols)
             ->where('id', '!=', $this->id)
             ->whereNotNull('uuid')
             ->where('tipo_relacion', '04')
             ->where('uuid_referencia', 'like', '%'.$uuidCancelado.'%')
+            ->limit(50)
             ->get()
             ->first(function (self $candidata) use ($uuidCancelado) {
                 $uuids = preg_split('/[,;\s]+/', (string) $candidata->uuid_referencia) ?: [];
@@ -1117,5 +1124,13 @@ class Factura extends Model
     public function scopeParaListado($query)
     {
         return $query->select(\App\Support\CfdiListadoColumnas::factura());
+    }
+
+    /**
+     * Show HTML: sin xml_content / sellos / cadena (siguen disponibles en descargar XML/PDF).
+     */
+    public function scopeParaShow($query)
+    {
+        return $query->select(\App\Support\CfdiListadoColumnas::facturaShow());
     }
 }

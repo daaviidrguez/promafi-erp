@@ -21,4 +21,24 @@ class FormaPago extends Model
     {
         return $this->clave . ' - ' . $this->descripcion;
     }
+
+    /**
+     * Etiqueta por clave sin query por fila (mapa en memoria / request).
+     */
+    public static function etiquetaDe(?string $clave): string
+    {
+        $clave = trim((string) $clave);
+        if ($clave === '') {
+            return '';
+        }
+
+        static $map = null;
+        if ($map === null) {
+            $map = self::query()->get(['clave', 'descripcion'])->keyBy('clave');
+        }
+
+        $fp = $map->get($clave);
+
+        return $fp ? $fp->etiqueta : $clave;
+    }
 }

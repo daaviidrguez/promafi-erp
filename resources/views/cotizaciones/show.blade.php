@@ -208,8 +208,12 @@ $breadcrumbs = [
                         <tr>
                             <td>
                                 @if($cotizacion->puedeFacturarse())
+                                    @php $productoAsignado = (bool) $d->producto_id; @endphp
                                     <div style="display:flex;align-items:center;gap:6px;">
-                                        <button type="button" class="btn btn-outline btn-sm btn-icon" title="Asignar producto" onclick="abrirModalAsignarProducto({{ $d->id }})">🔍</button>
+                                        <button type="button"
+                                                class="btn {{ $productoAsignado ? 'btn-success' : 'btn-outline' }} btn-sm btn-icon"
+                                                title="{{ $productoAsignado ? 'Producto asignado (clic para cambiar)' : 'Asignar producto' }}"
+                                                onclick="abrirModalAsignarProducto({{ $d->id }})">🔍</button>
                                         <span class="producto-row-code">{{ $d->codigo === 'MANUAL' ? '—' : ($d->codigo ?? '—') }}</span>
                                     </div>
                                 @else

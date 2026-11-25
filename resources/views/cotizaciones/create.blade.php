@@ -1663,8 +1663,8 @@ function renderProductos() {
                        <input type="hidden" name="productos[${i}][es_producto_manual]" value="1">
                        <input type="hidden" name="productos[${i}][sugerencia_id]" value="${p.sugerencia_id || ''}">
                        <input type="hidden" name="productos[${i}][codigo]" value="${(p.codigo || '').replace(/"/g,'&quot;')}">`
-                    : `<div class="fw-600" style="font-size:13.5px;">${p.nombre}</div>
-                       <span class="producto-row-code">${p.codigo}</span>`}
+                    : `<textarea id="catalogDesc_${i}" rows="1" onchange="upd(${i},'nombre',this.value)" oninput="onCatalogDescInput(${i},this.value)" placeholder="Descripción..." class="form-control manual-desc-auto" style="font-size:13px;" autocomplete="off">${nombreEsc}</textarea>
+                       ${p.codigo ? `<span class="producto-row-code">${(p.codigo || '').replace(/</g,'&lt;')}</span>` : ''}`}
                 <input type="hidden" name="productos[${i}][producto_id]" value="${p.id || ''}">
                 <input type="hidden" name="productos[${i}][descripcion]" value="${(p.nombre||'').replace(/"/g,'&quot;')}">
             </td>
@@ -1773,6 +1773,11 @@ function actualizarLineaImportes(i) {
         subEl.title = 'Precio venta: $' + fmtMonto(precioVenta);
     }
     if (totEl) totEl.textContent = '$' + fmtMonto(total);
+}
+
+function onCatalogDescInput(rowIndex, value) {
+    upd(rowIndex, 'nombre', value);
+    autoResizeManualDesc(document.getElementById('catalogDesc_' + rowIndex));
 }
 
 function onManualDescInput(rowIndex, value) {

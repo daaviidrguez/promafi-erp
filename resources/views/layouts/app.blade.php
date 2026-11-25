@@ -222,12 +222,20 @@
 
         const DELAY_MS = 200;
         const FAILSAFE_MS = 15000;
+        /** Si tras mostrar el velo no hubo navegación (descargas attachment, etc.), ocultarlo. */
+        const SAME_PAGE_GUARD_MS = 4000;
         let showTimer = null;
         let failsafeTimer = null;
+        let samePageGuard = null;
         let visible = false;
 
         function overlay() {
             return document.getElementById('promafiNavLoading');
+        }
+
+        function clearSamePageGuard() {
+            clearTimeout(samePageGuard);
+            samePageGuard = null;
         }
 
         function showNow() {
@@ -248,6 +256,7 @@
             showTimer = null;
             clearTimeout(failsafeTimer);
             failsafeTimer = null;
+            clearSamePageGuard();
             visible = false;
             const el = overlay();
             if (el) el.hidden = true;
@@ -256,7 +265,16 @@
 
         function scheduleShow() {
             clearTimeout(showTimer);
+            clearSamePageGuard();
+            const hrefAtSchedule = window.location.href;
             showTimer = setTimeout(showNow, DELAY_MS);
+            // Content-Disposition: attachment no dispara pageshow; sin esto el velo queda hasta el failsafe.
+            samePageGuard = setTimeout(function () {
+                samePageGuard = null;
+                if (window.location.href === hrefAtSchedule) {
+                    hide();
+                }
+            }, SAME_PAGE_GUARD_MS);
         }
 
         /** Si otro handler canceló la navegación tras capture, no dejar el overlay. */
@@ -268,6 +286,17 @@
 
         function isModifiedClick(e) {
             return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1;
+        }
+
+        function isDownloadLikeUrl(url) {
+            const path = url.pathname.toLowerCase();
+            if (path.includes('/descargar') || path.includes('/download')) {
+                return true;
+            }
+            if (/(?:^|[?&])descargar=/.test(url.search)) {
+                return true;
+            }
+            return false;
         }
 
         function shouldSkipLink(a) {
@@ -283,6 +312,7 @@
             try {
                 const url = new URL(href, window.location.href);
                 if (url.origin !== window.location.origin) return true;
+                if (isDownloadLikeUrl(url)) return true;
                 if (url.pathname === window.location.pathname
                     && url.search === window.location.search
                     && url.hash) {
@@ -338,6 +368,7 @@
         window.addEventListener('pagehide', function () {
             clearTimeout(showTimer);
             clearTimeout(failsafeTimer);
+            clearSamePageGuard();
         });
         document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'visible') hide();

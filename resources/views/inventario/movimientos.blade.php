@@ -69,6 +69,9 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
                     @else
                         <span class="badge badge-warning">{{ $m->etiqueta_tipo }}</span>
                     @endif
+                    @if($m->estaRevertido())
+                        <span class="badge badge-gray" style="margin-left:4px;">Revertido</span>
+                    @endif
                 </td>
                 <td class="td-right text-mono fw-600">{{ \App\Models\InventarioMovimiento::esEntrada($m->tipo) ? '+' : '−' }}{{ number_format($m->cantidad, 2) }}</td>
                 <td class="td-right text-mono">{{ $m->costo_unitario !== null ? '$' . number_format((float) $m->costo_unitario, 2) : '—' }}</td>

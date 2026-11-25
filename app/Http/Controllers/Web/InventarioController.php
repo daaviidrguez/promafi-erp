@@ -28,8 +28,41 @@ class InventarioController extends Controller
 
     public function showMovimiento(InventarioMovimiento $movimiento)
     {
-        $movimiento->load(['producto', 'usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra']);
+        $movimiento->load([
+            'producto',
+            'usuario',
+            'factura',
+            'remision',
+            'ordenCompra',
+            'facturaCompra',
+            'reversoDe',
+            'reverso',
+        ]);
+
         return view('inventario.show-movimiento', compact('movimiento'));
+    }
+
+    /**
+     * Reversa una entrada/salida manual: crea movimiento opuesto y ajusta stock (y promedio si aplica).
+     */
+    public function reversarMovimiento(Request $request, InventarioMovimiento $movimiento)
+    {
+        $validated = $request->validate([
+            'motivo' => 'nullable|string|max:400',
+        ]);
+
+        try {
+            $reverso = $movimiento->reversarManual(
+                auth()->id(),
+                $validated['motivo'] ?? null
+            );
+
+            return redirect()
+                ->route('inventario.movimiento.show', $reverso->id)
+                ->with('success', 'Movimiento revertido. Se registró ' . ($reverso->folio ?? 'la reversa') . '.');
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     public function buscarProductos(Request $request)
@@ -62,7 +95,16 @@ class InventarioController extends Controller
     {
         $productoId = $request->get('producto_id');
         $tipo = $request->get('tipo');
-        $query = InventarioMovimiento::with(['producto', 'usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])
+        $query = InventarioMovimiento::with([
+                'producto',
+                'usuario',
+                'factura',
+                'remision',
+                'ordenCompra',
+                'facturaCompra',
+                'reverso',
+                'reversoDe',
+            ])
             ->when($productoId, fn ($q) => $q->where('producto_id', $productoId))
             ->when($tipo, fn ($q) => $q->where('tipo', $tipo))
             ->orderByDesc('created_at');
@@ -140,7 +182,9 @@ class InventarioController extends Controller
             return redirect()->route('inventario.index')->with('error', 'El producto no controla inventario');
         }
         $producto->load('categoria');
-        $movimientos = $producto->movimientos()->with(['usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra'])->paginate(20);
+        $movimientos = $producto->movimientos()
+            ->with(['usuario', 'factura', 'remision', 'ordenCompra', 'facturaCompra', 'reverso', 'reversoDe'])
+            ->paginate(20);
         return view('inventario.show-producto', compact('producto', 'movimientos'));
     }
 

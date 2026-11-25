@@ -591,13 +591,6 @@ class CompraController extends Controller
                 $producto = $detalle->producto;
                 $cantidad = (float) $detalle->cantidad;
                 $costoUnitario = (float) $detalle->valor_unitario;
-                $stockAnterior = (float) $producto->stock;
-                $costoActual = (float) ($producto->costo_promedio ?? $producto->costo ?? 0);
-                $denominador = $stockAnterior + $cantidad;
-                if ($denominador > 0) {
-                    $nuevoCostoPromedio = round(($stockAnterior * $costoActual + $cantidad * $costoUnitario) / $denominador, 2);
-                    $producto->update(['costo_promedio' => $nuevoCostoPromedio]);
-                }
                 InventarioMovimiento::registrar(
                     $producto,
                     InventarioMovimiento::TIPO_ENTRADA_COMPRA,
@@ -607,7 +600,9 @@ class CompraController extends Controller
                     null,
                     null,
                     $compra->id,
-                    null
+                    null,
+                    null,
+                    $costoUnitario
                 );
             }
             $compra->update(['estado' => 'recibida', 'fecha_recepcion' => now()]);
@@ -679,7 +674,9 @@ class CompraController extends Controller
                         null,
                         null,
                         $compra->id,
-                        'Reversa por cancelación de compra'
+                        'Reversa por cancelación de compra',
+                        null,
+                        $costoUnitario
                     );
                 }
             }

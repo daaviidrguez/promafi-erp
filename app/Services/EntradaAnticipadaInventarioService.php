@@ -23,7 +23,6 @@ class EntradaAnticipadaInventarioService
 
             $cantidad = (float) $detalle->cantidad_recibida;
             $costoUnitario = (float) $detalle->precio_unitario_estimado;
-            $this->actualizarCostoPromedio($producto, $cantidad, $costoUnitario);
 
             InventarioMovimiento::registrar(
                 $producto,
@@ -35,7 +34,8 @@ class EntradaAnticipadaInventarioService
                 $ea->orden_compra_id,
                 null,
                 'Entrada anticipada '.$ea->folio,
-                $ea->id
+                $ea->id,
+                $costoUnitario
             );
         }
     }
@@ -82,7 +82,8 @@ class EntradaAnticipadaInventarioService
                 $ea->orden_compra_id,
                 null,
                 'Reversa entrada anticipada '.$ea->folio,
-                $ea->id
+                $ea->id,
+                $costoUnitario
             );
         }
     }
@@ -181,15 +182,4 @@ class EntradaAnticipadaInventarioService
         ]);
     }
 
-    private function actualizarCostoPromedio(Producto $producto, float $cantidad, float $costoUnitario): void
-    {
-        $stockAnterior = (float) $producto->stock;
-        $costoActual = (float) ($producto->costo_promedio ?? $producto->costo ?? 0);
-        $denominador = $stockAnterior + $cantidad;
-
-        if ($denominador > 0) {
-            $nuevoCosto = round(($stockAnterior * $costoActual + $cantidad * $costoUnitario) / $denominador, 2);
-            $producto->update(['costo_promedio' => $nuevoCosto]);
-        }
-    }
 }

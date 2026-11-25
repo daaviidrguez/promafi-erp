@@ -14,7 +14,8 @@ class ProductoPsiConsecutivo
      */
     public static function siguienteNumeroDesde(int $desde = 1): int
     {
-        $max = FolioNumerico::maxSecuencia(Producto::withTrashed(), 'PSI-%');
+        // En productos el consecutivo PSI vive en `codigo`, no en `folio`.
+        $max = FolioNumerico::maxSecuencia(Producto::withTrashed(), 'PSI-%', 'codigo');
 
         return max(1, $desde, $max + 1);
     }

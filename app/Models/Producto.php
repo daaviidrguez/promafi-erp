@@ -170,15 +170,81 @@ class Producto extends Model
     }
 
     /**
-     * Calcular margen de ganancia
+     * Costo estándar numérico (sin IVA).
+     */
+    public function costoEstandarNumerico(): float
+    {
+        return max(0.0, (float) ($this->costo ?? 0));
+    }
+
+    /**
+     * Costo promedio numérico (sin IVA). Null o vacío se tratan como 0.
+     */
+    public function costoPromedioNumerico(): float
+    {
+        return max(0.0, (float) ($this->costo_promedio ?? 0));
+    }
+
+    /**
+     * Costo base para precio de venta: el mayor entre estándar y promedio.
+     */
+    public function getCostoBaseParaPrecioAttribute(): float
+    {
+        return max($this->costoEstandarNumerico(), $this->costoPromedioNumerico());
+    }
+
+    /**
+     * Fuente del costo usado para precio: "estandar" | "promedio".
+     * Si empatan, se reporta estándar.
+     */
+    public function getFuenteCostoParaPrecioAttribute(): string
+    {
+        return $this->costoPromedioNumerico() > $this->costoEstandarNumerico()
+            ? 'promedio'
+            : 'estandar';
+    }
+
+    public function etiquetaFuenteCostoParaPrecio(): string
+    {
+        return $this->fuente_costo_para_precio === 'promedio'
+            ? 'Costo Promedio'
+            : 'Costo Estándar';
+    }
+
+    /**
+     * Margen factorizado (%) sobre el precio de venta:
+     * Precio = Costo / (1 - Margen%). Margen = (1 - Costo/Precio) * 100.
      */
     public function getMargenAttribute(): float
     {
-        if ($this->costo == 0) {
-            return 0;
+        $precio = (float) ($this->precio_venta ?? 0);
+        $costo = $this->costo_base_para_precio;
+
+        if ($precio <= 0 || $costo <= 0 || $costo >= $precio) {
+            return 0.0;
         }
 
-        return (($this->precio_venta - $this->costo) / $this->costo) * 100;
+        return (1 - ($costo / $precio)) * 100;
+    }
+
+    /**
+     * Calcula precio de venta (sin IVA) desde costo y margen factorizado.
+     */
+    public static function precioDesdeMargenFactorizado(float $costo, float $margenPct): float
+    {
+        if ($costo <= 0) {
+            return 0.0;
+        }
+
+        if ($margenPct <= 0) {
+            return round($costo, 2);
+        }
+
+        if ($margenPct >= 99.99) {
+            return round($costo, 2);
+        }
+
+        return round($costo / (1 - ($margenPct / 100)), 2);
     }
 
     /**

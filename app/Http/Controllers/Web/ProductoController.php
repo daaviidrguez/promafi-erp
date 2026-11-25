@@ -321,12 +321,9 @@ class ProductoController extends Controller
             'tipo_impuesto' => 'nullable|string|max:3',
             'tipo_factor' => 'required|in:Tasa,Exento',
             'tasa_iva' => 'required|numeric|min:0|max:1',
-            'precio_venta' => 'required|numeric|min:0',
-            'costo' => 'nullable|numeric|min:0',
             'stock_minimo' => 'nullable|numeric|min:0',
             'stock_maximo' => 'nullable|numeric|min:0',
             'controla_inventario' => 'boolean',
-            'aplica_iva' => 'boolean',
         ], [
             'codigo.unique' => 'El código ya existe en el sistema.',
         ]);
@@ -351,6 +348,8 @@ class ProductoController extends Controller
         $validated['activo'] = true;
         $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
         $validated['aplica_iva'] = ($validated['tipo_factor'] ?? 'Tasa') !== 'Exento';
+        $validated['precio_venta'] = 0; // Se configura después desde el show (Costos y Precios)
+        $validated['costo'] = 0;
         $validated['stock'] = 0; // Stock se gestiona desde el módulo Inventario
 
         $producto = Producto::create($validated);
@@ -364,7 +363,7 @@ class ProductoController extends Controller
         }
 
         return redirect()->route('productos.show', $producto->id)
-            ->with('success', 'Producto creado exitosamente');
+            ->with('success', 'Producto creado exitosamente. Configura costos y precios con el botón Editar.');
     }
 
     public function show(Producto $producto)
@@ -377,6 +376,52 @@ class ProductoController extends Controller
         $claveSatEtiqueta = $catalogo ? $catalogo->etiqueta : $producto->clave_sat;
 
         return view('productos.show', compact('producto', 'claveSatEtiqueta'));
+    }
+
+    /**
+     * Actualiza costos y precio de venta desde el modal del show.
+     * Regla: el precio se basa en max(costo estándar, costo promedio).
+     */
+    public function updatePrecios(Request $request, Producto $producto)
+    {
+        if ($request->input('costo_promedio') === '' || $request->input('costo_promedio') === null) {
+            $request->merge(['costo_promedio' => null]);
+        }
+
+        $validated = $request->validate([
+            'costo' => 'required|numeric|min:0',
+            'costo_promedio' => 'nullable|numeric|min:0',
+            'precio_venta' => 'required|numeric|min:0',
+            'margen_utilidad' => 'nullable|numeric|min:0|max:99.99',
+        ], [
+            'costo.required' => 'El costo estándar es obligatorio.',
+            'precio_venta.required' => 'El precio de venta es obligatorio.',
+        ]);
+
+        $costo = round((float) $validated['costo'], 4);
+        $costoPromedio = array_key_exists('costo_promedio', $validated) && $validated['costo_promedio'] !== null
+            ? round((float) $validated['costo_promedio'], 4)
+            : null;
+
+        $precioVenta = round((float) $validated['precio_venta'], 2);
+
+        // Si mandan margen y el precio llega en 0, recalcular con margen factorizado.
+        $margen = isset($validated['margen_utilidad']) ? (float) $validated['margen_utilidad'] : null;
+        $costoBase = max($costo, (float) ($costoPromedio ?? 0));
+        if ($margen !== null && $precioVenta <= 0 && $costoBase > 0) {
+            $precioVenta = Producto::precioDesdeMargenFactorizado($costoBase, $margen);
+        }
+
+        $producto->update([
+            'costo' => $costo,
+            'costo_promedio' => $costoPromedio,
+            'precio_venta' => $precioVenta,
+            'requiere_revision_precio' => false,
+        ]);
+
+        return redirect()
+            ->route('productos.show', $producto->id)
+            ->with('success', 'Costos y precios actualizados correctamente');
     }
 
     /**
@@ -429,12 +474,9 @@ class ProductoController extends Controller
             'tipo_impuesto' => 'nullable|string|max:3',
             'tipo_factor' => 'required|in:Tasa,Exento',
             'tasa_iva' => 'required|numeric|min:0|max:1',
-            'precio_venta' => 'required|numeric|min:0',
-            'costo' => 'nullable|numeric|min:0',
             'stock_minimo' => 'nullable|numeric|min:0',
             'stock_maximo' => 'nullable|numeric|min:0',
             'controla_inventario' => 'boolean',
-            'aplica_iva' => 'boolean',
             'activo' => 'boolean',
         ], [
             'codigo.unique' => 'El código ya existe en el sistema.',
@@ -453,6 +495,8 @@ class ProductoController extends Controller
         $validated['tipo_impuesto'] = $validated['tipo_impuesto'] ?? '002';
         $validated['aplica_iva'] = ($validated['tipo_factor'] ?? 'Tasa') !== 'Exento';
         unset($validated['stock']); // Stock solo se modifica desde Inventario
+        // Precio/costo se editan desde el modal de Costos y Precios en el show
+        unset($validated['precio_venta'], $validated['costo'], $validated['costo_promedio']);
         $producto->update($validated);
 
         $redirectImagenes = $this->procesarImagenesEnActualizacion($request, $producto);

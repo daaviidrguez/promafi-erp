@@ -318,6 +318,7 @@ Route::middleware(['auth', 'route.permission'])->group(function () {
     Route::get('/catalogo-online', [CatalogoOnlineController::class, 'index'])->name('catalogo-online.index');
     Route::put('/catalogo-online/productos/{producto}', [CatalogoOnlineController::class, 'updateProducto'])->name('catalogo-online.productos.update');
     Route::resource('productos', ProductoController::class);
+    Route::put('/productos/{producto}/precios', [ProductoController::class, 'updatePrecios'])->name('productos.precios.update');
     Route::post('/productos/{producto}/proveedores-codigo', [ProductoProveedorController::class, 'save'])->name('productos.proveedores-codigo.save');
     Route::delete('/productos/{producto}/proveedores-codigo/{productoProveedor}', [ProductoProveedorController::class, 'destroy'])
         ->name('productos.proveedores-codigo.destroy');

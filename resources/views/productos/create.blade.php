@@ -162,7 +162,7 @@ $breadcrumbs = [
                         </div>
                         <div class="form-group">
                             <label class="form-label">Tasa <span class="req">*</span></label>
-                            <select name="tasa_iva" id="tasa_iva_create" class="form-control" onchange="actualizarPrecioIva()">
+                            <select name="tasa_iva" id="tasa_iva_create" class="form-control">
                                 <option value="0.160000" {{ old('tasa_iva', '0.16') == '0.16' || old('tasa_iva') == '0.160000' ? 'selected' : '' }}>0.160000 (16%)</option>
                                 <option value="0.080000" {{ old('tasa_iva') == '0.08' || old('tasa_iva') == '0.080000' ? 'selected' : '' }}>0.080000 (8%)</option>
                                 <option value="0.000000" {{ old('tasa_iva') == '0' || old('tasa_iva') == '0.000000' ? 'selected' : '' }}>0.000000 (0%)</option>
@@ -177,41 +177,15 @@ $breadcrumbs = [
         {{-- Columna derecha --}}
         <div>
 
-            {{-- Precios --}}
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">💰 Precios</div>
+                    <div class="card-title">💰 Costos y Precios</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Precio de Venta <span class="req">*</span></label>
-                        <input type="number" id="precio_venta" name="precio_venta" class="form-control"
-                               value="{{ old('precio_venta', 0) }}" min="0" step="0.01" required
-                               oninput="actualizarPrecioIva()">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Costo</label>
-                        <input type="number" name="costo" class="form-control"
-                               value="{{ old('costo', 0) }}" min="0" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Costo promedio</label>
-                        <div class="form-control" style="background: var(--color-gray-50); color: var(--color-gray-600);" readonly tabindex="-1">—</div>
-                        <span class="form-hint">Se calcula con movimientos valuados (compras, entradas anticipadas y entradas manuales).</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" name="aplica_iva" value="1" id="aplica_iva_create"
-                                   {{ old('aplica_iva', true) ? 'checked' : '' }}
-                                   style="width: 16px; height: 16px;"
-                                   onchange="actualizarPrecioIva()">
-                            Aplica IVA (según tasa del producto)
-                        </label>
-                    </div>
-                    <div class="totales-panel">
-                        <div class="totales-row">
-                            <span>Precio con IVA</span>
-                            <span class="monto" id="precioConIvaDisplay">$0.00</span>
+                    <div class="alert alert-info" style="margin-bottom: 0;">
+                        <span>ℹ️</span>
+                        <div style="font-size: 13px;">
+                            Se configuran después de crear el producto, desde la ficha (botón <strong>Editar</strong> en Costos y Precios).
                         </div>
                     </div>
                 </div>
@@ -292,18 +266,6 @@ $breadcrumbs = [
         } else {
             tasaSelect.disabled = false;
         }
-        actualizarPrecioIva();
-    }
-
-    function actualizarPrecioIva() {
-        const precio  = parseFloat(document.getElementById('precio_venta').value) || 0;
-        const aplica  = document.getElementById('aplica_iva_create').checked;
-        const tipoFactor = document.getElementById('tipo_factor_create').value;
-        const tasaVal = document.getElementById('tasa_iva_create').value;
-        const tasa = (tipoFactor === 'Exento' || !aplica) ? 0 : parseFloat(tasaVal) || 0;
-        const total = precio * (1 + tasa);
-        document.getElementById('precioConIvaDisplay').textContent =
-            '$' + total.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
     }
 
     function actualizarCategoriaPadreCreate() {
@@ -316,7 +278,6 @@ $breadcrumbs = [
     }
 
     actualizarTasaCreate();
-    actualizarPrecioIva();
     actualizarCategoriaPadreCreate();
 
     // Unidad de medida: al elegir, precargar clave y nombre

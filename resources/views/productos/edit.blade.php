@@ -193,7 +193,7 @@ $breadcrumbs = [
                         </div>
                         <div class="form-group">
                             <label class="form-label">Tasa <span class="req">*</span></label>
-                            <select name="tasa_iva" id="tasa_iva_edit" class="form-control" onchange="actualizarPrecioIva()">
+                            <select name="tasa_iva" id="tasa_iva_edit" class="form-control">
                                 <option value="0.160000" {{ old('tasa_iva', $tasaOption) == '0.160000' ? 'selected' : '' }}>0.160000 (16%)</option>
                                 <option value="0.080000" {{ old('tasa_iva', $tasaOption) == '0.080000' ? 'selected' : '' }}>0.080000 (8%)</option>
                                 <option value="0.000000" {{ old('tasa_iva', $tasaOption) == '0.000000' ? 'selected' : '' }}>0.000000 (0%)</option>
@@ -210,48 +210,46 @@ $breadcrumbs = [
 
             <div class="card">
                 <div class="card-header">
-                    <div class="card-title">💰 Precios</div>
+                    <div class="card-title">💰 Costos y Precios</div>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label class="form-label">Precio de Venta <span class="req">*</span></label>
-                        <input type="number" id="precio_venta" name="precio_venta" class="form-control"
-                               value="{{ old('precio_venta', $producto->precio_venta) }}" min="0" step="0.01" required
-                               oninput="actualizarPrecioIva()">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Costo</label>
-                        <input type="number" name="costo" class="form-control"
-                               value="{{ old('costo', $producto->costo) }}" min="0" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Costo promedio</label>
-                        <div class="form-control text-mono" style="background: var(--color-gray-50); font-weight: 600;" readonly tabindex="-1">
-                            @if($producto->costo_promedio !== null && (float) $producto->costo_promedio > 0)
-                                ${{ number_format((float) $producto->costo_promedio, 2, '.', ',') }}
-                            @else
-                                —
-                            @endif
+                    <div class="alert alert-info" style="margin-bottom: 12px;">
+                        <span>ℹ️</span>
+                        <div style="font-size: 13px;">
+                            Se editan desde la ficha del producto (botón <strong>Editar</strong> en Costos y Precios).
                         </div>
-                        <span class="form-hint">Se actualiza solo con movimientos valuados (compras, entradas anticipadas y entradas manuales). No se edita aquí.</span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" name="aplica_iva" value="1" id="aplica_iva_edit"
-                                   {{ old('aplica_iva', $producto->aplica_iva) ? 'checked' : '' }}
-                                   style="width: 16px; height: 16px;"
-                                   onchange="actualizarPrecioIva()">
-                            Aplica IVA (según tasa del producto)
-                        </label>
-                    </div>
-                    <div class="totales-panel">
-                        <div class="totales-row">
-                            <span>Precio con IVA</span>
-                            <span class="monto" id="precioConIvaDisplay">
+                    <div class="info-grid-2">
+                        <div class="info-row">
+                            <div class="info-label">Costo estándar</div>
+                            <div class="info-value text-mono">${{ number_format((float) $producto->costo, 2, '.', ',') }}</div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Costo promedio</div>
+                            <div class="info-value text-mono">
+                                @if($producto->costo_promedio !== null && (float) $producto->costo_promedio > 0)
+                                    ${{ number_format((float) $producto->costo_promedio, 2, '.', ',') }}
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Precio de venta</div>
+                            <div class="info-value text-mono" style="color: var(--color-primary);">
+                                ${{ number_format((float) $producto->precio_venta, 2, '.', ',') }}
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <div class="info-label">Precio con IVA</div>
+                            <div class="info-value text-mono" style="color: var(--color-success);">
                                 ${{ number_format($producto->precio_con_iva, 2, '.', ',') }}
-                            </span>
+                            </div>
                         </div>
                     </div>
+                    <a href="{{ route('productos.show', $producto->id) }}" class="btn btn-outline btn-sm" style="margin-top: 12px;">
+                        Ir a ficha para editar precios
+                    </a>
                 </div>
             </div>
 
@@ -358,18 +356,6 @@ $breadcrumbs = [
         } else {
             tasaSelect.disabled = false;
         }
-        actualizarPrecioIva();
-    }
-
-    function actualizarPrecioIva() {
-        const precio = parseFloat(document.getElementById('precio_venta').value) || 0;
-        const aplica = document.getElementById('aplica_iva_edit').checked;
-        const tipoFactor = document.getElementById('tipo_factor_edit').value;
-        const tasaVal = document.getElementById('tasa_iva_edit').value;
-        const tasa = (tipoFactor === 'Exento' || !aplica) ? 0 : parseFloat(tasaVal) || 0;
-        const total = precio * (1 + tasa);
-        document.getElementById('precioConIvaDisplay').textContent =
-            '$' + total.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
     }
 
     function actualizarCategoriaPadreEdit() {

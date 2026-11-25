@@ -214,14 +214,6 @@ $breadcrumbs = [
                             @else
                                 <span class="text-muted">—</span>
                             @endif
-                            <form method="POST"
-                                  action="{{ route('productos.recalcular-costo-promedio', $producto) }}"
-                                  style="display:inline; margin-left: 8px;">
-                                @csrf
-                                <button type="submit" class="btn btn-light btn-sm" title="Recalcular desde compras recibidas">
-                                    Recalcular
-                                </button>
-                            </form>
                         </div>
                     </div>
                     <div class="info-row">

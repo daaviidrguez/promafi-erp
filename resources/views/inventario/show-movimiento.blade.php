@@ -31,6 +31,11 @@ $breadcrumbs = [
                     <div class="info-row"><div class="info-label">Cantidad</div><div class="info-value text-mono fw-600">{{ \App\Models\InventarioMovimiento::esEntrada($movimiento->tipo) ? '+' : '−' }}{{ number_format($movimiento->cantidad, 2) }}</div></div>
                     <div class="info-row"><div class="info-label">Stock anterior</div><div class="info-value text-mono">{{ number_format($movimiento->stock_anterior ?? 0, 2) }}</div></div>
                     <div class="info-row"><div class="info-label">Stock resultante</div><div class="info-value text-mono fw-600">{{ number_format($movimiento->stock_resultante ?? 0, 2) }}</div></div>
+                    @if($movimiento->costo_unitario !== null)
+                    <div class="info-row"><div class="info-label">Costo unitario</div><div class="info-value text-mono">${{ number_format((float) $movimiento->costo_unitario, 2, '.', ',') }}</div></div>
+                    <div class="info-row"><div class="info-label">Costo promedio anterior</div><div class="info-value text-mono">${{ number_format((float) ($movimiento->costo_promedio_anterior ?? 0), 2, '.', ',') }}</div></div>
+                    <div class="info-row"><div class="info-label">Costo promedio resultante</div><div class="info-value text-mono fw-600">${{ number_format((float) ($movimiento->costo_promedio_resultante ?? 0), 2, '.', ',') }}</div></div>
+                    @endif
                     <div class="info-row"><div class="info-label">Fecha</div><div class="info-value">{{ $movimiento->created_at->format('d/m/Y H:i') }}</div></div>
                     <div class="info-row"><div class="info-label">Usuario</div><div class="info-value">{{ $movimiento->usuario->name ?? '—' }}</div></div>
                     @if($movimiento->observaciones)

@@ -233,7 +233,7 @@ $breadcrumbs = [
                                 —
                             @endif
                         </div>
-                        <span class="form-hint">Valor almacenado (recalcular desde la ficha del producto)</span>
+                        <span class="form-hint">Se actualiza solo con movimientos valuados (compras, entradas anticipadas y entradas manuales). No se edita aquí.</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">

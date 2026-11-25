@@ -8,6 +8,7 @@ use App\Models\Producto;
 use App\Services\PDFService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class InventarioController extends Controller
 {
@@ -45,13 +46,15 @@ class InventarioController extends Controller
             })
             ->orderBy('nombre')
             ->limit(10)
-            ->get(['id', 'codigo', 'nombre', 'stock']);
+            ->get(['id', 'codigo', 'nombre', 'stock', 'costo', 'costo_promedio']);
 
         return response()->json($productos->map(fn ($p) => [
             'id' => $p->id,
             'codigo' => $p->codigo,
             'nombre' => $p->nombre,
             'stock' => (float) $p->stock,
+            'costo' => (float) ($p->costo ?? 0),
+            'costo_promedio' => InventarioMovimiento::costoValuacionProducto($p),
         ]));
     }
 
@@ -87,12 +90,27 @@ class InventarioController extends Controller
             'producto_id' => 'required|exists:productos,id',
             'tipo' => 'required|in:entrada_manual,salida_manual',
             'cantidad' => 'required|numeric|min:0.01',
+            'costo_unitario' => [
+                Rule::requiredIf(fn () => $request->input('tipo') === 'entrada_manual'),
+                'nullable',
+                'numeric',
+                'min:0',
+            ],
             'observaciones' => 'nullable|string|max:500',
+        ], [
+            'costo_unitario.required' => 'El costo unitario es obligatorio en entradas manuales.',
         ]);
+
         $producto = Producto::findOrFail($validated['producto_id']);
         if (!$producto->controla_inventario) {
             return back()->with('error', 'El producto no controla inventario');
         }
+
+        $costoUnitario = null;
+        if ($validated['tipo'] === 'entrada_manual') {
+            $costoUnitario = (float) $validated['costo_unitario'];
+        }
+
         try {
             InventarioMovimiento::registrar(
                 $producto,
@@ -103,9 +121,13 @@ class InventarioController extends Controller
                 null,
                 null,
                 null,
-                $validated['observaciones'] ?? null
+                $validated['observaciones'] ?? null,
+                null,
+                $costoUnitario
             );
-            $mensaje = $validated['tipo'] === 'entrada_manual' ? 'Entrada de inventario registrada' : 'Salida de inventario registrada';
+            $mensaje = $validated['tipo'] === 'entrada_manual'
+                ? 'Entrada de inventario registrada. Se actualizó el costo promedio.'
+                : 'Salida de inventario registrada';
             return redirect()->route('inventario.movimientos')->with('success', $mensaje);
         } catch (\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());

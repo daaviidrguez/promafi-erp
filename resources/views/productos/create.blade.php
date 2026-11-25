@@ -197,7 +197,7 @@ $breadcrumbs = [
                     <div class="form-group">
                         <label class="form-label">Costo promedio</label>
                         <div class="form-control" style="background: var(--color-gray-50); color: var(--color-gray-600);" readonly tabindex="-1">—</div>
-                        <span class="form-hint">Promedio sobre compras recibidas (se calcula automáticamente)</span>
+                        <span class="form-hint">Se calcula con movimientos valuados (compras, entradas anticipadas y entradas manuales).</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">

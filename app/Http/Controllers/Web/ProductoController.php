@@ -404,22 +404,6 @@ class ProductoController extends Controller
         );
     }
 
-    /**
-     * Recalcula y guarda costo_promedio desde compras recibidas (bajo demanda).
-     */
-    public function recalcularCostoPromedio(Producto $producto)
-    {
-        $calc = $producto->costo_promedio_calculado;
-        $producto->update(['costo_promedio' => $calc]);
-
-        return back()->with(
-            'success',
-            $calc !== null
-                ? 'Costo promedio actualizado: $'.number_format($calc, 2, '.', ',')
-                : 'Sin compras recibidas para calcular costo promedio.'
-        );
-    }
-
     public function edit(Producto $producto)
     {
         $categorias = $this->categoriasActivasCached();

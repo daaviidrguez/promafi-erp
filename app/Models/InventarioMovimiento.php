@@ -15,6 +15,9 @@ class InventarioMovimiento extends Model
         'cantidad',
         'stock_anterior',
         'stock_resultante',
+        'costo_unitario',
+        'costo_promedio_anterior',
+        'costo_promedio_resultante',
         'folio',
         'factura_id',
         'remision_id',
@@ -29,6 +32,9 @@ class InventarioMovimiento extends Model
         'cantidad' => 'decimal:2',
         'stock_anterior' => 'decimal:2',
         'stock_resultante' => 'decimal:2',
+        'costo_unitario' => 'decimal:4',
+        'costo_promedio_anterior' => 'decimal:4',
+        'costo_promedio_resultante' => 'decimal:4',
     ];
 
     const TIPO_ENTRADA_COMPRA = 'entrada_compra';
@@ -136,7 +142,43 @@ class InventarioMovimiento extends Model
     }
 
     /**
+     * Costo de valuación vigente del producto (promedio almacenado o costo de catálogo).
+     */
+    public static function costoValuacionProducto(Producto $producto): float
+    {
+        if ($producto->costo_promedio !== null && (float) $producto->costo_promedio > 0) {
+            return (float) $producto->costo_promedio;
+        }
+
+        return (float) ($producto->costo ?? 0);
+    }
+
+    /**
+     * Promedio ponderado al ingresar mercancía con costo unitario.
+     * Misma fórmula que recepción de compra / entrada anticipada.
+     * No modifica el costo de catálogo del producto.
+     */
+    public static function calcularCostoPromedioEntrada(
+        float $stockAnterior,
+        float $costoPromedioAnterior,
+        float $cantidad,
+        float $costoUnitario
+    ): float {
+        $denominador = $stockAnterior + $cantidad;
+        if ($denominador <= 0) {
+            return max(0, round($costoUnitario, 2));
+        }
+
+        return round(
+            ($stockAnterior * $costoPromedioAnterior + $cantidad * $costoUnitario) / $denominador,
+            2
+        );
+    }
+
+    /**
      * Registrar movimiento y actualizar stock del producto.
+     * En entrada_manual: exige costo_unitario y actualiza costo_promedio (no el costo de catálogo).
+     * En salida_manual: registra el costo de valuación vigente; el promedio no cambia.
      */
     public static function registrar(
         Producto $producto,
@@ -148,7 +190,8 @@ class InventarioMovimiento extends Model
         ?int $ordenCompraId = null,
         ?int $facturaCompraId = null,
         ?string $observaciones = null,
-        ?int $entradaAnticipadaId = null
+        ?int $entradaAnticipadaId = null,
+        ?float $costoUnitario = null
     ): self {
         if (!$producto->controla_inventario) {
             throw new \InvalidArgumentException('El producto no controla inventario');
@@ -164,7 +207,8 @@ class InventarioMovimiento extends Model
             $ordenCompraId,
             $facturaCompraId,
             $observaciones,
-            $entradaAnticipadaId
+            $entradaAnticipadaId,
+            $costoUnitario
         ) {
             $producto = Producto::query()->whereKey($producto->id)->lockForUpdate()->firstOrFail();
             if (!$producto->controla_inventario) {
@@ -179,7 +223,37 @@ class InventarioMovimiento extends Model
             if ($stockResultante < 0) {
                 throw new \InvalidArgumentException("Stock insuficiente para el producto {$producto->nombre}. Disponible: {$stockAnterior}");
             }
-            $producto->update(['stock' => $stockResultante]);
+
+            $esManual = in_array($tipo, [self::TIPO_ENTRADA_MANUAL, self::TIPO_SALIDA_MANUAL], true);
+            $costoPromedioAnterior = self::costoValuacionProducto($producto);
+            $costoUnitarioMovimiento = null;
+            $costoPromedioResultante = null;
+            $productoUpdate = ['stock' => $stockResultante];
+
+            if ($tipo === self::TIPO_ENTRADA_MANUAL) {
+                if ($costoUnitario === null) {
+                    throw new \InvalidArgumentException('El costo unitario es obligatorio en entradas manuales');
+                }
+                if ($costoUnitario < 0) {
+                    throw new \InvalidArgumentException('El costo unitario no puede ser negativo');
+                }
+                $costoUnitarioMovimiento = round((float) $costoUnitario, 4);
+                $costoPromedioResultante = self::calcularCostoPromedioEntrada(
+                    $stockAnterior,
+                    $costoPromedioAnterior,
+                    $cantidad,
+                    $costoUnitarioMovimiento
+                );
+                // Solo costo_promedio: el costo de catálogo no se modifica.
+                $productoUpdate['costo_promedio'] = $costoPromedioResultante;
+            } elseif ($tipo === self::TIPO_SALIDA_MANUAL) {
+                $costoUnitarioMovimiento = $costoUnitario !== null
+                    ? round((float) $costoUnitario, 4)
+                    : round($costoPromedioAnterior, 4);
+                $costoPromedioResultante = $costoPromedioAnterior;
+            }
+
+            $producto->update($productoUpdate);
 
             $data = [
                 'producto_id' => $producto->id,
@@ -196,8 +270,13 @@ class InventarioMovimiento extends Model
                 'observaciones' => $observaciones,
             ];
 
-            if (in_array($tipo, [self::TIPO_ENTRADA_MANUAL, self::TIPO_SALIDA_MANUAL])) {
+            if ($esManual) {
                 $data['folio'] = self::generarFolioManual();
+                $data['costo_unitario'] = $costoUnitarioMovimiento;
+                $data['costo_promedio_anterior'] = round($costoPromedioAnterior, 4);
+                $data['costo_promedio_resultante'] = $costoPromedioResultante !== null
+                    ? round($costoPromedioResultante, 4)
+                    : null;
             }
 
             return self::create($data);

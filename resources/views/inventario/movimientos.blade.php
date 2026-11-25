@@ -49,6 +49,7 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
                 <th>Producto</th>
                 <th>Tipo</th>
                 <th class="td-right">Cantidad</th>
+                <th class="td-right">Costo u.</th>
                 <th class="td-right">Stock resultante</th>
                 <th>Referencia</th>
                 <th>Usuario</th>
@@ -70,6 +71,7 @@ $breadcrumbs = [['title' => 'Inventario', 'url' => route('inventario.index')], [
                     @endif
                 </td>
                 <td class="td-right text-mono fw-600">{{ \App\Models\InventarioMovimiento::esEntrada($m->tipo) ? '+' : '−' }}{{ number_format($m->cantidad, 2) }}</td>
+                <td class="td-right text-mono">{{ $m->costo_unitario !== null ? '$' . number_format((float) $m->costo_unitario, 2) : '—' }}</td>
                 <td class="td-right text-mono">{{ number_format($m->stock_resultante ?? 0, 2) }}</td>
                 <td style="font-size:13px;">
                     @if($m->factura_id)
